@@ -1,0 +1,340 @@
+import {
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  deleteDoc,
+  writeBatch,
+  onSnapshot,
+  query,
+  Timestamp,
+} from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../types';
+
+// Collection isimleri
+const COLLECTIONS = {
+  USERS: 'users',
+  MEDICINES: 'medicines',
+  REMINDER_TIMES: 'reminderTimes',
+  MEDICINE_LOGS: 'medicineLogs',
+  SETTINGS: 'settings',
+};
+
+// Kullanıcı doküman referansı
+const getUserDocRef = (userId: string) => doc(db, COLLECTIONS.USERS, userId);
+
+// Alt koleksiyon referansları
+const getMedicinesRef = (userId: string) => 
+  collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINES);
+
+const getReminderTimesRef = (userId: string) => 
+  collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.REMINDER_TIMES);
+
+const getMedicineLogsRef = (userId: string) => 
+  collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINE_LOGS);
+
+const getSettingsDocRef = (userId: string) => 
+  doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SETTINGS, 'userSettings');
+
+// ============ İLAÇLAR ============
+
+// Tüm ilaçları kaydet (batch)
+export async function syncMedicinesToCloud(
+  userId: string,
+  medicines: Medicine[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  const medicinesRef = getMedicinesRef(userId);
+
+  // Önce mevcut tüm ilaçları sil
+  const existingDocs = await getDocs(medicinesRef);
+  existingDocs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+
+  // Yeni ilaçları ekle
+  medicines.forEach((medicine) => {
+    const docRef = doc(medicinesRef, medicine.id);
+    batch.set(docRef, {
+      ...medicine,
+      updatedAt: Timestamp.now(),
+    });
+  });
+
+  await batch.commit();
+}
+
+// Tek bir ilaç kaydet
+export async function saveMedicineToCloud(
+  userId: string,
+  medicine: Medicine
+): Promise<void> {
+  const docRef = doc(getMedicinesRef(userId), medicine.id);
+  await setDoc(docRef, {
+    ...medicine,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+// İlaç sil
+export async function deleteMedicineFromCloud(
+  userId: string,
+  medicineId: string
+): Promise<void> {
+  const docRef = doc(getMedicinesRef(userId), medicineId);
+  await deleteDoc(docRef);
+}
+
+// Tüm ilaçları getir
+export async function getMedicinesFromCloud(userId: string): Promise<Medicine[]> {
+  const medicinesRef = getMedicinesRef(userId);
+  const snapshot = await getDocs(medicinesRef);
+  
+  return snapshot.docs.map((doc) => ({
+    ...doc.data(),
+    id: doc.id,
+  })) as Medicine[];
+}
+
+// ============ HATIRLATMA ZAMANLARI ============
+
+// Tüm hatırlatma zamanlarını kaydet
+export async function syncReminderTimesToCloud(
+  userId: string,
+  reminderTimes: ReminderTime[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  const timesRef = getReminderTimesRef(userId);
+
+  // Mevcut tüm zamanları sil
+  const existingDocs = await getDocs(timesRef);
+  existingDocs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+
+  // Yeni zamanları ekle
+  reminderTimes.forEach((time) => {
+    const docRef = doc(timesRef, time.id);
+    batch.set(docRef, time);
+  });
+
+  await batch.commit();
+}
+
+// Tüm hatırlatma zamanlarını getir
+export async function getReminderTimesFromCloud(userId: string): Promise<ReminderTime[]> {
+  const timesRef = getReminderTimesRef(userId);
+  const snapshot = await getDocs(timesRef);
+  
+  return snapshot.docs.map((doc) => ({
+    ...doc.data(),
+    id: doc.id,
+  })) as ReminderTime[];
+}
+
+// ============ İLAÇ LOGLARI ============
+
+// Tüm logları kaydet
+export async function syncMedicineLogsToCloud(
+  userId: string,
+  logs: MedicineLog[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  const logsRef = getMedicineLogsRef(userId);
+
+  // Son 30 günlük logları kaydet (eski logları temizle)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const recentLogs = logs.filter(
+    (log) => new Date(log.scheduledTime) >= thirtyDaysAgo
+  );
+
+  // Mevcut logları sil
+  const existingDocs = await getDocs(logsRef);
+  existingDocs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+
+  // Yeni logları ekle
+  recentLogs.forEach((log) => {
+    const docRef = doc(logsRef, log.id);
+    batch.set(docRef, log);
+  });
+
+  await batch.commit();
+}
+
+// Tek bir log kaydet
+export async function saveMedicineLogToCloud(
+  userId: string,
+  log: MedicineLog
+): Promise<void> {
+  const docRef = doc(getMedicineLogsRef(userId), log.id);
+  await setDoc(docRef, log);
+}
+
+// Tüm logları getir
+export async function getMedicineLogsFromCloud(userId: string): Promise<MedicineLog[]> {
+  const logsRef = getMedicineLogsRef(userId);
+  const snapshot = await getDocs(logsRef);
+  
+  return snapshot.docs.map((doc) => ({
+    ...doc.data(),
+    id: doc.id,
+  })) as MedicineLog[];
+}
+
+// ============ AYARLAR ============
+
+// Ayarları kaydet
+export async function syncSettingsToCloud(
+  userId: string,
+  settings: UserSettings
+): Promise<void> {
+  const docRef = getSettingsDocRef(userId);
+  await setDoc(docRef, {
+    ...settings,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+// Ayarları getir
+export async function getSettingsFromCloud(userId: string): Promise<UserSettings | null> {
+  const docRef = getSettingsDocRef(userId);
+  const snapshot = await getDoc(docRef);
+  
+  if (snapshot.exists()) {
+    const data = snapshot.data();
+    return {
+      wakeUpTime: data.wakeUpTime,
+      sleepTime: data.sleepTime,
+      notificationSound: data.notificationSound,
+      vibrationEnabled: data.vibrationEnabled,
+      fullScreenAlarmEnabled: data.fullScreenAlarmEnabled,
+      language: data.language,
+    };
+  }
+  
+  return null;
+}
+
+// ============ TAM SENKRONİZASYON ============
+
+export interface SyncData {
+  medicines: Medicine[];
+  reminderTimes: ReminderTime[];
+  medicineLogs: MedicineLog[];
+  settings: UserSettings;
+}
+
+// Timeout wrapper fonksiyonu
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+    ),
+  ]);
+};
+
+// Tüm verileri buluta yükle
+export async function uploadAllDataToCloud(
+  userId: string,
+  data: SyncData
+): Promise<void> {
+  console.log('Veriler buluta yükleniyor...');
+  
+  try {
+    await withTimeout(
+      Promise.all([
+        syncMedicinesToCloud(userId, data.medicines),
+        syncReminderTimesToCloud(userId, data.reminderTimes),
+        syncMedicineLogsToCloud(userId, data.medicineLogs),
+        syncSettingsToCloud(userId, data.settings),
+      ]),
+      30000, // 30 saniye timeout
+      'Senkronizasyon zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
+    );
+    
+    console.log('Veriler buluta yüklendi!');
+  } catch (error: any) {
+    console.error('Buluta yükleme hatası:', error);
+    // Offline hatası için özel mesaj
+    if (error.code === 'unavailable' || error.message?.includes('offline')) {
+      throw new Error('İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.');
+    }
+    throw error;
+  }
+}
+
+// Tüm verileri buluttan indir
+export async function downloadAllDataFromCloud(userId: string): Promise<SyncData | null> {
+  console.log('Veriler buluttan indiriliyor...');
+  
+  try {
+    const [medicines, reminderTimes, medicineLogs, settings] = await withTimeout(
+      Promise.all([
+        getMedicinesFromCloud(userId),
+        getReminderTimesFromCloud(userId),
+        getMedicineLogsFromCloud(userId),
+        getSettingsFromCloud(userId),
+      ]),
+      30000, // 30 saniye timeout
+      'Veri indirme zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
+    );
+
+    // Eğer hiç veri yoksa null döndür
+    if (medicines.length === 0 && !settings) {
+      console.log('Bulutta veri bulunamadı.');
+      return null;
+    }
+
+    console.log('Veriler buluttan indirildi!');
+    
+    return {
+      medicines,
+      reminderTimes,
+      medicineLogs,
+      settings: settings || {
+        wakeUpTime: '08:00',
+        sleepTime: '23:00',
+        notificationSound: 'default',
+        vibrationEnabled: true,
+        fullScreenAlarmEnabled: true,
+        language: 'tr',
+      },
+    };
+  } catch (error: any) {
+    console.error('Buluttan veri indirme hatası:', error);
+    // Offline hatası için özel mesaj
+    if (error.code === 'unavailable' || error.message?.includes('offline')) {
+      throw new Error('İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.');
+    }
+    throw error;
+  }
+}
+
+// Kullanıcı verilerini tamamen sil
+export async function deleteAllUserData(userId: string): Promise<void> {
+  const batch = writeBatch(db);
+
+  // İlaçları sil
+  const medicines = await getDocs(getMedicinesRef(userId));
+  medicines.forEach((doc) => batch.delete(doc.ref));
+
+  // Zamanları sil
+  const times = await getDocs(getReminderTimesRef(userId));
+  times.forEach((doc) => batch.delete(doc.ref));
+
+  // Logları sil
+  const logs = await getDocs(getMedicineLogsRef(userId));
+  logs.forEach((doc) => batch.delete(doc.ref));
+
+  // Ayarları sil
+  batch.delete(getSettingsDocRef(userId));
+
+  await batch.commit();
+}

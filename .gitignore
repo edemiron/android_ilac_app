@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Temp files
+.temp_ag_kit/
+antigravity-doc
+
+# Environment files (sensitive)
+.env
+.env.local
+.env.*.local
+
+# Firebase Admin SDK (sensitive - DO NOT COMMIT)
+*-firebase-adminsdk-*.json
+
+# Build outputs
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# APK files (large binaries)
+*.apk
+
+# Google Services (sensitive)
+google-services.json
+
+# Client secrets (sensitive)
+client/
+
+# Null file
+nul
+
+# Next.js build
+web/.next/

@@ -1,0 +1,79 @@
+{
+  "expo": {
+    "name": "İlaç Hatırlatıcı",
+    "slug": "ilac-hatirlatici",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4ECDC4"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ilachatirlatici",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio",
+          "fetch",
+          "remote-notification"
+        ],
+        "NSCameraUsageDescription": "Barkod taramak için kamera erişimi gereklidir.",
+        "NSSpeechRecognitionUsageDescription": "Sesli hatırlatmalar için konuşma tanıma gereklidir."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4ECDC4"
+      },
+      "package": "com.ilachatirlatici",
+      "googleServicesFile": "./google-services.json",
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "WAKE_LOCK",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "POST_NOTIFICATIONS",
+        "CAMERA"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "ndkVersion": "26.3.11579264"
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "sounds": ["./assets/alarm.mp3"]
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Barkod taramak için kamera erişimi gereklidir."
+        }
+      ],
+      "expo-localization"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    }
+  }
+}
