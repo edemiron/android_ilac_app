@@ -11,17 +11,31 @@ import {
   signInWithCredential,
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import {
+  GoogleSignin,
+  statusCodes,
+  isSuccessResponse,
+  isErrorWithCode,
+} from '@react-native-google-signin/google-signin';
+import Config from 'react-native-config';
 
-// Web browser session'ı tamamla
-WebBrowser.maybeCompleteAuthSession();
+// Google Sign-In yapılandırması
+let isGoogleConfigured = false;
 
-// Google OAuth Client IDs
-// Bu değerleri Google Cloud Console'dan almalısınız
+export function configureGoogleSignIn(): void {
+  if (isGoogleConfigured) return;
+
+  GoogleSignin.configure({
+    webClientId: Config.GOOGLE_WEB_CLIENT_ID || '',
+    offlineAccess: true,
+  });
+  isGoogleConfigured = true;
+}
+
+// Google OAuth Client IDs - .env dosyasından okunur
 export const GOOGLE_CLIENT_ID = {
-  androidClientId: '506876057044-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com',
-  webClientId: '506876057044-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com',
+  androidClientId: Config.GOOGLE_ANDROID_CLIENT_ID || '',
+  webClientId: Config.GOOGLE_WEB_CLIENT_ID || '',
 };
 
 export interface AuthUser {
@@ -54,16 +68,14 @@ export async function registerWithEmail(
       displayName: displayName || user.displayName,
       photoURL: user.photoURL,
     };
-  } catch (error: any) {
-    throw translateAuthError(error.code);
+  } catch (error: unknown) {
+    const authError = error as { code?: string };
+    throw translateAuthError(authError.code || 'unknown');
   }
 }
 
 // Email ile giriş
-export async function loginWithEmail(
-  email: string,
-  password: string
-): Promise<AuthUser> {
+export async function loginWithEmail(email: string, password: string): Promise<AuthUser> {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -74,8 +86,9 @@ export async function loginWithEmail(
       displayName: user.displayName,
       photoURL: user.photoURL,
     };
-  } catch (error: any) {
-    throw translateAuthError(error.code);
+  } catch (error: unknown) {
+    const authError = error as { code?: string };
+    throw translateAuthError(authError.code || 'unknown');
   }
 }
 
@@ -83,8 +96,9 @@ export async function loginWithEmail(
 export async function logout(): Promise<void> {
   try {
     await signOut(auth);
-  } catch (error: any) {
-    throw translateAuthError(error.code);
+  } catch (error: unknown) {
+    const authError = error as { code?: string };
+    throw translateAuthError(authError.code || 'unknown');
   }
 }
 
@@ -92,8 +106,9 @@ export async function logout(): Promise<void> {
 export async function resetPassword(email: string): Promise<void> {
   try {
     await sendPasswordResetEmail(auth, email);
-  } catch (error: any) {
-    throw translateAuthError(error.code);
+  } catch (error: unknown) {
+    const authError = error as { code?: string };
+    throw translateAuthError(authError.code || 'unknown');
   }
 }
 
@@ -104,8 +119,9 @@ export async function deleteAccount(): Promise<void> {
     if (user) {
       await deleteUser(user);
     }
-  } catch (error: any) {
-    throw translateAuthError(error.code);
+  } catch (error: unknown) {
+    const authError = error as { code?: string };
+    throw translateAuthError(authError.code || 'unknown');
   }
 }
 
@@ -123,9 +139,7 @@ export function getCurrentUser(): AuthUser | null {
 }
 
 // Auth durumu değişikliklerini dinle
-export function subscribeToAuthChanges(
-  callback: (user: AuthUser | null) => void
-): () => void {
+export function subscribeToAuthChanges(callback: (user: AuthUser | null) => void): () => void {
   return onAuthStateChanged(auth, (user: User | null) => {
     if (user) {
       callback({
@@ -153,17 +167,60 @@ export async function loginWithGoogle(idToken: string): Promise<AuthUser> {
       displayName: user.displayName,
       photoURL: user.photoURL,
     };
-  } catch (error: any) {
-    throw translateAuthError(error.code);
+  } catch (error: unknown) {
+    const authError = error as { code?: string };
+    throw translateAuthError(authError.code || 'unknown');
   }
 }
 
-// Google Auth hook'u için config
-export function useGoogleAuth() {
-  return Google.useAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  });
+// Google ile native sign-in (tam akış)
+export async function signInWithGoogleNative(): Promise<AuthUser> {
+  try {
+    // Yapılandırmayı kontrol et
+    configureGoogleSignIn();
+
+    // Play services kontrolü
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+    // Google Sign-In başlat
+    const response = await GoogleSignin.signIn();
+
+    if (isSuccessResponse(response)) {
+      const { idToken } = response.data;
+
+      if (!idToken) {
+        throw new Error('Google Sign-In başarısız: ID token alınamadı');
+      }
+
+      // Firebase ile giriş yap
+      return await loginWithGoogle(idToken);
+    } else {
+      throw new Error('Google Sign-In iptal edildi');
+    }
+  } catch (error: unknown) {
+    if (isErrorWithCode(error)) {
+      switch (error.code) {
+        case statusCodes.SIGN_IN_CANCELLED:
+          throw new Error('Google girişi iptal edildi.');
+        case statusCodes.IN_PROGRESS:
+          throw new Error('Google girişi zaten devam ediyor.');
+        case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+          throw new Error('Google Play Services yüklü değil veya güncel değil.');
+        default:
+          throw new Error(`Google giriş hatası: ${error.message}`);
+      }
+    }
+    throw error;
+  }
+}
+
+// Google oturumunu kapat
+export async function signOutFromGoogle(): Promise<void> {
+  try {
+    await GoogleSignin.signOut();
+  } catch {
+    // Sessizce yoksay - zaten çıkış yapılmış olabilir
+  }
 }
 
 // Firebase hata kodlarını Türkçe'ye çevir
@@ -202,7 +259,7 @@ function translateAuthError(errorCode: string): Error {
       en: 'Invalid email or password.',
     },
     'auth/configuration-not-found': {
-      tr: 'Firebase yapılandırması bulunamadı. Lütfen Firebase Console\'dan Email/Password sign-in yöntemini etkinleştirin.',
+      tr: "Firebase yapılandırması bulunamadı. Lütfen Firebase Console'dan Email/Password sign-in yöntemini etkinleştirin.",
       en: 'Firebase configuration not found. Please enable Email/Password sign-in in Firebase Console.',
     },
   };

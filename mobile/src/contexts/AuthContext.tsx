@@ -7,16 +7,20 @@ import {
   logout as authLogout,
   resetPassword as authResetPassword,
   loginWithGoogle,
+  signOutFromGoogle,
 } from '../services/authService';
-import {
-  GoogleSignin,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import Config from 'react-native-config';
 import { useMedicineStore } from '../stores/medicineStore';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('AuthContext');
 
 // Google Sign-In yapılandırması (Firebase Project OAuth Client)
 GoogleSignin.configure({
-  webClientId: '506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com',
+  webClientId:
+    Config.GOOGLE_WEB_CLIENT_ID ||
+    '506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com',
 });
 
 interface AuthContextType {
@@ -48,31 +52,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     // Auth durumu değişikliklerini dinle
-    const unsubscribe = subscribeToAuthChanges(async (authUser) => {
+    const unsubscribe = subscribeToAuthChanges(async authUser => {
       const newUserId = authUser?.uid || null;
       const previousUserId = previousUserIdRef.current;
-      
+
       if (newUserId) {
         // Kullanıcı giriş yaptı
         if (previousUserId !== null && previousUserId !== newUserId) {
           // Farklı bir kullanıcı giriş yaptı - önce store'u temizle
-          console.log('Farklı kullanıcı, store temizleniyor...');
+          log.debug('Farkli kullanici, store temizleniyor');
           useMedicineStore.getState().clearAllData();
         }
-        
+
         // userId'yi set et ve Firebase'den verileri indir
         useMedicineStore.getState().setUserId(newUserId);
-        console.log('Firebase sync başlatılıyor, userId:', newUserId);
-        
+        log.debug('Firebase sync baslatiliyor', { userId: newUserId });
+
         try {
           await useMedicineStore.getState().syncFromCloud();
           const medicines = useMedicineStore.getState().medicines;
-          console.log('Sync tamamlandı, ilaç sayısı:', medicines.length);
-        } catch (err: any) {
-          console.error('Sync hatası:', err.message);
+          log.debug('Sync tamamlandi', { medicineCount: medicines.length });
+        } catch (err: unknown) {
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          log.error('Sync hatasi', new Error(errorMessage));
         }
       }
-      
+
       previousUserIdRef.current = newUserId;
       setUser(authUser);
       setIsLoading(false);
@@ -89,7 +94,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       setIsGoogleAvailable(true);
     } catch (err) {
-      console.log('Google Play Services not available:', err);
+      log.debug('Google Play Services not available', { error: err });
       setIsGoogleAvailable(false);
     }
   };
@@ -99,8 +104,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(null);
       setIsLoading(true);
       await loginWithEmail(email, password);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Giris hatasi';
+      setError(errorMessage);
       throw err;
     } finally {
       setIsLoading(false);
@@ -115,8 +121,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Register sonrası user state'i hemen güncelle (displayName'in görünmesi için)
       setUser(authUser);
       previousUserIdRef.current = authUser.uid;
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Kayit hatasi';
+      setError(errorMessage);
       throw err;
     } finally {
       setIsLoading(false);
@@ -128,10 +135,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(null);
       // Önce local store'u temizle (KRİTİK: başka kullanıcının verileri görünmesin)
       useMedicineStore.getState().clearAllData();
+      // Google oturumunu kapat
+      await signOutFromGoogle();
       // Sonra Firebase'den çıkış yap
       await authLogout();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Cikis hatasi';
+      setError(errorMessage);
       throw err;
     }
   };
@@ -140,8 +150,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setError(null);
       await authResetPassword(email);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Sifre sifirlama hatasi';
+      setError(errorMessage);
       throw err;
     }
   };
@@ -158,32 +169,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Google Sign-In
       const userInfo = await GoogleSignin.signIn();
-      console.log('Google Sign-In Result:', JSON.stringify(userInfo, null, 2));
-      
+      log.debug('Google Sign-In result received', { hasData: !!userInfo.data });
+
       const idToken = userInfo.data?.idToken;
-      console.log('ID Token:', idToken ? 'EXISTS' : 'NULL');
+      log.debug('ID Token status', { exists: !!idToken });
 
       if (idToken) {
         // Firebase'e giriş yap
         await loginWithGoogle(idToken);
       } else {
-        throw new Error('Google ID token alınamadı. Lütfen webClientId yapılandırmasını kontrol edin.');
+        throw new Error(
+          'Google ID token alinamadi. Lutfen webClientId yapilandirmasini kontrol edin.'
+        );
       }
-    } catch (err: any) {
-      console.log('Google Sign-In Error:', err.code, err.message);
-      
-      if (err.code === statusCodes.SIGN_IN_CANCELLED) {
+    } catch (err: unknown) {
+      const errorObj = err as { code?: string | number; message?: string };
+      log.debug('Google Sign-In Error', { code: errorObj.code, message: errorObj.message });
+
+      if (errorObj.code === statusCodes.SIGN_IN_CANCELLED) {
         // Kullanıcı iptal etti
         setError(null);
-      } else if (err.code === statusCodes.IN_PROGRESS) {
-        setError('Giriş işlemi devam ediyor...');
-      } else if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        setError('Google Play Services kullanılamıyor');
-      } else if (err.code === '10' || err.code === 10) {
+      } else if (errorObj.code === statusCodes.IN_PROGRESS) {
+        setError('Giris islemi devam ediyor...');
+      } else if (errorObj.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        setError('Google Play Services kullanilamiyor');
+      } else if (errorObj.code === '10' || errorObj.code === 10) {
         // DEVELOPER_ERROR - SHA-1 veya package name uyuşmazlığı
-        setError('Google yapılandırma hatası. SHA-1 veya package name kontrol edin.');
+        setError('Google yapilandirma hatasi. SHA-1 veya package name kontrol edin.');
       } else {
-        setError(err.message || 'Google ile giriş başarısız');
+        setError(errorObj.message || 'Google ile giris basarisiz');
       }
     } finally {
       setIsLoading(false);

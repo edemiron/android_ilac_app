@@ -1,19 +1,20 @@
-import * as Speech from 'expo-speech';
+import Tts from 'react-native-tts';
 
-// TTS ayarları
-interface SpeechOptions {
-  language?: string;
-  pitch?: number;
-  rate?: number;
-  volume?: number;
+// TTS başlatma
+let isInitialized = false;
+
+async function initTts(): Promise<void> {
+  if (isInitialized) return;
+
+  try {
+    await Tts.setDefaultLanguage('tr-TR');
+    await Tts.setDefaultRate(0.5);
+    await Tts.setDefaultPitch(1.0);
+    isInitialized = true;
+  } catch (error) {
+    console.warn('[Speech] TTS initialization failed:', error);
+  }
 }
-
-const DEFAULT_OPTIONS: SpeechOptions = {
-  language: 'tr-TR',
-  pitch: 1.0,
-  rate: 0.9,
-  volume: 1.0,
-};
 
 // Sesli hatırlatma gönder
 export async function speakMedicineReminder(
@@ -22,14 +23,18 @@ export async function speakMedicineReminder(
   instruction?: string,
   language: 'tr' | 'en' = 'tr'
 ): Promise<void> {
-  const isSpeaking = await Speech.isSpeakingAsync();
-  
-  if (isSpeaking) {
-    await Speech.stop();
+  await initTts();
+
+  try {
+    await Tts.stop();
+  } catch {
+    // Ignore if not speaking
   }
-  
+
+  await Tts.setDefaultLanguage(language === 'tr' ? 'tr-TR' : 'en-US');
+
   let message: string;
-  
+
   if (language === 'tr') {
     message = `İlaç zamanı! ${medicineName}, ${dosage}`;
     if (instruction) {
@@ -41,54 +46,86 @@ export async function speakMedicineReminder(
       message += `. ${getInstructionTextEn(instruction)}`;
     }
   }
-  
+
   return new Promise((resolve, reject) => {
-    Speech.speak(message, {
-      ...DEFAULT_OPTIONS,
-      language: language === 'tr' ? 'tr-TR' : 'en-US',
-      onDone: () => resolve(),
-      onError: (error) => reject(error),
-    });
+    const onFinish = () => {
+      Tts.removeAllListeners('tts-finish');
+      Tts.removeAllListeners('tts-cancel');
+      resolve();
+    };
+
+    const onCancel = () => {
+      Tts.removeAllListeners('tts-finish');
+      Tts.removeAllListeners('tts-cancel');
+      resolve();
+    };
+
+    Tts.addEventListener('tts-finish', onFinish);
+    Tts.addEventListener('tts-cancel', onCancel);
+
+    Tts.speak(message).catch(reject);
   });
 }
 
 // Genel mesaj söyle
-export async function speak(
-  message: string,
-  language: 'tr' | 'en' = 'tr'
-): Promise<void> {
-  const isSpeaking = await Speech.isSpeakingAsync();
-  
-  if (isSpeaking) {
-    await Speech.stop();
+export async function speak(message: string, language: 'tr' | 'en' = 'tr'): Promise<void> {
+  await initTts();
+
+  try {
+    await Tts.stop();
+  } catch {
+    // Ignore if not speaking
   }
-  
+
+  await Tts.setDefaultLanguage(language === 'tr' ? 'tr-TR' : 'en-US');
+
   return new Promise((resolve, reject) => {
-    Speech.speak(message, {
-      ...DEFAULT_OPTIONS,
-      language: language === 'tr' ? 'tr-TR' : 'en-US',
-      onDone: () => resolve(),
-      onError: (error) => reject(error),
-    });
+    const onFinish = () => {
+      Tts.removeAllListeners('tts-finish');
+      Tts.removeAllListeners('tts-cancel');
+      resolve();
+    };
+
+    const onCancel = () => {
+      Tts.removeAllListeners('tts-finish');
+      Tts.removeAllListeners('tts-cancel');
+      resolve();
+    };
+
+    Tts.addEventListener('tts-finish', onFinish);
+    Tts.addEventListener('tts-cancel', onCancel);
+
+    Tts.speak(message).catch(reject);
   });
 }
 
-// Konuşmayı durdur
 export async function stopSpeaking(): Promise<void> {
-  const isSpeaking = await Speech.isSpeakingAsync();
-  if (isSpeaking) {
-    await Speech.stop();
+  try {
+    await Tts.stop();
+  } catch {
+    // Safe to ignore if not speaking
   }
 }
 
-// Konuşuyor mu kontrol et
+// Konuşuyor mu kontrol et (TTS doesn't have this, always return false)
 export async function isSpeaking(): Promise<boolean> {
-  return Speech.isSpeakingAsync();
+  return false;
 }
 
 // Mevcut sesleri listele
-export async function getAvailableVoices(): Promise<Speech.Voice[]> {
-  return Speech.getAvailableVoicesAsync();
+export async function getAvailableVoices(): Promise<
+  { id: string; name: string; language: string }[]
+> {
+  try {
+    const voices = await Tts.voices();
+    return voices.map((v: { id: string; name: string; language: string }) => ({
+      id: v.id,
+      name: v.name,
+      language: v.language,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 // Talimat metnini Türkçe'ye çevir
