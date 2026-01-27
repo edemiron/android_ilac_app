@@ -261,15 +261,41 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
   const { isPast, minutesDiff } = getRelativeTimeText(reminder.reminderTime.time, language, log);
   const isMissed = isPast && !isTaken && !isSkipped;
 
+  // Aktif snooze kontrolü
+  const snoozes = useMedicineStore(state => state.snoozes);
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const hasActiveSnooze = snoozes.some(
+    s =>
+      s.medicineId === reminder.medicine.id &&
+      s.reminderTimeId === reminder.reminderTime.id &&
+      s.isActive &&
+      s.originalScheduledTime.startsWith(today)
+  );
+
   const getStatusBadge = () => {
     if (isTaken) {
-      return { text: language === 'tr' ? 'Alındı' : 'Taken', color: colors.success, bg: '#DCFCE7' };
+      return {
+        text: language === 'tr' ? 'Alındı' : 'Taken',
+        color: '#059669',
+        bg: '#DCFCE7',
+        icon: 'checkmark-circle' as const,
+      };
     }
     if (isSkipped) {
       return {
         text: language === 'tr' ? 'Atlandı' : 'Skipped',
         color: colors.textMuted,
         bg: '#F3F4F6',
+        icon: 'close-circle' as const,
+      };
+    }
+    // Ertelendi durumu - aktif snooze varsa
+    if (hasActiveSnooze) {
+      return {
+        text: language === 'tr' ? 'Ertelendi' : 'Snoozed',
+        color: '#F59E0B',
+        bg: '#FEF3C7',
+        icon: 'alarm' as const,
       };
     }
     if (isMissed) {
@@ -282,42 +308,42 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
           : language === 'tr'
             ? `${Math.floor(absMinutes / 60)} saat geçti`
             : `${Math.floor(absMinutes / 60)}h late`;
-      return { text: missedText, color: SOFT_RED, bg: SOFT_RED_BG };
+      return { text: missedText, color: SOFT_RED, bg: SOFT_RED_BG, icon: 'alert-circle' as const };
     }
     return {
       text: language === 'tr' ? 'Bekliyor' : 'Pending',
       color: colors.primary,
       bg: colors.primary + '15',
+      icon: 'time' as const,
     };
   };
 
   const status = getStatusBadge();
   const isCompleted = isTaken || isSkipped;
+  const medicineColor = reminder.medicine.color || colors.primary;
 
   return (
     <View
       style={[
-        styles.timelineItem,
-        !isFirst && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
+        styles.medicineCard,
+        {
+          backgroundColor: colors.card,
+          borderLeftColor: isCompleted ? colors.textMuted : medicineColor,
+          opacity: isCompleted ? 0.7 : 1,
+        },
       ]}
     >
-      <View style={styles.timelineTime}>
-        <Text
-          style={[
-            styles.timelineTimeText,
-            { color: isCompleted ? colors.textMuted : colors.text },
-            isCompleted && styles.completedTimeText,
-          ]}
-        >
-          {formatTimeDisplay(reminder.reminderTime.time)}
-        </Text>
+      {/* Sol: İlaç İkonu */}
+      <View style={[styles.medicineIconBox, { backgroundColor: medicineColor + '20' }]}>
+        <Ionicons name="medical" size={22} color={medicineColor} />
       </View>
 
-      <View style={styles.timelineContent}>
-        <View style={styles.timelineInfo}>
+      {/* Orta: İlaç Bilgisi */}
+      <View style={styles.medicineInfo}>
+        <View style={styles.medicineHeader}>
           <Text
             style={[
-              styles.timelineMedicineName,
+              styles.medicineName,
               { color: colors.text },
               isCompleted && styles.completedText,
             ]}
@@ -325,27 +351,39 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
           >
             {reminder.medicine.name}
           </Text>
-          <Text style={[styles.timelineDosage, { color: colors.textMuted }]}>
-            {reminder.medicine.dosage}
-          </Text>
-        </View>
-
-        <View style={styles.timelineActions}>
-          <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-            <Text style={[styles.statusBadgeText, { color: status.color }]}>{status.text}</Text>
-          </View>
-
-          {isMissed && (
-            <TouchableOpacity
-              style={[styles.takeNowBtn, { backgroundColor: colors.primary }]}
-              onPress={onTakeNow}
+          <View style={styles.timeChip}>
+            <Ionicons name="time-outline" size={12} color={colors.textMuted} />
+            <Text
+              style={[
+                styles.medicineTime,
+                { color: isCompleted ? colors.textMuted : colors.text },
+                isCompleted && styles.completedTimeText,
+              ]}
             >
-              <Text style={styles.takeNowBtnText}>
-                {language === 'tr' ? 'Şimdi al' : 'Take now'}
-              </Text>
-            </TouchableOpacity>
-          )}
+              {formatTimeDisplay(reminder.reminderTime.time)}
+            </Text>
+          </View>
         </View>
+        <Text style={[styles.medicineDosage, { color: colors.textMuted }]}>
+          {reminder.medicine.dosage}
+        </Text>
+      </View>
+
+      {/* Sağ: Durum */}
+      <View style={styles.medicineStatus}>
+        <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+          <Ionicons name={status.icon} size={14} color={status.color} />
+          <Text style={[styles.statusBadgeText, { color: status.color }]}>{status.text}</Text>
+        </View>
+
+        {isMissed && (
+          <TouchableOpacity
+            style={[styles.takeNowBtn, { backgroundColor: colors.primary }]}
+            onPress={onTakeNow}
+          >
+            <Text style={styles.takeNowBtnText}>{language === 'tr' ? 'Al' : 'Take'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -506,48 +544,90 @@ export default function HomeScreen() {
       ? 'Merhaba'
       : 'Hello';
 
+  // Saat dilimine göre selamlama ikonu
+  const getGreetingIcon = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return '🌅'; // Sabah
+    if (hour >= 12 && hour < 17) return '☀️'; // Öğlen
+    if (hour >= 17 && hour < 21) return '🌆'; // Akşam
+    return '🌙'; // Gece
+  };
+
+  // İlerleme yüzdesi
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <View style={styles.header}>
-          <Text style={[styles.greeting, { color: colors.text }]}>{greeting}</Text>
-          <Text style={[styles.date, { color: colors.textSecondary }]}>{today}</Text>
-        </View>
+        {/* Hero Card - Gradient Karşılama */}
+        <LinearGradient
+          colors={isDark ? ['#1E3A5F', '#0F172A'] : ['#10B981', '#059669']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroCard}
+        >
+          <View style={styles.heroContent}>
+            <View style={styles.heroLeft}>
+              <View style={styles.greetingRow}>
+                <Text style={styles.greetingIcon}>{getGreetingIcon()}</Text>
+                <Text style={styles.heroGreeting}>{greeting}</Text>
+              </View>
+              <Text style={styles.heroDate}>{today}</Text>
+            </View>
 
-        <View style={[styles.statusBar, { backgroundColor: colors.card }]}>
-          <View style={styles.statusItem}>
-            <Text style={[styles.statusLabel, { color: colors.textMuted }]}>
-              {language === 'tr' ? 'Bugün' : 'Today'}
-            </Text>
-            <Text style={[styles.statusValue, { color: colors.text }]}>
-              {totalCount} {language === 'tr' ? 'doz' : 'doses'}
-            </Text>
+            {/* Progress Circle */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressCircle}>
+                <Text style={styles.progressPercent}>{progressPercent}%</Text>
+              </View>
+              <Text style={styles.progressLabel}>
+                {language === 'tr' ? 'Tamamlandı' : 'Complete'}
+              </Text>
+            </View>
           </View>
-          <View style={[styles.statusDivider, { backgroundColor: colors.divider }]} />
-          <View style={styles.statusItem}>
-            <Text style={[styles.statusLabel, { color: colors.textMuted }]}>
-              {language === 'tr' ? 'Tamamlanan' : 'Completed'}
-            </Text>
-            <Text style={[styles.statusValue, { color: colors.success }]}>{completedCount}</Text>
+
+          {/* Stats Row */}
+          <View style={styles.heroStats}>
+            <View style={styles.heroStatItem}>
+              <View style={styles.heroStatIcon}>
+                <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
+              </View>
+              <View>
+                <Text style={styles.heroStatValue}>
+                  {totalCount} {language === 'tr' ? 'doz' : 'doses'}
+                </Text>
+                <Text style={styles.heroStatLabel}>{language === 'tr' ? 'Bugün' : 'Today'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.heroStatDivider} />
+
+            <View style={styles.heroStatItem}>
+              <View style={[styles.heroStatIcon, { backgroundColor: 'rgba(74, 222, 128, 0.3)' }]}>
+                <Ionicons name="checkmark-circle-outline" size={18} color="#4ADE80" />
+              </View>
+              <View>
+                <Text style={[styles.heroStatValue, { color: '#4ADE80' }]}>{completedCount}</Text>
+                <Text style={styles.heroStatLabel}>{language === 'tr' ? 'Alındı' : 'Taken'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.heroStatDivider} />
+
+            <View style={styles.heroStatItem}>
+              <View style={[styles.heroStatIcon, { backgroundColor: 'rgba(251, 191, 36, 0.3)' }]}>
+                <Ionicons name="time-outline" size={18} color="#FBBF24" />
+              </View>
+              <View>
+                <Text style={[styles.heroStatValue, { color: '#FBBF24' }]}>{remainingCount}</Text>
+                <Text style={styles.heroStatLabel}>{language === 'tr' ? 'Kalan' : 'Left'}</Text>
+              </View>
+            </View>
           </View>
-          <View style={[styles.statusDivider, { backgroundColor: colors.divider }]} />
-          <View style={styles.statusItem}>
-            <Text style={[styles.statusLabel, { color: colors.textMuted }]}>
-              {language === 'tr' ? 'Kalan' : 'Remaining'}
-            </Text>
-            <Text
-              style={[
-                styles.statusValue,
-                { color: remainingCount > 0 ? colors.primary : colors.success },
-              ]}
-            >
-              {remainingCount}
-            </Text>
-          </View>
-        </View>
+        </LinearGradient>
 
         {currentStreak > 0 && (
           <LinearGradient
@@ -623,7 +703,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={[styles.timelineCard, { backgroundColor: colors.card }]}>
+            <View style={styles.medicineList}>
               {todayReminders.map((reminder, index) => (
                 <TimelineItem
                   key={reminder.reminderTime.id}
@@ -660,42 +740,109 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 12,
-  },
-  greeting: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  date: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  statusBar: {
+  // Hero Card Styles
+  heroCard: {
     marginHorizontal: 16,
-    borderRadius: 12,
+    marginTop: 16,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  heroContent: {
     flexDirection: 'row',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
   },
-  statusItem: {
+  heroLeft: {
     flex: 1,
-    alignItems: 'center',
   },
-  statusLabel: {
-    fontSize: 12,
-    fontWeight: '500',
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
   },
-  statusValue: {
-    fontSize: 17,
-    fontWeight: '700',
+  greetingIcon: {
+    fontSize: 24,
+    marginRight: 8,
   },
-  statusDivider: {
+  heroGreeting: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  heroDate: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginLeft: 32,
+    marginTop: 2,
+  },
+  progressContainer: {
+    alignItems: 'center',
+  },
+  progressCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressPercent: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  progressLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  heroStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  heroStatItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  heroStatIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroStatValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  heroStatLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
+  },
+  heroStatDivider: {
     width: 1,
-    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginVertical: 4,
   },
   streakCard: {
     marginHorizontal: 16,
@@ -876,71 +1023,93 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  timelineCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
+  // Medicine Card Styles - Ayrı kartlar
+  medicineList: {
+    gap: 12,
   },
-  timelineItem: {
+  medicineCard: {
     flexDirection: 'row',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  timelineTime: {
-    width: 50,
-    marginRight: 12,
+  medicineIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
   },
-  timelineTimeText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  completedTimeText: {
-    textDecorationLine: 'line-through',
-  },
-  timelineContent: {
+  medicineInfo: {
     flex: 1,
+  },
+  medicineHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 4,
   },
-  timelineInfo: {
+  medicineName: {
+    fontSize: 16,
+    fontWeight: '700',
     flex: 1,
-    marginRight: 12,
+    marginRight: 8,
   },
-  timelineMedicineName: {
-    fontSize: 15,
+  timeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  medicineTime: {
+    fontSize: 13,
     fontWeight: '600',
-    marginBottom: 2,
+  },
+  medicineDosage: {
+    fontSize: 13,
+  },
+  medicineStatus: {
+    alignItems: 'flex-end',
+    gap: 8,
   },
   completedText: {
     textDecorationLine: 'line-through',
     opacity: 0.6,
   },
-  timelineDosage: {
-    fontSize: 13,
-  },
-  timelineActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  completedTimeText: {
+    textDecorationLine: 'line-through',
   },
   statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   statusBadgeText: {
     fontSize: 12,
     fontWeight: '600',
   },
   takeNowBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   takeNowBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   emptyState: {
     borderRadius: 16,

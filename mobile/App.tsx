@@ -103,6 +103,14 @@ function AuthNavigator() {
   );
 }
 
+// Tab ikonları için renkler
+const TAB_COLORS = {
+  home: { active: '#10B981', inactive: '#6B7280' },
+  medicines: { active: '#3B82F6', inactive: '#6B7280' },
+  statistics: { active: '#8B5CF6', inactive: '#6B7280' },
+  settings: { active: '#F59E0B', inactive: '#6B7280' },
+};
+
 // Tab Navigator with Theme Support
 function MainTabs() {
   const { colors, isDark } = useTheme();
@@ -115,15 +123,16 @@ function MainTabs() {
           backgroundColor: colors.tabBar,
           borderTopWidth: 1,
           borderTopColor: colors.tabBarBorder,
-          height: Platform.OS === 'ios' ? 85 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 25 : 10,
+          height: Platform.OS === 'ios' ? 90 : 80,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 20,
           paddingTop: 10,
         },
         tabBarActiveTintColor: colors.tabActive,
         tabBarInactiveTintColor: colors.tabInactive,
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '500',
+          fontWeight: '600',
+          marginTop: 2,
         },
         headerStyle: {
           backgroundColor: colors.header,
@@ -141,7 +150,14 @@ function MainTabs() {
         options={{
           title: t('tab_home'),
           headerTitle: t('app_name'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          tabBarIcon: ({ focused, size }) => (
+            <Ionicons
+              name="home"
+              size={size}
+              color={focused ? TAB_COLORS.home.active : TAB_COLORS.home.inactive}
+            />
+          ),
+          tabBarActiveTintColor: TAB_COLORS.home.active,
         }}
       />
       <Tab.Screen
@@ -150,7 +166,14 @@ function MainTabs() {
         options={{
           title: t('tab_medicines'),
           headerTitle: t('tab_medicines'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="medical" size={size} color={color} />,
+          tabBarIcon: ({ focused, size }) => (
+            <Ionicons
+              name="medical"
+              size={size}
+              color={focused ? TAB_COLORS.medicines.active : TAB_COLORS.medicines.inactive}
+            />
+          ),
+          tabBarActiveTintColor: TAB_COLORS.medicines.active,
         }}
       />
       <Tab.Screen
@@ -159,7 +182,14 @@ function MainTabs() {
         options={{
           title: t('tab_statistics'),
           headerTitle: t('tab_statistics'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart" size={size} color={color} />,
+          tabBarIcon: ({ focused, size }) => (
+            <Ionicons
+              name="bar-chart"
+              size={size}
+              color={focused ? TAB_COLORS.statistics.active : TAB_COLORS.statistics.inactive}
+            />
+          ),
+          tabBarActiveTintColor: TAB_COLORS.statistics.active,
         }}
       />
       <Tab.Screen
@@ -168,9 +198,14 @@ function MainTabs() {
         options={{
           title: t('tab_settings'),
           headerTitle: t('tab_settings'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-sharp" size={size} color={color} />
+          tabBarIcon: ({ focused, size }) => (
+            <Ionicons
+              name="settings-sharp"
+              size={size}
+              color={focused ? TAB_COLORS.settings.active : TAB_COLORS.settings.inactive}
+            />
           ),
+          tabBarActiveTintColor: TAB_COLORS.settings.active,
         }}
       />
     </Tab.Navigator>
