@@ -390,56 +390,32 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 const LANGUAGE_STORAGE_KEY = '@app_language';
 
-// Pre-load language from storage (called before React tree mounts)
-let cachedLanguage: Language | null = null;
-let languageLoadPromise: Promise<Language> | null = null;
-
-export function preloadLanguage(): Promise<Language> {
-  if (cachedLanguage !== null) {
-    return Promise.resolve(cachedLanguage);
-  }
-  if (languageLoadPromise) {
-    return languageLoadPromise;
-  }
-  languageLoadPromise = AsyncStorage.getItem(LANGUAGE_STORAGE_KEY)
-    .then(savedLanguage => {
-      if (savedLanguage && ['tr', 'en'].includes(savedLanguage)) {
-        cachedLanguage = savedLanguage as Language;
-      } else {
-        // Sistem dilini kontrol et
-        const deviceLanguage = RNLocalize.getLocales()[0]?.languageCode;
-        cachedLanguage = deviceLanguage === 'tr' ? 'tr' : 'en';
-      }
-      return cachedLanguage;
-    })
-    .catch(() => {
-      cachedLanguage = 'tr';
-      return cachedLanguage;
-    });
-  return languageLoadPromise;
-}
-
-// Start preloading immediately when module loads
-preloadLanguage();
-
 interface LanguageProviderProps {
   children: ReactNode;
 }
 
 export function LanguageProvider({ children }: LanguageProviderProps) {
-  const [language, setLanguageState] = useState<Language>(cachedLanguage || 'tr');
-  const [isLoaded, setIsLoaded] = useState(cachedLanguage !== null);
+  const [language, setLanguageState] = useState<Language>('tr');
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    if (!isLoaded) {
-      loadLanguage();
-    }
-  }, [isLoaded]);
+    loadLanguage();
+  }, []);
 
   const loadLanguage = async () => {
     try {
-      const loadedLanguage = await preloadLanguage();
-      setLanguageState(loadedLanguage);
+      const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (savedLanguage && ['tr', 'en'].includes(savedLanguage)) {
+        setLanguageState(savedLanguage as Language);
+      } else {
+        // Sistem dilini kontrol et
+        const deviceLanguage = RNLocalize.getLocales()[0]?.languageCode;
+        if (deviceLanguage === 'tr') {
+          setLanguageState('tr');
+        } else {
+          setLanguageState('en');
+        }
+      }
     } catch (error) {
       log.error('Dil yuklenemedi', error);
     } finally {

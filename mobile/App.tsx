@@ -1,7 +1,7 @@
 // Polyfill for crypto.getRandomValues (required for uuid package)
 import 'react-native-get-random-values';
 
-import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StatusBar,
   View,
@@ -20,24 +20,21 @@ import notifee, { EventType } from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-// Critical screens - loaded immediately (auth flow)
-import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
-import PermissionsScreen from './src/screens/PermissionsScreen';
-
-// Core screens - loaded immediately (main navigation)
-import HomeScreen from './src/screens/HomeScreen';
-import MedicinesScreen from './src/screens/MedicinesScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
-
-// Deferred screens - lazy loaded (secondary features)
-const AddMedicineScreen = lazy(() => import('./src/screens/AddMedicineScreen'));
-const AlarmScreen = lazy(() => import('./src/screens/AlarmScreen'));
-const StatisticsScreen = lazy(() => import('./src/screens/StatisticsScreen'));
-const InteractionsScreen = lazy(() => import('./src/screens/InteractionsScreen'));
-const BarcodeScannerScreen = lazy(() => import('./src/screens/BarcodeScannerScreen'));
-const MedicineProspectusScreen = lazy(() => import('./src/screens/MedicineProspectusScreen'));
-const PremiumScreen = lazy(() => import('./src/screens/PremiumScreen'));
+import {
+  HomeScreen,
+  AddMedicineScreen,
+  MedicinesScreen,
+  SettingsScreen,
+  AlarmScreen,
+  StatisticsScreen,
+  InteractionsScreen,
+  BarcodeScannerScreen,
+  LoginScreen,
+  RegisterScreen,
+  MedicineProspectusScreen,
+  PremiumScreen,
+  PermissionsScreen,
+} from './src/screens';
 import { RootStackParamList, MainTabParamList, AuthStackParamList } from './src/types';
 import {
   requestNotificationPermissions,
@@ -306,7 +303,7 @@ function MainTabs() {
       />
       <Tab.Screen
         name="Statistics"
-        component={LazyStatisticsScreen}
+        component={StatisticsScreen}
         options={{
           title: t('tab_statistics'),
           headerTitle: t('tab_statistics'),
@@ -342,73 +339,6 @@ const loadingStyles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-
-// Lazy screen wrapper with Suspense fallback
-function LazyScreenFallback() {
-  const { colors } = useTheme();
-  return (
-    <View style={[loadingStyles.container, { backgroundColor: colors.background }]}>
-      <ActivityIndicator size="small" color={colors.primary} />
-    </View>
-  );
-}
-
-// Suspense-wrapped lazy screen components
-function LazyAddMedicineScreen(props: any) {
-  return (
-    <Suspense fallback={<LazyScreenFallback />}>
-      <AddMedicineScreen {...props} />
-    </Suspense>
-  );
-}
-
-function LazyAlarmScreen(props: any) {
-  return (
-    <Suspense fallback={<LazyScreenFallback />}>
-      <AlarmScreen {...props} />
-    </Suspense>
-  );
-}
-
-function LazyStatisticsScreen(props: any) {
-  return (
-    <Suspense fallback={<LazyScreenFallback />}>
-      <StatisticsScreen {...props} />
-    </Suspense>
-  );
-}
-
-function LazyInteractionsScreen(props: any) {
-  return (
-    <Suspense fallback={<LazyScreenFallback />}>
-      <InteractionsScreen {...props} />
-    </Suspense>
-  );
-}
-
-function LazyBarcodeScannerScreen(props: any) {
-  return (
-    <Suspense fallback={<LazyScreenFallback />}>
-      <BarcodeScannerScreen {...props} />
-    </Suspense>
-  );
-}
-
-function LazyMedicineProspectusScreen(props: any) {
-  return (
-    <Suspense fallback={<LazyScreenFallback />}>
-      <MedicineProspectusScreen {...props} />
-    </Suspense>
-  );
-}
-
-function LazyPremiumScreen(props: any) {
-  return (
-    <Suspense fallback={<LazyScreenFallback />}>
-      <PremiumScreen {...props} />
-    </Suspense>
-  );
-}
 
 // Main App Content with Navigation
 function AppContent() {
@@ -649,11 +579,7 @@ function AppContent() {
     }
   };
 
-  // Startup cleanup - deferred to not block initial render
-  // InteractionManager ensures this runs after navigation is ready
   useEffect(() => {
-    const { InteractionManager } = require('react-native');
-
     const performStartupCleanup = async () => {
       try {
         const storeState = useMedicineStore.getState();
@@ -690,12 +616,7 @@ function AppContent() {
       }
     };
 
-    // Defer heavy cleanup until after animations complete (improves perceived startup)
-    const handle = InteractionManager.runAfterInteractions(() => {
-      performStartupCleanup();
-    });
-
-    return () => handle.cancel();
+    performStartupCleanup();
   }, []);
 
   // Notifee event listener'larını kur
@@ -929,7 +850,7 @@ function AppContent() {
         <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
         <Stack.Screen
           name="AddMedicine"
-          component={LazyAddMedicineScreen}
+          component={AddMedicineScreen}
           options={({ route }) => ({
             title: route.params?.medicineId ? t('edit_medicine_title') : t('add_medicine_title'),
             presentation: 'modal',
@@ -937,7 +858,7 @@ function AppContent() {
         />
         <Stack.Screen
           name="Alarm"
-          component={LazyAlarmScreen}
+          component={AlarmScreen}
           options={{
             headerShown: false,
             presentation: 'fullScreenModal',
@@ -946,14 +867,14 @@ function AppContent() {
         />
         <Stack.Screen
           name="Interactions"
-          component={LazyInteractionsScreen}
+          component={InteractionsScreen}
           options={{
             title: t('interaction_title'),
           }}
         />
         <Stack.Screen
           name="BarcodeScanner"
-          component={LazyBarcodeScannerScreen}
+          component={BarcodeScannerScreen}
           options={{
             headerShown: false,
             presentation: 'fullScreenModal',
@@ -961,7 +882,7 @@ function AppContent() {
         />
         <Stack.Screen
           name="MedicineProspectus"
-          component={LazyMedicineProspectusScreen}
+          component={MedicineProspectusScreen}
           options={{
             title: t('prospectus_title') || 'Prospektüs',
             presentation: 'card',
@@ -969,7 +890,7 @@ function AppContent() {
         />
         <Stack.Screen
           name="Premium"
-          component={LazyPremiumScreen}
+          component={PremiumScreen}
           options={{
             title: 'Premium',
             presentation: 'modal',

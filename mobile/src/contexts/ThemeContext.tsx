@@ -142,52 +142,22 @@ interface ThemeProviderProps {
   children: ReactNode;
 }
 
-// Pre-load theme from storage (called before React tree mounts)
-let cachedTheme: ThemeMode | null = null;
-let themeLoadPromise: Promise<ThemeMode> | null = null;
-
-export function preloadTheme(): Promise<ThemeMode> {
-  if (cachedTheme !== null) {
-    return Promise.resolve(cachedTheme);
-  }
-  if (themeLoadPromise) {
-    return themeLoadPromise;
-  }
-  themeLoadPromise = AsyncStorage.getItem(THEME_STORAGE_KEY)
-    .then(savedTheme => {
-      if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
-        cachedTheme = savedTheme as ThemeMode;
-      } else {
-        cachedTheme = 'system';
-      }
-      return cachedTheme;
-    })
-    .catch(() => {
-      cachedTheme = 'system';
-      return cachedTheme;
-    });
-  return themeLoadPromise;
-}
-
-// Start preloading immediately when module loads
-preloadTheme();
-
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const systemColorScheme = useColorScheme();
-  const [theme, setThemeState] = useState<ThemeMode>(cachedTheme || 'system');
-  const [isLoaded, setIsLoaded] = useState(cachedTheme !== null);
+  const [theme, setThemeState] = useState<ThemeMode>('system');
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  // AsyncStorage'dan tema yükle (sadece cache yoksa)
+  // AsyncStorage'dan tema yükle
   useEffect(() => {
-    if (!isLoaded) {
-      loadTheme();
-    }
-  }, [isLoaded]);
+    loadTheme();
+  }, []);
 
   const loadTheme = async () => {
     try {
-      const loadedTheme = await preloadTheme();
-      setThemeState(loadedTheme);
+      const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
+        setThemeState(savedTheme as ThemeMode);
+      }
     } catch (error) {
       log.error('Tema yuklenemedi', error);
     } finally {
