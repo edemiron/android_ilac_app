@@ -259,6 +259,7 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
                 { color: colors.text },
                 !medicine.isActive && { color: colors.textMuted },
               ]}
+              numberOfLines={2}
             >
               {medicine.name}
             </Text>
@@ -734,6 +735,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   medicineName: {
+    flex: 1,
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: -0.2,
@@ -750,10 +752,11 @@ const styles = StyleSheet.create({
   expiryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
-    gap: 4,
+    gap: 3,
+    flexShrink: 0,
   },
   expiryBadgeText: {
     fontSize: 10,
