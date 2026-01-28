@@ -63,4 +63,5 @@ export interface Settings {
   quietHoursEnabled?: boolean;
   quietHoursStart?: string;
   quietHoursEnd?: string;
+  conflictIntervalMinutes?: number;
 }

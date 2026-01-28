@@ -17,18 +17,43 @@ import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInte
 
 // Test ilaç verileri
 const TEST_MEDICINE_NAMES = [
-  'Aspirin', 'Parol', 'Majezik', 'Arveles', 'Nurofen',
-  'Tylol', 'Voltaren', 'Cataflam', 'Apranax', 'Dikloron',
-  'Aferin', 'Gripin', 'Minoset', 'Vermidon', 'Dolorex',
+  'Aspirin',
+  'Parol',
+  'Majezik',
+  'Arveles',
+  'Nurofen',
+  'Tylol',
+  'Voltaren',
+  'Cataflam',
+  'Apranax',
+  'Dikloron',
+  'Aferin',
+  'Gripin',
+  'Minoset',
+  'Vermidon',
+  'Dolorex',
 ];
 
 const TEST_MEDICINE_DOSES = [
-  '500mg', '200mg', '100mg', '250mg', '400mg',
-  '1 tablet', '2 tablet', '1 kapsu00fcl', '5ml', '10ml',
+  '500mg',
+  '200mg',
+  '100mg',
+  '250mg',
+  '400mg',
+  '1 tablet',
+  '2 tablet',
+  '1 kapsu00fcl',
+  '5ml',
+  '10ml',
 ];
 
 const TEST_INSTRUCTIONS = [
-  'after_meal', 'before_meal', 'with_meal', 'any_time', 'empty_stomach', 'before_sleep',
+  'after_meal',
+  'before_meal',
+  'with_meal',
+  'any_time',
+  'empty_stomach',
+  'before_sleep',
 ] as const;
 import { speak } from '../utils/speech';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
@@ -45,7 +70,17 @@ export function useSettingsScreen() {
   const navigation = useNavigation<SettingsNavigationProp>();
   const { colors, isDark, theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
-  const { settings, updateSettings, syncToCloud, isSyncing, lastSyncAt, addMedicine, deleteMedicine, medicines, reminderTimes } = useMedicineStore();
+  const {
+    settings,
+    updateSettings,
+    syncToCloud,
+    isSyncing,
+    lastSyncAt,
+    addMedicine,
+    deleteMedicine,
+    medicines,
+    reminderTimes,
+  } = useMedicineStore();
   const { user, logout } = useAuth();
   const { isPremium, remainingDays } = useSubscription();
 
@@ -58,17 +93,18 @@ export function useSettingsScreen() {
     showVolumePicker: false,
     showQuietStartPicker: false,
     showQuietEndPicker: false,
+    showConflictIntervalPicker: false,
   });
 
   const togglePicker = useCallback((pickerName: keyof typeof pickerState) => {
-    setPickerState((prev) => ({
+    setPickerState(prev => ({
       ...prev,
       [pickerName]: !prev[pickerName],
     }));
   }, []);
 
   const closePicker = useCallback((pickerName: keyof typeof pickerState) => {
-    setPickerState((prev) => ({
+    setPickerState(prev => ({
       ...prev,
       [pickerName]: false,
     }));
@@ -180,12 +216,17 @@ export function useSettingsScreen() {
         await scheduleTestAlarmNotification(minutes, language);
         const scheduledTime = new Date(Date.now() + minutes * 60 * 1000);
         const timeStr = format(scheduledTime, 'HH:mm:ss');
-        
+
         // Saniye veya dakika olarak göster
         const seconds = Math.round(minutes * 60);
-        const timeDisplay = seconds < 60 
-          ? (language === 'tr' ? `${seconds} saniye` : `${seconds} seconds`)
-          : (language === 'tr' ? `${minutes} dakika` : `${minutes} minutes`);
+        const timeDisplay =
+          seconds < 60
+            ? language === 'tr'
+              ? `${seconds} saniye`
+              : `${seconds} seconds`
+            : language === 'tr'
+              ? `${minutes} dakika`
+              : `${minutes} minutes`;
 
         Alert.alert(
           language === 'tr' ? 'Alarm Planlandi' : 'Alarm Scheduled',
@@ -214,11 +255,17 @@ export function useSettingsScreen() {
       await syncToCloud();
       Alert.alert(
         t('success'),
-        language === 'tr' ? 'Verileriniz buluta yedeklendi.' : 'Your data has been backed up to cloud.'
+        language === 'tr'
+          ? 'Verileriniz buluta yedeklendi.'
+          : 'Your data has been backed up to cloud.'
       );
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error ? error.message : (language === 'tr' ? 'Senkronizasyon basarisiz oldu.' : 'Sync failed.');
+        error instanceof Error
+          ? error.message
+          : language === 'tr'
+            ? 'Senkronizasyon basarisiz oldu.'
+            : 'Sync failed.';
       Alert.alert(t('error'), errorMessage);
     }
   }, [language, syncToCloud, t]);
@@ -228,8 +275,11 @@ export function useSettingsScreen() {
     // Random seçimler
     const randomName = TEST_MEDICINE_NAMES[Math.floor(Math.random() * TEST_MEDICINE_NAMES.length)];
     const randomDose = TEST_MEDICINE_DOSES[Math.floor(Math.random() * TEST_MEDICINE_DOSES.length)];
-    const randomInstruction = TEST_INSTRUCTIONS[Math.floor(Math.random() * TEST_INSTRUCTIONS.length)];
-    const randomColor = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
+    const randomInstruction =
+      TEST_INSTRUCTIONS[Math.floor(Math.random() * TEST_INSTRUCTIONS.length)];
+    const randomColor = `#${Math.floor(Math.random() * 16777215)
+      .toString(16)
+      .padStart(6, '0')}`;
 
     // 1 dakika sonrası için saat hesapla
     const alarmTime = new Date(Date.now() + 60 * 1000);
@@ -238,15 +288,15 @@ export function useSettingsScreen() {
     const testMedicineName = `TEST-${randomName}`;
 
     // İlaç etkileşim kontrolü
-    const activeMedicineNames = medicines
-      .filter((m) => m.isActive)
-      .map((m) => m.name);
+    const activeMedicineNames = medicines.filter(m => m.isActive).map(m => m.name);
     const allDrugNames = [...activeMedicineNames, testMedicineName];
 
     const interactionResult = checkMultipleInteractions(allDrugNames);
 
     // Belirli bir saat icin cakisma kontrolu
-    const checkTimeConflictForTime = (targetTime: string): { medicineName: string; time: string }[] => {
+    const checkTimeConflictForTime = (
+      targetTime: string
+    ): { medicineName: string; time: string }[] => {
       const conflicts: { medicineName: string; time: string }[] = [];
 
       for (const medicine of medicines) {
@@ -275,15 +325,15 @@ export function useSettingsScreen() {
         return { hasConflict: false, conflictMessages: '' };
       }
 
-      const messages = existingConflicts
-        .map((c) => `⏰ ${c.time} - ${c.medicineName}`)
-        .join('\n');
+      const messages = existingConflicts.map(c => `⏰ ${c.time} - ${c.medicineName}`).join('\n');
 
       return { hasConflict: true, conflictMessages: messages };
     };
 
     // Cakismayan ilk saati bul (maksimum 5 dakika ileriye kadar)
-    const findNonConflictingTime = (baseTime: string): { time: string; offsetMinutes: number } | null => {
+    const findNonConflictingTime = (
+      baseTime: string
+    ): { time: string; offsetMinutes: number } | null => {
       const [hours, mins] = baseTime.split(':').map(Number);
       const baseDate = new Date();
       baseDate.setHours(hours, mins, 0, 0);
@@ -423,7 +473,7 @@ export function useSettingsScreen() {
     // Önce ilaç etkileşimi kontrolü
     if (interactionResult.hasInteractions) {
       const interactionMessages = interactionResult.interactions
-        .map((i) => `${getSeverityIcon(i.severity)} ${i.drug1} + ${i.drug2}\n${i.description}`)
+        .map(i => `${getSeverityIcon(i.severity)} ${i.drug1} + ${i.drug2}\n${i.description}`)
         .join('\n\n');
 
       Alert.alert(
@@ -446,7 +496,7 @@ export function useSettingsScreen() {
   // Test ilaçlarını sil (TEST- prefix'li olanlar)
   const handleDeleteTestMedicines = useCallback(() => {
     const testMedicines = medicines.filter(m => m.name.startsWith('TEST-'));
-    
+
     if (testMedicines.length === 0) {
       Alert.alert(
         language === 'tr' ? 'Bilgi' : 'Info',
@@ -454,7 +504,7 @@ export function useSettingsScreen() {
       );
       return;
     }
-    
+
     Alert.alert(
       language === 'tr' ? 'Test Ilaclarini Sil' : 'Delete Test Medicines',
       language === 'tr'
@@ -483,21 +533,26 @@ export function useSettingsScreen() {
     try {
       const triggerIds = await notifee.getTriggerNotificationIds();
       const displayedNotifs = await notifee.getDisplayedNotifications();
-      
-      const medicineInfo = medicines.map(m => {
-        const times = reminderTimes.filter(rt => rt.medicineId === m.id);
-        return `${m.name}: ${times.map(t => t.time).join(', ')}`;
-      }).join('\n');
-      
-      const triggerInfo = triggerIds.length > 0 
-        ? triggerIds.join('\n') 
-        : (language === 'tr' ? 'Hic planlanmis bildirim yok!' : 'No scheduled notifications!');
-      
+
+      const medicineInfo = medicines
+        .map(m => {
+          const times = reminderTimes.filter(rt => rt.medicineId === m.id);
+          return `${m.name}: ${times.map(t => t.time).join(', ')}`;
+        })
+        .join('\n');
+
+      const triggerInfo =
+        triggerIds.length > 0
+          ? triggerIds.join('\n')
+          : language === 'tr'
+            ? 'Hic planlanmis bildirim yok!'
+            : 'No scheduled notifications!';
+
       Alert.alert(
         language === 'tr' ? 'Debug Bilgisi' : 'Debug Info',
         `${language === 'tr' ? 'Ilaclar' : 'Medicines'} (${medicines.length}):\n${medicineInfo || 'Yok'}\n\n` +
-        `${language === 'tr' ? 'Planlanmis Bildirimler' : 'Scheduled Notifications'} (${triggerIds.length}):\n${triggerInfo}\n\n` +
-        `${language === 'tr' ? 'Goruntulen Bildirimler' : 'Displayed Notifications'}: ${displayedNotifs.length}`,
+          `${language === 'tr' ? 'Planlanmis Bildirimler' : 'Scheduled Notifications'} (${triggerIds.length}):\n${triggerInfo}\n\n` +
+          `${language === 'tr' ? 'Goruntulen Bildirimler' : 'Displayed Notifications'}: ${displayedNotifs.length}`,
         [{ text: 'OK' }]
       );
     } catch (error) {

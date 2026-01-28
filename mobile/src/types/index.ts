@@ -71,6 +71,9 @@ export interface UserSettings {
 
   // Alarm modu - Sessizde bile ses çıkar
   alarmModeEnabled: boolean; // Telefon sessizde/titreşimde bile alarm sesi çalar
+
+  // İlaç çakışma aralığı - Aynı saate denk gelen ilaçlar arası mesafe (dakika)
+  conflictIntervalMinutes: number; // Varsayılan 10 dakika
 }
 
 // İlaç alma kaydı

@@ -65,26 +65,34 @@ export default function SettingsScreen() {
 
   const handleVersionPress = useCallback(() => {
     const now = Date.now();
-    
+
     if (now - lastTapTimeRef.current > DEV_MODE_TAP_TIMEOUT) {
       tapCountRef.current = 0;
     }
-    
+
     lastTapTimeRef.current = now;
     tapCountRef.current += 1;
-    
+
     if (tapCountRef.current >= DEV_MODE_TAP_COUNT) {
       tapCountRef.current = 0;
       const newDevMode = !isDevMode;
       setIsDevMode(newDevMode);
-      
+
       Alert.alert(
-        newDevMode 
-          ? (language === 'tr' ? 'Geliştirici Modu Açık' : 'Developer Mode Enabled')
-          : (language === 'tr' ? 'Geliştirici Modu Kapalı' : 'Developer Mode Disabled'),
         newDevMode
-          ? (language === 'tr' ? 'Geliştirici test seçenekleri artık görünür.' : 'Developer test options are now visible.')
-          : (language === 'tr' ? 'Geliştirici test seçenekleri gizlendi.' : 'Developer test options are now hidden.')
+          ? language === 'tr'
+            ? 'Geliştirici Modu Açık'
+            : 'Developer Mode Enabled'
+          : language === 'tr'
+            ? 'Geliştirici Modu Kapalı'
+            : 'Developer Mode Disabled',
+        newDevMode
+          ? language === 'tr'
+            ? 'Geliştirici test seçenekleri artık görünür.'
+            : 'Developer test options are now visible.'
+          : language === 'tr'
+            ? 'Geliştirici test seçenekleri gizlendi.'
+            : 'Developer test options are now hidden.'
       );
     }
   }, [isDevMode, language]);
@@ -118,11 +126,11 @@ export default function SettingsScreen() {
           showLanguagePicker={pickerState.showLanguagePicker}
           onThemePress={() => togglePicker('showThemePicker')}
           onLanguagePress={() => togglePicker('showLanguagePicker')}
-          onThemeSelect={(themeValue) => {
+          onThemeSelect={themeValue => {
             setTheme(themeValue);
             closePicker('showThemePicker');
           }}
-          onLanguageSelect={(lang) => {
+          onLanguageSelect={lang => {
             setLanguage(lang);
             closePicker('showLanguagePicker');
           }}
@@ -134,16 +142,18 @@ export default function SettingsScreen() {
           settings={settings}
           showSnoozePicker={pickerState.showSnoozePicker}
           showVolumePicker={pickerState.showVolumePicker}
+          showConflictIntervalPicker={pickerState.showConflictIntervalPicker}
           onSettingChange={updateSettings}
           onSnoozePress={() => togglePicker('showSnoozePicker')}
           onVolumePress={() => togglePicker('showVolumePicker')}
+          onConflictIntervalPress={() => togglePicker('showConflictIntervalPicker')}
           onTestNotification={handleTestNotification}
           onTestFullScreenAlarm={handleTestFullScreenAlarm}
           onTestVoice={handleTestVoice}
         />
 
         {isDevMode && (
-          <DevTestSection 
+          <DevTestSection
             onScheduleAlarm={handleScheduleTestAlarm}
             onAddTestMedicine={handleAddTestMedicine}
             onDeleteTestMedicines={handleDeleteTestMedicines}
@@ -164,7 +174,9 @@ export default function SettingsScreen() {
           formatTimeDisplay={formatTimeDisplay}
         />
 
-        <AdditionalFeaturesSection onInteractionsPress={() => navigation.navigate('Interactions')} />
+        <AdditionalFeaturesSection
+          onInteractionsPress={() => navigation.navigate('Interactions')}
+        />
 
         <AccountSection
           userEmail={user?.email}
@@ -174,10 +186,7 @@ export default function SettingsScreen() {
           onLogoutPress={handleLogout}
         />
 
-        <AboutSection 
-          onVersionPress={handleVersionPress}
-          isDevMode={isDevMode}
-        />
+        <AboutSection onVersionPress={handleVersionPress} isDevMode={isDevMode} />
 
         <View style={{ height: 40 }} />
       </ScrollView>

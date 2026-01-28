@@ -143,6 +143,7 @@ export const useMedicineStore = create<MedicineState>()(
         quietHoursStart: '23:00',
         quietHoursEnd: '07:00',
         alarmModeEnabled: true,
+        conflictIntervalMinutes: 10,
       },
       alarmState: {
         isActive: false,
@@ -906,7 +907,11 @@ export const useMedicineStore = create<MedicineState>()(
         // Az kaldı uyarısı için log
         const threshold = medicine.stockThreshold ?? 5;
         if (newStock <= threshold && newStock > 0) {
-          log.info('Stok az kaldi', { medicineName: medicine.name, remaining: newStock, threshold });
+          log.info('Stok az kaldi', {
+            medicineName: medicine.name,
+            remaining: newStock,
+            threshold,
+          });
         } else if (newStock === 0) {
           log.warn('Stok bitti!', { medicineName: medicine.name });
         }
@@ -936,6 +941,7 @@ export const useMedicineStore = create<MedicineState>()(
             quietHoursStart: '23:00',
             quietHoursEnd: '07:00',
             alarmModeEnabled: true,
+            conflictIntervalMinutes: 10,
           },
           lastSyncAt: null,
         });

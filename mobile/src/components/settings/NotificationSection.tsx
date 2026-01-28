@@ -11,9 +11,11 @@ interface NotificationSectionProps {
   settings: Settings;
   showSnoozePicker: boolean;
   showVolumePicker: boolean;
+  showConflictIntervalPicker: boolean;
   onSettingChange: (updates: Partial<Settings>) => void;
   onSnoozePress: () => void;
   onVolumePress: () => void;
+  onConflictIntervalPress: () => void;
   onTestNotification: () => void;
   onTestFullScreenAlarm: () => void;
   onTestVoice: () => void;
@@ -27,13 +29,17 @@ const VOLUME_OPTIONS = [
   { value: 100, labelTr: 'Maksimum', labelEn: 'Maximum' },
 ];
 
+const CONFLICT_INTERVAL_OPTIONS = [5, 10, 15, 20, 30];
+
 export const NotificationSection: React.FC<NotificationSectionProps> = ({
   settings,
   showSnoozePicker,
   showVolumePicker,
+  showConflictIntervalPicker,
   onSettingChange,
   onSnoozePress,
   onVolumePress,
+  onConflictIntervalPress,
   onTestNotification,
   onTestFullScreenAlarm,
   onTestVoice,
@@ -51,6 +57,11 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
     onVolumePress();
   };
 
+  const handleConflictIntervalPress = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    onConflictIntervalPress();
+  };
+
   const handleSnoozeSelect = (duration: number) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     onSettingChange({ snoozeDuration: duration });
@@ -59,6 +70,11 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
   const handleVolumeSelect = (volume: number) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     onSettingChange({ alarmVolume: volume });
+  };
+
+  const handleConflictIntervalSelect = (interval: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    onSettingChange({ conflictIntervalMinutes: interval });
   };
 
   const getSnoozeDurationLabel = (duration: number) => {
@@ -85,6 +101,10 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
     return `%${volume}`;
   };
 
+  const getConflictIntervalLabel = (interval: number) => {
+    return `${interval} ${language === 'tr' ? 'dk' : 'min'}`;
+  };
+
   return (
     <SettingsSection icon="notifications-outline" title={t('settings_notifications')}>
       <SettingRow
@@ -94,7 +114,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         rightElement={
           <Switch
             value={settings.vibrationEnabled}
-            onValueChange={(value) => onSettingChange({ vibrationEnabled: value })}
+            onValueChange={value => onSettingChange({ vibrationEnabled: value })}
             trackColor={{ false: colors.border, true: colors.primary }}
             thumbColor="#FFFFFF"
           />
@@ -108,7 +128,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         rightElement={
           <Switch
             value={settings.fullScreenAlarmEnabled}
-            onValueChange={(value) => onSettingChange({ fullScreenAlarmEnabled: value })}
+            onValueChange={value => onSettingChange({ fullScreenAlarmEnabled: value })}
             trackColor={{ false: colors.border, true: colors.primary }}
             thumbColor="#FFFFFF"
           />
@@ -124,7 +144,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         rightElement={
           <Switch
             value={settings.alarmModeEnabled ?? true}
-            onValueChange={(value) => onSettingChange({ alarmModeEnabled: value })}
+            onValueChange={value => onSettingChange({ alarmModeEnabled: value })}
             trackColor={{ false: colors.border, true: '#EF4444' }}
             thumbColor="#FFFFFF"
           />
@@ -156,7 +176,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         icon={{ name: 'time-outline', color: '#F59E0B' }}
         label={language === 'tr' ? 'Erteleme Suresi' : 'Snooze Duration'}
         description={
-          language === 'tr' ? 'Alarm ertelendiginde bekleme suresi' : 'Wait time when alarm is snoozed'
+          language === 'tr'
+            ? 'Alarm ertelendiginde bekleme suresi'
+            : 'Wait time when alarm is snoozed'
         }
         value={
           (settings.snoozeDuration || 5) < 1
@@ -178,9 +200,30 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
       )}
 
       <SettingRow
+        icon={{ name: 'git-branch-outline', color: '#06B6D4' }}
+        label={t('settings_conflict_interval')}
+        description={t('settings_conflict_interval_desc')}
+        value={getConflictIntervalLabel(settings.conflictIntervalMinutes || 10)}
+        onPress={handleConflictIntervalPress}
+        showChevron
+        chevronDirection={showConflictIntervalPicker ? 'up' : 'down'}
+      />
+
+      {showConflictIntervalPicker && (
+        <OptionPicker<number>
+          options={CONFLICT_INTERVAL_OPTIONS}
+          selectedValue={settings.conflictIntervalMinutes || 10}
+          onSelect={handleConflictIntervalSelect}
+          getLabel={getConflictIntervalLabel}
+        />
+      )}
+
+      <SettingRow
         icon={{ name: 'notifications-outline', color: '#3B82F6' }}
         label={t('settings_test_notification')}
-        description={language === 'tr' ? 'Bildirimlerin calistigini kontrol et' : 'Test if notifications work'}
+        description={
+          language === 'tr' ? 'Bildirimlerin calistigini kontrol et' : 'Test if notifications work'
+        }
         onPress={onTestNotification}
         showChevron
       />
@@ -189,7 +232,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         icon={{ name: 'alarm-outline', color: '#EF4444' }}
         label={language === 'tr' ? 'Tam Ekran Alarm Testi' : 'Full Screen Alarm Test'}
         description={
-          language === 'tr' ? '2 saniye sonra alarm ekrani acilir' : 'Alarm screen opens after 2 seconds'
+          language === 'tr'
+            ? '2 saniye sonra alarm ekrani acilir'
+            : 'Alarm screen opens after 2 seconds'
         }
         onPress={onTestFullScreenAlarm}
         showChevron

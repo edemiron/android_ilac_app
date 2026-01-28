@@ -45,9 +45,64 @@ export function useMedicinePersistence({
   } = useMedicineStore();
   const { canAddMedicine: checkCanAddMedicine, canUseBarcodeScanner } = useSubscription();
 
+  // Saatleri çakışma aralığına göre kaydır
+  const adjustTimesForConflicts = useCallback(
+    (originalTimes: string[], conflictingTimes: Set<string>, intervalMinutes: number): string[] => {
+      const adjustedTimes: string[] = [];
+      const allOccupiedTimes = new Set(conflictingTimes);
+
+      for (const time of originalTimes) {
+        if (!allOccupiedTimes.has(time)) {
+          adjustedTimes.push(time);
+          allOccupiedTimes.add(time);
+        } else {
+          // Çakışma var, yeni saat bul
+          const [hours, minutes] = time.split(':').map(Number);
+          let newMinutes = minutes;
+          let newHours = hours;
+          let foundSlot = false;
+
+          // Maksimum 6 kez dene (60 dakika ileriye kadar)
+          for (let attempt = 0; attempt < 6; attempt++) {
+            newMinutes += intervalMinutes;
+            if (newMinutes >= 60) {
+              newHours += Math.floor(newMinutes / 60);
+              newMinutes = newMinutes % 60;
+            }
+            if (newHours >= 24) {
+              newHours = newHours % 24;
+            }
+
+            const candidateTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+
+            if (!allOccupiedTimes.has(candidateTime)) {
+              adjustedTimes.push(candidateTime);
+              allOccupiedTimes.add(candidateTime);
+              foundSlot = true;
+              break;
+            }
+          }
+
+          // Eğer uygun slot bulunamazsa orijinal zamanı kullan
+          if (!foundSlot) {
+            adjustedTimes.push(time);
+          }
+        }
+      }
+
+      return adjustedTimes.sort();
+    },
+    []
+  );
+
   // Saat çakışma kontrolü
+  // Döndürülen değer: { proceed: boolean, adjustedTimes?: string[] }
+  // proceed: true ise devam et, false ise iptal
+  // adjustedTimes: Otomatik düzenleme seçildiyse yeni saatler
   const checkTimeConflict = useCallback(
-    async (formState: AddMedicineFormState): Promise<boolean> => {
+    async (
+      formState: AddMedicineFormState
+    ): Promise<{ proceed: boolean; adjustedTimes?: string[] }> => {
       // Yeni ilacın saatlerini belirle
       let newMedicineTimes: string[];
 
@@ -64,7 +119,8 @@ export function useMedicinePersistence({
         newMedicineTimes = calculatedTimes.map(rt => rt.time);
       }
 
-      // Mevcut aktif ilaçların saatlerini al (düzenleme modunda kendi saatlerini hariç tut)
+      // Mevcut aktif ilaçların tüm saatlerini topla
+      const existingOccupiedTimes = new Set<string>();
       const existingConflicts: { medicineName: string; time: string }[] = [];
 
       for (const medicine of medicines) {
@@ -74,6 +130,7 @@ export function useMedicinePersistence({
         const medicineReminderTimes = getReminderTimesForMedicine(medicine.id);
 
         for (const rt of medicineReminderTimes) {
+          existingOccupiedTimes.add(rt.time);
           if (newMedicineTimes.includes(rt.time)) {
             existingConflicts.push({
               medicineName: medicine.name,
@@ -84,7 +141,7 @@ export function useMedicinePersistence({
       }
 
       if (existingConflicts.length === 0) {
-        return true;
+        return { proceed: true };
       }
 
       // Çakışan saatleri grupla
@@ -92,26 +149,53 @@ export function useMedicinePersistence({
         .map(c => `⏰ ${c.time} - ${c.medicineName}`)
         .join('\n');
 
-      return new Promise<boolean>(resolve => {
+      // Otomatik düzenleme için yeni saatleri hesapla
+      const intervalMinutes = settings.conflictIntervalMinutes || 10;
+      const adjustedTimes = adjustTimesForConflicts(
+        newMedicineTimes,
+        existingOccupiedTimes,
+        intervalMinutes
+      );
+
+      // Düzenlenen saatleri göster
+      const adjustedTimesPreview = adjustedTimes.join(', ');
+
+      return new Promise<{ proceed: boolean; adjustedTimes?: string[] }>(resolve => {
         Alert.alert(
           language === 'tr' ? '⏰ Saat Çakışması Tespit Edildi' : '⏰ Time Conflict Detected',
-          `${language === 'tr' ? 'Bu ilaç aşağıdaki ilaçlarla aynı saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${conflictMessages}\n\n${language === 'tr' ? 'Yine de eklemek istiyor musunuz?' : 'Do you still want to add this medicine?'}`,
+          `${language === 'tr' ? 'Bu ilaç aşağıdaki ilaçlarla aynı saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${conflictMessages}\n\n${language === 'tr' ? `Otomatik düzenleme: ${adjustedTimesPreview}` : `Auto-adjusted times: ${adjustedTimesPreview}`}`,
           [
             {
               text: t('cancel'),
               style: 'cancel',
-              onPress: () => resolve(false),
+              onPress: () => resolve({ proceed: false }),
+            },
+            {
+              text: language === 'tr' ? 'Otomatik Düzenle' : 'Auto Adjust',
+              onPress: () => {
+                // Ayarlanan saatlerle devam et
+                resolve({ proceed: true, adjustedTimes });
+              },
             },
             {
               text: language === 'tr' ? 'Yine de Ekle' : 'Add Anyway',
               style: 'destructive',
-              onPress: () => resolve(true),
+              onPress: () => resolve({ proceed: true }),
             },
           ]
         );
       });
     },
-    [medicines, settings, isEditing, medicineId, language, t, getReminderTimesForMedicine]
+    [
+      medicines,
+      settings,
+      isEditing,
+      medicineId,
+      language,
+      t,
+      getReminderTimesForMedicine,
+      adjustTimesForConflicts,
+    ]
   );
 
   const handleScanBarcode = useCallback(() => {
@@ -214,11 +298,19 @@ export function useMedicinePersistence({
                 onPress: async () => {
                   // İlaç etkileşimi kabul edildi, şimdi saat çakışmasını kontrol et
                   const timeConflictResult = await checkTimeConflict(formState);
-                  if (timeConflictResult === false) {
+                  if (!timeConflictResult.proceed) {
                     resolve(false);
                     return;
                   }
-                  const result = await saveMedicine(formState);
+                  // Otomatik düzenleme yapıldıysa güncellenmiş formState ile kaydet
+                  const finalFormState = timeConflictResult.adjustedTimes
+                    ? {
+                        ...formState,
+                        customTimes: timeConflictResult.adjustedTimes,
+                        useCustomTimes: true,
+                      }
+                    : formState;
+                  const result = await saveMedicine(finalFormState);
                   resolve(result);
                 },
               },
@@ -229,13 +321,32 @@ export function useMedicinePersistence({
 
       // Saat çakışma kontrolü
       const timeConflictResult = await checkTimeConflict(formState);
-      if (timeConflictResult === false) {
+      if (!timeConflictResult.proceed) {
         return false;
       }
 
-      return saveMedicine(formState);
+      // Otomatik düzenleme yapıldıysa güncellenmiş formState ile kaydet
+      const finalFormState = timeConflictResult.adjustedTimes
+        ? {
+            ...formState,
+            customTimes: timeConflictResult.adjustedTimes,
+            useCustomTimes: true,
+          }
+        : formState;
+
+      return saveMedicine(finalFormState);
     },
-    [isEditing, medicineId, medicines, checkCanAddMedicine, language, t, navigation]
+    [
+      isEditing,
+      medicineId,
+      medicines,
+      checkCanAddMedicine,
+      language,
+      t,
+      navigation,
+      checkTimeConflict,
+      saveMedicine,
+    ]
   );
 
   const saveMedicine = useCallback(

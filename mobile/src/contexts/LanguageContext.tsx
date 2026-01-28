@@ -176,6 +176,13 @@ const tr = {
   // Onay mesajları
   confirm_delete_medicine: 'Bu ilacı silmek istediğinizden emin misiniz?',
   confirm_skip_medicine: 'Bu dozu atlamak istediğinizden emin misiniz?',
+
+  // İlaç çakışma aralığı
+  settings_conflict_interval: 'İlaç Aralığı',
+  settings_conflict_interval_desc: 'Aynı saate denk gelen ilaçlar arası mesafe',
+  conflict_auto_adjust: 'Otomatik Düzenle',
+  conflict_auto_adjust_desc: 'Saatleri otomatik olarak kaydır',
+  conflict_minutes: '{minutes} dakika',
 };
 
 // İngilizce çeviriler
@@ -346,6 +353,13 @@ const en: typeof tr = {
   // Confirmation messages
   confirm_delete_medicine: 'Are you sure you want to delete this medicine?',
   confirm_skip_medicine: 'Are you sure you want to skip this dose?',
+
+  // Medicine conflict interval
+  settings_conflict_interval: 'Medicine Interval',
+  settings_conflict_interval_desc: 'Time gap between medicines at the same time',
+  conflict_auto_adjust: 'Auto Adjust',
+  conflict_auto_adjust_desc: 'Automatically shift times',
+  conflict_minutes: '{minutes} minutes',
 };
 
 const translations = { tr, en };

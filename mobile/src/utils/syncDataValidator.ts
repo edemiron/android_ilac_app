@@ -31,32 +31,36 @@ const MedicineInstructionSchema = z.enum([
 /**
  * Medicine schema
  */
-const MedicineSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1).max(200),
-  dosage: z.string().min(1).max(100),
-  frequency: z.number().int().min(1).max(24),
-  instructions: MedicineInstructionSchema.optional(),
-  color: z.string().regex(COLOR_REGEX, 'Invalid color format'),
-  icon: z.string().optional(),
-  startDate: z.string(),
-  endDate: z.string().optional(),
-  isActive: z.boolean(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  customTimes: z.array(z.string().regex(TIME_REGEX)).optional(),
-}).strict();
+const MedicineSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1).max(200),
+    dosage: z.string().min(1).max(100),
+    frequency: z.number().int().min(1).max(24),
+    instructions: MedicineInstructionSchema.optional(),
+    color: z.string().regex(COLOR_REGEX, 'Invalid color format'),
+    icon: z.string().optional(),
+    startDate: z.string(),
+    endDate: z.string().optional(),
+    isActive: z.boolean(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    customTimes: z.array(z.string().regex(TIME_REGEX)).optional(),
+  })
+  .strict();
 
 /**
  * Reminder time schema
  */
-const ReminderTimeSchema = z.object({
-  id: z.string().min(1),
-  medicineId: z.string().min(1),
-  time: z.string().regex(TIME_REGEX, 'Invalid time format (expected HH:MM)'),
-  notificationId: z.string().optional(),
-  isEnabled: z.boolean(),
-}).strict();
+const ReminderTimeSchema = z
+  .object({
+    id: z.string().min(1),
+    medicineId: z.string().min(1),
+    time: z.string().regex(TIME_REGEX, 'Invalid time format (expected HH:MM)'),
+    notificationId: z.string().optional(),
+    isEnabled: z.boolean(),
+  })
+  .strict();
 
 /**
  * Medicine log status
@@ -66,15 +70,17 @@ const MedicineLogStatusSchema = z.enum(['pending', 'taken', 'skipped', 'missed']
 /**
  * Medicine log schema
  */
-const MedicineLogSchema = z.object({
-  id: z.string().min(1),
-  medicineId: z.string().min(1),
-  reminderTimeId: z.string().min(1),
-  scheduledTime: z.string(),
-  takenAt: z.string().optional(),
-  status: MedicineLogStatusSchema,
-  note: z.string().max(500).optional(),
-}).strict();
+const MedicineLogSchema = z
+  .object({
+    id: z.string().min(1),
+    medicineId: z.string().min(1),
+    reminderTimeId: z.string().min(1),
+    scheduledTime: z.string(),
+    takenAt: z.string().optional(),
+    status: MedicineLogStatusSchema,
+    note: z.string().max(500).optional(),
+  })
+  .strict();
 
 /**
  * User settings schema
@@ -93,17 +99,20 @@ const UserSettingsSchema = z.object({
   quietHoursStart: z.string().regex(TIME_REGEX, 'Invalid quiet hours start time'),
   quietHoursEnd: z.string().regex(TIME_REGEX, 'Invalid quiet hours end time'),
   alarmModeEnabled: z.boolean(),
+  conflictIntervalMinutes: z.number().min(5).max(60).default(10),
 });
 
 /**
  * Complete sync data schema
  */
-const SyncDataSchema = z.object({
-  medicines: z.array(MedicineSchema),
-  reminderTimes: z.array(ReminderTimeSchema),
-  medicineLogs: z.array(MedicineLogSchema),
-  settings: UserSettingsSchema,
-}).strict();
+const SyncDataSchema = z
+  .object({
+    medicines: z.array(MedicineSchema),
+    reminderTimes: z.array(ReminderTimeSchema),
+    medicineLogs: z.array(MedicineLogSchema),
+    settings: UserSettingsSchema,
+  })
+  .strict();
 
 /**
  * Type inferred from Zod schema
@@ -141,10 +150,7 @@ export function validateSyncData(data: unknown): ValidationResult {
   if (data === null || data === undefined) {
     return {
       success: false,
-      error: new SyncDataValidationError(
-        'Sync data is null or undefined',
-        []
-      ),
+      error: new SyncDataValidationError('Sync data is null or undefined', []),
     };
   }
 
