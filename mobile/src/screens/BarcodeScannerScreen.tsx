@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Alert, Linking } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Linking } from 'react-native';
 import {
   Camera,
   useCameraDevice,
@@ -9,6 +9,7 @@ import {
 } from 'react-native-vision-camera';
 import { useNavigation } from '@react-navigation/native';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAlert } from '../contexts/AlertContext';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import {
   ScanOverlay,
@@ -25,6 +26,7 @@ interface BarcodeScannerScreenProps {
 export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenProps) {
   const navigation = useNavigation<any>();
   const { t } = useLanguage();
+  const { showAlert } = useAlert();
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const [isActive, setIsActive] = useState(true);
@@ -114,10 +116,15 @@ export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenPro
         onRequestPermission={async () => {
           const granted = await requestPermission();
           if (!granted) {
-            Alert.alert(t('barcode_camera_permission'), t('barcode_camera_permission'), [
-              { text: t('cancel'), style: 'cancel' },
-              { text: t('settings_open_settings'), onPress: openSettings },
-            ]);
+            showAlert({
+              type: 'warning',
+              title: t('barcode_camera_permission'),
+              message: t('barcode_camera_permission'),
+              buttons: [
+                { text: t('cancel'), style: 'cancel' },
+                { text: t('settings_open_settings'), onPress: openSettings, style: 'default' },
+              ],
+            });
           }
         }}
         permissionText={t('barcode_camera_permission')}

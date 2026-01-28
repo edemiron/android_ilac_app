@@ -1,16 +1,16 @@
 import { useCallback } from 'react';
-import { Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useMedicineStore } from '../stores/medicineStore';
-import { RootStackParamList, Medicine } from '../types';
+import { RootStackParamList } from '../types';
 import {
   scheduleMedicineNotification,
   scheduleExpiryReminder,
   cancelExpiryReminder,
 } from '../utils/notifications';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { useAlert } from '../contexts/AlertContext';
 import { AddMedicineFormState } from '../types/addMedicine.types';
 import { TranslationKey } from '../contexts/LanguageContext';
 import { createScopedLogger } from '../utils/logger';
@@ -35,6 +35,7 @@ export function useMedicinePersistence({
   language,
 }: UseMedicinePersistenceProps) {
   const navigation = useNavigation<NavigationProp>();
+  const { showAlert, showError } = useAlert();
   const {
     addMedicine,
     updateMedicine,
@@ -161,10 +162,12 @@ export function useMedicinePersistence({
       const adjustedTimesPreview = adjustedTimes.join(', ');
 
       return new Promise<{ proceed: boolean; adjustedTimes?: string[] }>(resolve => {
-        Alert.alert(
-          language === 'tr' ? '⏰ Saat Çakışması Tespit Edildi' : '⏰ Time Conflict Detected',
-          `${language === 'tr' ? 'Bu ilaç aşağıdaki ilaçlarla aynı saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${conflictMessages}\n\n${language === 'tr' ? `Otomatik düzenleme: ${adjustedTimesPreview}` : `Auto-adjusted times: ${adjustedTimesPreview}`}`,
-          [
+        showAlert({
+          type: 'warning',
+          title:
+            language === 'tr' ? '⏰ Saat Çakışması Tespit Edildi' : '⏰ Time Conflict Detected',
+          message: `${language === 'tr' ? 'Bu ilaç aşağıdaki ilaçlarla aynı saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${conflictMessages}\n\n${language === 'tr' ? `Otomatik düzenleme: ${adjustedTimesPreview}` : `Auto-adjusted times: ${adjustedTimesPreview}`}`,
+          buttons: [
             {
               text: t('cancel'),
               style: 'cancel',
@@ -172,6 +175,7 @@ export function useMedicinePersistence({
             },
             {
               text: language === 'tr' ? 'Otomatik Düzenle' : 'Auto Adjust',
+              style: 'default',
               onPress: () => {
                 // Ayarlanan saatlerle devam et
                 resolve({ proceed: true, adjustedTimes });
@@ -182,8 +186,8 @@ export function useMedicinePersistence({
               style: 'destructive',
               onPress: () => resolve({ proceed: true }),
             },
-          ]
-        );
+          ],
+        });
       });
     },
     [
@@ -195,6 +199,7 @@ export function useMedicinePersistence({
       t,
       getReminderTimesForMedicine,
       adjustTimesForConflicts,
+      showAlert,
     ]
   );
 
@@ -202,48 +207,53 @@ export function useMedicinePersistence({
     const { allowed, reason, remaining } = canUseBarcodeScanner();
 
     if (!allowed) {
-      Alert.alert(
-        language === 'tr' ? 'Barkod Tarama Hakki Doldu' : 'Barcode Scan Limit Reached',
-        reason,
-        [
+      showAlert({
+        type: 'warning',
+        title: language === 'tr' ? 'Barkod Tarama Hakki Doldu' : 'Barcode Scan Limit Reached',
+        message: reason,
+        buttons: [
           { text: language === 'tr' ? 'Iptal' : 'Cancel', style: 'cancel' },
           {
             text: language === 'tr' ? "Premium'a Gec" : 'Go Premium',
+            style: 'default',
             onPress: () => navigation.navigate('Premium'),
           },
-        ]
-      );
+        ],
+      });
       return;
     }
 
     if (remaining !== undefined && remaining !== -1 && remaining > 0) {
-      Alert.alert(
-        language === 'tr' ? 'Barkod Tarama' : 'Barcode Scan',
-        language === 'tr'
-          ? `Kalan tarama hakkiniz: ${remaining}\n\nDevam etmek istiyor musunuz?`
-          : `Remaining scans: ${remaining}\n\nDo you want to continue?`,
-        [
+      showAlert({
+        type: 'info',
+        title: language === 'tr' ? 'Barkod Tarama' : 'Barcode Scan',
+        message:
+          language === 'tr'
+            ? `Kalan tarama hakkiniz: ${remaining}\n\nDevam etmek istiyor musunuz?`
+            : `Remaining scans: ${remaining}\n\nDo you want to continue?`,
+        buttons: [
           { text: language === 'tr' ? 'Iptal' : 'Cancel', style: 'cancel' },
           {
             text: language === 'tr' ? 'Tara' : 'Scan',
+            style: 'default',
             onPress: () => navigation.navigate('BarcodeScanner'),
           },
-        ]
-      );
+        ],
+      });
       return;
     }
 
     navigation.navigate('BarcodeScanner');
-  }, [canUseBarcodeScanner, language, navigation]);
+  }, [canUseBarcodeScanner, language, navigation, showAlert]);
 
   const handleSave = useCallback(
     async (formState: AddMedicineFormState) => {
       if (!formState.name.trim()) {
-        Alert.alert(t('error'), t('error_required_field'));
+        showError(t('error'), t('error_required_field'));
         return false;
       }
       if (!formState.dosage.trim()) {
-        Alert.alert(t('error'), t('error_required_field'));
+        showError(t('error'), t('error_required_field'));
         return false;
       }
 
@@ -251,20 +261,23 @@ export function useMedicinePersistence({
         const activeMedicines = medicines.filter(m => m.isActive);
         const limitCheck = checkCanAddMedicine(activeMedicines.length);
         if (!limitCheck.allowed) {
-          Alert.alert(
-            language === 'tr' ? 'Ilac Limiti' : 'Medicine Limit',
-            limitCheck.reason ||
+          showAlert({
+            type: 'warning',
+            title: language === 'tr' ? 'Ilac Limiti' : 'Medicine Limit',
+            message:
+              limitCheck.reason ||
               (language === 'tr'
                 ? 'Ucretsiz planda en fazla 3 ilac ekleyebilirsiniz.'
                 : 'You can add up to 3 medicines in the free plan.'),
-            [
+            buttons: [
               { text: t('cancel'), style: 'cancel' },
               {
                 text: language === 'tr' ? "Premium'a Gec" : 'Go Premium',
+                style: 'default',
                 onPress: () => navigation.navigate('Premium'),
               },
-            ]
-          );
+            ],
+          });
           return false;
         }
       }
@@ -283,10 +296,14 @@ export function useMedicinePersistence({
           .join('\n\n');
 
         return new Promise<boolean>(resolve => {
-          Alert.alert(
-            language === 'tr' ? '⚠️ İlaç Etkileşimi Tespit Edildi' : '⚠️ Drug Interaction Detected',
-            `${interactionMessages}\n\n${language === 'tr' ? 'Yine de eklemek istiyor musunuz?' : 'Do you still want to add this medicine?'}`,
-            [
+          showAlert({
+            type: 'warning',
+            title:
+              language === 'tr'
+                ? '⚠️ İlaç Etkileşimi Tespit Edildi'
+                : '⚠️ Drug Interaction Detected',
+            message: `${interactionMessages}\n\n${language === 'tr' ? 'Yine de eklemek istiyor musunuz?' : 'Do you still want to add this medicine?'}`,
+            buttons: [
               {
                 text: t('cancel'),
                 style: 'cancel',
@@ -314,8 +331,8 @@ export function useMedicinePersistence({
                   resolve(result);
                 },
               },
-            ]
-          );
+            ],
+          });
         });
       }
 
@@ -346,6 +363,8 @@ export function useMedicinePersistence({
       navigation,
       checkTimeConflict,
       saveMedicine,
+      showAlert,
+      showError,
     ]
   );
 
@@ -434,7 +453,7 @@ export function useMedicinePersistence({
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('Medicine save error:', error);
-        Alert.alert(t('error'), `${t('error_unknown')}\n\n${errorMessage}`);
+        showError(t('error'), `${t('error_unknown')}\n\n${errorMessage}`);
         return false;
       }
     },
@@ -451,6 +470,7 @@ export function useMedicinePersistence({
       getReminderTimesForMedicine,
       getMedicineById,
       settings.fullScreenAlarmEnabled,
+      showError,
     ]
   );
 

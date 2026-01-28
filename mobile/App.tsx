@@ -52,6 +52,7 @@ import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
+import { AlertProvider } from './src/contexts/AlertContext';
 import {
   getBootRecoveryResult,
   clearBootRecoveryResult,
@@ -114,10 +115,10 @@ function AuthNavigator() {
 
 // Tab ikonları için renkler (isDark parametresiyle kullanılacak)
 const getTabColors = (isDark: boolean) => ({
-  home: { active: isDark ? '#8B9CFF' : '#0D9488', inactive: isDark ? '#6B8AAA' : '#94A3B8' },      // Primary - Teal
+  home: { active: isDark ? '#8B9CFF' : '#0D9488', inactive: isDark ? '#6B8AAA' : '#94A3B8' }, // Primary - Teal
   medicines: { active: isDark ? '#5EE6FF' : '#2563EB', inactive: isDark ? '#6B8AAA' : '#94A3B8' }, // Secondary - Royal Blue
   statistics: { active: isDark ? '#D0A6FF' : '#7C3AED', inactive: isDark ? '#6B8AAA' : '#94A3B8' }, // Accent - Purple
-  settings: { active: isDark ? '#F59E0B' : '#D97706', inactive: isDark ? '#6B8AAA' : '#94A3B8' },  // Warning - Amber
+  settings: { active: isDark ? '#F59E0B' : '#D97706', inactive: isDark ? '#6B8AAA' : '#94A3B8' }, // Warning - Amber
 });
 
 // Custom Tab Bar with Center FAB
@@ -179,11 +180,7 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
               </View>
 
               {/* Normal Tab */}
-              <TouchableOpacity
-                style={tabBarStyles.tab}
-                onPress={onPress}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity style={tabBarStyles.tab} onPress={onPress} activeOpacity={0.7}>
                 <Ionicons
                   name={iconConfig.name as any}
                   size={24}
@@ -276,7 +273,7 @@ function MainTabs() {
 
   return (
     <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={props => <CustomTabBar {...props} />}
       screenOptions={{
         headerStyle: {
           backgroundColor: colors.header,
@@ -911,7 +908,9 @@ export default function App() {
         <LanguageProvider>
           <AuthProvider>
             <SubscriptionProvider>
-              <AppContent />
+              <AlertProvider>
+                <AppContent />
+              </AlertProvider>
             </SubscriptionProvider>
           </AuthProvider>
         </LanguageProvider>

@@ -1,15 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  Animated,
-  Modal,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -22,6 +13,7 @@ import { tr, enUS } from 'date-fns/locale';
 import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage, TranslationKey } from '../contexts/LanguageContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { useAlert } from '../contexts/AlertContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -89,6 +81,7 @@ interface MedicineRowProps {
   onPress: () => void;
   onToggleActive: () => void;
   onDelete: () => void;
+  onShowActionMenu: (medicine: Medicine, onToggle: () => void, onDel: () => void) => void;
   colors: ThemeColors;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   language: 'tr' | 'en';
@@ -105,6 +98,7 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
   onPress,
   onToggleActive,
   onDelete,
+  onShowActionMenu,
   colors,
   t,
   language,
@@ -119,37 +113,7 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
       onLongPressSelect();
       return;
     }
-    Alert.alert(
-      medicine.name,
-      language === 'tr' ? 'Ne yapmak istiyorsunuz?' : 'What would you like to do?',
-      [
-        {
-          text: medicine.isActive
-            ? language === 'tr'
-              ? 'Duraklat'
-              : 'Pause'
-            : language === 'tr'
-              ? 'Aktifleştir'
-              : 'Activate',
-          onPress: onToggleActive,
-        },
-        {
-          text: t('delete'),
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              language === 'tr' ? 'İlacı Sil' : 'Delete Medicine',
-              t('confirm_delete_medicine'),
-              [
-                { text: t('cancel'), style: 'cancel' },
-                { text: t('delete'), style: 'destructive', onPress: onDelete },
-              ]
-            );
-          },
-        },
-        { text: t('cancel'), style: 'cancel' },
-      ]
-    );
+    onShowActionMenu(medicine, onToggleActive, onDelete);
   };
 
   const handlePress = () => {
@@ -317,6 +281,7 @@ export default function MedicinesScreen() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
   const { canAddMedicine } = useSubscription();
+  const { showAlert } = useAlert();
 
   const { medicines, getReminderTimesForMedicine, toggleMedicineActive, deleteMedicine } =
     useMedicineStore();
@@ -330,6 +295,17 @@ export default function MedicinesScreen() {
 
   // Delete confirmation modal state
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+
+  // Action menu state (for single medicine)
+  const [actionMenuVisible, setActionMenuVisible] = useState(false);
+  const [actionMenuMedicine, setActionMenuMedicine] = useState<Medicine | null>(null);
+  const [actionMenuCallbacks, setActionMenuCallbacks] = useState<{
+    onToggle: () => void;
+    onDelete: () => void;
+  } | null>(null);
+
+  // Single medicine delete confirmation state
+  const [singleDeleteVisible, setSingleDeleteVisible] = useState(false);
 
   // Load tip dismissed state from AsyncStorage
   useEffect(() => {
@@ -405,17 +381,68 @@ export default function MedicinesScreen() {
     setDeleteModalVisible(false);
   }, []);
 
+  // Show action menu for single medicine
+  const showActionMenu = useCallback(
+    (medicine: Medicine, onToggle: () => void, onDel: () => void) => {
+      setActionMenuMedicine(medicine);
+      setActionMenuCallbacks({ onToggle, onDelete: onDel });
+      setActionMenuVisible(true);
+    },
+    []
+  );
+
+  // Handle action menu toggle
+  const handleActionMenuToggle = useCallback(() => {
+    if (actionMenuCallbacks?.onToggle) {
+      actionMenuCallbacks.onToggle();
+    }
+    setActionMenuVisible(false);
+  }, [actionMenuCallbacks]);
+
+  // Show single delete confirmation
+  const handleActionMenuDelete = useCallback(() => {
+    setActionMenuVisible(false);
+    setSingleDeleteVisible(true);
+  }, []);
+
+  // Confirm single delete
+  const confirmSingleDelete = useCallback(() => {
+    if (actionMenuCallbacks?.onDelete) {
+      actionMenuCallbacks.onDelete();
+    }
+    setSingleDeleteVisible(false);
+    setActionMenuMedicine(null);
+    setActionMenuCallbacks(null);
+  }, [actionMenuCallbacks]);
+
+  // Cancel single delete
+  const cancelSingleDelete = useCallback(() => {
+    setSingleDeleteVisible(false);
+  }, []);
+
+  // Close action menu
+  const closeActionMenu = useCallback(() => {
+    setActionMenuVisible(false);
+    setActionMenuMedicine(null);
+    setActionMenuCallbacks(null);
+  }, []);
+
   const handleAddMedicine = () => {
     const { allowed, reason } = canAddMedicine(medicines.length);
 
     if (!allowed) {
-      Alert.alert(language === 'tr' ? 'İlaç Limiti' : 'Medicine Limit', reason, [
-        { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
-        {
-          text: language === 'tr' ? "Premium'a Geç" : 'Go Premium',
-          onPress: () => navigation.navigate('Premium'),
-        },
-      ]);
+      showAlert({
+        type: 'warning',
+        title: language === 'tr' ? 'İlaç Limiti' : 'Medicine Limit',
+        message: reason,
+        buttons: [
+          { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
+          {
+            text: language === 'tr' ? "Premium'a Geç" : 'Go Premium',
+            onPress: () => navigation.navigate('Premium'),
+          },
+        ],
+      });
       return;
     }
 
@@ -549,6 +576,7 @@ export default function MedicinesScreen() {
                       }
                       onToggleActive={() => toggleMedicineActive(medicine.id)}
                       onDelete={() => deleteMedicine(medicine.id)}
+                      onShowActionMenu={showActionMenu}
                       colors={colors}
                       t={t}
                       language={language}
@@ -585,6 +613,7 @@ export default function MedicinesScreen() {
                       }
                       onToggleActive={() => toggleMedicineActive(medicine.id)}
                       onDelete={() => deleteMedicine(medicine.id)}
+                      onShowActionMenu={showActionMenu}
                       colors={colors}
                       t={t}
                       language={language}
@@ -715,6 +744,126 @@ export default function MedicinesScreen() {
             <TouchableOpacity
               style={[styles.modalCancelButton, { borderColor: colors.border }]}
               onPress={cancelDelete}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>
+                {t('cancel')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Action Menu Modal (Single Medicine) */}
+      <Modal
+        visible={actionMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeActionMenu}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <View
+                style={[
+                  styles.modalIconContainer,
+                  { backgroundColor: (actionMenuMedicine?.color || colors.primary) + '20' },
+                ]}
+              >
+                <Ionicons
+                  name="medical"
+                  size={24}
+                  color={actionMenuMedicine?.color || colors.primary}
+                />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={2}>
+                {actionMenuMedicine?.name}
+              </Text>
+            </View>
+
+            <View style={styles.actionMenuButtons}>
+              <TouchableOpacity
+                style={[styles.actionMenuButton, { backgroundColor: colors.primary + '15' }]}
+                onPress={handleActionMenuToggle}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={actionMenuMedicine?.isActive ? 'pause-circle' : 'play-circle'}
+                  size={22}
+                  color={colors.primary}
+                />
+                <Text style={[styles.actionMenuButtonText, { color: colors.primary }]}>
+                  {actionMenuMedicine?.isActive
+                    ? language === 'tr'
+                      ? 'Durakla'
+                      : 'Pause'
+                    : language === 'tr'
+                      ? 'Devam Et'
+                      : 'Resume'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionMenuButton, { backgroundColor: colors.error + '15' }]}
+                onPress={handleActionMenuDelete}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash" size={22} color={colors.error} />
+                <Text style={[styles.actionMenuButtonText, { color: colors.error }]}>
+                  {language === 'tr' ? 'Sil' : 'Delete'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalCancelButton, { borderColor: colors.border }]}
+              onPress={closeActionMenu}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>
+                {t('cancel')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Single Delete Confirmation Modal */}
+      <Modal
+        visible={singleDeleteVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={cancelSingleDelete}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconContainer, { backgroundColor: colors.error + '20' }]}>
+                <Ionicons name="trash" size={28} color={colors.error} />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                {language === 'tr' ? 'İlacı Sil' : 'Delete Medicine'}
+              </Text>
+            </View>
+
+            <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
+              {language === 'tr'
+                ? `"${actionMenuMedicine?.name}" ilacını silmek istediğinize emin misiniz?`
+                : `Are you sure you want to delete "${actionMenuMedicine?.name}"?`}
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.error }]}
+              onPress={confirmSingleDelete}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.modalButtonText}>{language === 'tr' ? 'Sil' : 'Delete'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalCancelButton, { borderColor: colors.border }]}
+              onPress={cancelSingleDelete}
               activeOpacity={0.7}
             >
               <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>
@@ -1067,5 +1216,23 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 15,
     fontWeight: '500',
+  },
+  // Action Menu Styles
+  actionMenuButtons: {
+    width: '100%',
+    gap: 10,
+    marginBottom: 16,
+  },
+  actionMenuButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 10,
+  },
+  actionMenuButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

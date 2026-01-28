@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Alert,
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,7 +13,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { format, differenceInMinutes } from 'date-fns';
+import { format, differenceInMinutes, differenceInDays, startOfDay, parseISO } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
 import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, Medicine, ReminderTime, MedicineLog } from '../types';
@@ -25,6 +24,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { InlineAdBanner } from '../components/AdBanner';
 import { scheduleSnoozeNotification } from '../utils/notifications';
+import { useAlert } from '../contexts/AlertContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -164,7 +164,12 @@ const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
         </View>
 
         <View style={styles.currentDoseInfo}>
-          <View style={[styles.medicineIcon, { backgroundColor: reminder.medicine.color + (isDark ? '50' : '20') }]}>
+          <View
+            style={[
+              styles.medicineIcon,
+              { backgroundColor: reminder.medicine.color + (isDark ? '50' : '20') },
+            ]}
+          >
             <Ionicons name="medical" size={24} color={reminder.medicine.color} />
           </View>
           <View style={styles.currentDoseText}>
@@ -280,7 +285,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
     if (isTaken) {
       return {
         text: language === 'tr' ? 'Alındı' : 'Taken',
-        color: isDark ? '#34D399' : '#059669',           // Success yeşil
+        color: isDark ? '#34D399' : '#059669', // Success yeşil
         bg: isDark ? 'rgba(52, 211, 153, 0.25)' : '#DCFCE7',
         icon: 'checkmark-circle' as const,
       };
@@ -288,7 +293,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
     if (isSkipped) {
       return {
         text: language === 'tr' ? 'Atlandı' : 'Skipped',
-        color: isDark ? '#88C0E6' : colors.textMuted,    // Text Secondary
+        color: isDark ? '#88C0E6' : colors.textMuted, // Text Secondary
         bg: isDark ? 'rgba(136, 192, 230, 0.2)' : '#F3F4F6',
         icon: 'close-circle' as const,
       };
@@ -297,7 +302,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
     if (hasActiveSnooze) {
       return {
         text: language === 'tr' ? 'Ertelendi' : 'Snoozed',
-        color: isDark ? '#F59E0B' : '#F59E0B',           // Warning sarı
+        color: isDark ? '#F59E0B' : '#F59E0B', // Warning sarı
         bg: isDark ? 'rgba(245, 158, 11, 0.25)' : '#FEF3C7',
         icon: 'alarm' as const,
       };
@@ -314,14 +319,14 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
             : `${Math.floor(absMinutes / 60)}h late`;
       return {
         text: missedText,
-        color: isDark ? '#FB7185' : SOFT_RED,            // Error pembe-kırmızı
+        color: isDark ? '#FB7185' : SOFT_RED, // Error pembe-kırmızı
         bg: isDark ? 'rgba(251, 113, 133, 0.25)' : SOFT_RED_BG,
-        icon: 'alert-circle' as const
+        icon: 'alert-circle' as const,
       };
     }
     return {
       text: language === 'tr' ? 'Bekliyor' : 'Pending',
-      color: isDark ? '#8B9CFF' : colors.primary,        // Primary mor-mavi
+      color: isDark ? '#8B9CFF' : colors.primary, // Primary mor-mavi
       bg: isDark ? 'rgba(139, 156, 255, 0.2)' : colors.primary + '15',
       icon: 'time' as const,
     };
@@ -355,11 +360,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
       {/* Orta: İlaç Bilgisi */}
       <View style={styles.medicineInfo}>
         <Text
-          style={[
-            styles.medicineName,
-            { color: colors.text },
-            isCompleted && styles.completedText,
-          ]}
+          style={[styles.medicineName, { color: colors.text }, isCompleted && styles.completedText]}
           numberOfLines={1}
         >
           {reminder.medicine.name}
@@ -396,7 +397,10 @@ export default function HomeScreen() {
   const { t, language } = useLanguage();
   const { user } = useAuth();
   const { canAddMedicine } = useSubscription();
+  const { showAlert, showSuccess, showError } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
+  const [expiryModalVisible, setExpiryModalVisible] = useState(false);
+  const [expiringMedicines, setExpiringMedicines] = useState<Medicine[]>([]);
 
   const dateLocale = language === 'tr' ? tr : enUS;
 
@@ -419,17 +423,48 @@ export default function HomeScreen() {
   // Stok uyarısı
   const lowStockMedicines = getLowStockMedicines();
 
+  // Son kullanma tarihi uyarısı kontrolü
+  useEffect(() => {
+    const checkExpiringMedicines = () => {
+      const today = startOfDay(new Date());
+      const expiring = medicines.filter(medicine => {
+        if (!medicine.expiryDate || !medicine.isActive) return false;
+
+        const expiryDate = startOfDay(parseISO(medicine.expiryDate));
+        const daysLeft = differenceInDays(expiryDate, today);
+        const reminderDays = medicine.expiryReminderDays || 30;
+
+        // Hatırlatma zamanı geldiyse veya süresi geçtiyse
+        return daysLeft <= reminderDays;
+      });
+
+      if (expiring.length > 0) {
+        setExpiringMedicines(expiring);
+        setExpiryModalVisible(true);
+      }
+    };
+
+    // Sadece uygulama açıldığında kontrol et
+    const timer = setTimeout(checkExpiringMedicines, 1000);
+    return () => clearTimeout(timer);
+  }, [medicines]);
+
   const handleAddMedicine = () => {
     const { allowed, reason } = canAddMedicine(medicines.length);
 
     if (!allowed) {
-      Alert.alert(language === 'tr' ? 'İlaç Limiti' : 'Medicine Limit', reason, [
-        { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
-        {
-          text: language === 'tr' ? "Premium'a Geç" : 'Go Premium',
-          onPress: () => navigation.navigate('Premium'),
-        },
-      ]);
+      showAlert({
+        type: 'warning',
+        title: language === 'tr' ? 'İlaç Limiti' : 'Medicine Limit',
+        message: reason,
+        buttons: [
+          { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
+          {
+            text: language === 'tr' ? "Premium'a Geç" : 'Go Premium',
+            onPress: () => navigation.navigate('Premium'),
+          },
+        ],
+      });
       return;
     }
 
@@ -516,20 +551,20 @@ export default function HomeScreen() {
           snoozeCount: snooze.snoozeCount,
         });
 
-        Alert.alert(
+        showSuccess(
           language === 'tr' ? 'Ertelendi' : 'Snoozed',
           language === 'tr'
             ? `${reminder.medicine.name} ${minutes} dakika sonra hatırlatılacak.`
             : `${reminder.medicine.name} will be reminded in ${minutes} minutes.`
         );
       } catch (error) {
-        Alert.alert(
+        showError(
           language === 'tr' ? 'Hata' : 'Error',
           language === 'tr' ? 'Erteleme başarısız oldu.' : 'Failed to snooze.'
         );
       }
     },
-    [createSnooze, language]
+    [createSnooze, language, showSuccess, showError]
   );
 
   const completedCount = todayReminders.filter(r => r.log?.status === 'taken').length;
@@ -586,7 +621,9 @@ export default function HomeScreen() {
             {/* Uyum Oranı Circle */}
             <View style={styles.progressContainer}>
               <View style={[styles.progressCircle, { borderColor: colors.primary }]}>
-                <Text style={[styles.progressPercent, { color: colors.primary }]}>{progressPercent}%</Text>
+                <Text style={[styles.progressPercent, { color: colors.primary }]}>
+                  {progressPercent}%
+                </Text>
               </View>
               <Text style={[styles.progressLabel, { color: colors.textMuted }]}>
                 {language === 'tr' ? 'Uyum oranı' : 'Adherence'}
@@ -613,11 +650,22 @@ export default function HomeScreen() {
             <View style={[styles.heroStatDivider, { backgroundColor: colors.border }]} />
 
             <View style={styles.heroStatItem}>
-              <View style={[styles.heroStatIcon, { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.2)' : '#DCFCE7' }]}>
-                <Ionicons name="checkmark-circle-outline" size={18} color={isDark ? '#34D399' : '#16A34A'} />
+              <View
+                style={[
+                  styles.heroStatIcon,
+                  { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.2)' : '#DCFCE7' },
+                ]}
+              >
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={18}
+                  color={isDark ? '#34D399' : '#16A34A'}
+                />
               </View>
               <View>
-                <Text style={[styles.heroStatValue, { color: isDark ? '#34D399' : '#16A34A' }]}>{completedCount}</Text>
+                <Text style={[styles.heroStatValue, { color: isDark ? '#34D399' : '#16A34A' }]}>
+                  {completedCount}
+                </Text>
                 <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
                   {language === 'tr' ? 'Alındı' : 'Taken'}
                 </Text>
@@ -627,11 +675,18 @@ export default function HomeScreen() {
             <View style={[styles.heroStatDivider, { backgroundColor: colors.border }]} />
 
             <View style={styles.heroStatItem}>
-              <View style={[styles.heroStatIcon, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7' }]}>
+              <View
+                style={[
+                  styles.heroStatIcon,
+                  { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7' },
+                ]}
+              >
                 <Ionicons name="time-outline" size={18} color={isDark ? '#F59E0B' : '#D97706'} />
               </View>
               <View>
-                <Text style={[styles.heroStatValue, { color: isDark ? '#F59E0B' : '#D97706' }]}>{remainingCount}</Text>
+                <Text style={[styles.heroStatValue, { color: isDark ? '#F59E0B' : '#D97706' }]}>
+                  {remainingCount}
+                </Text>
                 <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
                   {language === 'tr' ? 'Kalan' : 'Left'}
                 </Text>
@@ -650,7 +705,11 @@ export default function HomeScreen() {
                 {' • '}
                 <Text style={{ color: colors.text }}>{currentReminder.medicine.name}</Text>
               </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('AddMedicine', { medicineId: currentReminder.medicine.id })}>
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate('AddMedicine', { medicineId: currentReminder.medicine.id })
+                }
+              >
                 <Text style={[styles.quickEditText, { color: colors.primary }]}>
                   {language === 'tr' ? 'Hızlı düzenle' : 'Quick edit'}
                 </Text>
@@ -695,7 +754,12 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('Medicines' as never)}
           >
             <View style={styles.lowStockContent}>
-              <View style={[styles.lowStockIconBox, { backgroundColor: isDark ? '#78350F' : '#FDE68A' }]}>
+              <View
+                style={[
+                  styles.lowStockIconBox,
+                  { backgroundColor: isDark ? '#78350F' : '#FDE68A' },
+                ]}
+              >
                 <Ionicons name="alert-circle" size={24} color={isDark ? '#FCD34D' : '#D97706'} />
               </View>
               <View style={styles.lowStockTextContainer}>
@@ -703,7 +767,9 @@ export default function HomeScreen() {
                   {language === 'tr' ? 'Stok Azalıyor!' : 'Low Stock!'}
                 </Text>
                 <Text style={[styles.lowStockSubtitle, { color: isDark ? '#FDE68A' : '#B45309' }]}>
-                  {lowStockMedicines.map(m => `${m.name} (${m.stockCount} ${m.stockUnit || 'adet'})`).join(', ')}
+                  {lowStockMedicines
+                    .map(m => `${m.name} (${m.stockCount} ${m.stockUnit || 'adet'})`)
+                    .join(', ')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={isDark ? '#FCD34D' : '#D97706'} />
@@ -774,6 +840,85 @@ export default function HomeScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
+      {/* Son Kullanma Tarihi Uyarı Modal */}
+      <Modal
+        visible={expiryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setExpiryModalVisible(false)}
+      >
+        <View style={styles.expiryModalOverlay}>
+          <View style={[styles.expiryModalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.expiryModalHeader}>
+              <Ionicons name="warning" size={32} color="#F59E0B" />
+              <Text style={[styles.expiryModalTitle, { color: colors.text }]}>
+                {language === 'tr' ? 'Son Kullanma Tarihi Uyarısı' : 'Expiry Date Warning'}
+              </Text>
+            </View>
+            <Text style={[styles.expiryModalSubtitle, { color: colors.textMuted }]}>
+              {language === 'tr'
+                ? 'Aşağıdaki ilaçların son kullanma tarihi yaklaşıyor veya dolmuş:'
+                : 'The following medicines are expiring soon or have expired:'}
+            </Text>
+            <View style={styles.expiryMedicineList}>
+              {expiringMedicines.map(medicine => {
+                const expiryDate = medicine.expiryDate ? parseISO(medicine.expiryDate) : null;
+                const daysLeft = expiryDate
+                  ? differenceInDays(startOfDay(expiryDate), startOfDay(new Date()))
+                  : 0;
+                const isExpired = daysLeft < 0;
+                const formattedDate = expiryDate
+                  ? format(expiryDate, 'd MMM yyyy', { locale: dateLocale })
+                  : '';
+
+                return (
+                  <View
+                    key={medicine.id}
+                    style={[styles.expiryMedicineItem, { backgroundColor: colors.inputBackground }]}
+                  >
+                    <View
+                      style={[
+                        styles.expiryMedicineIcon,
+                        { backgroundColor: medicine.color + '20' },
+                      ]}
+                    >
+                      <Ionicons name="medical" size={16} color={medicine.color} />
+                    </View>
+                    <View style={styles.expiryMedicineInfo}>
+                      <Text
+                        style={[styles.expiryMedicineName, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {medicine.name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.expiryMedicineDate,
+                          { color: isExpired ? '#EF4444' : '#F59E0B' },
+                        ]}
+                      >
+                        {isExpired
+                          ? language === 'tr'
+                            ? `Süresi doldu (${formattedDate})`
+                            : `Expired (${formattedDate})`
+                          : language === 'tr'
+                            ? `${daysLeft} gün kaldı (${formattedDate})`
+                            : `${daysLeft} days left (${formattedDate})`}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+            <TouchableOpacity
+              style={[styles.expiryModalButton, { backgroundColor: colors.primary }]}
+              onPress={() => setExpiryModalVisible(false)}
+            >
+              <Text style={styles.expiryModalButtonText}>{language === 'tr' ? 'Tamam' : 'OK'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1236,5 +1381,80 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  // Expiry Modal Styles
+  expiryModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  expiryModalContent: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  expiryModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  expiryModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    flex: 1,
+  },
+  expiryModalSubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  expiryMedicineList: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  expiryMedicineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    gap: 12,
+  },
+  expiryMedicineIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expiryMedicineInfo: {
+    flex: 1,
+  },
+  expiryMedicineName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  expiryMedicineDate: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  expiryModalButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  expiryModalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

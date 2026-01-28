@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { useMedicineStore } from '../stores/medicineStore';
+import { useAlert } from '../contexts/AlertContext';
 import {
   searchByBarcode,
   SearchResult,
@@ -27,6 +27,7 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
   const navigation = useNavigation<BarcodeScannerNavigationProp>();
   const { incrementBarcodeScanCount, isPremium } = useSubscription();
   const { medicines } = useMedicineStore();
+  const { showAlert } = useAlert();
 
   const [scanned, setScanned] = useState(false);
   const [searchStatus, setSearchStatus] = useState<SearchStatus>('idle');
@@ -45,88 +46,97 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
     setStatusMessage(progress.message);
   }, []);
 
-  const showNotFoundAlert = useCallback((barcode: string) => {
-    Alert.alert(
-      'Barkod Bulunamadı',
-      `Barkod: ${barcode}\n\nBu ilac tum kaynaklarda aramasina ragmen bulunamadi.\n\nManuel olarak ekleyebilirsiniz.`,
-      [
-        {
-          text: 'Iptal',
-          onPress: () => navigation.goBack(),
-          style: 'cancel',
-        },
-        {
-          text: 'Manuel Ekle',
-          onPress: () => navigation.navigate('AddMedicine', { barcode }),
-        },
-        {
-          text: 'Tekrar Tara',
-          onPress: () => setScanned(false),
-        },
-      ]
-    );
-  }, [navigation]);
+  const showNotFoundAlert = useCallback(
+    (barcode: string) => {
+      showAlert({
+        type: 'warning',
+        title: 'Barkod Bulunamadı',
+        message: `Barkod: ${barcode}\n\nBu ilac tum kaynaklarda aramasina ragmen bulunamadi.\n\nManuel olarak ekleyebilirsiniz.`,
+        buttons: [
+          {
+            text: 'Iptal',
+            onPress: () => navigation.goBack(),
+            style: 'cancel',
+          },
+          {
+            text: 'Manuel Ekle',
+            onPress: () => navigation.navigate('AddMedicine', { barcode }),
+            style: 'default',
+          },
+          {
+            text: 'Tekrar Tara',
+            onPress: () => setScanned(false),
+            style: 'default',
+          },
+        ],
+      });
+    },
+    [navigation, showAlert]
+  );
 
-  const handleBarCodeScanned = useCallback(async (result: { data: string }) => {
-    if (scanned) return;
+  const handleBarCodeScanned = useCallback(
+    async (result: { data: string }) => {
+      if (scanned) return;
 
-    setScanned(true);
-    setScannedBarcode(result.data);
-    setFoundMedicine(null);
-    setSearchSource('firebase');
-    setConfidence(0);
-    setCurrentSearchStep(0);
+      setScanned(true);
+      setScannedBarcode(result.data);
+      setFoundMedicine(null);
+      setSearchSource('firebase');
+      setConfidence(0);
+      setCurrentSearchStep(0);
 
-    log.debug('Barkod tarandi', { barcode: result.data });
+      log.debug('Barkod tarandi', { barcode: result.data });
 
-    setSearchStatus('searching');
-    setStatusMessage('Arama baslatiliyor...');
+      setSearchStatus('searching');
+      setStatusMessage('Arama baslatiliyor...');
 
-    try {
-      const searchResult: SearchResult = await searchByBarcode(
-        result.data,
-        handleSearchProgress
-      );
+      try {
+        const searchResult: SearchResult = await searchByBarcode(result.data, handleSearchProgress);
 
-      if (searchResult.success && searchResult.medicine) {
-        log.debug('Ilac bulundu', {
-          name: searchResult.medicine.name,
-          source: searchResult.source,
-          confidence: searchResult.confidence,
+        if (searchResult.success && searchResult.medicine) {
+          log.debug('Ilac bulundu', {
+            name: searchResult.medicine.name,
+            source: searchResult.source,
+            confidence: searchResult.confidence,
+          });
+
+          setFoundMedicine(searchResult.medicine);
+          setSearchSource(searchResult.source);
+          setConfidence(searchResult.confidence);
+          setSearchStatus('found');
+          setStatusMessage('Ilac bulundu!');
+          setShowResultModal(true);
+        } else {
+          log.debug('Ilac bulunamadi');
+          setSearchStatus('not_found');
+          setStatusMessage('Ilac bulunamadi');
+          showNotFoundAlert(result.data);
+        }
+      } catch (error: unknown) {
+        log.error('Arama hatasi', error);
+        const errorObj = error as { message?: string };
+        setSearchStatus('error');
+        setStatusMessage('Arama hatasi olustu');
+        showAlert({
+          type: 'error',
+          title: 'Hata',
+          message: errorObj.message || 'Arama sirasinda bir hata olustu.',
+          buttons: [
+            { text: 'Tekrar Dene', onPress: () => setScanned(false), style: 'default' },
+            { text: 'Kapat', onPress: () => navigation.goBack(), style: 'cancel' },
+          ],
         });
-
-        setFoundMedicine(searchResult.medicine);
-        setSearchSource(searchResult.source);
-        setConfidence(searchResult.confidence);
-        setSearchStatus('found');
-        setStatusMessage('Ilac bulundu!');
-        setShowResultModal(true);
-      } else {
-        log.debug('Ilac bulunamadi');
-        setSearchStatus('not_found');
-        setStatusMessage('Ilac bulunamadi');
-        showNotFoundAlert(result.data);
       }
-    } catch (error: unknown) {
-      log.error('Arama hatasi', error);
-      const errorObj = error as { message?: string };
-      setSearchStatus('error');
-      setStatusMessage('Arama hatasi olustu');
-      Alert.alert(
-        'Hata',
-        errorObj.message || 'Arama sirasinda bir hata olustu.',
-        [
-          { text: 'Tekrar Dene', onPress: () => setScanned(false) },
-          { text: 'Kapat', onPress: () => navigation.goBack() },
-        ]
-      );
-    }
-  }, [scanned, handleSearchProgress, showNotFoundAlert, navigation]);
+    },
+    [scanned, handleSearchProgress, showNotFoundAlert, navigation, showAlert]
+  );
 
-  const checkDuplicateBarcode = useCallback((): { exists: boolean; existingMedicine?: Medicine } => {
-    const existing = medicines.find(m =>
-      m.name === foundMedicine?.name ||
-      (scannedBarcode && m.name?.includes(scannedBarcode))
+  const checkDuplicateBarcode = useCallback((): {
+    exists: boolean;
+    existingMedicine?: Medicine;
+  } => {
+    const existing = medicines.find(
+      m => m.name === foundMedicine?.name || (scannedBarcode && m.name?.includes(scannedBarcode))
     );
     return { exists: !!existing, existingMedicine: existing };
   }, [medicines, foundMedicine?.name, scannedBarcode]);
@@ -163,10 +173,11 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
     const { exists, existingMedicine } = checkDuplicateBarcode();
 
     if (exists) {
-      Alert.alert(
-        'Bu Ilac Zaten Listenizde',
-        `"${existingMedicine?.name || foundMedicine.name}" adli ilac zaten kayitli.\n\nYine de eklemek istiyor musunuz?`,
-        [
+      showAlert({
+        type: 'warning',
+        title: 'Bu Ilac Zaten Listenizde',
+        message: `"${existingMedicine?.name || foundMedicine.name}" adli ilac zaten kayitli.\n\nYine de eklemek istiyor musunuz?`,
+        buttons: [
           {
             text: 'Iptal',
             style: 'cancel',
@@ -178,6 +189,7 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
           },
           {
             text: 'Mevcut Ilaca Git',
+            style: 'default',
             onPress: () => {
               setShowResultModal(false);
               setScanned(false);
@@ -194,13 +206,13 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
             style: 'destructive',
             onPress: () => proceedToAddMedicine(),
           },
-        ]
-      );
+        ],
+      });
       return;
     }
 
     proceedToAddMedicine();
-  }, [foundMedicine, checkDuplicateBarcode, proceedToAddMedicine, navigation]);
+  }, [foundMedicine, checkDuplicateBarcode, proceedToAddMedicine, navigation, showAlert]);
 
   const handleEditMedicine = useCallback(() => {
     setShowResultModal(false);

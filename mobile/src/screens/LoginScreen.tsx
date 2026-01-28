@@ -9,7 +9,6 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -17,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAlert } from '../contexts/AlertContext';
 
 type AuthStackParamList = {
   Login: undefined;
@@ -27,9 +27,18 @@ type NavigationProp = NativeStackNavigationProp<AuthStackParamList>;
 
 export default function LoginScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { login, resetPassword, loginWithGoogleProvider, isGoogleAvailable, isLoading, error, clearError } = useAuth();
+  const {
+    login,
+    resetPassword,
+    loginWithGoogleProvider,
+    isGoogleAvailable,
+    isLoading,
+    error,
+    clearError,
+  } = useAuth();
   const { colors } = useTheme();
   const { language } = useLanguage();
+  const { showError, showInfo, showSuccess } = useAlert();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,9 +46,10 @@ export default function LoginScreen() {
 
   const t = {
     title: language === 'tr' ? 'Giriş Yap' : 'Login',
-    subtitle: language === 'tr' 
-      ? 'Verileriniz güvenli bir şekilde senkronize edilecek' 
-      : 'Your data will be securely synced',
+    subtitle:
+      language === 'tr'
+        ? 'Verileriniz güvenli bir şekilde senkronize edilecek'
+        : 'Your data will be securely synced',
     email: language === 'tr' ? 'E-posta' : 'Email',
     password: language === 'tr' ? 'Şifre' : 'Password',
     login: language === 'tr' ? 'Giriş Yap' : 'Login',
@@ -48,17 +58,17 @@ export default function LoginScreen() {
     forgotPassword: language === 'tr' ? 'Şifremi Unuttum' : 'Forgot Password',
     noAccount: language === 'tr' ? 'Hesabınız yok mu?' : "Don't have an account?",
     register: language === 'tr' ? 'Kayıt Ol' : 'Register',
-    resetSent: language === 'tr' 
-      ? 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.' 
-      : 'Password reset link sent to your email.',
-    enterEmail: language === 'tr' 
-      ? 'Lütfen e-posta adresinizi girin.' 
-      : 'Please enter your email address.',
+    resetSent:
+      language === 'tr'
+        ? 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.'
+        : 'Password reset link sent to your email.',
+    enterEmail:
+      language === 'tr' ? 'Lütfen e-posta adresinizi girin.' : 'Please enter your email address.',
   };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert(
+      showError(
         language === 'tr' ? 'Hata' : 'Error',
         language === 'tr' ? 'Lütfen tüm alanları doldurun.' : 'Please fill all fields.'
       );
@@ -75,16 +85,16 @@ export default function LoginScreen() {
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
-      Alert.alert(language === 'tr' ? 'Bilgi' : 'Info', t.enterEmail);
+      showInfo(language === 'tr' ? 'Bilgi' : 'Info', t.enterEmail);
       return;
     }
 
     try {
       await resetPassword(email.trim());
-      Alert.alert(language === 'tr' ? 'Başarılı' : 'Success', t.resetSent);
+      showSuccess(language === 'tr' ? 'Başarılı' : 'Success', t.resetSent);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      Alert.alert(language === 'tr' ? 'Hata' : 'Error', errorMessage);
+      showError(language === 'tr' ? 'Hata' : 'Error', errorMessage);
     }
   };
 
@@ -96,7 +106,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
@@ -150,10 +160,7 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            <TouchableOpacity 
-              style={styles.forgotButton}
-              onPress={handleForgotPassword}
-            >
+            <TouchableOpacity style={styles.forgotButton} onPress={handleForgotPassword}>
               <Text style={styles.forgotText}>{t.forgotPassword}</Text>
             </TouchableOpacity>
 
@@ -200,165 +207,166 @@ export default function LoginScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 24,
-    justifyContent: 'center',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logo: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  form: {
-    marginBottom: 24,
-  },
-  errorBox: {
-    backgroundColor: colors.error + '15',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.error + '30',
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: colors.text,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-  },
-  passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-  },
-  passwordInput: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: colors.text,
-  },
-  eyeButton: {
-    padding: 12,
-  },
-  eyeIcon: {
-    fontSize: 20,
-  },
-  forgotButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
-  },
-  forgotText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  loginButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: colors.textSecondary,
-    fontSize: 14,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4285F4',
-    marginRight: 10,
-  },
-  googleButtonText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  registerLink: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    keyboardView: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      padding: 24,
+      justifyContent: 'center',
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: 40,
+    },
+    logo: {
+      fontSize: 64,
+      marginBottom: 16,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    form: {
+      marginBottom: 24,
+    },
+    errorBox: {
+      backgroundColor: colors.error + '15',
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.error + '30',
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 14,
+      textAlign: 'center',
+    },
+    inputGroup: {
+      marginBottom: 16,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    input: {
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: colors.text,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    passwordContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    passwordInput: {
+      flex: 1,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: colors.text,
+    },
+    eyeButton: {
+      padding: 12,
+    },
+    eyeIcon: {
+      fontSize: 20,
+    },
+    forgotButton: {
+      alignSelf: 'flex-end',
+      marginBottom: 24,
+    },
+    forgotText: {
+      fontSize: 14,
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    loginButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingVertical: 16,
+      alignItems: 'center',
+    },
+    loginButtonDisabled: {
+      opacity: 0.7,
+    },
+    loginButtonText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 20,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    dividerText: {
+      marginHorizontal: 16,
+      color: colors.textSecondary,
+      fontSize: 14,
+    },
+    googleButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      paddingVertical: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    googleIcon: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#4285F4',
+      marginRight: 10,
+    },
+    googleButtonText: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    footerText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    registerLink: {
+      fontSize: 14,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+  });

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, ScrollView, Platform, UIManager, Alert } from 'react-native';
+import { View, ScrollView, Platform, UIManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   PremiumCard,
@@ -15,6 +15,7 @@ import {
 } from '../components/settings';
 import { useSettingsScreen } from '../hooks/useSettingsScreen';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAlert } from '../contexts/AlertContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -59,6 +60,7 @@ export default function SettingsScreen() {
   } = useSettingsScreen();
 
   const { t } = useLanguage();
+  const { showInfo } = useAlert();
   const [isDevMode, setIsDevMode] = useState(false);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
@@ -78,7 +80,7 @@ export default function SettingsScreen() {
       const newDevMode = !isDevMode;
       setIsDevMode(newDevMode);
 
-      Alert.alert(
+      showInfo(
         newDevMode
           ? language === 'tr'
             ? 'Geliştirici Modu Açık'
@@ -95,7 +97,7 @@ export default function SettingsScreen() {
             : 'Developer test options are now hidden.'
       );
     }
-  }, [isDevMode, language]);
+  }, [isDevMode, language, showInfo]);
 
   const styles = createSettingsStyles(colors, isDark);
 

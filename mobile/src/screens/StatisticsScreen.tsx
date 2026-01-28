@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
@@ -23,6 +22,7 @@ import {
   prepareReportData,
   ReportOptions,
 } from '../services/pdfReportService';
+import { useAlert } from '../contexts/AlertContext';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -37,11 +37,16 @@ interface SectionProps {
 }
 
 const Section: React.FC<SectionProps> = ({ icon, title, children, colors, isDark }) => (
-  <View style={[styles.section, { 
-    backgroundColor: colors.card,
-    shadowOpacity: isDark ? 0 : 0.05,
-    elevation: isDark ? 0 : 1,
-  }]}>
+  <View
+    style={[
+      styles.section,
+      {
+        backgroundColor: colors.card,
+        shadowOpacity: isDark ? 0 : 0.05,
+        elevation: isDark ? 0 : 1,
+      },
+    ]}
+  >
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionIcon}>{icon}</Text>
       <Text style={[styles.sectionTitle, { color: colors.primary }]}>{title}</Text>
@@ -60,8 +65,21 @@ interface StatRowProps {
   isFirst?: boolean;
 }
 
-const StatRow: React.FC<StatRowProps> = ({ icon, iconBg, label, value, valueColor, colors, isFirst }) => (
-  <View style={[styles.statRow, !isFirst && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }]}>
+const StatRow: React.FC<StatRowProps> = ({
+  icon,
+  iconBg,
+  label,
+  value,
+  valueColor,
+  colors,
+  isFirst,
+}) => (
+  <View
+    style={[
+      styles.statRow,
+      !isFirst && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
+    ]}
+  >
     <View style={styles.statInfo}>
       <View style={[styles.iconContainer, { backgroundColor: iconBg }]}>
         <Text style={styles.iconEmoji}>{icon}</Text>
@@ -75,33 +93,31 @@ const StatRow: React.FC<StatRowProps> = ({ icon, iconBg, label, value, valueColo
 export default function StatisticsScreen() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
-  const { medicineLogs, medicines, settings, getAdherenceRate, getCurrentStreak } = useMedicineStore();
+  const { showAlert, showError } = useAlert();
+  const { medicineLogs, medicines, settings, getAdherenceRate, getCurrentStreak } =
+    useMedicineStore();
 
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('weekly');
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  
+
   const dateLocale = language === 'tr' ? tr : enUS;
-  
+
   const dateRange = useMemo(() => {
     const end = new Date();
-    const start = selectedPeriod === 'weekly' 
-      ? subDays(end, 6) 
-      : subDays(end, 29);
+    const start = selectedPeriod === 'weekly' ? subDays(end, 6) : subDays(end, 29);
     return { start, end };
   }, [selectedPeriod]);
-  
+
   const dailyStats = useMemo(() => {
     const days = eachDayOfInterval(dateRange);
-    
+
     return days.map(day => {
       const dayStr = format(day, 'yyyy-MM-dd');
-      const dayLogs = medicineLogs.filter(log => 
-        log.scheduledTime.startsWith(dayStr)
-      );
-      
+      const dayLogs = medicineLogs.filter(log => log.scheduledTime.startsWith(dayStr));
+
       const taken = dayLogs.filter(l => l.status === 'taken').length;
       const total = dayLogs.length || 1;
-      
+
       return {
         date: day,
         taken,
@@ -112,21 +128,21 @@ export default function StatisticsScreen() {
       };
     });
   }, [dateRange, medicineLogs]);
-  
+
   const overallStats = useMemo(() => {
-    const logs = medicineLogs.filter(log => 
+    const logs = medicineLogs.filter(log =>
       isWithinInterval(new Date(log.scheduledTime), dateRange)
     );
-    
+
     const taken = logs.filter(l => l.status === 'taken').length;
     const skipped = logs.filter(l => l.status === 'skipped').length;
     const missed = logs.filter(l => l.status === 'missed').length;
     const total = logs.length || 1;
-    
+
     let currentStreak = 0;
     let bestStreak = 0;
     let tempStreak = 0;
-    
+
     for (let i = dailyStats.length - 1; i >= 0; i--) {
       if (dailyStats[i].adherenceRate === 100 && dailyStats[i].total > 0) {
         tempStreak++;
@@ -139,7 +155,7 @@ export default function StatisticsScreen() {
       }
     }
     bestStreak = Math.max(bestStreak, tempStreak);
-    
+
     return {
       taken,
       skipped,
@@ -152,13 +168,14 @@ export default function StatisticsScreen() {
   }, [dateRange, medicineLogs, dailyStats]);
 
   const suggestions = useMemo(() => {
-    const logs = medicineLogs.filter(log => 
-      isWithinInterval(new Date(log.scheduledTime), dateRange) && 
-      (log.status === 'missed' || log.status === 'skipped')
+    const logs = medicineLogs.filter(
+      log =>
+        isWithinInterval(new Date(log.scheduledTime), dateRange) &&
+        (log.status === 'missed' || log.status === 'skipped')
     );
-    
+
     const timeStats: Record<string, { missed: number; total: number }> = {};
-    
+
     logs.forEach(log => {
       const time = log.scheduledTime.split('T')[1]?.substring(0, 5) || '';
       if (!timeStats[time]) {
@@ -167,33 +184,37 @@ export default function StatisticsScreen() {
       timeStats[time].missed++;
       timeStats[time].total++;
     });
-    
+
     const problematicTimes = Object.entries(timeStats)
       .filter(([_, stats]) => stats.missed >= 2)
       .sort((a, b) => b[1].missed - a[1].missed)
       .slice(0, 2);
-    
+
     return problematicTimes.map(([time, stats]) => ({
       time,
       missedCount: stats.missed,
     }));
   }, [medicineLogs, dateRange]);
-  
+
   const chartData = useMemo(() => {
-    const labels = selectedPeriod === 'weekly'
-      ? dailyStats.map(d => format(d.date, 'EEE', { locale: dateLocale }))
-      : dailyStats.filter((_, i) => i % 5 === 0).map(d => format(d.date, 'd', { locale: dateLocale }));
-    
-    const data = selectedPeriod === 'weekly'
-      ? dailyStats.map(d => d.adherenceRate)
-      : dailyStats.filter((_, i) => i % 5 === 0).map(d => d.adherenceRate);
-    
+    const labels =
+      selectedPeriod === 'weekly'
+        ? dailyStats.map(d => format(d.date, 'EEE', { locale: dateLocale }))
+        : dailyStats
+            .filter((_, i) => i % 5 === 0)
+            .map(d => format(d.date, 'd', { locale: dateLocale }));
+
+    const data =
+      selectedPeriod === 'weekly'
+        ? dailyStats.map(d => d.adherenceRate)
+        : dailyStats.filter((_, i) => i % 5 === 0).map(d => d.adherenceRate);
+
     return { labels, data };
   }, [dailyStats, selectedPeriod, dateLocale]);
-  
+
   const pieData = useMemo(() => {
     if (overallStats.total === 0) return [];
-    
+
     return [
       {
         name: t('home_taken'),
@@ -218,7 +239,7 @@ export default function StatisticsScreen() {
       },
     ].filter(item => item.population > 0);
   }, [overallStats, colors, t]);
-  
+
   const chartConfig = {
     backgroundGradientFrom: colors.card,
     backgroundGradientTo: colors.card,
@@ -263,14 +284,14 @@ export default function StatisticsScreen() {
       if (filePath) {
         await sharePDFReport(filePath);
       } else {
-        Alert.alert(
+        showError(
           language === 'tr' ? 'Hata' : 'Error',
           language === 'tr' ? 'PDF oluşturulamadı' : 'Could not generate PDF'
         );
       }
     } catch (error) {
       console.error('PDF error:', error);
-      Alert.alert(
+      showError(
         language === 'tr' ? 'Hata' : 'Error',
         language === 'tr' ? 'PDF oluşturulurken bir hata oluştu' : 'Error generating PDF'
       );
@@ -280,44 +301,78 @@ export default function StatisticsScreen() {
   };
 
   const showPDFOptions = () => {
-    Alert.alert(
-      language === 'tr' ? 'Rapor Oluştur' : 'Generate Report',
-      language === 'tr' ? 'Hangi dönem için rapor oluşturmak istiyorsunuz?' : 'Which period do you want to report?',
-      [
-        { text: language === 'tr' ? 'Son 7 Gün' : 'Last 7 Days', onPress: () => handleGeneratePDF(7) },
-        { text: language === 'tr' ? 'Son 30 Gün' : 'Last 30 Days', onPress: () => handleGeneratePDF(30) },
-        { text: language === 'tr' ? 'Son 90 Gün' : 'Last 90 Days', onPress: () => handleGeneratePDF(90) },
+    showAlert({
+      type: 'info',
+      title: language === 'tr' ? 'Rapor Oluştur' : 'Generate Report',
+      message:
+        language === 'tr'
+          ? 'Hangi dönem için rapor oluşturmak istiyorsunuz?'
+          : 'Which period do you want to report?',
+      buttons: [
+        {
+          text: language === 'tr' ? 'Son 7 Gün' : 'Last 7 Days',
+          onPress: () => handleGeneratePDF(7),
+        },
+        {
+          text: language === 'tr' ? 'Son 30 Gün' : 'Last 30 Days',
+          onPress: () => handleGeneratePDF(30),
+        },
+        {
+          text: language === 'tr' ? 'Son 90 Gün' : 'Last 90 Days',
+          onPress: () => handleGeneratePDF(90),
+        },
         { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
-      ]
-    );
+      ],
+    });
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      showsVerticalScrollIndicator={false}
+    >
       <LinearGradient
-        colors={overallStats.adherenceRate >= 50 ? [colors.primary, colors.gradientEnd || '#3B82F6'] : ['#F59E0B', '#F97316']}
+        colors={
+          overallStats.adherenceRate >= 50
+            ? [colors.primary, colors.gradientEnd || '#3B82F6']
+            : ['#F59E0B', '#F97316']
+        }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.adherenceCard}
       >
         <View style={styles.adherenceContent}>
           <View style={styles.adherenceIconBox}>
-            <Text style={styles.adherenceIconEmoji}>{overallStats.adherenceRate >= 80 ? '🌟' : overallStats.adherenceRate >= 50 ? '📊' : '💪'}</Text>
+            <Text style={styles.adherenceIconEmoji}>
+              {overallStats.adherenceRate >= 80
+                ? '🌟'
+                : overallStats.adherenceRate >= 50
+                  ? '📊'
+                  : '💪'}
+            </Text>
           </View>
           <View style={styles.adherenceTextContainer}>
             <Text style={styles.adherenceTitle}>
-              {language === 'tr' 
+              {language === 'tr'
                 ? `${overallStats.taken}/${overallStats.total || 0} tamamlandı`
                 : `${overallStats.taken}/${overallStats.total || 0} completed`}
             </Text>
             <Text style={styles.adherenceSubtitle}>
-              {overallStats.adherenceRate >= 80 
-                ? (language === 'tr' ? 'Harika gidiyorsun! 🎉' : 'You\'re doing great! 🎉')
+              {overallStats.adherenceRate >= 80
+                ? language === 'tr'
+                  ? 'Harika gidiyorsun! 🎉'
+                  : "You're doing great! 🎉"
                 : overallStats.adherenceRate >= 50
-                  ? (language === 'tr' ? 'İyi gidiyorsun, devam et!' : 'Good progress, keep going!')
+                  ? language === 'tr'
+                    ? 'İyi gidiyorsun, devam et!'
+                    : 'Good progress, keep going!'
                   : overallStats.total === 0
-                    ? (language === 'tr' ? 'Henüz veri yok' : 'No data yet')
-                    : (language === 'tr' ? 'Bugün başlayalım! 💪' : 'Let\'s start today! 💪')}
+                    ? language === 'tr'
+                      ? 'Henüz veri yok'
+                      : 'No data yet'
+                    : language === 'tr'
+                      ? 'Bugün başlayalım! 💪'
+                      : "Let's start today! 💪"}
             </Text>
           </View>
         </View>
@@ -325,13 +380,21 @@ export default function StatisticsScreen() {
       </LinearGradient>
 
       {suggestions.length > 0 && (
-        <Section icon="💡" title={language === 'tr' ? 'ÖNERİLER' : 'SUGGESTIONS'} colors={colors} isDark={isDark}>
+        <Section
+          icon="💡"
+          title={language === 'tr' ? 'ÖNERİLER' : 'SUGGESTIONS'}
+          colors={colors}
+          isDark={isDark}
+        >
           {suggestions.map((suggestion, index) => (
-            <View 
-              key={suggestion.time} 
+            <View
+              key={suggestion.time}
               style={[
-                styles.suggestionRow, 
-                index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }
+                styles.suggestionRow,
+                index > 0 && {
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: colors.divider,
+                },
               ]}
             >
               <View style={[styles.iconContainer, { backgroundColor: '#FEF3C7' }]}>
@@ -339,12 +402,12 @@ export default function StatisticsScreen() {
               </View>
               <View style={styles.suggestionContent}>
                 <Text style={[styles.suggestionText, { color: colors.text }]}>
-                  {language === 'tr' 
+                  {language === 'tr'
                     ? `${suggestion.time} dozunu sık kaçırıyorsun`
                     : `You often miss the ${suggestion.time} dose`}
                 </Text>
                 <Text style={[styles.suggestionHint, { color: colors.textMuted }]}>
-                  {language === 'tr' 
+                  {language === 'tr'
                     ? `Son ${selectedPeriod === 'weekly' ? '7' : '30'} günde ${suggestion.missedCount} kez`
                     : `${suggestion.missedCount} times in the last ${selectedPeriod === 'weekly' ? '7' : '30'} days`}
                 </Text>
@@ -354,52 +417,72 @@ export default function StatisticsScreen() {
         </Section>
       )}
 
-      <Section icon="📅" title={language === 'tr' ? 'DÖNEM SEÇİMİ' : 'PERIOD'} colors={colors} isDark={isDark}>
+      <Section
+        icon="📅"
+        title={language === 'tr' ? 'DÖNEM SEÇİMİ' : 'PERIOD'}
+        colors={colors}
+        isDark={isDark}
+      >
         <View style={styles.periodSelector}>
           <TouchableOpacity
             style={[
               styles.periodButton,
-              { backgroundColor: selectedPeriod === 'weekly' ? colors.primary + '15' : 'transparent' },
+              {
+                backgroundColor:
+                  selectedPeriod === 'weekly' ? colors.primary + '15' : 'transparent',
+              },
               selectedPeriod === 'weekly' && { borderColor: colors.primary, borderWidth: 1 },
             ]}
             onPress={() => setSelectedPeriod('weekly')}
           >
-            <Ionicons 
-              name="calendar-outline" 
-              size={18} 
-              color={selectedPeriod === 'weekly' ? colors.primary : colors.textMuted} 
+            <Ionicons
+              name="calendar-outline"
+              size={18}
+              color={selectedPeriod === 'weekly' ? colors.primary : colors.textMuted}
             />
-            <Text style={[
-              styles.periodButtonText,
-              { color: selectedPeriod === 'weekly' ? colors.primary : colors.textSecondary },
-            ]}>
+            <Text
+              style={[
+                styles.periodButtonText,
+                { color: selectedPeriod === 'weekly' ? colors.primary : colors.textSecondary },
+              ]}
+            >
               {t('stats_weekly')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.periodButton,
-              { backgroundColor: selectedPeriod === 'monthly' ? colors.primary + '15' : 'transparent' },
+              {
+                backgroundColor:
+                  selectedPeriod === 'monthly' ? colors.primary + '15' : 'transparent',
+              },
               selectedPeriod === 'monthly' && { borderColor: colors.primary, borderWidth: 1 },
             ]}
             onPress={() => setSelectedPeriod('monthly')}
           >
-            <Ionicons 
-              name="calendar" 
-              size={18} 
-              color={selectedPeriod === 'monthly' ? colors.primary : colors.textMuted} 
+            <Ionicons
+              name="calendar"
+              size={18}
+              color={selectedPeriod === 'monthly' ? colors.primary : colors.textMuted}
             />
-            <Text style={[
-              styles.periodButtonText,
-              { color: selectedPeriod === 'monthly' ? colors.primary : colors.textSecondary },
-            ]}>
+            <Text
+              style={[
+                styles.periodButtonText,
+                { color: selectedPeriod === 'monthly' ? colors.primary : colors.textSecondary },
+              ]}
+            >
               {t('stats_monthly')}
             </Text>
           </TouchableOpacity>
         </View>
       </Section>
-      
-      <Section icon="📈" title={language === 'tr' ? 'ÖZET' : 'SUMMARY'} colors={colors} isDark={isDark}>
+
+      <Section
+        icon="📈"
+        title={language === 'tr' ? 'ÖZET' : 'SUMMARY'}
+        colors={colors}
+        isDark={isDark}
+      >
         <StatRow
           icon="✅"
           iconBg="#DCFCE7"
@@ -440,9 +523,14 @@ export default function StatisticsScreen() {
           colors={colors}
         />
       </Section>
-      
+
       {dailyStats.some(d => d.total > 0) ? (
-        <Section icon="📉" title={language === 'tr' ? 'UYUM GRAFİĞİ' : 'ADHERENCE CHART'} colors={colors} isDark={isDark}>
+        <Section
+          icon="📉"
+          title={language === 'tr' ? 'UYUM GRAFİĞİ' : 'ADHERENCE CHART'}
+          colors={colors}
+          isDark={isDark}
+        >
           <View style={styles.chartContainer}>
             <LineChart
               data={{
@@ -461,16 +549,28 @@ export default function StatisticsScreen() {
           </View>
         </Section>
       ) : (
-        <Section icon="📉" title={language === 'tr' ? 'UYUM GRAFİĞİ' : 'ADHERENCE CHART'} colors={colors} isDark={isDark}>
+        <Section
+          icon="📉"
+          title={language === 'tr' ? 'UYUM GRAFİĞİ' : 'ADHERENCE CHART'}
+          colors={colors}
+          isDark={isDark}
+        >
           <View style={styles.noDataContainer}>
             <Text style={styles.noDataIcon}>📊</Text>
-            <Text style={[styles.noDataText, { color: colors.textMuted }]}>{t('stats_no_data')}</Text>
+            <Text style={[styles.noDataText, { color: colors.textMuted }]}>
+              {t('stats_no_data')}
+            </Text>
           </View>
         </Section>
       )}
-      
+
       {pieData.length > 0 && (
-        <Section icon="🥧" title={language === 'tr' ? 'DAĞILIM' : 'DISTRIBUTION'} colors={colors} isDark={isDark}>
+        <Section
+          icon="🥧"
+          title={language === 'tr' ? 'DAĞILIM' : 'DISTRIBUTION'}
+          colors={colors}
+          isDark={isDark}
+        >
           <View style={styles.chartContainer}>
             <PieChart
               data={pieData}
@@ -485,50 +585,68 @@ export default function StatisticsScreen() {
           </View>
         </Section>
       )}
-      
+
       <Section icon="📜" title={t('stats_history')} colors={colors} isDark={isDark}>
-        {dailyStats.slice().reverse().slice(0, 7).map((day, index) => (
-          <View 
-            key={index} 
-            style={[
-              styles.historyRow,
-              index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }
-            ]}
-          >
-            <View style={styles.historyInfo}>
-              <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
-                <Text style={styles.iconEmoji}>📅</Text>
+        {dailyStats
+          .slice()
+          .reverse()
+          .slice(0, 7)
+          .map((day, index) => (
+            <View
+              key={index}
+              style={[
+                styles.historyRow,
+                index > 0 && {
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: colors.divider,
+                },
+              ]}
+            >
+              <View style={styles.historyInfo}>
+                <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
+                  <Text style={styles.iconEmoji}>📅</Text>
+                </View>
+                <View style={styles.historyTextContainer}>
+                  <Text style={[styles.historyDay, { color: colors.text }]}>
+                    {format(day.date, 'EEEE', { locale: dateLocale })}
+                  </Text>
+                  <Text style={[styles.historyDate, { color: colors.textMuted }]}>
+                    {format(day.date, 'd MMMM', { locale: dateLocale })}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.historyTextContainer}>
-                <Text style={[styles.historyDay, { color: colors.text }]}>
-                  {format(day.date, 'EEEE', { locale: dateLocale })}
-                </Text>
-                <Text style={[styles.historyDate, { color: colors.textMuted }]}>
-                  {format(day.date, 'd MMMM', { locale: dateLocale })}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.historyStats}>
-              {day.total > 0 ? (
-                <>
-                  <View style={[styles.historyBadge, { backgroundColor: '#DCFCE7' }]}>
-                    <Text style={[styles.historyBadgeText, { color: colors.success }]}>✓{day.taken}</Text>
-                  </View>
-                  {(day.skipped > 0 || day.missed > 0) && (
-                    <View style={[styles.historyBadge, { backgroundColor: '#FEE2E2' }]}>
-                      <Text style={[styles.historyBadgeText, { color: colors.error }]}>✗{day.skipped + day.missed}</Text>
+              <View style={styles.historyStats}>
+                {day.total > 0 ? (
+                  <>
+                    <View style={[styles.historyBadge, { backgroundColor: '#DCFCE7' }]}>
+                      <Text style={[styles.historyBadgeText, { color: colors.success }]}>
+                        ✓{day.taken}
+                      </Text>
                     </View>
-                  )}
-                </>
-              ) : (
-                <Text style={[styles.historyNoData, { color: colors.textMuted }]}>-</Text>
-              )}
+                    {(day.skipped > 0 || day.missed > 0) && (
+                      <View style={[styles.historyBadge, { backgroundColor: '#FEE2E2' }]}>
+                        <Text style={[styles.historyBadgeText, { color: colors.error }]}>
+                          ✗{day.skipped + day.missed}
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  <Text style={[styles.historyNoData, { color: colors.textMuted }]}>-</Text>
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.historyRate,
+                  {
+                    color: day.total > 0 ? getAdherenceColor(day.adherenceRate) : colors.textMuted,
+                  },
+                ]}
+              >
+                {day.total > 0 ? `%${day.adherenceRate}` : '-'}
+              </Text>
             </View>
-            <Text style={[styles.historyRate, { color: day.total > 0 ? getAdherenceColor(day.adherenceRate) : colors.textMuted }]}>
-              {day.total > 0 ? `%${day.adherenceRate}` : '-'}
-            </Text>
-          </View>
-        ))}
+          ))}
       </Section>
 
       {/* PDF Rapor Butonu */}

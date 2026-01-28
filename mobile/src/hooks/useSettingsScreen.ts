@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Platform, Alert, Linking } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
@@ -14,6 +14,7 @@ import {
   scheduleMedicineNotification,
 } from '../utils/notifications';
 import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInteraction';
+import { useAlert } from '../contexts/AlertContext';
 
 // Test ilaç verileri
 const TEST_MEDICINE_NAMES = [
@@ -70,6 +71,7 @@ export function useSettingsScreen() {
   const navigation = useNavigation<SettingsNavigationProp>();
   const { colors, isDark, theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
+  const { showAlert, showSuccess, showError, showInfo, showConfirm, showWarning } = useAlert();
   const {
     settings,
     updateSettings,
@@ -143,25 +145,27 @@ export function useSettingsScreen() {
     const hasPermission = await requestNotificationPermissions();
     if (hasPermission) {
       await sendTestNotification();
-      Alert.alert(
+      showSuccess(
         t('success'),
         language === 'tr'
           ? '2 saniye icinde test bildirimi alacaksiniz.'
           : 'You will receive a test notification in 2 seconds.'
       );
     } else {
-      Alert.alert(
-        t('settings_notification_permission'),
-        language === 'tr'
-          ? 'Bildirimlerin calismasi icin izin vermeniz gerekiyor.'
-          : 'You need to grant permission for notifications to work.',
-        [
+      showAlert({
+        type: 'warning',
+        title: t('settings_notification_permission'),
+        message:
+          language === 'tr'
+            ? 'Bildirimlerin calismasi icin izin vermeniz gerekiyor.'
+            : 'You need to grant permission for notifications to work.',
+        buttons: [
           { text: t('cancel'), style: 'cancel' },
           { text: t('settings_open_settings'), onPress: () => Linking.openSettings() },
-        ]
-      );
+        ],
+      });
     }
-  }, [language, t]);
+  }, [language, t, showSuccess, showAlert]);
 
   const handleTestVoice = useCallback(async () => {
     const message =
@@ -172,43 +176,40 @@ export function useSettingsScreen() {
   }, [language]);
 
   const handleTestFullScreenAlarm = useCallback(() => {
-    Alert.alert(
+    showConfirm(
       language === 'tr' ? 'Tam Ekran Alarm Testi' : 'Full Screen Alarm Test',
       language === 'tr'
         ? '2 saniye sonra tam ekran alarm acilacak.'
         : 'Full screen alarm will open in 2 seconds.',
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: language === 'tr' ? 'Baslat' : 'Start',
-          onPress: () => {
-            setTimeout(() => {
-              navigation.navigate('Alarm', {
-                medicineId: 'test-medicine',
-                reminderTimeId: 'test-reminder',
-                scheduledTime: new Date().toISOString(),
-              });
-            }, 2000);
-          },
-        },
-      ]
+      () => {
+        setTimeout(() => {
+          navigation.navigate('Alarm', {
+            medicineId: 'test-medicine',
+            reminderTimeId: 'test-reminder',
+            scheduledTime: new Date().toISOString(),
+          });
+        }, 2000);
+      },
+      { confirmText: language === 'tr' ? 'Baslat' : 'Start', cancelText: t('cancel') }
     );
-  }, [language, navigation, t]);
+  }, [language, navigation, t, showConfirm]);
 
   const handleScheduleTestAlarm = useCallback(
     async (minutes: number) => {
       const hasPermission = await requestNotificationPermissions();
       if (!hasPermission) {
-        Alert.alert(
-          t('settings_notification_permission'),
-          language === 'tr'
-            ? 'Bildirimlerin calismasi icin izin vermeniz gerekiyor.'
-            : 'You need to grant permission for notifications to work.',
-          [
+        showAlert({
+          type: 'warning',
+          title: t('settings_notification_permission'),
+          message:
+            language === 'tr'
+              ? 'Bildirimlerin calismasi icin izin vermeniz gerekiyor.'
+              : 'You need to grant permission for notifications to work.',
+          buttons: [
             { text: t('cancel'), style: 'cancel' },
             { text: t('settings_open_settings'), onPress: () => Linking.openSettings() },
-          ]
-        );
+          ],
+        });
         return;
       }
 
@@ -228,18 +229,17 @@ export function useSettingsScreen() {
               ? `${minutes} dakika`
               : `${minutes} minutes`;
 
-        Alert.alert(
+        showSuccess(
           language === 'tr' ? 'Alarm Planlandi' : 'Alarm Scheduled',
           language === 'tr'
             ? `Test alarmi saat ${timeStr} (${timeDisplay} sonra) calacak.\n\nTelefonu sessiz moda alarak test edebilirsiniz.`
-            : `Test alarm will ring at ${timeStr} (in ${timeDisplay}).\n\nYou can test by putting your phone in silent mode.`,
-          [{ text: 'OK' }]
+            : `Test alarm will ring at ${timeStr} (in ${timeDisplay}).\n\nYou can test by putting your phone in silent mode.`
         );
       } catch (error: unknown) {
         log.error('Test alarm planlama hatasi', error);
         const errorObj = error as { message?: string };
         const errorMessage = errorObj?.message || String(error) || 'Bilinmeyen hata';
-        Alert.alert(
+        showError(
           t('error'),
           language === 'tr'
             ? `Alarm plananamadi.\n\nHata: ${errorMessage}`
@@ -247,13 +247,13 @@ export function useSettingsScreen() {
         );
       }
     },
-    [language, t]
+    [language, t, showAlert, showSuccess, showError]
   );
 
   const handleSync = useCallback(async () => {
     try {
       await syncToCloud();
-      Alert.alert(
+      showSuccess(
         t('success'),
         language === 'tr'
           ? 'Verileriniz buluta yedeklendi.'
@@ -266,9 +266,9 @@ export function useSettingsScreen() {
           : language === 'tr'
             ? 'Senkronizasyon basarisiz oldu.'
             : 'Sync failed.';
-      Alert.alert(t('error'), errorMessage);
+      showError(t('error'), errorMessage);
     }
-  }, [language, syncToCloud, t]);
+  }, [language, syncToCloud, t, showSuccess, showError]);
 
   // Test ilacı ekle (1 dakika sonraya alarm)
   const handleAddTestMedicine = useCallback(async () => {
@@ -378,12 +378,11 @@ export function useSettingsScreen() {
         }
       }
 
-      Alert.alert(
+      showSuccess(
         language === 'tr' ? 'Test Ilaci Eklendi' : 'Test Medicine Added',
         language === 'tr'
           ? `${randomName} (${randomDose}) eklendi.\n\nAlarm: ${timeStr} (1 dakika sonra)`
-          : `${randomName} (${randomDose}) added.\n\nAlarm: ${timeStr} (in 1 minute)`,
-        [{ text: 'OK' }]
+          : `${randomName} (${randomDose}) added.\n\nAlarm: ${timeStr} (in 1 minute)`
       );
     };
 
@@ -413,12 +412,11 @@ export function useSettingsScreen() {
         }
       }
 
-      Alert.alert(
+      showSuccess(
         language === 'tr' ? 'Test Ilaci Eklendi' : 'Test Medicine Added',
         language === 'tr'
           ? `${randomName} (${randomDose}) eklendi.\n\nAlarm: ${newTimeStr} (${1 + offsetMinutes} dakika sonra)`
-          : `${randomName} (${randomDose}) added.\n\nAlarm: ${newTimeStr} (in ${1 + offsetMinutes} minutes)`,
-        [{ text: 'OK' }]
+          : `${randomName} (${randomDose}) added.\n\nAlarm: ${newTimeStr} (in ${1 + offsetMinutes} minutes)`
       );
     };
 
@@ -434,10 +432,11 @@ export function useSettingsScreen() {
           // Cakismayan saat bulundu
           const { time: suggestedTime, offsetMinutes } = nonConflictingResult;
 
-          Alert.alert(
-            language === 'tr' ? '⏰ Saat Cakismasi Tespit Edildi' : '⏰ Time Conflict Detected',
-            `${language === 'tr' ? 'Bu ilac asagidaki ilaclarla ayni saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${timeConflictResult.conflictMessages}\n\n${language === 'tr' ? 'Ne yapmak istersiniz?' : 'What would you like to do?'}`,
-            [
+          showAlert({
+            type: 'warning',
+            title: language === 'tr' ? 'Saat Cakismasi Tespit Edildi' : 'Time Conflict Detected',
+            message: `${language === 'tr' ? 'Bu ilac asagidaki ilaclarla ayni saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${timeConflictResult.conflictMessages}\n\n${language === 'tr' ? 'Ne yapmak istersiniz?' : 'What would you like to do?'}`,
+            buttons: [
               { text: language === 'tr' ? 'Iptal' : 'Cancel', style: 'cancel' },
               {
                 text: language === 'tr' ? `${suggestedTime}'e Ekle` : `Add at ${suggestedTime}`,
@@ -448,22 +447,23 @@ export function useSettingsScreen() {
                 style: 'destructive',
                 onPress: doAddMedicine,
               },
-            ]
-          );
+            ],
+          });
         } else {
           // 5 dakika icinde cakismayan saat bulunamadi
-          Alert.alert(
-            language === 'tr' ? '⏰ Saat Cakismasi Tespit Edildi' : '⏰ Time Conflict Detected',
-            `${language === 'tr' ? 'Bu ilac asagidaki ilaclarla ayni saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${timeConflictResult.conflictMessages}\n\n${language === 'tr' ? '5 dakika icinde uygun bos saat bulunamadi.' : 'No available time slot found within 5 minutes.'}`,
-            [
+          showAlert({
+            type: 'warning',
+            title: language === 'tr' ? 'Saat Cakismasi Tespit Edildi' : 'Time Conflict Detected',
+            message: `${language === 'tr' ? 'Bu ilac asagidaki ilaclarla ayni saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${timeConflictResult.conflictMessages}\n\n${language === 'tr' ? '5 dakika icinde uygun bos saat bulunamadi.' : 'No available time slot found within 5 minutes.'}`,
+            buttons: [
               { text: language === 'tr' ? 'Iptal' : 'Cancel', style: 'cancel' },
               {
                 text: language === 'tr' ? 'Yine de Ekle' : 'Add Anyway',
                 style: 'destructive',
                 onPress: doAddMedicine,
               },
-            ]
-          );
+            ],
+          });
         }
       } else {
         await doAddMedicine();
@@ -476,58 +476,57 @@ export function useSettingsScreen() {
         .map(i => `${getSeverityIcon(i.severity)} ${i.drug1} + ${i.drug2}\n${i.description}`)
         .join('\n\n');
 
-      Alert.alert(
-        language === 'tr' ? '⚠️ İlaç Etkileşimi Tespit Edildi' : '⚠️ Drug Interaction Detected',
-        `${interactionMessages}\n\n${language === 'tr' ? 'Yine de eklemek istiyor musunuz?' : 'Do you still want to add this medicine?'}`,
-        [
+      showAlert({
+        type: 'warning',
+        title: language === 'tr' ? 'İlaç Etkileşimi Tespit Edildi' : 'Drug Interaction Detected',
+        message: `${interactionMessages}\n\n${language === 'tr' ? 'Yine de eklemek istiyor musunuz?' : 'Do you still want to add this medicine?'}`,
+        buttons: [
           { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
           {
             text: language === 'tr' ? 'Yine de Ekle' : 'Add Anyway',
             style: 'destructive',
             onPress: proceedWithTimeConflictCheck,
           },
-        ]
-      );
+        ],
+      });
     } else {
       await proceedWithTimeConflictCheck();
     }
-  }, [addMedicine, language, medicines, reminderTimes]);
+  }, [addMedicine, language, medicines, reminderTimes, showSuccess, showAlert]);
 
   // Test ilaçlarını sil (TEST- prefix'li olanlar)
   const handleDeleteTestMedicines = useCallback(() => {
     const testMedicines = medicines.filter(m => m.name.startsWith('TEST-'));
 
     if (testMedicines.length === 0) {
-      Alert.alert(
+      showInfo(
         language === 'tr' ? 'Bilgi' : 'Info',
         language === 'tr' ? 'Silinecek test ilaci yok.' : 'No test medicines to delete.'
       );
       return;
     }
 
-    Alert.alert(
+    showConfirm(
       language === 'tr' ? 'Test Ilaclarini Sil' : 'Delete Test Medicines',
       language === 'tr'
         ? `${testMedicines.length} adet test ilaci silinecek. Emin misiniz?`
         : `${testMedicines.length} test medicines will be deleted. Are you sure?`,
-      [
-        { text: language === 'tr' ? 'Iptal' : 'Cancel', style: 'cancel' },
-        {
-          text: language === 'tr' ? 'Sil' : 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            testMedicines.forEach(m => deleteMedicine(m.id));
-            Alert.alert(
-              t('success'),
-              language === 'tr'
-                ? `${testMedicines.length} test ilaci silindi.`
-                : `${testMedicines.length} test medicines deleted.`
-            );
-          },
-        },
-      ]
+      () => {
+        testMedicines.forEach(m => deleteMedicine(m.id));
+        showSuccess(
+          t('success'),
+          language === 'tr'
+            ? `${testMedicines.length} test ilaci silindi.`
+            : `${testMedicines.length} test medicines deleted.`
+        );
+      },
+      {
+        confirmText: language === 'tr' ? 'Sil' : 'Delete',
+        cancelText: language === 'tr' ? 'Iptal' : 'Cancel',
+        destructive: true,
+      }
     );
-  }, [medicines, deleteMedicine, language, t]);
+  }, [medicines, deleteMedicine, language, t, showInfo, showConfirm, showSuccess]);
 
   const handleShowScheduledNotifications = useCallback(async () => {
     try {
@@ -548,42 +547,39 @@ export function useSettingsScreen() {
             ? 'Hic planlanmis bildirim yok!'
             : 'No scheduled notifications!';
 
-      Alert.alert(
+      showInfo(
         language === 'tr' ? 'Debug Bilgisi' : 'Debug Info',
         `${language === 'tr' ? 'Ilaclar' : 'Medicines'} (${medicines.length}):\n${medicineInfo || 'Yok'}\n\n` +
           `${language === 'tr' ? 'Planlanmis Bildirimler' : 'Scheduled Notifications'} (${triggerIds.length}):\n${triggerInfo}\n\n` +
-          `${language === 'tr' ? 'Goruntulen Bildirimler' : 'Displayed Notifications'}: ${displayedNotifs.length}`,
-        [{ text: 'OK' }]
+          `${language === 'tr' ? 'Goruntulen Bildirimler' : 'Displayed Notifications'}: ${displayedNotifs.length}`
       );
     } catch (error) {
       log.error('Debug bilgisi alinamadi', error);
-      Alert.alert('Error', String(error));
+      showError('Error', String(error));
     }
-  }, [medicines, reminderTimes, language]);
+  }, [medicines, reminderTimes, language, showInfo, showError]);
 
   const handleLogout = useCallback(() => {
-    Alert.alert(
+    showConfirm(
       language === 'tr' ? 'Cikis Yap' : 'Logout',
       language === 'tr'
         ? 'Hesabinizdan cikis yapmak istediginize emin misiniz?'
         : 'Are you sure you want to logout?',
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: language === 'tr' ? 'Cikis Yap' : 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await syncToCloud();
-              await logout();
-            } catch (error) {
-              log.error('Logout error', error);
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          await syncToCloud();
+          await logout();
+        } catch (error) {
+          log.error('Logout error', error);
+        }
+      },
+      {
+        confirmText: language === 'tr' ? 'Cikis Yap' : 'Logout',
+        cancelText: t('cancel'),
+        destructive: true,
+      }
     );
-  }, [language, logout, syncToCloud, t]);
+  }, [language, logout, syncToCloud, t, showConfirm]);
 
   const formatLastSync = useCallback(() => {
     if (!lastSyncAt) {
