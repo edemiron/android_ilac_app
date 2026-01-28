@@ -1,102 +1,127 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createScopedLogger } from '../utils/logger';
 
-// Renk paleti
+const log = createScopedLogger('ThemeContext');
+
+// Modern Healthcare Renk Paleti - Premium Light Theme
 export const lightColors = {
-  // Ana renkler
-  primary: '#4ECDC4',
-  primaryDark: '#3DBDB5',
-  secondary: '#FF6B6B',
-  accent: '#45B7D1',
-  
-  // Arka plan renkleri
-  background: '#F8F9FA',
+  // Ana renkler - Vibrant Teal + Deep Blue
+  primary: '#0D9488',           // Vibrant Teal
+  primaryDark: '#0F766E',       // Dark Teal
+  primaryLight: '#14B8A6',      // Light Teal
+  secondary: '#2563EB',         // Royal Blue
+  accent: '#7C3AED',            // Vibrant Purple
+
+  // Gradient renkler - Premium Feel
+  gradientStart: '#0D9488',     // Teal
+  gradientEnd: '#0891B2',       // Cyan
+
+  // Arka plan renkleri - Clean & Crisp
+  background: '#F8FAFC',        // Soft Gray-Blue
   surface: '#FFFFFF',
   card: '#FFFFFF',
-  
-  // Metin renkleri
-  text: '#1A1A2E',
-  textSecondary: '#666666',
-  textMuted: '#999999',
+  cardElevated: '#FFFFFF',
+
+  // Metin renkleri - High Contrast
+  text: '#0F172A',              // Slate 900 - More contrast
+  textSecondary: '#475569',     // Slate 600
+  textMuted: '#94A3B8',         // Slate 400
   textOnPrimary: '#FFFFFF',
-  
-  // Durum renkleri
-  success: '#4CAF50',
-  warning: '#FFC107',
-  error: '#F44336',
-  info: '#2196F3',
-  
+
+  // Durum renkleri - Vibrant & Clear
+  success: '#059669',           // Emerald 600
+  warning: '#D97706',           // Amber 600
+  error: '#DC2626',             // Red 600
+  info: '#2563EB',              // Blue 600
+
   // Sınır ve ayırıcı
-  border: '#E0E0E0',
-  divider: '#F0F0F0',
-  
-  // Tab bar
+  border: '#E2E8F0',            // Slate 200
+  divider: '#F1F5F9',           // Slate 100
+
+  // Tab bar - Clean White
   tabBar: '#FFFFFF',
-  tabBarBorder: '#F0F0F0',
-  tabActive: '#4ECDC4',
-  tabInactive: '#999999',
-  
+  tabBarBorder: '#E2E8F0',
+  tabActive: '#0D9488',         // Primary
+  tabInactive: '#94A3B8',       // Slate 400
+
   // Header
   header: '#FFFFFF',
-  headerText: '#1A1A2E',
-  
-  // Input
-  inputBackground: '#F5F5F5',
-  inputBorder: '#E0E0E0',
-  placeholder: '#999999',
-  
+  headerText: '#0F172A',
+
+  // Input - Subtle Background
+  inputBackground: '#F8FAFC',   // Matches background
+  inputBorder: '#CBD5E1',       // Slate 300 - More visible
+  placeholder: '#94A3B8',
+
   // Özel
-  overlay: 'rgba(0, 0, 0, 0.5)',
-  shadow: 'rgba(0, 0, 0, 0.1)',
+  overlay: 'rgba(15, 23, 42, 0.5)',  // Slate 900 with opacity
+  shadow: 'rgba(15, 23, 42, 0.08)',
+
+  // Kart arka plan renkleri (status) - Soft Tints
+  cardTaken: '#D1FAE5',         // Emerald 100
+  cardSkipped: '#FEE2E2',       // Red 100
+  cardPending: '#FFFFFF',
 };
 
 export const darkColors = {
-  // Ana renkler
-  primary: '#4ECDC4',
-  primaryDark: '#3DBDB5',
-  secondary: '#FF6B6B',
-  accent: '#45B7D1',
-  
-  // Arka plan renkleri
-  background: '#121212',
-  surface: '#1E1E1E',
-  card: '#252525',
-  
-  // Metin renkleri
-  text: '#FFFFFF',
-  textSecondary: '#B0B0B0',
-  textMuted: '#808080',
-  textOnPrimary: '#FFFFFF',
-  
-  // Durum renkleri
-  success: '#66BB6A',
-  warning: '#FFCA28',
-  error: '#EF5350',
-  info: '#42A5F5',
-  
-  // Sınır ve ayırıcı
-  border: '#333333',
-  divider: '#2A2A2A',
-  
+  // Ana renkler - Kullanıcı paleti
+  primary: '#8B9CFF',           // Soft mor-mavi
+  primaryDark: '#6B7CDF',       // Koyu mor-mavi
+  primaryLight: '#ABB8FF',      // Açık mor-mavi
+  secondary: '#5EE6FF',         // Cyan
+  accent: '#D0A6FF',            // Açık mor (Tertiary)
+
+  // Gradient renkler
+  gradientStart: '#8B9CFF',
+  gradientEnd: '#5EE6FF',
+
+  // Arka plan renkleri - Kullanıcı paleti
+  background: '#0B0D14',        // Background
+  surface: '#121625',           // Surface
+  card: '#1A2035',              // Surface Variant
+  cardElevated: '#232840',      // Biraz daha açık
+
+  // Metin renkleri - Kullanıcı paleti
+  text: '#E9ECFF',              // Text Primary
+  textSecondary: '#88C0E6',     // Text Secondary
+  textMuted: '#6B8AAA',         // Daha soluk
+  textOnPrimary: '#10163A',     // On Primary
+
+  // Durum renkleri - Kullanıcı paleti
+  success: '#34D399',           // Success
+  warning: '#F59E0B',           // Warning
+  error: '#FB7185',             // Error
+  info: '#60A5FA',              // Info
+
+  // Sınır ve ayırıcı - Kullanıcı paleti
+  border: '#2B3354',            // Outline/Divider
+  divider: '#2B3354',
+
   // Tab bar
-  tabBar: '#1E1E1E',
-  tabBarBorder: '#333333',
-  tabActive: '#4ECDC4',
-  tabInactive: '#808080',
-  
+  tabBar: '#0B0D14',            // Background ile aynı
+  tabBarBorder: '#2B3354',
+  tabActive: '#8B9CFF',         // Primary
+  tabInactive: '#6B8AAA',
+
   // Header
-  header: '#1E1E1E',
-  headerText: '#FFFFFF',
-  
+  header: '#121625',            // Surface
+  headerText: '#E9ECFF',        // Text Primary
+
   // Input
-  inputBackground: '#2A2A2A',
-  inputBorder: '#404040',
-  placeholder: '#808080',
-  
+  inputBackground: '#1A2035',   // Surface Variant
+  inputBorder: '#2B3354',       // Outline/Divider
+  placeholder: '#6B8AAA',
+
   // Özel
-  overlay: 'rgba(0, 0, 0, 0.7)',
-  shadow: 'rgba(0, 0, 0, 0.3)',
+  overlay: 'rgba(11, 13, 20, 0.9)',
+  shadow: 'rgba(139, 156, 255, 0.15)',  // Primary glow
+
+  // Kart arka plan renkleri (status)
+  cardTaken: '#1A3D2E',         // Yeşil tonlu
+  cardSkipped: '#3D1A2A',       // Kırmızı tonlu
+  cardPending: '#1A2035',       // Surface Variant
 };
 
 export type ThemeColors = typeof lightColors;
@@ -134,7 +159,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         setThemeState(savedTheme as ThemeMode);
       }
     } catch (error) {
-      console.error('Tema yüklenemedi:', error);
+      log.error('Tema yuklenemedi', error);
     } finally {
       setIsLoaded(true);
     }
@@ -145,7 +170,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme);
       setThemeState(newTheme);
     } catch (error) {
-      console.error('Tema kaydedilemedi:', error);
+      log.error('Tema kaydedilemedi', error);
     }
   };
 

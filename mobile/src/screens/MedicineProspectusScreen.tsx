@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { RootStackParamList, MedicineProspectus, AISearchResult } from '../types';
 import { getMedicineInfoAI } from '../services/aiMedicineService';
@@ -56,8 +56,9 @@ export default function MedicineProspectusScreen() {
       } else {
         setError(result.error || 'Prospektüs bilgisi alınamadı');
       }
-    } catch (err: any) {
-      setError(err.message || 'Bir hata oluştu');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Bir hata oluştu';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -257,7 +258,7 @@ export default function MedicineProspectusScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: ThemeColors, _isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

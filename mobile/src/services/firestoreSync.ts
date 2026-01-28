@@ -6,12 +6,13 @@ import {
   getDocs,
   deleteDoc,
   writeBatch,
-  onSnapshot,
-  query,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../types';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('FirestoreSync');
 
 // Collection isimleri
 const COLLECTIONS = {
@@ -209,12 +210,19 @@ export async function getSettingsFromCloud(userId: string): Promise<UserSettings
   if (snapshot.exists()) {
     const data = snapshot.data();
     return {
-      wakeUpTime: data.wakeUpTime,
-      sleepTime: data.sleepTime,
-      notificationSound: data.notificationSound,
-      vibrationEnabled: data.vibrationEnabled,
-      fullScreenAlarmEnabled: data.fullScreenAlarmEnabled,
-      language: data.language,
+      wakeUpTime: data.wakeUpTime ?? '08:00',
+      sleepTime: data.sleepTime ?? '23:00',
+      notificationSound: data.notificationSound ?? 'default',
+      vibrationEnabled: data.vibrationEnabled ?? true,
+      fullScreenAlarmEnabled: data.fullScreenAlarmEnabled ?? true,
+      language: data.language ?? 'tr',
+      alarmSound: data.alarmSound ?? 'alarm',
+      alarmVolume: data.alarmVolume ?? 80,
+      snoozeDuration: data.snoozeDuration ?? 5,
+      quietHoursEnabled: data.quietHoursEnabled ?? false,
+      quietHoursStart: data.quietHoursStart ?? '23:00',
+      quietHoursEnd: data.quietHoursEnd ?? '07:00',
+      alarmModeEnabled: data.alarmModeEnabled ?? true,
     };
   }
   
@@ -245,8 +253,8 @@ export async function uploadAllDataToCloud(
   userId: string,
   data: SyncData
 ): Promise<void> {
-  console.log('Veriler buluta yükleniyor...');
-  
+  log.debug('Veriler buluta yukleniyor');
+
   try {
     await withTimeout(
       Promise.all([
@@ -256,15 +264,16 @@ export async function uploadAllDataToCloud(
         syncSettingsToCloud(userId, data.settings),
       ]),
       30000, // 30 saniye timeout
-      'Senkronizasyon zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
+      'Senkronizasyon zaman asimina ugradi. Internet baglantinizi kontrol edin.'
     );
-    
-    console.log('Veriler buluta yüklendi!');
-  } catch (error: any) {
-    console.error('Buluta yükleme hatası:', error);
+
+    log.debug('Veriler buluta yuklendi');
+  } catch (error: unknown) {
+    log.error('Buluta yukleme hatasi', error);
     // Offline hatası için özel mesaj
-    if (error.code === 'unavailable' || error.message?.includes('offline')) {
-      throw new Error('İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.');
+    const errorObj = error as { code?: string; message?: string };
+    if (errorObj.code === 'unavailable' || errorObj.message?.includes('offline')) {
+      throw new Error('Internet baglantisi yok. Lutfen baglantinizi kontrol edin.');
     }
     throw error;
   }
@@ -272,8 +281,8 @@ export async function uploadAllDataToCloud(
 
 // Tüm verileri buluttan indir
 export async function downloadAllDataFromCloud(userId: string): Promise<SyncData | null> {
-  console.log('Veriler buluttan indiriliyor...');
-  
+  log.debug('Veriler buluttan indiriliyor');
+
   try {
     const [medicines, reminderTimes, medicineLogs, settings] = await withTimeout(
       Promise.all([
@@ -283,17 +292,17 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
         getSettingsFromCloud(userId),
       ]),
       30000, // 30 saniye timeout
-      'Veri indirme zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
+      'Veri indirme zaman asimina ugradi. Internet baglantinizi kontrol edin.'
     );
 
     // Eğer hiç veri yoksa null döndür
     if (medicines.length === 0 && !settings) {
-      console.log('Bulutta veri bulunamadı.');
+      log.debug('Bulutta veri bulunamadi');
       return null;
     }
 
-    console.log('Veriler buluttan indirildi!');
-    
+    log.debug('Veriler buluttan indirildi');
+
     return {
       medicines,
       reminderTimes,
@@ -305,13 +314,21 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
         vibrationEnabled: true,
         fullScreenAlarmEnabled: true,
         language: 'tr',
+        alarmSound: 'alarm',
+        alarmVolume: 80,
+        snoozeDuration: 5,
+        quietHoursEnabled: false,
+        quietHoursStart: '23:00',
+        quietHoursEnd: '07:00',
+        alarmModeEnabled: true,
       },
     };
-  } catch (error: any) {
-    console.error('Buluttan veri indirme hatası:', error);
+  } catch (error: unknown) {
+    log.error('Buluttan veri indirme hatasi', error);
     // Offline hatası için özel mesaj
-    if (error.code === 'unavailable' || error.message?.includes('offline')) {
-      throw new Error('İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.');
+    const errorObj = error as { code?: string; message?: string };
+    if (errorObj.code === 'unavailable' || errorObj.message?.includes('offline')) {
+      throw new Error('Internet baglantisi yok. Lutfen baglantinizi kontrol edin.');
     }
     throw error;
   }

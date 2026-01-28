@@ -16,8 +16,11 @@
 import { GlobalMedicine } from '../types';
 import * as globalMedicineService from './globalMedicineService';
 import * as turkishMedicineService from './turkishMedicineService';
+import { createScopedLogger } from '../utils/logger';
 // AI kaldırıldı - güvenilir sonuç vermiyordu
 // import * as aiMedicineService from './aiMedicineService';
+
+const log = createScopedLogger('Orchestrator');
 
 // ============ TYPES ============
 
@@ -67,11 +70,11 @@ export async function searchByBarcode(
   // Sadece güvenilir kaynaklar: Firebase ve TİTCK
   const sources: SearchSource[] = ['firebase', 'titck_cache'];
   
-  console.log('[Orchestrator] Barkod araması başladı:', barcode);
+  log.debug('Barkod aramasi basladi', { barcode });
 
   for (let i = 0; i < sources.length; i++) {
     const source = sources[i];
-    
+
     // Progress callback
     if (onProgress) {
       onProgress({
@@ -84,10 +87,10 @@ export async function searchByBarcode(
 
     try {
       const result = await searchInSource(barcode, source);
-      
+
       if (result) {
         const searchDuration = Date.now() - startTime;
-        console.log(`[Orchestrator] Bulundu! Kaynak: ${source}, Süre: ${searchDuration}ms`);
+        log.debug('Bulundu', { source, searchDuration });
 
         // Firebase dışındaki kaynaklardan geldiyse, Firebase'e kaydet
         if (source !== 'firebase' && result.name) {
@@ -104,14 +107,14 @@ export async function searchByBarcode(
         };
       }
     } catch (error) {
-      console.error(`[Orchestrator] ${source} hatası:`, error);
+      log.error(`${source} hatasi`, error);
       // Hatayı logla ama aramaya devam et
     }
   }
 
   // Hiçbir kaynakta bulunamadı
   const searchDuration = Date.now() - startTime;
-  console.log(`[Orchestrator] Bulunamadı. Süre: ${searchDuration}ms`);
+  log.debug('Bulunamadi', { searchDuration });
 
   return {
     success: false,
@@ -151,10 +154,14 @@ async function saveToFirebase(
 ): Promise<void> {
   try {
     // Sadece yeterli bilgi varsa kaydet
-    if (!medicine.name || medicine.name === 'Bilinmeyen Ürün') {
-      console.log('[Orchestrator] Yetersiz bilgi, Firebase\'e kaydedilmiyor');
+    if (!medicine.name || medicine.name === 'Bilinmeyen Urun') {
+      log.debug('Yetersiz bilgi, Firebase kaydedilmiyor');
       return;
     }
+
+    // AI kaldırıldığı için tüm kaynaklar 'user' olarak kaydedilir
+    // firebase kaynağı zaten var, yeniden kaydetmeye gerek yok
+    const addedBy = source === 'firebase' ? 'user' : 'user';
 
     await globalMedicineService.addMedicine(
       {
@@ -167,12 +174,12 @@ async function saveToFirebase(
         country: medicine.country || 'TR',
         imageUrl: medicine.imageUrl,
       },
-      source === 'ai' ? 'ai' : 'user'
+      addedBy
     );
 
-    console.log(`[Orchestrator] Firebase'e kaydedildi: ${medicine.name}`);
+    log.debug('Firebase kaydedildi', { name: medicine.name });
   } catch (error) {
-    console.error('[Orchestrator] Firebase kayıt hatası:', error);
+    log.error('Firebase kayit hatasi', error);
     // Hata olsa bile ana akışı bozma
   }
 }
@@ -189,7 +196,7 @@ export async function searchByName(
   const startTime = Date.now();
   const results: SearchResult[] = [];
 
-  console.log('[Orchestrator] İsim araması başladı:', name);
+  log.debug('Isim aramasi basladi', { name });
 
   // 1. Firebase'de ara
   if (onProgress) {
@@ -215,7 +222,7 @@ export async function searchByName(
       }
     }
   } catch (error) {
-    console.error('[Orchestrator] Firebase isim araması hatası:', error);
+    log.error('Firebase isim aramasi hatasi', error);
   }
 
   // 2. İlacabak'ta ara (isim araması için web scraping)
@@ -248,13 +255,13 @@ export async function searchByName(
         }
       }
     } catch (error) {
-      console.error('[Orchestrator] İlacabak isim araması hatası:', error);
+      log.error('Ilacabak isim aramasi hatasi', error);
     }
   }
   // AI kaldırıldı - güvenilir sonuç vermiyordu
 
   const searchDuration = Date.now() - startTime;
-  console.log(`[Orchestrator] İsim araması tamamlandı. ${results.length} sonuç, ${searchDuration}ms`);
+  log.debug('Isim aramasi tamamlandi', { resultCount: results.length, searchDuration });
 
   // Confidence'a göre sırala
   return results.sort((a, b) => b.confidence - a.confidence);

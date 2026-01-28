@@ -14,6 +14,9 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GlobalMedicine, MedicineAutocompleteResult, MedicineSearchQuery } from '../types';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('GlobalMedicineService');
 
 // Collection referansı
 const GLOBAL_MEDICINES_COLLECTION = 'globalMedicines';
@@ -42,9 +45,16 @@ export async function searchByBarcode(barcode: string): Promise<GlobalMedicine |
 
     return medicine;
   } catch (error) {
-    console.error('Barkod araması hatası:', error);
+    log.error('Barkod aramasi hatasi', error);
     return null;
   }
+}
+
+/**
+ * Barkod ile ilaç ara (alias - hybrid service için)
+ */
+export async function getMedicineByBarcode(barcode: string): Promise<GlobalMedicine | null> {
+  return searchByBarcode(barcode);
 }
 
 // ============ İSİM İLE ARAMA (OTOMATİK TAMAMLAMA) ============
@@ -114,7 +124,7 @@ export async function autocomplete(
       .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, maxResults);
   } catch (error) {
-    console.error('Otomatik tamamlama hatası:', error);
+    log.error('Otomatik tamamlama hatasi', error);
     return [];
   }
 }
@@ -135,7 +145,7 @@ export async function getMedicineById(id: string): Promise<GlobalMedicine | null
 
     return { ...snapshot.data(), id: snapshot.id } as GlobalMedicine;
   } catch (error) {
-    console.error('İlaç detayı getirme hatası:', error);
+    log.error('Ilac detayi getirme hatasi', error);
     return null;
   }
 }
@@ -168,7 +178,7 @@ export async function addMedicine(
     await setDoc(newDocRef, newMedicine);
     return newDocRef.id;
   } catch (error) {
-    console.error('İlaç ekleme hatası:', error);
+    log.error('Ilac ekleme hatasi', error);
     throw error;
   }
 }
@@ -189,7 +199,7 @@ export async function updateMedicine(
       updatedAt: Timestamp.now().toDate().toISOString(),
     });
   } catch (error) {
-    console.error('İlaç güncelleme hatası:', error);
+    log.error('Ilac guncelleme hatasi', error);
     throw error;
   }
 }
@@ -207,7 +217,7 @@ export async function verifyMedicine(id: string): Promise<void> {
       updatedAt: Timestamp.now().toDate().toISOString(),
     });
   } catch (error) {
-    console.error('İlaç onaylama hatası:', error);
+    log.error('Ilac onaylama hatasi', error);
     throw error;
   }
 }
@@ -224,7 +234,7 @@ async function incrementSearchCount(id: string): Promise<void> {
       searchCount: increment(1),
     });
   } catch (error) {
-    console.error('Arama sayısı artırma hatası:', error);
+    log.error('Arama sayisi artirma hatasi', error);
   }
 }
 
@@ -253,7 +263,7 @@ export async function getPopularMedicines(
       id: doc.id,
     })) as GlobalMedicine[];
   } catch (error) {
-    console.error('Popüler ilaçlar getirme hatası:', error);
+    log.error('Populer ilaclar getirme hatasi', error);
     return [];
   }
 }

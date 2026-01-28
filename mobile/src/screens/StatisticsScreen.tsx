@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
-import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
-import { format, subDays, startOfWeek, eachDayOfInterval, isWithinInterval } from 'date-fns';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
+import { LineChart, PieChart } from 'react-native-chart-kit';
+import { format, subDays, eachDayOfInterval, isWithinInterval } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useMedicineStore } from '../stores/medicineStore';
 
@@ -18,16 +20,59 @@ const screenWidth = Dimensions.get('window').width;
 
 type Period = 'weekly' | 'monthly';
 
+interface SectionProps {
+  icon: string;
+  title: string;
+  children: React.ReactNode;
+  colors: ThemeColors;
+  isDark: boolean;
+}
+
+const Section: React.FC<SectionProps> = ({ icon, title, children, colors, isDark }) => (
+  <View style={[styles.section, { 
+    backgroundColor: colors.card,
+    shadowOpacity: isDark ? 0 : 0.05,
+    elevation: isDark ? 0 : 1,
+  }]}>
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionIcon}>{icon}</Text>
+      <Text style={[styles.sectionTitle, { color: colors.primary }]}>{title}</Text>
+    </View>
+    {children}
+  </View>
+);
+
+interface StatRowProps {
+  icon: string;
+  iconBg: string;
+  label: string;
+  value: string | number;
+  valueColor?: string;
+  colors: ThemeColors;
+  isFirst?: boolean;
+}
+
+const StatRow: React.FC<StatRowProps> = ({ icon, iconBg, label, value, valueColor, colors, isFirst }) => (
+  <View style={[styles.statRow, !isFirst && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }]}>
+    <View style={styles.statInfo}>
+      <View style={[styles.iconContainer, { backgroundColor: iconBg }]}>
+        <Text style={styles.iconEmoji}>{icon}</Text>
+      </View>
+      <Text style={[styles.statLabel, { color: colors.text }]}>{label}</Text>
+    </View>
+    <Text style={[styles.statValue, { color: valueColor || colors.primary }]}>{value}</Text>
+  </View>
+);
+
 export default function StatisticsScreen() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
-  const { medicineLogs, medicines, getAdherenceRate } = useMedicineStore();
+  const { medicineLogs } = useMedicineStore();
   
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('weekly');
   
   const dateLocale = language === 'tr' ? tr : enUS;
   
-  // Seçilen periyoda göre tarih aralığı
   const dateRange = useMemo(() => {
     const end = new Date();
     const start = selectedPeriod === 'weekly' 
@@ -36,7 +81,6 @@ export default function StatisticsScreen() {
     return { start, end };
   }, [selectedPeriod]);
   
-  // Günlük istatistikleri hesapla
   const dailyStats = useMemo(() => {
     const days = eachDayOfInterval(dateRange);
     
@@ -47,7 +91,7 @@ export default function StatisticsScreen() {
       );
       
       const taken = dayLogs.filter(l => l.status === 'taken').length;
-      const total = dayLogs.length || 1; // 0'a bölmekten kaçın
+      const total = dayLogs.length || 1;
       
       return {
         date: day,
@@ -60,7 +104,6 @@ export default function StatisticsScreen() {
     });
   }, [dateRange, medicineLogs]);
   
-  // Genel istatistikler
   const overallStats = useMemo(() => {
     const logs = medicineLogs.filter(log => 
       isWithinInterval(new Date(log.scheduledTime), dateRange)
@@ -71,7 +114,6 @@ export default function StatisticsScreen() {
     const missed = logs.filter(l => l.status === 'missed').length;
     const total = logs.length || 1;
     
-    // Ardışık gün hesapla
     let currentStreak = 0;
     let bestStreak = 0;
     let tempStreak = 0;
@@ -99,8 +141,35 @@ export default function StatisticsScreen() {
       bestStreak,
     };
   }, [dateRange, medicineLogs, dailyStats]);
+
+  const suggestions = useMemo(() => {
+    const logs = medicineLogs.filter(log => 
+      isWithinInterval(new Date(log.scheduledTime), dateRange) && 
+      (log.status === 'missed' || log.status === 'skipped')
+    );
+    
+    const timeStats: Record<string, { missed: number; total: number }> = {};
+    
+    logs.forEach(log => {
+      const time = log.scheduledTime.split('T')[1]?.substring(0, 5) || '';
+      if (!timeStats[time]) {
+        timeStats[time] = { missed: 0, total: 0 };
+      }
+      timeStats[time].missed++;
+      timeStats[time].total++;
+    });
+    
+    const problematicTimes = Object.entries(timeStats)
+      .filter(([_, stats]) => stats.missed >= 2)
+      .sort((a, b) => b[1].missed - a[1].missed)
+      .slice(0, 2);
+    
+    return problematicTimes.map(([time, stats]) => ({
+      time,
+      missedCount: stats.missed,
+    }));
+  }, [medicineLogs, dateRange]);
   
-  // Grafik verileri
   const chartData = useMemo(() => {
     const labels = selectedPeriod === 'weekly'
       ? dailyStats.map(d => format(d.date, 'EEE', { locale: dateLocale }))
@@ -113,7 +182,6 @@ export default function StatisticsScreen() {
     return { labels, data };
   }, [dailyStats, selectedPeriod, dateLocale]);
   
-  // Pasta grafik verileri
   const pieData = useMemo(() => {
     if (overallStats.total === 0) return [];
     
@@ -145,7 +213,7 @@ export default function StatisticsScreen() {
   const chartConfig = {
     backgroundGradientFrom: colors.card,
     backgroundGradientTo: colors.card,
-    color: (opacity = 1) => `rgba(78, 205, 196, ${opacity})`,
+    color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
     strokeWidth: 2,
     barPercentage: 0.5,
     useShadowColorFromDataset: false,
@@ -156,306 +224,431 @@ export default function StatisticsScreen() {
     },
   };
 
-  const styles = createStyles(colors, isDark);
+  const getAdherenceColor = (rate: number) => {
+    if (rate >= 80) return colors.success;
+    if (rate >= 50) return '#F59E0B';
+    return '#EF4444';
+  };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Periyot Seçici */}
-      <View style={styles.periodSelector}>
-        <TouchableOpacity
-          style={[
-            styles.periodButton,
-            selectedPeriod === 'weekly' && styles.periodButtonActive,
-          ]}
-          onPress={() => setSelectedPeriod('weekly')}
-        >
-          <Text style={[
-            styles.periodButtonText,
-            selectedPeriod === 'weekly' && styles.periodButtonTextActive,
-          ]}>
-            {t('stats_weekly')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.periodButton,
-            selectedPeriod === 'monthly' && styles.periodButtonActive,
-          ]}
-          onPress={() => setSelectedPeriod('monthly')}
-        >
-          <Text style={[
-            styles.periodButtonText,
-            selectedPeriod === 'monthly' && styles.periodButtonTextActive,
-          ]}>
-            {t('stats_monthly')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
+      <LinearGradient
+        colors={overallStats.adherenceRate >= 50 ? [colors.primary, colors.gradientEnd || '#3B82F6'] : ['#F59E0B', '#F97316']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.adherenceCard}
+      >
+        <View style={styles.adherenceContent}>
+          <View style={styles.adherenceIconBox}>
+            <Text style={styles.adherenceIconEmoji}>{overallStats.adherenceRate >= 80 ? '🌟' : overallStats.adherenceRate >= 50 ? '📊' : '💪'}</Text>
+          </View>
+          <View style={styles.adherenceTextContainer}>
+            <Text style={styles.adherenceTitle}>
+              {language === 'tr' 
+                ? `${overallStats.taken}/${overallStats.total || 0} tamamlandı`
+                : `${overallStats.taken}/${overallStats.total || 0} completed`}
+            </Text>
+            <Text style={styles.adherenceSubtitle}>
+              {overallStats.adherenceRate >= 80 
+                ? (language === 'tr' ? 'Harika gidiyorsun! 🎉' : 'You\'re doing great! 🎉')
+                : overallStats.adherenceRate >= 50
+                  ? (language === 'tr' ? 'İyi gidiyorsun, devam et!' : 'Good progress, keep going!')
+                  : overallStats.total === 0
+                    ? (language === 'tr' ? 'Henüz veri yok' : 'No data yet')
+                    : (language === 'tr' ? 'Bugün başlayalım! 💪' : 'Let\'s start today! 💪')}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.adherenceValue}>%{overallStats.adherenceRate}</Text>
+      </LinearGradient>
+
+      {suggestions.length > 0 && (
+        <Section icon="💡" title={language === 'tr' ? 'ÖNERİLER' : 'SUGGESTIONS'} colors={colors} isDark={isDark}>
+          {suggestions.map((suggestion, index) => (
+            <View 
+              key={suggestion.time} 
+              style={[
+                styles.suggestionRow, 
+                index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }
+              ]}
+            >
+              <View style={[styles.iconContainer, { backgroundColor: '#FEF3C7' }]}>
+                <Text style={styles.iconEmoji}>⚠️</Text>
+              </View>
+              <View style={styles.suggestionContent}>
+                <Text style={[styles.suggestionText, { color: colors.text }]}>
+                  {language === 'tr' 
+                    ? `${suggestion.time} dozunu sık kaçırıyorsun`
+                    : `You often miss the ${suggestion.time} dose`}
+                </Text>
+                <Text style={[styles.suggestionHint, { color: colors.textMuted }]}>
+                  {language === 'tr' 
+                    ? `Son ${selectedPeriod === 'weekly' ? '7' : '30'} günde ${suggestion.missedCount} kez`
+                    : `${suggestion.missedCount} times in the last ${selectedPeriod === 'weekly' ? '7' : '30'} days`}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </Section>
+      )}
+
+      <Section icon="📅" title={language === 'tr' ? 'DÖNEM SEÇİMİ' : 'PERIOD'} colors={colors} isDark={isDark}>
+        <View style={styles.periodSelector}>
+          <TouchableOpacity
+            style={[
+              styles.periodButton,
+              { backgroundColor: selectedPeriod === 'weekly' ? colors.primary + '15' : 'transparent' },
+              selectedPeriod === 'weekly' && { borderColor: colors.primary, borderWidth: 1 },
+            ]}
+            onPress={() => setSelectedPeriod('weekly')}
+          >
+            <Ionicons 
+              name="calendar-outline" 
+              size={18} 
+              color={selectedPeriod === 'weekly' ? colors.primary : colors.textMuted} 
+            />
+            <Text style={[
+              styles.periodButtonText,
+              { color: selectedPeriod === 'weekly' ? colors.primary : colors.textSecondary },
+            ]}>
+              {t('stats_weekly')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.periodButton,
+              { backgroundColor: selectedPeriod === 'monthly' ? colors.primary + '15' : 'transparent' },
+              selectedPeriod === 'monthly' && { borderColor: colors.primary, borderWidth: 1 },
+            ]}
+            onPress={() => setSelectedPeriod('monthly')}
+          >
+            <Ionicons 
+              name="calendar" 
+              size={18} 
+              color={selectedPeriod === 'monthly' ? colors.primary : colors.textMuted} 
+            />
+            <Text style={[
+              styles.periodButtonText,
+              { color: selectedPeriod === 'monthly' ? colors.primary : colors.textSecondary },
+            ]}>
+              {t('stats_monthly')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Section>
       
-      {/* Özet Kartları */}
-      <View style={styles.summaryContainer}>
-        <View style={[styles.summaryCard, styles.adherenceCard]}>
-          <Text style={styles.adherenceValue}>{overallStats.adherenceRate}%</Text>
-          <Text style={styles.adherenceLabel}>{t('stats_adherence_rate')}</Text>
-        </View>
-        
-        <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, styles.smallCard]}>
-            <Text style={[styles.smallCardValue, { color: colors.success }]}>
-              {overallStats.taken}
-            </Text>
-            <Text style={styles.smallCardLabel}>{t('home_taken')}</Text>
-          </View>
-          <View style={[styles.summaryCard, styles.smallCard]}>
-            <Text style={[styles.smallCardValue, { color: colors.error }]}>
-              {overallStats.missed + overallStats.skipped}
-            </Text>
-            <Text style={styles.smallCardLabel}>{t('stats_total_missed')}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, styles.smallCard]}>
-            <Text style={[styles.smallCardValue, { color: colors.primary }]}>
-              {overallStats.currentStreak}
-            </Text>
-            <Text style={styles.smallCardLabel}>{t('stats_streak')}</Text>
-          </View>
-          <View style={[styles.summaryCard, styles.smallCard]}>
-            <Text style={[styles.smallCardValue, { color: colors.accent }]}>
-              {overallStats.bestStreak}
-            </Text>
-            <Text style={styles.smallCardLabel}>{t('stats_best_streak')}</Text>
-          </View>
-        </View>
-      </View>
+      <Section icon="📈" title={language === 'tr' ? 'ÖZET' : 'SUMMARY'} colors={colors} isDark={isDark}>
+        <StatRow
+          icon="✅"
+          iconBg="#DCFCE7"
+          label={t('home_taken')}
+          value={overallStats.taken}
+          valueColor={colors.success}
+          colors={colors}
+          isFirst
+        />
+        <StatRow
+          icon="⏭️"
+          iconBg="#FEF3C7"
+          label={t('home_skipped')}
+          value={overallStats.skipped}
+          valueColor={colors.warning}
+          colors={colors}
+        />
+        <StatRow
+          icon="❌"
+          iconBg="#FEE2E2"
+          label={t('home_missed')}
+          value={overallStats.missed}
+          valueColor={colors.error}
+          colors={colors}
+        />
+        <StatRow
+          icon="🔥"
+          iconBg="#FEF3C7"
+          label={t('stats_streak')}
+          value={`${overallStats.currentStreak} ${language === 'tr' ? 'gün' : 'days'}`}
+          colors={colors}
+        />
+        <StatRow
+          icon="🏆"
+          iconBg="#DBEAFE"
+          label={t('stats_best_streak')}
+          value={`${overallStats.bestStreak} ${language === 'tr' ? 'gün' : 'days'}`}
+          colors={colors}
+        />
+      </Section>
       
-      {/* Uyum Oranı Grafiği */}
       {dailyStats.some(d => d.total > 0) ? (
-        <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>{t('stats_adherence_rate')}</Text>
-          <LineChart
-            data={{
-              labels: chartData.labels,
-              datasets: [{ data: chartData.data.length > 0 ? chartData.data : [0] }],
-            }}
-            width={screenWidth - 40}
-            height={200}
-            chartConfig={chartConfig}
-            bezier
-            style={styles.chart}
-            yAxisSuffix="%"
-            fromZero
-            withInnerLines={false}
-          />
-        </View>
+        <Section icon="📉" title={language === 'tr' ? 'UYUM GRAFİĞİ' : 'ADHERENCE CHART'} colors={colors} isDark={isDark}>
+          <View style={styles.chartContainer}>
+            <LineChart
+              data={{
+                labels: chartData.labels,
+                datasets: [{ data: chartData.data.length > 0 ? chartData.data : [0] }],
+              }}
+              width={screenWidth - 64}
+              height={180}
+              chartConfig={chartConfig}
+              bezier
+              style={styles.chart}
+              yAxisSuffix="%"
+              fromZero
+              withInnerLines={false}
+            />
+          </View>
+        </Section>
       ) : (
-        <View style={styles.noDataContainer}>
-          <Text style={styles.noDataText}>{t('stats_no_data')}</Text>
-        </View>
+        <Section icon="📉" title={language === 'tr' ? 'UYUM GRAFİĞİ' : 'ADHERENCE CHART'} colors={colors} isDark={isDark}>
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataIcon}>📊</Text>
+            <Text style={[styles.noDataText, { color: colors.textMuted }]}>{t('stats_no_data')}</Text>
+          </View>
+        </Section>
       )}
       
-      {/* Pasta Grafik */}
       {pieData.length > 0 && (
-        <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>Dağılım</Text>
-          <PieChart
-            data={pieData}
-            width={screenWidth - 40}
-            height={200}
-            chartConfig={chartConfig}
-            accessor="population"
-            backgroundColor="transparent"
-            paddingLeft="15"
-            absolute
-          />
-        </View>
+        <Section icon="🥧" title={language === 'tr' ? 'DAĞILIM' : 'DISTRIBUTION'} colors={colors} isDark={isDark}>
+          <View style={styles.chartContainer}>
+            <PieChart
+              data={pieData}
+              width={screenWidth - 64}
+              height={180}
+              chartConfig={chartConfig}
+              accessor="population"
+              backgroundColor="transparent"
+              paddingLeft="15"
+              absolute
+            />
+          </View>
+        </Section>
       )}
       
-      {/* Geçmiş Listesi */}
-      <View style={styles.historyContainer}>
-        <Text style={styles.historyTitle}>{t('stats_history')}</Text>
+      <Section icon="📜" title={t('stats_history')} colors={colors} isDark={isDark}>
         {dailyStats.slice().reverse().slice(0, 7).map((day, index) => (
-          <View key={index} style={styles.historyItem}>
-            <View style={styles.historyDate}>
-              <Text style={styles.historyDay}>
-                {format(day.date, 'EEEE', { locale: dateLocale })}
-              </Text>
-              <Text style={styles.historyDateText}>
-                {format(day.date, 'd MMMM', { locale: dateLocale })}
-              </Text>
+          <View 
+            key={index} 
+            style={[
+              styles.historyRow,
+              index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }
+            ]}
+          >
+            <View style={styles.historyInfo}>
+              <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
+                <Text style={styles.iconEmoji}>📅</Text>
+              </View>
+              <View style={styles.historyTextContainer}>
+                <Text style={[styles.historyDay, { color: colors.text }]}>
+                  {format(day.date, 'EEEE', { locale: dateLocale })}
+                </Text>
+                <Text style={[styles.historyDate, { color: colors.textMuted }]}>
+                  {format(day.date, 'd MMMM', { locale: dateLocale })}
+                </Text>
+              </View>
             </View>
             <View style={styles.historyStats}>
               {day.total > 0 ? (
                 <>
-                  <View style={[styles.historyBadge, { backgroundColor: colors.success + '20' }]}>
-                    <Text style={[styles.historyBadgeText, { color: colors.success }]}>
-                      ✓ {day.taken}
-                    </Text>
+                  <View style={[styles.historyBadge, { backgroundColor: '#DCFCE7' }]}>
+                    <Text style={[styles.historyBadgeText, { color: colors.success }]}>✓{day.taken}</Text>
                   </View>
-                  {day.skipped > 0 && (
-                    <View style={[styles.historyBadge, { backgroundColor: colors.warning + '20' }]}>
-                      <Text style={[styles.historyBadgeText, { color: colors.warning }]}>
-                        ⊘ {day.skipped}
-                      </Text>
-                    </View>
-                  )}
-                  {day.missed > 0 && (
-                    <View style={[styles.historyBadge, { backgroundColor: colors.error + '20' }]}>
-                      <Text style={[styles.historyBadgeText, { color: colors.error }]}>
-                        ✗ {day.missed}
-                      </Text>
+                  {(day.skipped > 0 || day.missed > 0) && (
+                    <View style={[styles.historyBadge, { backgroundColor: '#FEE2E2' }]}>
+                      <Text style={[styles.historyBadgeText, { color: colors.error }]}>✗{day.skipped + day.missed}</Text>
                     </View>
                   )}
                 </>
               ) : (
-                <Text style={styles.historyNoData}>-</Text>
+                <Text style={[styles.historyNoData, { color: colors.textMuted }]}>-</Text>
               )}
             </View>
-            <Text style={[
-              styles.historyRate,
-              { color: day.adherenceRate >= 80 ? colors.success : day.adherenceRate >= 50 ? colors.warning : colors.error }
-            ]}>
-              {day.total > 0 ? `${day.adherenceRate}%` : '-'}
+            <Text style={[styles.historyRate, { color: day.total > 0 ? getAdherenceColor(day.adherenceRate) : colors.textMuted }]}>
+              {day.total > 0 ? `%${day.adherenceRate}` : '-'}
             </Text>
           </View>
         ))}
-      </View>
+      </Section>
       
       <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+  },
+  adherenceCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  adherenceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+  },
+  adherenceIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  adherenceIconEmoji: {
+    fontSize: 24,
+  },
+  adherenceTextContainer: {
+    flex: 1,
+  },
+  adherenceTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  adherenceSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  adherenceValue: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    minWidth: 70,
+    textAlign: 'right',
+  },
+  section: {
+    marginTop: 16,
+    marginHorizontal: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 4,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  sectionIcon: {
+    fontSize: 14,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   periodSelector: {
     flexDirection: 'row',
     padding: 16,
-    gap: 10,
+    paddingTop: 12,
+    gap: 12,
   },
   periodButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    backgroundColor: colors.card,
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  periodButtonActive: {
-    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
   },
   periodButtonText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: colors.textSecondary,
+    fontWeight: '600',
   },
-  periodButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  summaryContainer: {
-    padding: 16,
-    paddingTop: 0,
-  },
-  summaryCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-  },
-  adherenceCard: {
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-  },
-  adherenceValue: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  adherenceLabel: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginTop: 4,
-  },
-  summaryRow: {
+  statRow: {
     flexDirection: 'row',
-    gap: 10,
-  },
-  smallCard: {
-    flex: 1,
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 56,
   },
-  smallCardValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  statInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
-  smallCardLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  iconEmoji: {
+    fontSize: 18,
+  },
+  statLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    letterSpacing: -0.2,
+  },
+  statValue: {
+    fontSize: 17,
+    fontWeight: '700',
   },
   chartContainer: {
-    backgroundColor: colors.card,
-    margin: 16,
-    marginTop: 0,
     padding: 16,
-    borderRadius: 16,
-  },
-  chartTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 12,
+    paddingTop: 8,
+    alignItems: 'center',
   },
   chart: {
-    borderRadius: 16,
+    borderRadius: 12,
   },
   noDataContainer: {
-    backgroundColor: colors.card,
-    margin: 16,
-    padding: 40,
-    borderRadius: 16,
     alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 16,
   },
-  noDataText: {
-    fontSize: 16,
-    color: colors.textMuted,
-  },
-  historyContainer: {
-    backgroundColor: colors.card,
-    margin: 16,
-    marginTop: 0,
-    padding: 16,
-    borderRadius: 16,
-  },
-  historyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+  noDataIcon: {
+    fontSize: 40,
     marginBottom: 12,
   },
-  historyItem: {
+  noDataText: {
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
   },
-  historyDate: {
+  historyInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  historyTextContainer: {
     flex: 1,
   },
   historyDay: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
+    fontSize: 15,
+    fontWeight: '600',
   },
-  historyDateText: {
+  historyDate: {
     fontSize: 12,
-    color: colors.textSecondary,
     marginTop: 2,
   },
   historyStats: {
@@ -470,16 +663,33 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   historyBadgeText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   historyNoData: {
     fontSize: 14,
-    color: colors.textMuted,
   },
   historyRate: {
     fontSize: 16,
-    fontWeight: '600',
-    width: 45,
+    fontWeight: '700',
+    width: 50,
     textAlign: 'right',
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  suggestionContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  suggestionText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  suggestionHint: {
+    fontSize: 13,
+    marginTop: 2,
   },
 });

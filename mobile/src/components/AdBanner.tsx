@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, ViewStyle, StyleProp } from 'react-native';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { createScopedLogger } from '../utils/logger';
+import { RootStackParamList } from '../types';
+
+const log = createScopedLogger('AdBanner');
 
 // AdMob Banner Ad Unit ID
 const BANNER_AD_UNIT_ID = Platform.select({
@@ -12,28 +17,47 @@ const BANNER_AD_UNIT_ID = Platform.select({
 }) || '';
 
 // AdMob SDK'yı dinamik olarak yükle
-let BannerAd: any = null;
-let BannerAdSize: any = null;
-let useForeground: any = null;
+// React Native Google Mobile Ads tipi dinamik olarak yuklendigi icin
+// tip guvenli olmayan bir sekilde kullaniliyor
+interface GoogleMobileAdsModule {
+  BannerAd: React.ComponentType<{
+    unitId: string;
+    size: unknown;
+    requestOptions?: { requestNonPersonalizedAdsOnly?: boolean };
+    onAdLoaded?: () => void;
+    onAdFailedToLoad?: (error: unknown) => void;
+  }>;
+  BannerAdSize: {
+    ANCHORED_ADAPTIVE_BANNER: unknown;
+  };
+  useForeground: () => boolean;
+}
+
+let BannerAd: GoogleMobileAdsModule['BannerAd'] | null = null;
+let BannerAdSize: GoogleMobileAdsModule['BannerAdSize'] | null = null;
+let useForeground: GoogleMobileAdsModule['useForeground'] | null = null;
 
 try {
-  const GoogleMobileAds = require('react-native-google-mobile-ads');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const GoogleMobileAds = require('react-native-google-mobile-ads') as GoogleMobileAdsModule;
   BannerAd = GoogleMobileAds.BannerAd;
   BannerAdSize = GoogleMobileAds.BannerAdSize;
   useForeground = GoogleMobileAds.useForeground;
-} catch (e) {
-  console.log('Google Mobile Ads SDK yüklenemedi');
+} catch {
+  // SDK yüklenemedi - sessiz devam et
 }
 
 interface AdBannerProps {
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }
+
+type AdBannerNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function AdBanner({ style }: AdBannerProps) {
   const { shouldShowAds, isPremium } = useSubscription();
   const { colors } = useTheme();
   const { language } = useLanguage();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<AdBannerNavigationProp>();
   const [adError, setAdError] = useState(false);
   const [adLoaded, setAdLoaded] = useState(false);
 
@@ -43,7 +67,7 @@ export default function AdBanner({ style }: AdBannerProps) {
   }
 
   // AdMob yüklenemediyse veya hata olduysa placeholder göster
-  if (!BannerAd || adError) {
+  if (!BannerAd || !BannerAdSize || adError) {
     return (
       <TouchableOpacity 
         style={[styles.placeholderContainer, { backgroundColor: colors.card, borderColor: colors.divider }, style]}
@@ -75,12 +99,12 @@ export default function AdBanner({ style }: AdBannerProps) {
           requestNonPersonalizedAdsOnly: true,
         }}
         onAdLoaded={() => {
-          console.log('Banner reklam yüklendi');
+          log.debug('Banner reklam yuklendi');
           setAdLoaded(true);
           setAdError(false);
         }}
-        onAdFailedToLoad={(error: any) => {
-          console.log('Banner reklam yüklenemedi:', error);
+        onAdFailedToLoad={(error: unknown) => {
+          log.debug('Banner reklam yuklenemedi', { error });
           setAdError(true);
         }}
       />

@@ -1,6 +1,9 @@
 import { doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { SubscriptionTier, UserSubscription, SubscriptionPlan } from '../types';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('SubscriptionService');
 
 // ============ ABONELİK PLANLARI ============
 
@@ -91,7 +94,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
 
     return data;
   } catch (error) {
-    console.error('Abonelik getirme hatası:', error);
+    log.error('Abonelik getirme hatasi', error);
     return {
       tier: 'free',
       isActive: true,
@@ -129,9 +132,9 @@ export async function upgradeToPremium(
     };
 
     await setDoc(subRef, subscription);
-    console.log('Premium abonelik aktifleştirildi');
+    log.debug('Premium abonelik aktiflestirildi');
   } catch (error) {
-    console.error('Premium yükseltme hatası:', error);
+    log.error('Premium yukseltme hatasi', error);
     throw error;
   }
 }
@@ -149,9 +152,9 @@ export async function downgradeToFree(userId: string): Promise<void> {
     };
 
     await setDoc(subRef, subscription);
-    console.log('Free aboneliğe düşürüldü');
+    log.debug('Free abonelige dusuruldu');
   } catch (error) {
-    console.error('Downgrade hatası:', error);
+    log.error('Downgrade hatasi', error);
     throw error;
   }
 }
@@ -167,9 +170,9 @@ export async function cancelSubscription(userId: string): Promise<void> {
       isActive: false,
     });
     
-    console.log('Abonelik iptal edildi');
+    log.debug('Abonelik iptal edildi');
   } catch (error) {
-    console.error('İptal hatası:', error);
+    log.error('Iptal hatasi', error);
     throw error;
   }
 }

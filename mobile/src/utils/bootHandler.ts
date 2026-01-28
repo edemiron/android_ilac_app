@@ -1,0 +1,349 @@
+import { AppRegistry } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import notifee, { TriggerType, AlarmType, TimestampTrigger, AndroidImportance, AndroidVisibility, AndroidCategory } from '@notifee/react-native';
+import { createScopedLogger } from './logger';
+
+const log = createScopedLogger('BootHandler');
+
+const ALARM_CHANNEL_ID = 'medicine-alarms-v3';
+const REMINDER_CHANNEL_ID = 'medicine-reminders-v3';
+const BOOT_RECOVERY_KEY = 'boot-recovery-result';
+
+interface Medicine {
+  id: string;
+  name: string;
+  dosage: string;
+  isActive: boolean;
+}
+
+interface ReminderTime {
+  id: string;
+  medicineId: string;
+  time: string;
+  isEnabled: boolean;
+}
+
+interface Snooze {
+  id: string;
+  medicineId: string;
+  reminderTimeId: string;
+  originalScheduledTime: string;
+  triggerTime: string;
+  notificationId: string;
+  snoozeCount: number;
+  isActive: boolean;
+}
+
+interface StoredState {
+  state: {
+    medicines: Medicine[];
+    reminderTimes: ReminderTime[];
+    snoozes: Snooze[];
+  };
+}
+
+interface TaskData {
+  trigger: string;
+  timestamp: number;
+}
+
+function parseTimeToDate(time: string): Date {
+  const [hours, minutes] = time.split(':').map(Number);
+  const now = new Date();
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+
+  if (date <= now) {
+    date.setDate(date.getDate() + 1);
+  }
+
+  return date;
+}
+
+async function scheduleReminderNotification(medicine: Medicine, reminderTime: ReminderTime): Promise<string | null> {
+  const triggerDate = parseTimeToDate(reminderTime.time);
+  const timeStr = triggerDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+  const trigger: TimestampTrigger = {
+    type: TriggerType.TIMESTAMP,
+    timestamp: triggerDate.getTime(),
+    alarmManager: {
+      allowWhileIdle: true,
+      type: AlarmType.SET_ALARM_CLOCK,
+    },
+  };
+
+  try {
+    const notificationId = await notifee.createTriggerNotification(
+      {
+        id: `alarm-${medicine.id}-${reminderTime.id}`,
+        title: `💊 ${medicine.name}`,
+        subtitle: timeStr,
+        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
+        android: {
+          channelId: ALARM_CHANNEL_ID,
+          category: AndroidCategory.ALARM,
+          importance: AndroidImportance.HIGH,
+          visibility: AndroidVisibility.PUBLIC,
+          ongoing: true,
+          autoCancel: false,
+          loopSound: true,
+          fullScreenAction: {
+            id: 'default',
+            launchActivity: 'com.ilachatirlatici.MainActivity',
+          },
+          pressAction: {
+            id: 'default',
+            launchActivity: 'com.ilachatirlatici.MainActivity',
+          },
+          smallIcon: 'ic_launcher',
+          color: '#2196F3',
+          colorized: true,
+          sound: 'alarm',
+          vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
+          actions: [
+            { title: '😴 Ertele', pressAction: { id: 'snooze' } },
+            { title: '⬛ Kapat', pressAction: { id: 'stop' } },
+          ],
+        },
+        data: {
+          medicineId: medicine.id,
+          reminderTimeId: reminderTime.id,
+          scheduledTime: triggerDate.toISOString(),
+          fullScreenAlarm: 'true',
+        },
+      },
+      trigger
+    );
+
+    return notificationId;
+  } catch (error) {
+    log.error('Failed to schedule reminder', error);
+    return null;
+  }
+}
+
+async function scheduleActiveSnooze(snooze: Snooze, medicine: Medicine): Promise<string | null> {
+  const triggerTime = new Date(snooze.triggerTime);
+  
+  if (triggerTime <= new Date()) {
+    log.debug('Snooze time has passed, skipping', { snoozeId: snooze.id });
+    return null;
+  }
+
+  const timeStr = triggerTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+  const trigger: TimestampTrigger = {
+    type: TriggerType.TIMESTAMP,
+    timestamp: triggerTime.getTime(),
+    alarmManager: {
+      allowWhileIdle: true,
+      type: AlarmType.SET_ALARM_CLOCK,
+    },
+  };
+
+  try {
+    const notificationId = await notifee.createTriggerNotification(
+      {
+        id: snooze.notificationId,
+        title: `🔔 ${medicine.name} (Ertelendi${snooze.snoozeCount > 1 ? ` x${snooze.snoozeCount}` : ''})`,
+        subtitle: timeStr,
+        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
+        android: {
+          channelId: ALARM_CHANNEL_ID,
+          category: AndroidCategory.ALARM,
+          importance: AndroidImportance.HIGH,
+          visibility: AndroidVisibility.PUBLIC,
+          ongoing: true,
+          autoCancel: false,
+          loopSound: true,
+          fullScreenAction: {
+            id: 'default',
+            launchActivity: 'com.ilachatirlatici.MainActivity',
+          },
+          pressAction: {
+            id: 'default',
+            launchActivity: 'com.ilachatirlatici.MainActivity',
+          },
+          smallIcon: 'ic_launcher',
+          color: '#FF6B6B',
+          colorized: true,
+          sound: 'alarm',
+          vibrationPattern: [500, 200, 500, 200, 500, 200],
+          actions: [
+            { title: '😴 Ertele', pressAction: { id: 'snooze' } },
+            { title: '⬛ Kapat', pressAction: { id: 'stop' } },
+          ],
+        },
+        data: {
+          medicineId: snooze.medicineId,
+          reminderTimeId: snooze.reminderTimeId,
+          scheduledTime: triggerTime.toISOString(),
+          originalScheduledTime: snooze.originalScheduledTime,
+          fullScreenAlarm: 'true',
+          isSnooze: 'true',
+          snoozeId: snooze.id,
+          snoozeCount: String(snooze.snoozeCount),
+        },
+      },
+      trigger
+    );
+
+    return notificationId;
+  } catch (error) {
+    log.error('Failed to schedule snooze', error);
+    return null;
+  }
+}
+
+export interface BootRecoveryResult {
+  reminders: number;
+  snoozes: number;
+  trigger: string;
+  timestamp: string;
+}
+
+async function showRecoveryNotification(result: BootRecoveryResult): Promise<void> {
+  const total = result.reminders + result.snoozes;
+  if (total === 0) return;
+
+  try {
+    await notifee.displayNotification({
+      title: '✅ Alarmlar Senkronize Edildi',
+      body: `${result.reminders} hatirlatma${result.snoozes > 0 ? ` ve ${result.snoozes} erteleme` : ''} yeniden planlandi.`,
+      android: {
+        channelId: REMINDER_CHANNEL_ID,
+        importance: AndroidImportance.DEFAULT,
+        visibility: AndroidVisibility.PUBLIC,
+        autoCancel: true,
+        smallIcon: 'ic_launcher',
+        color: '#4ECDC4',
+        timestamp: Date.now(),
+        showTimestamp: true,
+        pressAction: { id: 'default' },
+      },
+    });
+    log.debug('Recovery notification shown', { ...result });
+  } catch (error) {
+    log.error('Failed to show recovery notification', error);
+  }
+}
+
+export async function saveBootRecoveryResult(result: BootRecoveryResult): Promise<void> {
+  try {
+    await AsyncStorage.setItem(BOOT_RECOVERY_KEY, JSON.stringify(result));
+  } catch (error) {
+    log.error('Failed to save boot recovery result', error);
+  }
+}
+
+export async function getBootRecoveryResult(): Promise<BootRecoveryResult | null> {
+  try {
+    const data = await AsyncStorage.getItem(BOOT_RECOVERY_KEY);
+    if (!data) return null;
+    return JSON.parse(data) as BootRecoveryResult;
+  } catch (error) {
+    log.error('Failed to get boot recovery result', error);
+    return null;
+  }
+}
+
+export async function clearBootRecoveryResult(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(BOOT_RECOVERY_KEY);
+  } catch (error) {
+    log.error('Failed to clear boot recovery result', error);
+  }
+}
+
+export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<BootRecoveryResult> {
+  let registeredReminders = 0;
+  let registeredSnoozes = 0;
+  const timestamp = new Date().toISOString();
+
+  try {
+    const storedData = await AsyncStorage.getItem('medicine-storage');
+    
+    if (!storedData) {
+      log.debug('No stored data found');
+      return { reminders: 0, snoozes: 0, trigger, timestamp };
+    }
+
+    const parsed: StoredState = JSON.parse(storedData);
+    const { medicines, reminderTimes, snoozes } = parsed.state;
+
+    if (!medicines || !reminderTimes) {
+      log.debug('No medicines or reminder times found');
+      return { reminders: 0, snoozes: 0, trigger, timestamp };
+    }
+
+    const activeMedicines = medicines.filter(m => m.isActive);
+    const medicineMap = new Map(activeMedicines.map(m => [m.id, m]));
+
+    await notifee.cancelAllNotifications();
+    log.debug('Cancelled all existing notifications');
+
+    for (const reminderTime of reminderTimes) {
+      if (!reminderTime.isEnabled) continue;
+
+      const medicine = medicineMap.get(reminderTime.medicineId);
+      if (!medicine) continue;
+
+      const notificationId = await scheduleReminderNotification(medicine, reminderTime);
+      if (notificationId) {
+        registeredReminders++;
+      }
+    }
+
+    if (snoozes) {
+      const activeSnoozes = snoozes.filter(s => s.isActive);
+      
+      for (const snooze of activeSnoozes) {
+        const medicine = medicineMap.get(snooze.medicineId);
+        if (!medicine) continue;
+
+        const notificationId = await scheduleActiveSnooze(snooze, medicine);
+        if (notificationId) {
+          registeredSnoozes++;
+        }
+      }
+    }
+
+    const result: BootRecoveryResult = { 
+      reminders: registeredReminders, 
+      snoozes: registeredSnoozes,
+      trigger,
+      timestamp,
+    };
+
+    log.debug('Re-registered alarms', { ...result });
+
+    return result;
+  } catch (error) {
+    log.error('Failed to re-register alarms', error);
+    return { reminders: registeredReminders, snoozes: registeredSnoozes, trigger, timestamp };
+  }
+}
+
+async function ReRegisterAlarmsTask(taskData: TaskData): Promise<void> {
+  const { trigger = 'unknown', timestamp } = taskData || {};
+  
+  log.debug('HeadlessJS task started', { trigger, timestamp });
+
+  try {
+    const result = await reRegisterAllAlarms(trigger);
+    
+    await saveBootRecoveryResult(result);
+    
+    await showRecoveryNotification(result);
+    
+    log.debug('HeadlessJS task completed', { ...result });
+  } catch (error) {
+    log.error('HeadlessJS task failed', error);
+  }
+}
+
+export function registerBootTask(): void {
+  AppRegistry.registerHeadlessTask('ReRegisterAlarmsTask', () => ReRegisterAlarmsTask);
+  log.debug('ReRegisterAlarmsTask registered');
+}

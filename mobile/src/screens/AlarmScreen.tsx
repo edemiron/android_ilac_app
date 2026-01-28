@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,21 +7,24 @@ import {
   Vibration,
   Dimensions,
   Animated,
-  Platform,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Audio } from 'expo-av';
-import Sound from 'react-native-sound';
-import * as Haptics from 'expo-haptics';
+import notifee, { EventType } from '@notifee/react-native';
+import { playAlarmSound, stopAlarmSound } from '../utils/alarmSoundManager';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, ReminderTime } from '../types';
 import { formatTimeDisplay, getInstructionText } from '../utils/timeCalculator';
 import { speakMedicineReminder, stopSpeaking } from '../utils/speech';
-import { scheduleSnoozeNotification, dismissNotification } from '../utils/notifications';
+import { scheduleSnoozeNotification, scheduleMedicineNotification, dismissNotification, cancelNotification, cancelMedicineNotifications } from '../utils/notifications';
+import { generateId } from '../utils/idGenerator';
 import { format } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
 import { useLanguage } from '../contexts/LanguageContext';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('AlarmScreen');
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'Alarm'>;
@@ -43,6 +46,8 @@ export default function AlarmScreen() {
     logMedicineSkipped,
     dismissAlarm,
     settings,
+    createSnooze,
+    snoozes,
   } = useMedicineStore();
 
   // Test modu kontrolü
@@ -69,11 +74,10 @@ export default function AlarmScreen() {
   // Erteleme süresi ayarlardan al (varsayılan 5 dakika)
   const snoozeDuration = settings.snoozeDuration || 5;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const nativeSoundRef = useRef<Sound | null>(null); // react-native-sound için
   const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ttsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isStoppedRef = useRef<boolean>(false); // Alarm durduruldu mu?
+  const isSnoozingRef = useRef<boolean>(false); // Snooze işlemi devam ediyor mu?
 
   // Pulse animasyonu
   useEffect(() => {
@@ -96,11 +100,97 @@ export default function AlarmScreen() {
     return () => pulse.stop();
   }, []);
 
+  // Alarm ekranı açıldığında bildirimi kapat
+  useEffect(() => {
+    // Bildirimi hemen kapat - kullanıcı alarm ekranını gördü
+    dismissNotification(`alarm-${medicineId}-${reminderTimeId}`);
+    log.debug('Alarm ekrani acildi, bildirim kapatildi');
+  }, [medicineId, reminderTimeId]);
+
+  // CRITICAL: Background'dan gelen notification action'larını dinle
+  // Kullanıcı bildirimden butona bastığında AlarmScreen açık olabilir - sesi durdurmak için gerekli
+  useEffect(() => {
+    const unsubscribe = notifee.onForegroundEvent(async ({ type, detail }) => {
+      log.debug('Foreground event alindi', { type, notificationId: detail.notification?.id, pressAction: detail.pressAction?.id });
+      
+      if (type === EventType.ACTION_PRESS) {
+        const actionId = detail.pressAction?.id;
+        const notificationMedicineId = detail.notification?.data?.medicineId as string;
+        
+        if (notificationMedicineId === medicineId || detail.notification?.id?.includes(medicineId)) {
+          log.debug('Bu alarm icin action algilandi, ses durduruluyor', { actionId });
+          
+          await stopAlarm();
+          
+          dismissAlarm();
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Main' as any }],
+            });
+          }
+        }
+      }
+      
+      if (type === EventType.DISMISSED) {
+        const notificationMedicineId = detail.notification?.data?.medicineId as string;
+        if (notificationMedicineId === medicineId || detail.notification?.id?.includes(medicineId)) {
+          log.debug('Notification dismissed, ses durduruluyor');
+          await stopAlarm();
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [medicineId, stopAlarm, dismissAlarm, navigation]);
+
+  // İLAÇ BULUNAMADIĞINDA: Alarmı durdur ve ana ekrana yönlendir
+  useEffect(() => {
+    if (!medicine && !isTestMode) {
+      log.debug('PHANTOM ALARM ALGILANDI - Ilac bulunamadi, hemen kapatiliyor', { medicineId });
+      
+      // HEMEN alarm flag'ini set et - ses/titreşim başlamasını engelle
+      isStoppedRef.current = true;
+      
+      // Titreşimi HEMEN durdur
+      Vibration.cancel();
+      
+      // Bildirimi iptal et
+      dismissNotification(`alarm-${medicineId}-${reminderTimeId}`);
+      
+      // Tüm phantom bildirimleri temizle
+      cancelMedicineNotifications(medicineId);
+      
+      // Alarm state'ini temizle
+      dismissAlarm();
+      
+      // Navigation RESET ile ana ekrana dön - bu her zaman çalışır
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Main' as any }],
+      });
+    }
+  }, [medicine, isTestMode, medicineId, reminderTimeId, navigation, dismissAlarm]);
+
   // Titreşim, ses ve TTS
   useEffect(() => {
-    // Reset stopped flag
-    isStoppedRef.current = false;
+    // İlaç yoksa (silinmiş/phantom) ses ve titreşim başlatma
+    if (!medicine && !isTestMode) {
+      log.debug('Ilac bulunamadi, ses/titresim baslatilmiyor');
+      return;
+    }
     
+    // Eğer alarm zaten durdurulduysa (phantom guard tarafından), başlatma
+    if (isStoppedRef.current) {
+      log.debug('Alarm zaten durduruldu, ses/titresim baslatilmiyor');
+      return;
+    }
+
+    // Reset stopped flag - sadece normal alarm için
+    isStoppedRef.current = false;
+
     // Titreşim pattern (sürekli)
     const vibrationPattern = [0, 500, 500, 500];
     
@@ -124,81 +214,18 @@ export default function AlarmScreen() {
       }
     }, 2000);
 
-    // Haptic feedback
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    ReactNativeHapticFeedback.trigger('notificationWarning', { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
 
-    // Ses çalma - Sessiz modda bile çalması için STREAM_ALARM kullan
-    const playSound = async () => {
-      console.log('=== SES ÇALMA BAŞLIYOR ===');
-      
-      if (Platform.OS === 'android') {
-        // Android: react-native-sound ile STREAM_ALARM kullan
-        try {
-          // Önce kategoriyi Alarm olarak ayarla - BU ÖNEMLİ!
-          Sound.setCategory('Alarm', true);
-          console.log('Sound category: Alarm');
-          
-          // Ses dosyasını yükle (raw klasöründen, uzantısız)
-          const sound = new Sound('alarm.mp3', Sound.MAIN_BUNDLE, (error) => {
-            if (error) {
-              console.log('Sound yükleme hatası, expo-av deneniyor:', error);
-              playWithExpoAv();
-              return;
-            }
-            
-            if (isStoppedRef.current) {
-              sound.release();
-              return;
-            }
-            
-            nativeSoundRef.current = sound;
-            sound.setVolume(1.0);
-            sound.setNumberOfLoops(-1); // Sonsuz döngü
-            
-            sound.play((success) => {
-              console.log('Sound.play callback, success:', success);
-            });
-            
-            console.log('=== ALARM SESİ BAŞLADI (STREAM_ALARM) ===');
-          });
-        } catch (error) {
-          console.error('react-native-sound hatası:', error);
-          playWithExpoAv();
-        }
-      } else {
-        // iOS: expo-av kullan
-        playWithExpoAv();
-      }
-    };
-    
-    // Fallback: expo-av
-    const playWithExpoAv = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          staysActiveInBackground: true,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: false,
-          playThroughEarpieceAndroid: false,
-        });
-        
-        const { sound } = await Audio.Sound.createAsync(
-          require('../../assets/alarm.mp3'),
-          { isLooping: true, volume: 1.0, shouldPlay: true }
-        );
-        soundRef.current = sound;
-        await sound.playAsync();
-        console.log('=== ALARM SESİ BAŞLADI (expo-av) ===');
-      } catch (error) {
-        console.error('expo-av hatası:', error);
-      }
-    };
+    if (!isStoppedRef.current) {
+      playAlarmSound(settings.alarmVolume ?? 80);
+    }
 
-    playSound();
-
-    // Sesli hatırlatma (TTS) - 1 saniye sonra - ref'te sakla
     if (medicine) {
       const speakReminder = async () => {
+        if (isStoppedRef.current) {
+          log.debug('Alarm durduruldu, TTS baslatilmiyor');
+          return;
+        }
         try {
           await speakMedicineReminder(
             medicine.name,
@@ -207,177 +234,246 @@ export default function AlarmScreen() {
             language
           );
         } catch (error) {
-          console.log('TTS hatası:', error);
+          log.debug('TTS hatasi', { error });
         }
       };
       ttsTimeoutRef.current = setTimeout(speakReminder, 1000);
     }
 
-    // Cleanup - TÜM kaynakları temizle
     return () => {
-      // TTS timeout temizle
       if (ttsTimeoutRef.current) {
         clearTimeout(ttsTimeoutRef.current);
         ttsTimeoutRef.current = null;
       }
-      // Titreşim interval temizle
       if (vibrationIntervalRef.current) {
         clearInterval(vibrationIntervalRef.current);
         vibrationIntervalRef.current = null;
       }
-      // Titreşimi durdur
       Vibration.cancel();
-      // Konuşmayı durdur
       stopSpeaking();
-      // Sesi durdur ve unload et
-      if (soundRef.current) {
-        soundRef.current.stopAsync();
-        soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
+      stopAlarmSound();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [medicineId, settings.vibrationEnabled, language]); // medicineId kullan, medicine değil!
+  }, [medicine, isTestMode, medicineId, settings.vibrationEnabled, language]);
 
-  const stopAlarm = async () => {
-    console.log('=== stopAlarm BAŞLADI ===');
-    
-    // 0. Flag'i hemen set et - diğer her şeyden önce!
+  const stopAlarm = useCallback(async () => {
+    log.debug('stopAlarm basladi');
+
     isStoppedRef.current = true;
-    console.log('isStoppedRef = true');
-    
-    // 1. Titreşim interval'ini durdur (ÖNCELİKLİ!)
+
     if (vibrationIntervalRef.current) {
       clearInterval(vibrationIntervalRef.current);
       vibrationIntervalRef.current = null;
-      console.log('Vibration interval temizlendi');
     }
-    
-    // 2. Aktif titreşimi durdur - birden fazla kez çağır
+
     Vibration.cancel();
-    Vibration.cancel();
-    console.log('Vibration.cancel() çağrıldı');
-    
-    // 3. TTS timeout'u temizle
+
     if (ttsTimeoutRef.current) {
       clearTimeout(ttsTimeoutRef.current);
       ttsTimeoutRef.current = null;
-      console.log('TTS timeout temizlendi');
     }
-    
-    // 4. Konuşmayı durdur
+
     try {
       await stopSpeaking();
-      console.log('stopSpeaking() çağrıldı');
     } catch (e) {
-      console.log('stopSpeaking hatası:', e);
+      log.debug('stopSpeaking hatasi', { error: e });
     }
-    
-    // 5. Sesi durdur - react-native-sound
-    if (nativeSoundRef.current) {
-      try {
-        const sound = nativeSoundRef.current;
-        nativeSoundRef.current = null;
-        sound.stop();
-        sound.release();
-        console.log('react-native-sound durduruldu');
-      } catch (error) {
-        console.log('react-native-sound durdurma hatası:', error);
-      }
-    }
-    
-    // 6. Sesi durdur - expo-av
-    if (soundRef.current) {
-      try {
-        const sound = soundRef.current;
-        soundRef.current = null; // Önce null yap
-        await sound.stopAsync();
-        await sound.unloadAsync();
-        console.log('expo-av ses durduruldu ve unload edildi');
-      } catch (error) {
-        console.log('expo-av ses durdurma hatası:', error);
-      }
-    }
-    
-    // 6. Son bir kez daha titreşimi durdur
+
+    await stopAlarmSound();
+
     Vibration.cancel();
-    
-    console.log('=== stopAlarm BİTTİ ===');
-  };
+
+    log.debug('stopAlarm bitti');
+  }, []);
 
   const handleTake = async () => {
     await stopAlarm();
+    log.debug('handleTake called', { isTestMode, reminderTimeId, scheduledTime, medicineId });
     if (!isTestMode) {
-      logMedicineTaken(reminderTimeId, scheduledTime);
+      logMedicineTaken(reminderTimeId, scheduledTime, medicineId);
+      log.debug('logMedicineTaken called from handleTake with medicineId fallback');
+    } else {
+      log.debug('Test mode - take not logged');
     }
-    // Notifee bildirimini kapat
-    await dismissNotification(`alarm-${medicineId}-${reminderTimeId}`);
+    const notificationId = `alarm-${medicineId}-${reminderTimeId}`;
+    // Hem displayed hem trigger notification'ı iptal et
+    await dismissNotification(notificationId);
+    await cancelNotification(notificationId);
+
+    // Yarın için alarmı yeniden planla (günlük tekrar için)
+    if (medicine && currentReminderTime && !isTestMode) {
+      try {
+        await scheduleMedicineNotification(medicine, currentReminderTime, true);
+        log.debug('Yarin icin alarm yeniden planlandi', { time: currentReminderTime.time });
+      } catch (e) {
+        log.debug('Alarm yeniden planlama hatasi', { error: e });
+      }
+    }
+
     dismissAlarm();
     navigation.goBack();
   };
 
   const handleSkip = async () => {
     await stopAlarm();
+    log.debug('handleSkip called', { isTestMode, reminderTimeId, scheduledTime, medicineId });
     if (!isTestMode) {
-      logMedicineSkipped(reminderTimeId, scheduledTime);
+      logMedicineSkipped(reminderTimeId, scheduledTime, medicineId);
+      log.debug('logMedicineSkipped called from handleSkip with medicineId fallback');
+    } else {
+      log.debug('Test mode - skip not logged');
     }
-    // Notifee bildirimini kapat
-    await dismissNotification(`alarm-${medicineId}-${reminderTimeId}`);
+    const notificationId = `alarm-${medicineId}-${reminderTimeId}`;
+    // Hem displayed hem trigger notification'ı iptal et
+    await dismissNotification(notificationId);
+    await cancelNotification(notificationId);
+
+    // Yarın için alarmı yeniden planla (günlük tekrar için)
+    if (medicine && currentReminderTime && !isTestMode) {
+      try {
+        await scheduleMedicineNotification(medicine, currentReminderTime, true);
+        log.debug('Yarin icin alarm yeniden planlandi', { time: currentReminderTime.time });
+      } catch (e) {
+        log.debug('Alarm yeniden planlama hatasi', { error: e });
+      }
+    }
+
     dismissAlarm();
     navigation.goBack();
   };
 
   const handleSnooze = async () => {
-    console.log('=== handleSnooze BAŞLADI ===');
-    
+    // Double-tap koruması
+    if (isSnoozingRef.current) {
+      log.debug('handleSnooze zaten çalışıyor, atlanıyor');
+      return;
+    }
+    isSnoozingRef.current = true;
+
+    log.debug('handleSnooze basladi');
+
     try {
       await stopAlarm();
-      console.log('stopAlarm tamamlandı');
     } catch (error) {
-      console.log('stopAlarm HATA:', error);
+      log.debug('stopAlarm hatasi', { error });
     }
-    
-    // Notifee bildirimini kapat
-    await dismissNotification(`alarm-${medicineId}-${reminderTimeId}`);
-    
+
+    const notificationId = `alarm-${medicineId}-${reminderTimeId}`;
+
+    // KRİTİK: Hem displayed hem trigger notification'ı iptal et
+    // dismissNotification sadece displayed'ı kapatır, trigger aktif kalır
+    // cancelNotification ikisini de iptal eder
+    try {
+      await dismissNotification(notificationId);
+      await cancelNotification(notificationId);
+      log.debug('Bildirimler iptal edildi (displayed + trigger)', { notificationId });
+    } catch (error) {
+      log.debug('Bildirim iptal hatasi', { error });
+    }
+
     dismissAlarm();
-    console.log('dismissAlarm çağrıldı');
-    
-    // Erteleme bildirimi planla (test modunda da çalışsın)
+
     if (medicine) {
-      const testReminderTime = {
+      const testReminderTime: ReminderTime = {
         id: 'test-reminder',
         medicineId: medicine.id,
         time: format(new Date(), 'HH:mm'),
         isEnabled: true,
       };
+      
+      const reminderTimeToUse = currentReminderTime || testReminderTime;
+      const snoozeId = generateId();
+      const originalScheduledTime = scheduledTime || new Date().toISOString();
+      
+      const existingSnoozeCount = snoozes.filter(
+        s => s.medicineId === medicine.id && 
+             s.reminderTimeId === reminderTimeToUse.id && 
+             s.originalScheduledTime === originalScheduledTime
+      ).length;
+      
       try {
-        await scheduleSnoozeNotification(medicine, currentReminderTime || testReminderTime, snoozeDuration);
-        console.log(`İlaç ${snoozeDuration} dakika ertelendi`);
+        const result = await scheduleSnoozeNotification({
+          medicine,
+          reminderTime: reminderTimeToUse,
+          snoozeDuration,
+          snoozeId,
+          originalScheduledTime,
+          snoozeCount: existingSnoozeCount + 1,
+        });
+        
+        if (result) {
+          createSnooze(
+            medicine.id,
+            reminderTimeToUse.id,
+            originalScheduledTime,
+            result.triggerTime,
+            result.notificationId
+          );
+          log.debug('Ilac ertelendi ve DB\'ye kaydedildi', { 
+            snoozeDuration, 
+            notificationId: result.notificationId,
+            triggerTime: result.triggerTime.toISOString()
+          });
+        } else {
+          log.error('Snooze planlanamadi - result null');
+        }
       } catch (e) {
-        console.log('scheduleSnoozeNotification HATA:', e);
+        log.error('scheduleSnoozeNotification hatasi', { error: e });
+      }
+
+      // Yarın için günlük alarmı yeniden planla (snooze ayrı bildirim, bu günlük tekrar için)
+      if (currentReminderTime && !isTestMode) {
+        try {
+          await scheduleMedicineNotification(medicine, currentReminderTime, true);
+          log.debug('Yarin icin alarm yeniden planlandi', { time: currentReminderTime.time });
+        } catch (e) {
+          log.debug('Alarm yeniden planlama hatasi', { error: e });
+        }
       }
     }
-    
-    console.log('navigation.goBack() çağrılıyor...');
-    
+
     // goBack çağır
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      console.log('canGoBack false, navigate ile Home\'a git');
       navigation.navigate('Main' as any);
     }
-    
-    console.log('=== handleSnooze BİTTİ ===');
+
+    log.debug('handleSnooze bitti');
   };
 
+  // İlaç bulunamadı - bu ekran görünmemeli, useEffect geri dönmeli
+  // Ama navigation başarısız olursa bu görünür
   if (!medicine) {
+    // Test modu değilse ana ekrana dön
+    if (!isTestMode) {
+      // Fallback: 500ms sonra tekrar navigation dene
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' as any }],
+        });
+      }, 500);
+    }
+    
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }]}>
         <Text style={styles.errorText}>
-          {language === 'tr' ? 'İlaç bulunamadı' : 'Medicine not found'}
+          {language === 'tr' ? 'İlaç bulunamadı, ana ekrana dönülüyor...' : 'Medicine not found, returning to home...'}
         </Text>
+        <TouchableOpacity
+          style={{ marginTop: 20, padding: 15, backgroundColor: '#4ECDC4', borderRadius: 10 }}
+          onPress={() => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Main' as any }],
+            });
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+            {language === 'tr' ? 'Ana Ekrana Dön' : 'Go to Home'}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }

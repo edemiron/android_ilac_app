@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../contexts/ThemeContext';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
   checkAllPermissions,
@@ -19,6 +19,8 @@ import {
   requestBatteryOptimizationPermission,
   openDndSettings,
   openNotificationSettings,
+  openFullScreenIntentSettings,
+  openPowerManagerSettings,
 } from '../utils/notifications';
 
 interface PermissionsScreenProps {
@@ -31,6 +33,8 @@ interface PermissionStatus {
   batteryOptimization: boolean;
   dnd: boolean;
   fullScreenIntent: boolean;
+  powerManagerRestricted: boolean;
+  manufacturer: string | null;
 }
 
 export default function PermissionsScreen({ onComplete }: PermissionsScreenProps) {
@@ -79,9 +83,21 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
     setTimeout(checkPermissions, 1000);
   };
 
-  const allPermissionsGranted = permissions && 
-    permissions.notifications && 
-    permissions.exactAlarm;
+  const handleOpenFullScreenIntentSettings = async () => {
+    await openFullScreenIntentSettings();
+    setTimeout(checkPermissions, 1000);
+  };
+
+  const handleOpenPowerManagerSettings = async () => {
+    await openPowerManagerSettings();
+    setTimeout(checkPermissions, 1000);
+  };
+
+  // Battery optimization ve Power Manager kritik izinler olarak eklendi
+  const allPermissionsGranted = permissions &&
+    permissions.notifications &&
+    permissions.exactAlarm &&
+    permissions.batteryOptimization;
 
   const styles = createStyles(colors);
 
@@ -190,15 +206,53 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
             </View>
           )}
 
-          {/* Pil Optimizasyonu (Opsiyonel) */}
+          {/* Tam Ekran Bildirim İzni (Android 14+) */}
+          {Platform.OS === 'android' && Platform.Version >= 34 && (
+            <View style={styles.permissionItem}>
+              <View style={styles.permissionInfo}>
+                <View style={[styles.permissionIcon, { backgroundColor: permissions?.fullScreenIntent ? '#10B98120' : '#EF444420' }]}>
+                  <Ionicons
+                    name={permissions?.fullScreenIntent ? "checkmark-circle" : "expand-outline"}
+                    size={24}
+                    color={permissions?.fullScreenIntent ? '#10B981' : '#EF4444'}
+                  />
+                </View>
+                <View style={styles.permissionText}>
+                  <Text style={styles.permissionTitle}>
+                    {language === 'tr' ? 'Tam Ekran Bildirim' : 'Full Screen Notifications'}
+                  </Text>
+                  <Text style={styles.permissionDescription}>
+                    {language === 'tr'
+                      ? 'İlaç saatinde tam ekran alarm göstermek için (kritik)'
+                      : 'To show full screen alarm at medication time (critical)'}
+                  </Text>
+                </View>
+              </View>
+              {!permissions?.fullScreenIntent && (
+                <TouchableOpacity
+                  style={styles.permissionButton}
+                  onPress={handleOpenFullScreenIntentSettings}
+                >
+                  <Text style={styles.permissionButtonText}>
+                    {language === 'tr' ? 'Ayarla' : 'Set'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {permissions?.fullScreenIntent && (
+                <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+              )}
+            </View>
+          )}
+
+          {/* Pil Optimizasyonu (KRITIK - Zorunlu) */}
           {Platform.OS === 'android' && (
             <View style={styles.permissionItem}>
               <View style={styles.permissionInfo}>
-                <View style={[styles.permissionIcon, { backgroundColor: permissions?.batteryOptimization ? '#10B98120' : '#6366F120' }]}>
-                  <Ionicons 
-                    name={permissions?.batteryOptimization ? "checkmark-circle" : "battery-charging-outline"} 
-                    size={24} 
-                    color={permissions?.batteryOptimization ? '#10B981' : '#6366F1'} 
+                <View style={[styles.permissionIcon, { backgroundColor: permissions?.batteryOptimization ? '#10B98120' : '#EF444420' }]}>
+                  <Ionicons
+                    name={permissions?.batteryOptimization ? "checkmark-circle" : "battery-charging-outline"}
+                    size={24}
+                    color={permissions?.batteryOptimization ? '#10B981' : '#EF4444'}
                   />
                 </View>
                 <View style={styles.permissionText}>
@@ -206,18 +260,18 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
                     {language === 'tr' ? 'Pil Optimizasyonu' : 'Battery Optimization'}
                   </Text>
                   <Text style={styles.permissionDescription}>
-                    {language === 'tr' 
-                      ? 'Arka planda çalışmaya devam etmek için (önerilen)' 
-                      : 'To keep running in background (recommended)'}
+                    {language === 'tr'
+                      ? 'Arka planda alarm calmasi icin KRITIK (kapali olmali)'
+                      : 'CRITICAL for background alarms (must be disabled)'}
                   </Text>
                 </View>
               </View>
               {!permissions?.batteryOptimization && (
-                <TouchableOpacity 
-                  style={[styles.permissionButton, styles.optionalButton]}
+                <TouchableOpacity
+                  style={styles.permissionButton}
                   onPress={handleRequestBatteryOptimization}
                 >
-                  <Text style={[styles.permissionButtonText, { color: colors.primary }]}>
+                  <Text style={styles.permissionButtonText}>
                     {language === 'tr' ? 'Ayarla' : 'Set'}
                   </Text>
                 </TouchableOpacity>
@@ -225,6 +279,41 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
               {permissions?.batteryOptimization && (
                 <Ionicons name="checkmark-circle" size={24} color="#10B981" />
               )}
+            </View>
+          )}
+
+          {/* Cihaza Ozel Ayarlar (Xiaomi, Samsung, Huawei vb.) */}
+          {Platform.OS === 'android' && permissions?.powerManagerRestricted && (
+            <View style={styles.permissionItem}>
+              <View style={styles.permissionInfo}>
+                <View style={[styles.permissionIcon, { backgroundColor: '#F59E0B20' }]}>
+                  <Ionicons
+                    name="phone-portrait-outline"
+                    size={24}
+                    color="#F59E0B"
+                  />
+                </View>
+                <View style={styles.permissionText}>
+                  <Text style={styles.permissionTitle}>
+                    {language === 'tr'
+                      ? `${permissions.manufacturer || 'Cihaz'} Ozel Ayarlar`
+                      : `${permissions.manufacturer || 'Device'} Settings`}
+                  </Text>
+                  <Text style={styles.permissionDescription}>
+                    {language === 'tr'
+                      ? 'Oto-baslatma veya arka plan izni (alarm icin onerilen)'
+                      : 'Auto-start or background permission (recommended for alarms)'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.permissionButton, styles.optionalButton]}
+                onPress={handleOpenPowerManagerSettings}
+              >
+                <Text style={[styles.permissionButtonText, { color: colors.primary }]}>
+                  {language === 'tr' ? 'Ayarla' : 'Set'}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -294,7 +383,7 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

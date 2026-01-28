@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Localization from 'expo-localization';
+import * as RNLocalize from 'react-native-localize';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('LanguageContext');
 
 // Desteklenen diller
 export type Language = 'tr' | 'en';
@@ -37,6 +40,7 @@ const tr = {
   home_next_reminder: 'Sonraki hatırlatma',
   home_adherence: 'Uyum Oranı',
   home_taken: 'Alındı',
+  home_mark_taken: 'Aldım',
   home_pending: 'Bekliyor',
   home_skipped: 'Atlandı',
   home_missed: 'Kaçırıldı',
@@ -191,6 +195,7 @@ const en: typeof tr = {
   home_next_reminder: 'Next reminder',
   home_adherence: 'Adherence Rate',
   home_taken: 'Taken',
+  home_mark_taken: 'Take',
   home_pending: 'Pending',
   home_skipped: 'Skipped',
   home_missed: 'Missed',
@@ -346,7 +351,7 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
         setLanguageState(savedLanguage as Language);
       } else {
         // Sistem dilini kontrol et
-        const deviceLanguage = Localization.getLocales()[0]?.languageCode;
+        const deviceLanguage = RNLocalize.getLocales()[0]?.languageCode;
         if (deviceLanguage === 'tr') {
           setLanguageState('tr');
         } else {
@@ -354,7 +359,7 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
         }
       }
     } catch (error) {
-      console.error('Dil yüklenemedi:', error);
+      log.error('Dil yuklenemedi', error);
     } finally {
       setIsLoaded(true);
     }
@@ -365,7 +370,7 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
       await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
       setLanguageState(lang);
     } catch (error) {
-      console.error('Dil kaydedilemedi:', error);
+      log.error('Dil kaydedilemedi', error);
     }
   };
 

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { SUBSCRIPTION_PLANS } from '../services/subscriptionService';
@@ -65,10 +65,11 @@ export default function PremiumScreen() {
                     : 'Your Premium subscription has been activated. Enjoy all the features!',
                   [{ text: 'OK', onPress: () => navigation.goBack() }]
                 );
-              } catch (error: any) {
+              } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : (language === 'tr' ? 'Satın alma başarısız' : 'Purchase failed');
                 Alert.alert(
                   language === 'tr' ? 'Hata' : 'Error',
-                  error.message || (language === 'tr' ? 'Satın alma başarısız' : 'Purchase failed')
+                  errorMessage
                 );
               }
             },
@@ -293,7 +294,7 @@ export default function PremiumScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: ThemeColors, _isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

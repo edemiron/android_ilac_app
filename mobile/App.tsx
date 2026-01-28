@@ -2,7 +2,16 @@
 import 'react-native-get-random-values';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { StatusBar, View, Platform, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import {
+  StatusBar,
+  View,
+  Platform,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+  TouchableOpacity,
+  Text,
+} from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -103,13 +112,162 @@ function AuthNavigator() {
   );
 }
 
-// Tab ikonları için renkler
-const TAB_COLORS = {
-  home: { active: '#10B981', inactive: '#6B7280' },
-  medicines: { active: '#3B82F6', inactive: '#6B7280' },
-  statistics: { active: '#8B5CF6', inactive: '#6B7280' },
-  settings: { active: '#F59E0B', inactive: '#6B7280' },
-};
+// Tab ikonları için renkler (isDark parametresiyle kullanılacak)
+const getTabColors = (isDark: boolean) => ({
+  home: { active: isDark ? '#8B9CFF' : '#0D9488', inactive: isDark ? '#6B8AAA' : '#94A3B8' },      // Primary - Teal
+  medicines: { active: isDark ? '#5EE6FF' : '#2563EB', inactive: isDark ? '#6B8AAA' : '#94A3B8' }, // Secondary - Royal Blue
+  statistics: { active: isDark ? '#D0A6FF' : '#7C3AED', inactive: isDark ? '#6B8AAA' : '#94A3B8' }, // Accent - Purple
+  settings: { active: isDark ? '#F59E0B' : '#D97706', inactive: isDark ? '#6B8AAA' : '#94A3B8' },  // Warning - Amber
+});
+
+// Custom Tab Bar with Center FAB
+interface CustomTabBarProps {
+  state: any;
+  descriptors: any;
+  navigation: any;
+}
+
+function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
+  const { colors, isDark } = useTheme();
+  const { t } = useLanguage();
+
+  const TAB_COLORS = getTabColors(isDark);
+
+  const tabIcons: Record<string, { name: string; colors: { active: string; inactive: string } }> = {
+    Home: { name: 'home', colors: TAB_COLORS.home },
+    Medicines: { name: 'medical', colors: TAB_COLORS.medicines },
+    Statistics: { name: 'bar-chart', colors: TAB_COLORS.statistics },
+    Settings: { name: 'settings-sharp', colors: TAB_COLORS.settings },
+  };
+
+  const handleAddMedicine = () => {
+    navigation.navigate('AddMedicine', {});
+  };
+
+  return (
+    <View style={[tabBarStyles.container, { backgroundColor: colors.tabBar }]}>
+      {state.routes.map((route: any, index: number) => {
+        const { options } = descriptors[route.key];
+        const isFocused = state.index === index;
+        const iconConfig = tabIcons[route.name];
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+
+        // Ortaya FAB ekle (2. tab'dan sonra)
+        if (index === 2) {
+          return (
+            <React.Fragment key={route.key}>
+              {/* Center FAB */}
+              <View style={tabBarStyles.fabWrapper}>
+                <TouchableOpacity
+                  style={[tabBarStyles.fab, { backgroundColor: colors.primary }]}
+                  onPress={handleAddMedicine}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add" size={28} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Normal Tab */}
+              <TouchableOpacity
+                style={tabBarStyles.tab}
+                onPress={onPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={iconConfig.name as any}
+                  size={24}
+                  color={isFocused ? iconConfig.colors.active : iconConfig.colors.inactive}
+                />
+                <Text
+                  style={[
+                    tabBarStyles.label,
+                    { color: isFocused ? iconConfig.colors.active : iconConfig.colors.inactive },
+                  ]}
+                >
+                  {options.title}
+                </Text>
+              </TouchableOpacity>
+            </React.Fragment>
+          );
+        }
+
+        return (
+          <TouchableOpacity
+            key={route.key}
+            style={tabBarStyles.tab}
+            onPress={onPress}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={iconConfig.name as any}
+              size={24}
+              color={isFocused ? iconConfig.colors.active : iconConfig.colors.inactive}
+            />
+            <Text
+              style={[
+                tabBarStyles.label,
+                { color: isFocused ? iconConfig.colors.active : iconConfig.colors.inactive },
+              ]}
+            >
+              {options.title}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+const tabBarStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    paddingTop: 16,
+    alignItems: 'flex-end',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -24,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  fabWrapper: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginHorizontal: 8,
+    marginTop: -36,
+  },
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#8B9CFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    elevation: 12,
+  },
+});
 
 // Tab Navigator with Theme Support
 function MainTabs() {
@@ -118,22 +276,8 @@ function MainTabs() {
 
   return (
     <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
-        tabBarStyle: {
-          backgroundColor: colors.tabBar,
-          borderTopWidth: 1,
-          borderTopColor: colors.tabBarBorder,
-          height: Platform.OS === 'ios' ? 90 : 80,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 20,
-          paddingTop: 10,
-        },
-        tabBarActiveTintColor: colors.tabActive,
-        tabBarInactiveTintColor: colors.tabInactive,
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-          marginTop: 2,
-        },
         headerStyle: {
           backgroundColor: colors.header,
         },
@@ -150,14 +294,6 @@ function MainTabs() {
         options={{
           title: t('tab_home'),
           headerTitle: t('app_name'),
-          tabBarIcon: ({ focused, size }) => (
-            <Ionicons
-              name="home"
-              size={size}
-              color={focused ? TAB_COLORS.home.active : TAB_COLORS.home.inactive}
-            />
-          ),
-          tabBarActiveTintColor: TAB_COLORS.home.active,
         }}
       />
       <Tab.Screen
@@ -166,14 +302,6 @@ function MainTabs() {
         options={{
           title: t('tab_medicines'),
           headerTitle: t('tab_medicines'),
-          tabBarIcon: ({ focused, size }) => (
-            <Ionicons
-              name="medical"
-              size={size}
-              color={focused ? TAB_COLORS.medicines.active : TAB_COLORS.medicines.inactive}
-            />
-          ),
-          tabBarActiveTintColor: TAB_COLORS.medicines.active,
         }}
       />
       <Tab.Screen
@@ -182,14 +310,6 @@ function MainTabs() {
         options={{
           title: t('tab_statistics'),
           headerTitle: t('tab_statistics'),
-          tabBarIcon: ({ focused, size }) => (
-            <Ionicons
-              name="bar-chart"
-              size={size}
-              color={focused ? TAB_COLORS.statistics.active : TAB_COLORS.statistics.inactive}
-            />
-          ),
-          tabBarActiveTintColor: TAB_COLORS.statistics.active,
         }}
       />
       <Tab.Screen
@@ -198,14 +318,6 @@ function MainTabs() {
         options={{
           title: t('tab_settings'),
           headerTitle: t('tab_settings'),
-          tabBarIcon: ({ focused, size }) => (
-            <Ionicons
-              name="settings-sharp"
-              size={size}
-              color={focused ? TAB_COLORS.settings.active : TAB_COLORS.settings.inactive}
-            />
-          ),
-          tabBarActiveTintColor: TAB_COLORS.settings.active,
         }}
       />
     </Tab.Navigator>

@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 
 type AuthStackParamList = {
@@ -68,7 +68,7 @@ export default function LoginScreen() {
     try {
       clearError();
       await login(email.trim(), password);
-    } catch (err: any) {
+    } catch {
       // Hata AuthContext'te zaten set ediliyor
     }
   };
@@ -82,8 +82,9 @@ export default function LoginScreen() {
     try {
       await resetPassword(email.trim());
       Alert.alert(language === 'tr' ? 'Başarılı' : 'Success', t.resetSent);
-    } catch (err: any) {
-      Alert.alert(language === 'tr' ? 'Hata' : 'Error', err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      Alert.alert(language === 'tr' ? 'Hata' : 'Error', errorMessage);
     }
   };
 
@@ -199,7 +200,7 @@ export default function LoginScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

@@ -16,6 +16,9 @@ import {
   formatPrice,
   getYearlySavings,
 } from '../services/subscriptionService';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('SubscriptionContext');
 
 const BARCODE_SCAN_COUNT_KEY = 'barcode_scan_count';
 
@@ -88,7 +91,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         setBarcodeScanCount(parseInt(countStr, 10));
       }
     } catch (error) {
-      console.error('Barkod sayacı yükleme hatası:', error);
+      log.error('Barkod sayaci yukleme hatasi', error);
     }
   };
 
@@ -99,7 +102,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       await AsyncStorage.setItem(BARCODE_SCAN_COUNT_KEY, newCount.toString());
       setBarcodeScanCount(newCount);
     } catch (error) {
-      console.error('Barkod sayacı güncelleme hatası:', error);
+      log.error('Barkod sayaci guncelleme hatasi', error);
     }
   };
 
@@ -115,7 +118,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       const sub = await getUserSubscription(user.uid);
       setSubscription(sub);
     } catch (error) {
-      console.error('Abonelik yenileme hatası:', error);
+      log.error('Abonelik yenileme hatasi', error);
       setSubscription(defaultSubscription);
     } finally {
       setIsLoading(false);

@@ -1,6 +1,9 @@
 import { AIConfig, AIProvider, AISearchResult, GlobalMedicine, MedicineForm, MedicineProspectus } from '../types';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('AIMedicineService');
 
 // ============ AI YAPILANDIRMA YÖNETİMİ ============
 
@@ -24,7 +27,7 @@ export async function getAIConfig(): Promise<AIConfig | null> {
     const snapshot = await getDoc(configRef);
 
     if (!snapshot.exists()) {
-      console.log('AI yapılandırması bulunamadı');
+      log.debug('AI yapilandirmasi bulunamadi');
       return null;
     }
 
@@ -36,7 +39,7 @@ export async function getAIConfig(): Promise<AIConfig | null> {
       model: data.provider === 'gemini' ? data.geminiModel : data.openaiModel,
     };
   } catch (error) {
-    console.error('AI yapılandırma getirme hatası:', error);
+    log.error('AI yapilandirma getirme hatasi', error);
     return null;
   }
 }
@@ -70,12 +73,13 @@ export async function searchMedicineByBarcodeAI(barcode: string): Promise<AISear
       confidence: 0,
       error: 'Geçerli bir AI API key bulunamadı.',
     };
-  } catch (error: any) {
-    console.error('AI arama hatası:', error);
+  } catch (error: unknown) {
+    log.error('AI arama hatasi', error);
+    const errorMessage = error instanceof Error ? error.message : 'AI araması başarısız oldu.';
     return {
       success: false,
       confidence: 0,
-      error: error.message || 'AI araması başarısız oldu.',
+      error: errorMessage,
     };
   }
 }
@@ -128,12 +132,13 @@ async function searchWithGemini(
     }
 
     return parseAIResponse(textResponse, barcode, 'Gemini');
-  } catch (error: any) {
-    console.error('Gemini arama hatası:', error);
+  } catch (error: unknown) {
+    log.error('Gemini arama hatasi', error);
+    const errorMessage = error instanceof Error ? error.message : 'Gemini araması başarısız.';
     return {
       success: false,
       confidence: 0,
-      error: error.message || 'Gemini araması başarısız.',
+      error: errorMessage,
     };
   }
 }
@@ -188,12 +193,13 @@ async function searchWithOpenAI(
     }
 
     return parseAIResponse(textResponse, barcode, 'OpenAI');
-  } catch (error: any) {
-    console.error('OpenAI arama hatası:', error);
+  } catch (error: unknown) {
+    log.error('OpenAI arama hatasi', error);
+    const errorMessage = error instanceof Error ? error.message : 'OpenAI araması başarısız.';
     return {
       success: false,
       confidence: 0,
-      error: error.message || 'OpenAI araması başarısız.',
+      error: errorMessage,
     };
   }
 }
@@ -228,12 +234,13 @@ export async function searchMedicineByNameAI(name: string): Promise<AISearchResu
       confidence: 0,
       error: 'Geçerli bir AI API key bulunamadı.',
     };
-  } catch (error: any) {
-    console.error('AI isim araması hatası:', error);
+  } catch (error: unknown) {
+    log.error('AI isim aramasi hatasi', error);
+    const errorMessage = error instanceof Error ? error.message : 'AI isim araması başarısız oldu.';
     return {
       success: false,
       confidence: 0,
-      error: error.message || 'AI isim araması başarısız oldu.',
+      error: errorMessage,
     };
   }
 }
@@ -259,8 +266,9 @@ async function searchNameWithGemini(
     const data = await response.json();
     const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
     return parseNameSearchResponse(textResponse, 'Gemini');
-  } catch (error: any) {
-    return { success: false, confidence: 0, error: error.message };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Arama hatasi';
+    return { success: false, confidence: 0, error: errorMessage };
   }
 }
 
@@ -290,8 +298,9 @@ async function searchNameWithOpenAI(
     const data = await response.json();
     const textResponse = data.choices?.[0]?.message?.content;
     return parseNameSearchResponse(textResponse, 'OpenAI');
-  } catch (error: any) {
-    return { success: false, confidence: 0, error: error.message };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Arama hatasi';
+    return { success: false, confidence: 0, error: errorMessage };
   }
 }
 
@@ -351,7 +360,7 @@ function parseNameSearchResponse(response: string, source: string): AISearchResu
       source,
     };
   } catch (error) {
-    console.error('AI isim araması parse hatası:', error);
+    log.error('AI isim aramasi parse hatasi', error);
     return { success: false, confidence: 0, error: 'AI yanıtı işlenemedi' };
   }
 }
@@ -389,11 +398,12 @@ export async function getMedicineInfoAI(
       confidence: 0,
       error: 'Geçerli bir AI API key bulunamadı.',
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme başarısız.';
     return {
       success: false,
       confidence: 0,
-      error: error.message || 'Bilgi getirme başarısız.',
+      error: errorMessage,
     };
   }
 }
@@ -419,8 +429,9 @@ async function getInfoWithGemini(
     const data = await response.json();
     const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
     return parseProspectusResponse(textResponse);
-  } catch (error: any) {
-    return { success: false, confidence: 0, error: error.message };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme hatasi';
+    return { success: false, confidence: 0, error: errorMessage };
   }
 }
 
@@ -450,8 +461,9 @@ async function getInfoWithOpenAI(
     const data = await response.json();
     const textResponse = data.choices?.[0]?.message?.content;
     return parseProspectusResponse(textResponse);
-  } catch (error: any) {
-    return { success: false, confidence: 0, error: error.message };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme hatasi';
+    return { success: false, confidence: 0, error: errorMessage };
   }
 }
 
@@ -551,7 +563,7 @@ function parseAIResponse(response: string, barcode: string, source: string): AIS
       source,
     };
   } catch (error) {
-    console.error('AI yanıt parse hatası:', error);
+    log.error('AI yanit parse hatasi', error);
     return {
       success: false,
       confidence: 0,

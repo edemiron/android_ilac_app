@@ -98,6 +98,11 @@ interface MedicineState {
   getAdherenceRate: (days?: number) => number;
   getCurrentStreak: () => number;
 
+  // Stok yönetimi
+  getLowStockMedicines: () => Medicine[];
+  updateMedicineStock: (medicineId: string, newCount: number) => void;
+  decrementStock: (medicineId: string, amount?: number) => void;
+
   clearAllData: () => void;
   importData: (data: SyncData) => void;
 }
@@ -489,6 +494,9 @@ export const useMedicineStore = create<MedicineState>()(
           cancelledSnoozes: activeSnoozes.length,
         });
 
+        // Stok takibi aktifse stoku azalt
+        get().decrementStock(actualMedicineId);
+
         if (userId) {
           saveMedicineLogToCloud(userId, medicineLog).catch(err =>
             log.error('Failed to save log to cloud', err)
@@ -851,6 +859,61 @@ export const useMedicineStore = create<MedicineState>()(
         }
 
         return streak;
+      },
+
+      // Stok yönetimi fonksiyonları
+      getLowStockMedicines: () => {
+        const { medicines } = get();
+        return medicines.filter(m => {
+          if (!m.isActive || !m.stockEnabled) return false;
+          const threshold = m.stockThreshold ?? 5;
+          return (m.stockCount ?? 0) <= threshold;
+        });
+      },
+
+      updateMedicineStock: (medicineId, newCount) => {
+        const { userId } = get();
+        set(state => ({
+          medicines: state.medicines.map(m =>
+            m.id === medicineId
+              ? { ...m, stockCount: Math.max(0, newCount), updatedAt: new Date().toISOString() }
+              : m
+          ),
+        }));
+
+        if (userId) {
+          scheduleBackgroundSync(() => get().syncToCloud());
+        }
+      },
+
+      decrementStock: (medicineId, amount = 1) => {
+        const { medicines, userId } = get();
+        const medicine = medicines.find(m => m.id === medicineId);
+
+        if (!medicine || !medicine.stockEnabled) return;
+
+        const currentStock = medicine.stockCount ?? 0;
+        const newStock = Math.max(0, currentStock - amount);
+
+        set(state => ({
+          medicines: state.medicines.map(m =>
+            m.id === medicineId
+              ? { ...m, stockCount: newStock, updatedAt: new Date().toISOString() }
+              : m
+          ),
+        }));
+
+        // Az kaldı uyarısı için log
+        const threshold = medicine.stockThreshold ?? 5;
+        if (newStock <= threshold && newStock > 0) {
+          log.info('Stok az kaldi', { medicineName: medicine.name, remaining: newStock, threshold });
+        } else if (newStock === 0) {
+          log.warn('Stok bitti!', { medicineName: medicine.name });
+        }
+
+        if (userId) {
+          scheduleBackgroundSync(() => get().syncToCloud());
+        }
       },
 
       clearAllData: () => {

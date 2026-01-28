@@ -148,6 +148,9 @@ const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
             backgroundColor: colors.card,
             shadowOpacity: isDark ? 0 : 0.08,
             borderLeftColor: isPast ? SOFT_RED : colors.primary,
+            // Dark mode'da hafif border ile kart ayrımı
+            borderWidth: isDark ? 1 : 0,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
           },
         ]}
       >
@@ -161,7 +164,7 @@ const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
         </View>
 
         <View style={styles.currentDoseInfo}>
-          <View style={[styles.medicineIcon, { backgroundColor: reminder.medicine.color + '20' }]}>
+          <View style={[styles.medicineIcon, { backgroundColor: reminder.medicine.color + (isDark ? '50' : '20') }]}>
             <Ionicons name="medical" size={24} color={reminder.medicine.color} />
           </View>
           <View style={styles.currentDoseText}>
@@ -256,6 +259,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
   isFirst,
 }) => {
   const { log } = reminder;
+  const { isDark } = useTheme();
   const isTaken = log?.status === 'taken';
   const isSkipped = log?.status === 'skipped';
   const { isPast, minutesDiff } = getRelativeTimeText(reminder.reminderTime.time, language, log);
@@ -276,16 +280,16 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
     if (isTaken) {
       return {
         text: language === 'tr' ? 'Alındı' : 'Taken',
-        color: '#059669',
-        bg: '#DCFCE7',
+        color: isDark ? '#34D399' : '#059669',           // Success yeşil
+        bg: isDark ? 'rgba(52, 211, 153, 0.25)' : '#DCFCE7',
         icon: 'checkmark-circle' as const,
       };
     }
     if (isSkipped) {
       return {
         text: language === 'tr' ? 'Atlandı' : 'Skipped',
-        color: colors.textMuted,
-        bg: '#F3F4F6',
+        color: isDark ? '#88C0E6' : colors.textMuted,    // Text Secondary
+        bg: isDark ? 'rgba(136, 192, 230, 0.2)' : '#F3F4F6',
         icon: 'close-circle' as const,
       };
     }
@@ -293,8 +297,8 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
     if (hasActiveSnooze) {
       return {
         text: language === 'tr' ? 'Ertelendi' : 'Snoozed',
-        color: '#F59E0B',
-        bg: '#FEF3C7',
+        color: isDark ? '#F59E0B' : '#F59E0B',           // Warning sarı
+        bg: isDark ? 'rgba(245, 158, 11, 0.25)' : '#FEF3C7',
         icon: 'alarm' as const,
       };
     }
@@ -308,19 +312,27 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
           : language === 'tr'
             ? `${Math.floor(absMinutes / 60)} saat geçti`
             : `${Math.floor(absMinutes / 60)}h late`;
-      return { text: missedText, color: SOFT_RED, bg: SOFT_RED_BG, icon: 'alert-circle' as const };
+      return {
+        text: missedText,
+        color: isDark ? '#FB7185' : SOFT_RED,            // Error pembe-kırmızı
+        bg: isDark ? 'rgba(251, 113, 133, 0.25)' : SOFT_RED_BG,
+        icon: 'alert-circle' as const
+      };
     }
     return {
       text: language === 'tr' ? 'Bekliyor' : 'Pending',
-      color: colors.primary,
-      bg: colors.primary + '15',
+      color: isDark ? '#8B9CFF' : colors.primary,        // Primary mor-mavi
+      bg: isDark ? 'rgba(139, 156, 255, 0.2)' : colors.primary + '15',
       icon: 'time' as const,
     };
   };
 
   const status = getStatusBadge();
   const isCompleted = isTaken || isSkipped;
+  // İlaç rengi - her zaman canlı tut
   const medicineColor = reminder.medicine.color || colors.primary;
+  // Dark mode'da ikon arka planını daha belirgin yap
+  const iconBgOpacity = isDark ? '60' : '25';
 
   return (
     <View
@@ -330,59 +342,48 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
           backgroundColor: colors.card,
           borderLeftColor: isCompleted ? colors.textMuted : medicineColor,
           opacity: isCompleted ? 0.7 : 1,
+          borderWidth: isDark ? 1 : 0,
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
         },
       ]}
     >
       {/* Sol: İlaç İkonu */}
-      <View style={[styles.medicineIconBox, { backgroundColor: medicineColor + '20' }]}>
-        <Ionicons name="medical" size={22} color={medicineColor} />
+      <View style={[styles.medicineIconBox, { backgroundColor: medicineColor + iconBgOpacity }]}>
+        <Ionicons name="medical" size={20} color={medicineColor} />
       </View>
 
       {/* Orta: İlaç Bilgisi */}
       <View style={styles.medicineInfo}>
-        <View style={styles.medicineHeader}>
-          <Text
-            style={[
-              styles.medicineName,
-              { color: colors.text },
-              isCompleted && styles.completedText,
-            ]}
-            numberOfLines={1}
-          >
-            {reminder.medicine.name}
-          </Text>
-          <View style={styles.timeChip}>
-            <Ionicons name="time-outline" size={12} color={colors.textMuted} />
-            <Text
-              style={[
-                styles.medicineTime,
-                { color: isCompleted ? colors.textMuted : colors.text },
-                isCompleted && styles.completedTimeText,
-              ]}
-            >
-              {formatTimeDisplay(reminder.reminderTime.time)}
-            </Text>
-          </View>
-        </View>
-        <Text style={[styles.medicineDosage, { color: colors.textMuted }]}>
-          {reminder.medicine.dosage}
+        <Text
+          style={[
+            styles.medicineName,
+            { color: colors.text },
+            isCompleted && styles.completedText,
+          ]}
+          numberOfLines={1}
+        >
+          {reminder.medicine.name}
+        </Text>
+        <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
+          {formatTimeDisplay(reminder.reminderTime.time)} • {reminder.medicine.dosage}
         </Text>
       </View>
 
-      {/* Sağ: Durum */}
+      {/* Sağ: Durum Badge + Al Butonu */}
       <View style={styles.medicineStatus}>
-        <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-          <Ionicons name={status.icon} size={14} color={status.color} />
-          <Text style={[styles.statusBadgeText, { color: status.color }]}>{status.text}</Text>
-        </View>
-
-        {isMissed && (
+        {isMissed ? (
           <TouchableOpacity
             style={[styles.takeNowBtn, { backgroundColor: colors.primary }]}
             onPress={onTakeNow}
           >
+            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
             <Text style={styles.takeNowBtnText}>{language === 'tr' ? 'Al' : 'Take'}</Text>
           </TouchableOpacity>
+        ) : (
+          <View style={[styles.statusDot, { backgroundColor: status.bg }]}>
+            <View style={[styles.dot, { backgroundColor: status.color }]} />
+            <Text style={[styles.statusDotText, { color: status.color }]}>{status.text}</Text>
+          </View>
         )}
       </View>
     </View>
@@ -413,6 +414,10 @@ export default function HomeScreen() {
   const getCurrentStreak = useMedicineStore(state => state.getCurrentStreak);
   const createSnooze = useMedicineStore(state => state.createSnooze);
   const getMedicineById = useMedicineStore(state => state.getMedicineById);
+  const getLowStockMedicines = useMedicineStore(state => state.getLowStockMedicines);
+
+  // Stok uyarısı
+  const lowStockMedicines = getLowStockMedicines();
 
   const handleAddMedicine = () => {
     const { allowed, reason } = canAddMedicine(medicines.length);
@@ -563,71 +568,96 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Hero Card - Gradient Karşılama */}
-        <LinearGradient
-          colors={isDark ? ['#1E3A5F', '#0F172A'] : ['#10B981', '#059669']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
-        >
-          <View style={styles.heroContent}>
+        <View style={[styles.heroCard, { backgroundColor: colors.card }]}>
+          {/* Üst Kısım: Selamlama + Uyum Oranı */}
+          <View style={styles.heroTop}>
             <View style={styles.heroLeft}>
               <View style={styles.greetingRow}>
-                <Text style={styles.greetingIcon}>{getGreetingIcon()}</Text>
-                <Text style={styles.heroGreeting}>{greeting}</Text>
+                <Text style={[styles.heroGreeting, { color: colors.text }]}>{greeting}</Text>
+                <View style={[styles.todayBadge, { backgroundColor: colors.primary + '20' }]}>
+                  <Text style={[styles.todayBadgeText, { color: colors.primary }]}>
+                    {language === 'tr' ? 'Bugün' : 'Today'}
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.heroDate}>{today}</Text>
+              <Text style={[styles.heroDate, { color: colors.textMuted }]}>{today}</Text>
             </View>
 
-            {/* Progress Circle */}
+            {/* Uyum Oranı Circle */}
             <View style={styles.progressContainer}>
-              <View style={styles.progressCircle}>
-                <Text style={styles.progressPercent}>{progressPercent}%</Text>
+              <View style={[styles.progressCircle, { borderColor: colors.primary }]}>
+                <Text style={[styles.progressPercent, { color: colors.primary }]}>{progressPercent}%</Text>
               </View>
-              <Text style={styles.progressLabel}>
-                {language === 'tr' ? 'Tamamlandı' : 'Complete'}
+              <Text style={[styles.progressLabel, { color: colors.textMuted }]}>
+                {language === 'tr' ? 'Uyum oranı' : 'Adherence'}
               </Text>
             </View>
           </View>
 
           {/* Stats Row */}
-          <View style={styles.heroStats}>
+          <View style={[styles.heroStats, { backgroundColor: colors.background }]}>
             <View style={styles.heroStatItem}>
-              <View style={styles.heroStatIcon}>
-                <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
+              <View style={[styles.heroStatIcon, { backgroundColor: colors.primary + '15' }]}>
+                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
               </View>
               <View>
-                <Text style={styles.heroStatValue}>
+                <Text style={[styles.heroStatValue, { color: colors.text }]}>
                   {totalCount} {language === 'tr' ? 'doz' : 'doses'}
                 </Text>
-                <Text style={styles.heroStatLabel}>{language === 'tr' ? 'Bugün' : 'Today'}</Text>
+                <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
+                  {language === 'tr' ? 'Bugün' : 'Today'}
+                </Text>
               </View>
             </View>
 
-            <View style={styles.heroStatDivider} />
+            <View style={[styles.heroStatDivider, { backgroundColor: colors.border }]} />
 
             <View style={styles.heroStatItem}>
-              <View style={[styles.heroStatIcon, { backgroundColor: 'rgba(74, 222, 128, 0.3)' }]}>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#4ADE80" />
+              <View style={[styles.heroStatIcon, { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.2)' : '#DCFCE7' }]}>
+                <Ionicons name="checkmark-circle-outline" size={18} color={isDark ? '#34D399' : '#16A34A'} />
               </View>
               <View>
-                <Text style={[styles.heroStatValue, { color: '#4ADE80' }]}>{completedCount}</Text>
-                <Text style={styles.heroStatLabel}>{language === 'tr' ? 'Alındı' : 'Taken'}</Text>
+                <Text style={[styles.heroStatValue, { color: isDark ? '#34D399' : '#16A34A' }]}>{completedCount}</Text>
+                <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
+                  {language === 'tr' ? 'Alındı' : 'Taken'}
+                </Text>
               </View>
             </View>
 
-            <View style={styles.heroStatDivider} />
+            <View style={[styles.heroStatDivider, { backgroundColor: colors.border }]} />
 
             <View style={styles.heroStatItem}>
-              <View style={[styles.heroStatIcon, { backgroundColor: 'rgba(251, 191, 36, 0.3)' }]}>
-                <Ionicons name="time-outline" size={18} color="#FBBF24" />
+              <View style={[styles.heroStatIcon, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7' }]}>
+                <Ionicons name="time-outline" size={18} color={isDark ? '#F59E0B' : '#D97706'} />
               </View>
               <View>
-                <Text style={[styles.heroStatValue, { color: '#FBBF24' }]}>{remainingCount}</Text>
-                <Text style={styles.heroStatLabel}>{language === 'tr' ? 'Kalan' : 'Left'}</Text>
+                <Text style={[styles.heroStatValue, { color: isDark ? '#F59E0B' : '#D97706' }]}>{remainingCount}</Text>
+                <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
+                  {language === 'tr' ? 'Kalan' : 'Left'}
+                </Text>
               </View>
             </View>
           </View>
-        </LinearGradient>
+
+          {/* Sonraki İlaç Bilgisi */}
+          {currentReminder && (
+            <View style={[styles.nextMedicineRow, { borderTopColor: colors.border }]}>
+              <Text style={[styles.nextMedicineText, { color: colors.textMuted }]}>
+                {language === 'tr' ? 'Sonraki:' : 'Next:'}{' '}
+                <Text style={[styles.nextMedicineTime, { color: colors.text }]}>
+                  {formatTimeDisplay(currentReminder.reminderTime.time)}
+                </Text>
+                {' • '}
+                <Text style={{ color: colors.text }}>{currentReminder.medicine.name}</Text>
+              </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('AddMedicine', { medicineId: currentReminder.medicine.id })}>
+                <Text style={[styles.quickEditText, { color: colors.primary }]}>
+                  {language === 'tr' ? 'Hızlı düzenle' : 'Quick edit'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {currentStreak > 0 && (
           <LinearGradient
@@ -656,6 +686,29 @@ export default function HomeScreen() {
               </View>
             </View>
           </LinearGradient>
+        )}
+
+        {/* Stok Uyarısı */}
+        {lowStockMedicines.length > 0 && (
+          <TouchableOpacity
+            style={[styles.lowStockCard, { backgroundColor: isDark ? '#422006' : '#FEF3C7' }]}
+            onPress={() => navigation.navigate('Medicines' as never)}
+          >
+            <View style={styles.lowStockContent}>
+              <View style={[styles.lowStockIconBox, { backgroundColor: isDark ? '#78350F' : '#FDE68A' }]}>
+                <Ionicons name="alert-circle" size={24} color={isDark ? '#FCD34D' : '#D97706'} />
+              </View>
+              <View style={styles.lowStockTextContainer}>
+                <Text style={[styles.lowStockTitle, { color: isDark ? '#FCD34D' : '#92400E' }]}>
+                  {language === 'tr' ? 'Stok Azalıyor!' : 'Low Stock!'}
+                </Text>
+                <Text style={[styles.lowStockSubtitle, { color: isDark ? '#FDE68A' : '#B45309' }]}>
+                  {lowStockMedicines.map(m => `${m.name} (${m.stockCount} ${m.stockUnit || 'adet'})`).join(', ')}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={isDark ? '#FCD34D' : '#D97706'} />
+            </View>
+          </TouchableOpacity>
         )}
 
         {currentReminder && (
@@ -721,14 +774,6 @@ export default function HomeScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {medicines.length > 0 && (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.primary }]}
-          onPress={handleAddMedicine}
-        >
-          <Ionicons name="add" size={28} color="#FFFFFF" />
-        </TouchableOpacity>
-      )}
     </SafeAreaView>
   );
 }
@@ -743,20 +788,20 @@ const styles = StyleSheet.create({
   // Hero Card Styles
   heroCard: {
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 8,
     borderRadius: 20,
     padding: 20,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  heroContent: {
+  heroTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   heroLeft: {
     flex: 1,
@@ -764,55 +809,53 @@ const styles = StyleSheet.create({
   greetingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
     marginBottom: 4,
   },
-  greetingIcon: {
-    fontSize: 24,
-    marginRight: 8,
+  todayBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  todayBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   heroGreeting: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   heroDate: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginLeft: 32,
     marginTop: 2,
   },
   progressContainer: {
     alignItems: 'center',
   },
   progressCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   progressPercent: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#FFFFFF',
   },
   progressLabel: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 4,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   heroStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(0, 0, 0, 0.15)',
     borderRadius: 14,
     paddingVertical: 14,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
   },
   heroStatItem: {
     flex: 1,
@@ -825,24 +868,40 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   heroStatValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#FFFFFF',
   },
   heroStatLabel: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.7)',
     fontWeight: '500',
   },
   heroStatDivider: {
     width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     marginVertical: 4,
+  },
+  // Next Medicine Row
+  nextMedicineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+  },
+  nextMedicineText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  nextMedicineTime: {
+    fontWeight: '600',
+  },
+  quickEditText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   streakCard: {
     marginHorizontal: 16,
@@ -885,6 +944,39 @@ const styles = StyleSheet.create({
   streakSubtitle: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
+  },
+  // Stok Uyarısı
+  lowStockCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  lowStockContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  lowStockIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  lowStockTextContainer: {
+    flex: 1,
+  },
+  lowStockTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  lowStockSubtitle: {
+    fontSize: 12,
     marginTop: 2,
   },
   sectionContainer: {
@@ -1030,8 +1122,9 @@ const styles = StyleSheet.create({
   medicineCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     borderLeftWidth: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1040,76 +1133,61 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   medicineIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
+    marginRight: 12,
   },
   medicineInfo: {
     flex: 1,
   },
-  medicineHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
   medicineName: {
-    fontSize: 16,
-    fontWeight: '700',
-    flex: 1,
-    marginRight: 8,
-  },
-  timeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  medicineTime: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
+    marginBottom: 2,
   },
-  medicineDosage: {
+  medicineDetails: {
     fontSize: 13,
   },
   medicineStatus: {
     alignItems: 'flex-end',
-    gap: 8,
+    marginLeft: 12,
   },
   completedText: {
     textDecorationLine: 'line-through',
     opacity: 0.6,
   },
-  completedTimeText: {
-    textDecorationLine: 'line-through',
-  },
-  statusBadge: {
+  statusDot: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 12,
   },
-  statusBadgeText: {
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusDotText: {
     fontSize: 12,
     fontWeight: '600',
   },
   takeNowBtn: {
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   takeNowBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
   },
   emptyState: {
     borderRadius: 16,
@@ -1139,19 +1217,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 15,
   },
-  fab: {
+  fabContainer: {
     position: 'absolute',
-    right: 20,
-    bottom: 20,
+    bottom: 12,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    pointerEvents: 'box-none',
+  },
+  fab: {
     width: 56,
     height: 56,
-    borderRadius: 16,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 8,
   },
 });

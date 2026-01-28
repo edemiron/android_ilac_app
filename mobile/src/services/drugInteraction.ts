@@ -1,6 +1,10 @@
 // İlaç etkileşim servisi
-// Not: Bu örnek implementasyon, gerçek bir API entegrasyonu için 
+// Not: Bu örnek implementasyon, gerçek bir API entegrasyonu için
 // RxNav, OpenFDA veya DrugBank gibi servisler kullanılabilir.
+
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('DrugInteraction');
 
 export interface DrugInteraction {
   id: string;
@@ -33,6 +37,48 @@ const KNOWN_INTERACTIONS: Omit<DrugInteraction, 'id'>[] = [
     severity: 'moderate',
     description: 'Aspirin ve İbuprofen birlikte kullanıldığında mide kanaması riski artar.',
     recommendation: 'Aynı anda kullanmaktan kaçının.',
+  },
+  {
+    drug1: 'aspirin',
+    drug2: 'naproxen',
+    severity: 'high',
+    description: 'Aspirin ve Naproxen (Apranax) birlikte kullanıldığında ciddi mide kanaması ve ülser riski artar.',
+    recommendation: 'İki NSAID ilacı aynı anda kullanmayın. Doktorunuza danışın.',
+  },
+  {
+    drug1: 'aspirin',
+    drug2: 'apranax',
+    severity: 'high',
+    description: 'Aspirin ve Apranax birlikte kullanıldığında ciddi mide kanaması ve ülser riski artar.',
+    recommendation: 'İki NSAID ilacı aynı anda kullanmayın. Doktorunuza danışın.',
+  },
+  {
+    drug1: 'ibuprofen',
+    drug2: 'naproxen',
+    severity: 'high',
+    description: 'İbuprofen ve Naproxen birlikte kullanıldığında mide kanaması riski ciddi şekilde artar.',
+    recommendation: 'İki NSAID ilacı aynı anda kullanmayın.',
+  },
+  {
+    drug1: 'ibuprofen',
+    drug2: 'apranax',
+    severity: 'high',
+    description: 'İbuprofen ve Apranax birlikte kullanıldığında mide kanaması riski ciddi şekilde artar.',
+    recommendation: 'İki NSAID ilacı aynı anda kullanmayın.',
+  },
+  {
+    drug1: 'paracetamol',
+    drug2: 'alkol',
+    severity: 'high',
+    description: 'Parasetamol ve alkol birlikte kullanıldığında karaciğer hasarı riski artar.',
+    recommendation: 'Parasetamol kullanırken alkolden kaçının.',
+  },
+  {
+    drug1: 'minoset',
+    drug2: 'alkol',
+    severity: 'high',
+    description: 'Minoset (Parasetamol) ve alkol birlikte kullanıldığında karaciğer hasarı riski artar.',
+    recommendation: 'Minoset kullanırken alkolden kaçının.',
   },
   {
     drug1: 'omeprazol',
@@ -215,7 +261,7 @@ export async function checkInteractionsFromAPI(rxcuis: string[]): Promise<Intera
       checkedAt: new Date().toISOString(),
     };
   } catch (error) {
-    console.error('API etkileşim kontrolü hatası:', error);
+    log.error('API etkilesim kontrolu hatasi', error);
     // API başarısız olursa yerel veritabanını kullan
     return {
       hasInteractions: false,

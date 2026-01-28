@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,31 +6,63 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, Medicine } from '../types';
 import { formatTimeDisplay, getInstructionText } from '../utils/timeCalculator';
-import { useTheme } from '../contexts/ThemeContext';
-import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme, ThemeColors } from '../contexts/ThemeContext';
+import { useLanguage, TranslationKey } from '../contexts/LanguageContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-interface MedicineCardProps {
+interface SectionProps {
+  icon: string;
+  title: string;
+  count?: number;
+  children: React.ReactNode;
+  colors: ThemeColors;
+  isDark: boolean;
+}
+
+const Section: React.FC<SectionProps> = ({ icon, title, count, children, colors, isDark }) => (
+  <View style={[styles.section, { 
+    backgroundColor: colors.card,
+    shadowOpacity: isDark ? 0 : 0.05,
+    elevation: isDark ? 0 : 1,
+  }]}>
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionIcon}>{icon}</Text>
+      <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+        {title} {count !== undefined && `(${count})`}
+      </Text>
+    </View>
+    {children}
+  </View>
+);
+
+interface MedicineRowProps {
   medicine: Medicine;
   times: string[];
   onPress: () => void;
   onToggleActive: () => void;
   onDelete: () => void;
-  colors: any;
-  t: any;
-  language: string;
+  colors: ThemeColors;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+  language: 'tr' | 'en';
+  isFirst?: boolean;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onSelect?: () => void;
+  onLongPressSelect?: () => void;
 }
 
-const MedicineCard: React.FC<MedicineCardProps> = ({
+const MedicineRow: React.FC<MedicineRowProps> = ({
   medicine,
   times,
   onPress,
@@ -39,15 +71,24 @@ const MedicineCard: React.FC<MedicineCardProps> = ({
   colors,
   t,
   language,
+  isFirst,
+  isSelectionMode,
+  isSelected,
+  onSelect,
+  onLongPressSelect,
 }) => {
   const handleLongPress = () => {
+    if (onLongPressSelect) {
+      onLongPressSelect();
+      return;
+    }
     Alert.alert(
       medicine.name,
       language === 'tr' ? 'Ne yapmak istiyorsunuz?' : 'What would you like to do?',
       [
         {
-          text: medicine.isActive 
-            ? (language === 'tr' ? 'Duraklat' : 'Pause') 
+          text: medicine.isActive
+            ? (language === 'tr' ? 'Duraklat' : 'Pause')
             : (language === 'tr' ? 'Aktifleştir' : 'Activate'),
           onPress: onToggleActive,
         },
@@ -70,87 +111,74 @@ const MedicineCard: React.FC<MedicineCardProps> = ({
     );
   };
 
+  const handlePress = () => {
+    if (isSelectionMode && onSelect) {
+      onSelect();
+    } else {
+      onPress();
+    }
+  };
+
   return (
     <TouchableOpacity
       style={[
-        styles.medicineCard,
-        { 
-          backgroundColor: colors.card,
-          borderLeftColor: medicine.color,
-        },
-        !medicine.isActive && { opacity: 0.7, backgroundColor: colors.surface },
+        styles.medicineRow,
+        !isFirst && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
+        !medicine.isActive && { opacity: 0.6 },
+        isSelected && { backgroundColor: colors.primary + '15' },
       ]}
-      onPress={onPress}
+      onPress={handlePress}
       onLongPress={handleLongPress}
       activeOpacity={0.7}
     >
-      <View style={styles.cardHeader}>
-        <View style={[styles.colorDot, { backgroundColor: medicine.color }]} />
-        <View style={styles.medicineInfo}>
-          <Text style={[
-            styles.medicineName, 
-            { color: colors.text },
-            !medicine.isActive && { color: colors.textMuted }
+      <View style={styles.rowContent}>
+        {isSelectionMode && (
+          <View style={[
+            styles.checkbox,
+            { borderColor: isSelected ? colors.primary : colors.border },
+            isSelected && { backgroundColor: colors.primary },
           ]}>
-            {medicine.name}
-          </Text>
-          <Text style={[
-            styles.dosageText, 
-            { color: colors.textSecondary },
-            !medicine.isActive && { color: colors.textMuted }
-          ]}>
-            {medicine.dosage}
-          </Text>
-        </View>
-        {!medicine.isActive && (
-          <View style={[styles.pausedBadge, { backgroundColor: colors.warning + '20' }]}>
-            <Text style={[styles.pausedText, { color: colors.warning }]}>
-              {language === 'tr' ? 'Duraklatıldı' : 'Paused'}
-            </Text>
+            {isSelected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
           </View>
         )}
-      </View>
-
-      <View style={[styles.cardDetails, { borderTopColor: colors.divider }]}>
-        <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-            {t('medicines_times_per_day', { count: medicine.frequency })}
-          </Text>
-          {medicine.instructions && (
-            <Text style={[styles.instructionText, { color: colors.textMuted }]}>
-              • {getInstructionText(medicine.instructions, language)}
+        <View style={[styles.iconContainer, { backgroundColor: medicine.color + '20' }]}>
+          <Ionicons name="medical" size={18} color={medicine.color} />
+        </View>
+        <View style={styles.medicineInfo}>
+          <View style={styles.medicineHeader}>
+            <Text style={[
+              styles.medicineName, 
+              { color: colors.text },
+              !medicine.isActive && { color: colors.textMuted }
+            ]}>
+              {medicine.name}
             </Text>
-          )}
-        </View>
-
-        <View style={styles.timesContainer}>
-          {times.map((time, index) => (
-            <View
-              key={index}
-              style={[
-                styles.timeChip,
-                { backgroundColor: medicine.isActive ? medicine.color + '20' : colors.inputBackground },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.timeChipText,
-                  { color: medicine.isActive ? medicine.color : colors.textMuted },
-                ]}
+            {!medicine.isActive && (
+              <View style={[styles.pausedBadge, { backgroundColor: colors.warning + '20' }]}>
+                <Text style={[styles.pausedText, { color: colors.warning }]}>
+                  {language === 'tr' ? 'Duraklatıldı' : 'Paused'}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
+            {medicine.dosage} • {t('medicines_times_per_day', { count: medicine.frequency })}
+            {medicine.instructions && ` • ${getInstructionText(medicine.instructions, language)}`}
+          </Text>
+          <View style={styles.timesContainer}>
+            {times.map((time, index) => (
+              <View
+                key={index}
+                style={[styles.timeChip, { backgroundColor: medicine.isActive ? medicine.color + '15' : colors.inputBackground }]}
               >
-                {formatTimeDisplay(time)}
-              </Text>
-            </View>
-          ))}
+                <Text style={[styles.timeChipText, { color: medicine.isActive ? medicine.color : colors.textMuted }]}>
+                  {formatTimeDisplay(time)}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
-
-      <View style={[styles.cardFooter, { borderTopColor: colors.divider }]}>
-        <Text style={[styles.editHint, { color: colors.textMuted }]}>
-          {language === 'tr' 
-            ? 'Düzenlemek için dokun • Silmek için basılı tut'
-            : 'Tap to edit • Long press to delete'}
-        </Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </View>
     </TouchableOpacity>
   );
@@ -161,18 +189,74 @@ export default function MedicinesScreen() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
   const { canAddMedicine } = useSubscription();
-  
-  const { 
-    medicines, 
-    getReminderTimesForMedicine, 
-    toggleMedicineActive, 
-    deleteMedicine 
+
+  const {
+    medicines,
+    getReminderTimesForMedicine,
+    toggleMedicineActive,
+    deleteMedicine
   } = useMedicineStore();
+
+  // Selection mode state
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const activeMedicines = medicines.filter((m) => m.isActive);
   const inactiveMedicines = medicines.filter((m) => !m.isActive);
 
-  // İlaç ekleme kontrolü
+  // Toggle selection for a medicine
+  const toggleSelection = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Enter selection mode with first item selected
+  const enterSelectionMode = useCallback((firstId: string) => {
+    setIsSelectionMode(true);
+    setSelectedIds(new Set([firstId]));
+  }, []);
+
+  // Exit selection mode
+  const exitSelectionMode = useCallback(() => {
+    setIsSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  // Select all medicines
+  const selectAll = useCallback(() => {
+    const allIds = medicines.map(m => m.id);
+    setSelectedIds(new Set(allIds));
+  }, [medicines]);
+
+  // Delete selected medicines
+  const deleteSelected = useCallback(() => {
+    const count = selectedIds.size;
+    Alert.alert(
+      language === 'tr' ? 'Toplu Silme' : 'Bulk Delete',
+      language === 'tr'
+        ? `${count} ilacı silmek istediğinize emin misiniz?`
+        : `Are you sure you want to delete ${count} medicine(s)?`,
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: () => {
+            selectedIds.forEach(id => deleteMedicine(id));
+            exitSelectionMode();
+          }
+        },
+      ]
+    );
+  }, [selectedIds, language, t, deleteMedicine, exitSelectionMode]);
+
   const handleAddMedicine = () => {
     const { allowed, reason } = canAddMedicine(medicines.length);
     
@@ -196,36 +280,91 @@ export default function MedicinesScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
+      {/* Selection Mode Header */}
+      {isSelectionMode && (
+        <View style={[styles.selectionHeader, { backgroundColor: colors.card, borderBottomColor: colors.divider }]}>
+          <TouchableOpacity onPress={exitSelectionMode} style={styles.selectionHeaderButton}>
+            <Ionicons name="close" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.selectionHeaderText, { color: colors.text }]}>
+            {selectedIds.size} {language === 'tr' ? 'seçildi' : 'selected'}
+          </Text>
+          <View style={styles.selectionHeaderActions}>
+            <TouchableOpacity onPress={selectAll} style={styles.selectionHeaderButton}>
+              <Text style={[styles.selectAllText, { color: colors.primary }]}>
+                {language === 'tr' ? 'Tümü' : 'All'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {medicines.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>💊</Text>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {t('medicines_empty')}
-            </Text>
-            <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
-              {t('medicines_add_first')}
-            </Text>
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: colors.primary }]}
-              onPress={handleAddMedicine}
-            >
-              <Text style={styles.addButtonText}>+ {t('home_add_medicine')}</Text>
-            </TouchableOpacity>
+          <View style={styles.emptyStateContainer}>
+            <Section icon="💊" title={language === 'tr' ? 'İLAÇLARIM' : 'MY MEDICINES'} colors={colors} isDark={isDark}>
+              <View style={styles.emptyState}>
+                <View style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '15' }]}>
+                  <Text style={styles.emptyIconLarge}>💊</Text>
+                </View>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  {t('medicines_empty')}
+                </Text>
+                <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
+                  {t('medicines_add_first')}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: colors.primary }]}
+                  onPress={handleAddMedicine}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                  <Text style={styles.addButtonText}>{t('home_add_medicine')}</Text>
+                </TouchableOpacity>
+              </View>
+            </Section>
+
+            <Section icon="❓" title={language === 'tr' ? 'NASIL BAŞLARIM' : 'HOW TO START'} colors={colors} isDark={isDark}>
+              <View style={styles.tipRow}>
+                <View style={[styles.tipBullet, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.tipBulletText}>1</Text>
+                </View>
+                <Text style={[styles.tipText, { color: colors.textSecondary }]}>
+                  {language === 'tr' ? 'Yukarıdaki butona tıklayın' : 'Tap the button above'}
+                </Text>
+              </View>
+              <View style={[styles.tipRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }]}>
+                <View style={[styles.tipBullet, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.tipBulletText}>2</Text>
+                </View>
+                <Text style={[styles.tipText, { color: colors.textSecondary }]}>
+                  {language === 'tr' ? 'İlaç bilgilerini girin veya barkod tarayın' : 'Enter medicine info or scan barcode'}
+                </Text>
+              </View>
+              <View style={[styles.tipRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }]}>
+                <View style={[styles.tipBullet, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.tipBulletText}>3</Text>
+                </View>
+                <Text style={[styles.tipText, { color: colors.textSecondary }]}>
+                  {language === 'tr' ? 'Hatırlatma saatlerini ayarlayın' : 'Set reminder times'}
+                </Text>
+              </View>
+            </Section>
           </View>
         ) : (
           <>
-            {/* Aktif İlaçlar */}
             {activeMedicines.length > 0 && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-                  {t('medicines_active')} ({activeMedicines.length})
-                </Text>
-                {activeMedicines.map((medicine) => {
-                  const times = getReminderTimesForMedicine(medicine.id)
-                    .map((rt) => rt.time);
+              <Section
+                icon="💚"
+                title={language === 'tr' ? 'AKTİF İLAÇLAR' : 'ACTIVE MEDICINES'}
+                count={activeMedicines.length}
+                colors={colors}
+                isDark={isDark}
+              >
+                {activeMedicines.map((medicine, index) => {
+                  const times = getReminderTimesForMedicine(medicine.id).map((rt) => rt.time);
                   return (
-                    <MedicineCard
+                    <MedicineRow
                       key={medicine.id}
                       medicine={medicine}
                       times={times}
@@ -235,23 +374,29 @@ export default function MedicinesScreen() {
                       colors={colors}
                       t={t}
                       language={language}
+                      isFirst={index === 0}
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedIds.has(medicine.id)}
+                      onSelect={() => toggleSelection(medicine.id)}
+                      onLongPressSelect={!isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined}
                     />
                   );
                 })}
-              </View>
+              </Section>
             )}
 
-            {/* Duraklatılmış İlaçlar */}
             {inactiveMedicines.length > 0 && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-                  {t('medicines_inactive')} ({inactiveMedicines.length})
-                </Text>
-                {inactiveMedicines.map((medicine) => {
-                  const times = getReminderTimesForMedicine(medicine.id)
-                    .map((rt) => rt.time);
+              <Section
+                icon="⏸️"
+                title={language === 'tr' ? 'DURAKLATILAN İLAÇLAR' : 'PAUSED MEDICINES'}
+                count={inactiveMedicines.length}
+                colors={colors}
+                isDark={isDark}
+              >
+                {inactiveMedicines.map((medicine, index) => {
+                  const times = getReminderTimesForMedicine(medicine.id).map((rt) => rt.time);
                   return (
-                    <MedicineCard
+                    <MedicineRow
                       key={medicine.id}
                       medicine={medicine}
                       times={times}
@@ -261,26 +406,50 @@ export default function MedicinesScreen() {
                       colors={colors}
                       t={t}
                       language={language}
+                      isFirst={index === 0}
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedIds.has(medicine.id)}
+                      onSelect={() => toggleSelection(medicine.id)}
+                      onLongPressSelect={!isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined}
                     />
                   );
                 })}
-              </View>
+              </Section>
             )}
+
+            <Section icon="💡" title={language === 'tr' ? 'İPUCU' : 'TIP'} colors={colors} isDark={isDark}>
+              <View style={styles.tipRow}>
+                <View style={[styles.tipIconContainer, { backgroundColor: '#DBEAFE' }]}>
+                  <Text style={styles.tipIconEmoji}>👆</Text>
+                </View>
+                <Text style={[styles.tipText, { color: colors.textSecondary, flex: 1 }]}>
+                  {language === 'tr' 
+                    ? 'Düzenlemek için ilaca dokunun, silmek veya duraklatmak için basılı tutun'
+                    : 'Tap to edit, long press to delete or pause'}
+                </Text>
+              </View>
+            </Section>
           </>
         )}
         
-        <View style={{ height: 80 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* FAB */}
-      {medicines.length > 0 && (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.primary }]}
-          onPress={handleAddMedicine}
-        >
-          <Text style={styles.fabText}>+</Text>
-        </TouchableOpacity>
+      {/* Selection Mode Action Bar */}
+      {isSelectionMode && selectedIds.size > 0 && (
+        <View style={[styles.selectionActionBar, { backgroundColor: colors.card, borderTopColor: colors.divider }]}>
+          <TouchableOpacity
+            style={[styles.deleteSelectedButton, { backgroundColor: colors.error }]}
+            onPress={deleteSelected}
+          >
+            <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+            <Text style={styles.deleteSelectedText}>
+              {language === 'tr' ? `${selectedIds.size} İlacı Sil` : `Delete ${selectedIds.size}`}
+            </Text>
+          </TouchableOpacity>
+        </View>
       )}
+
     </SafeAreaView>
   );
 }
@@ -292,147 +461,225 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  section: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
+  // Selection Mode Header
+  selectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  sectionTitle: {
-    fontSize: 14,
+  selectionHeaderButton: {
+    padding: 8,
+  },
+  selectionHeaderText: {
+    flex: 1,
+    fontSize: 16,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 12,
+    marginLeft: 8,
   },
-  medicineCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  cardHeader: {
+  selectionHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  colorDot: {
-    width: 12,
-    height: 12,
+  selectAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Checkbox
+  checkbox: {
+    width: 22,
+    height: 22,
     borderRadius: 6,
+    borderWidth: 2,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Selection Action Bar
+  selectionActionBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: 24,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  deleteSelectedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  deleteSelectedText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  section: {
+    marginTop: 16,
+    marginHorizontal: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 4,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  sectionIcon: {
+    fontSize: 14,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  medicineRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  rowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
   medicineInfo: {
     flex: 1,
   },
-  medicineName: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  dosageText: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  pausedBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  pausedText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  cardDetails: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-  detailRow: {
+  medicineHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    gap: 8,
   },
-  detailLabel: {
-    fontSize: 13,
+  medicineName: {
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: -0.2,
   },
-  instructionText: {
+  pausedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  pausedText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  medicineDetails: {
     fontSize: 13,
-    marginLeft: 8,
+    marginTop: 2,
+    lineHeight: 18,
   },
   timesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
+    marginTop: 8,
   },
   timeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
   timeChipText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
-  cardFooter: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-  editHint: {
-    fontSize: 11,
-    textAlign: 'center',
+  emptyStateContainer: {
+    flex: 1,
   },
   emptyState: {
-    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 16,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 40,
+    marginBottom: 16,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 20,
+  emptyIconLarge: {
+    fontSize: 40,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptyDescription: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
+    lineHeight: 20,
   },
   addButton: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     borderRadius: 12,
+    gap: 8,
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  tipBullet: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    marginRight: 12,
   },
-  fabText: {
-    fontSize: 28,
+  tipBulletText: {
     color: '#FFFFFF',
-    fontWeight: '300',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tipIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  tipIconEmoji: {
+    fontSize: 18,
+  },
+  tipText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

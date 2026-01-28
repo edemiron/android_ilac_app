@@ -1,3 +1,5 @@
+import { NavigatorScreenParams } from '@react-navigation/native';
+
 // İlaç tipi tanımları
 export interface Medicine {
   id: string;
@@ -13,6 +15,12 @@ export interface Medicine {
   createdAt: string;
   updatedAt: string;
   customTimes?: string[]; // Manuel eklenen saatler ["08:30", "14:00", "21:00"]
+
+  // Stok takibi
+  stockEnabled?: boolean; // Stok takibi aktif mi?
+  stockCount?: number; // Mevcut stok sayısı
+  stockThreshold?: number; // Az kaldı uyarı eşiği (varsayılan: 5)
+  stockUnit?: string; // Birim: "tablet", "kapsül", "ml", "doz" vb.
 }
 
 // İlaç kullanım talimatları
@@ -34,6 +42,9 @@ export interface ReminderTime {
 }
 
 // Kullanıcı ayarları
+// Alarm sesi seçenekleri
+export type AlarmSoundType = 'alarm' | 'default' | 'gentle' | 'urgent';
+
 export interface UserSettings {
   wakeUpTime: string; // "HH:mm" - varsayılan "08:00"
   sleepTime: string;  // "HH:mm" - varsayılan "23:00"
@@ -41,6 +52,10 @@ export interface UserSettings {
   vibrationEnabled: boolean;
   fullScreenAlarmEnabled: boolean;
   language: 'tr' | 'en';
+  
+  // Alarm sesi ayarı
+  alarmSound: AlarmSoundType; // Varsayılan 'alarm'
+  alarmVolume: number; // 0-100 arası (varsayılan 80)
   
   // Erteleme ayarları
   snoozeDuration: number; // dakika cinsinden (varsayılan 5)
@@ -52,9 +67,6 @@ export interface UserSettings {
   
   // Alarm modu - Sessizde bile ses çıkar
   alarmModeEnabled: boolean; // Telefon sessizde/titreşimde bile alarm sesi çalar
-  
-  // Premium özellikler
-  customAlarmSound?: string; // Premium için özel alarm sesi
 }
 
 // İlaç alma kaydı
@@ -66,6 +78,19 @@ export interface MedicineLog {
   takenAt?: string; // Alındıysa ISO date string
   status: 'pending' | 'taken' | 'skipped' | 'missed';
   note?: string;
+}
+
+// Snooze (erteleme) kaydı - persistence için
+export interface Snooze {
+  id: string;
+  medicineId: string;
+  reminderTimeId: string;
+  originalScheduledTime: string; // Orijinal alarm zamanı (ISO)
+  triggerTime: string; // Snooze'un tetikleneceği zaman (ISO)
+  notificationId: string; // Notifee notification ID
+  snoozeCount: number; // Kaçıncı erteleme (1, 2, 3...)
+  isActive: boolean;
+  createdAt: string;
 }
 
 // Günlük özet
@@ -87,13 +112,23 @@ export interface AlarmState {
 }
 
 // Navigation tipleri
+
+// Tab Navigator parametreleri (önce tanımlanmalı - RootStackParamList'te kullanılıyor)
+export type MainTabParamList = {
+  Home: undefined;
+  Medicines: undefined;
+  Statistics: undefined;
+  Settings: undefined;
+};
+
+// Root Stack parametreleri
 export type RootStackParamList = {
-  Main: undefined;
-  AddMedicine: { 
-    medicineId?: string; 
-    barcode?: string; 
+  Main: NavigatorScreenParams<MainTabParamList>;
+  AddMedicine: {
+    medicineId?: string;
+    barcode?: string;
     scannedName?: string;
-    prefillForm?: string; 
+    prefillForm?: string;
     scannedDosage?: string;
     prefillName?: string;
     prefillDosage?: string;
@@ -102,8 +137,8 @@ export type RootStackParamList = {
   };
   MedicineDetail: { medicineId: string };
   MedicineProspectus: { medicineId?: string; medicineName: string; dosage?: string };
-  Alarm: { 
-    medicineId: string; 
+  Alarm: {
+    medicineId: string;
     reminderTimeId: string;
     scheduledTime: string;
   };
@@ -112,13 +147,6 @@ export type RootStackParamList = {
   Interactions: undefined;
   BarcodeScanner: undefined;
   Premium: undefined;
-};
-
-export type MainTabParamList = {
-  Home: undefined;
-  Medicines: undefined;
-  Statistics: undefined;
-  Settings: undefined;
 };
 
 // Auth Stack Navigation
@@ -152,6 +180,9 @@ export interface GlobalMedicine {
   
   createdAt: string;
   updatedAt: string;
+
+  // İlaç etkileşimleri (AI arama sonuçları için)
+  interactions?: string[];
 }
 
 // İlaç formu

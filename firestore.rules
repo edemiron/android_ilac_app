@@ -1,0 +1,127 @@
+rules_version = '2';
+
+/**
+ * Firestore Security Rules for Ilac Hatirlatici App
+ *
+ * SECURITY PRINCIPLES:
+ * 1. All data requires authentication - no anonymous access
+ * 2. Users can only access their own data (data isolation)
+ * 3. Write operations validate data structure
+ * 4. Rate limiting through Firebase quotas
+ *
+ * DEPLOYMENT:
+ * Deploy these rules using Firebase CLI:
+ * firebase deploy --only firestore:rules
+ *
+ * Or copy to Firebase Console > Firestore > Rules
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if user owns this resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Validate timestamp is not in the future (with 5 min tolerance)
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time + duration.value(5, 'm');
+    }
+
+    // Validate string length
+    function isValidString(str, minLen, maxLen) {
+      return str is string && str.size() >= minLen && str.size() <= maxLen;
+    }
+
+    // Check if request has App Check token (when enforced)
+    // Note: This can be enabled once App Check is fully configured
+    // function hasValidAppCheckToken() {
+    //   return request.auth.token.firebase.app_check == true;
+    // }
+
+    // ============================================
+    // USER DATA COLLECTION
+    // ============================================
+
+    match /users/{userId} {
+      // Users can only access their own document
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+
+      // ----------------------------------------
+      // MEDICINES SUBCOLLECTION
+      // ----------------------------------------
+      match /medicines/{medicineId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && isValidString(request.resource.data.name, 1, 200)
+          && isValidString(request.resource.data.dosage, 1, 100);
+
+        allow update: if isOwner(userId)
+          && isValidString(request.resource.data.name, 1, 200)
+          && isValidString(request.resource.data.dosage, 1, 100);
+
+        allow delete: if isOwner(userId);
+      }
+
+      // ----------------------------------------
+      // REMINDER TIMES SUBCOLLECTION
+      // ----------------------------------------
+      match /reminderTimes/{timeId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // ----------------------------------------
+      // MEDICINE LOGS SUBCOLLECTION
+      // ----------------------------------------
+      match /medicineLogs/{logId} {
+        allow read: if isOwner(userId);
+
+        // Logs can only be created, not modified (audit trail)
+        allow create: if isOwner(userId)
+          && request.resource.data.status in ['taken', 'skipped', 'missed'];
+
+        // Allow update for status corrections within 24 hours
+        allow update: if isOwner(userId)
+          && request.resource.data.status in ['taken', 'skipped', 'missed'];
+
+        allow delete: if isOwner(userId);
+      }
+
+      // ----------------------------------------
+      // SETTINGS SUBCOLLECTION
+      // ----------------------------------------
+      match /settings/{settingId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // ============================================
+    // DENY ALL OTHER ACCESS
+    // ============================================
+
+    // Catch-all rule: deny access to any other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

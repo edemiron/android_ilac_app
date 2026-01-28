@@ -9,6 +9,9 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlobalMedicine, MedicineForm } from '../types';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('TurkishMedicineService');
 
 // ============ OPEN FOOD FACTS API ============
 
@@ -37,8 +40,8 @@ interface OpenFoodFactsResponse {
  */
 export async function searchOpenFoodFacts(barcode: string): Promise<Partial<GlobalMedicine> | null> {
   try {
-    console.log('[OpenFoodFacts] Aranıyor:', barcode);
-    
+    log.debug('OpenFoodFacts araniyor', { barcode });
+
     const response = await fetch(
       `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`,
       {
@@ -50,19 +53,19 @@ export async function searchOpenFoodFacts(barcode: string): Promise<Partial<Glob
     );
 
     if (!response.ok) {
-      console.log('[OpenFoodFacts] API hatası:', response.status);
+      log.debug('OpenFoodFacts API hatasi', { status: response.status });
       return null;
     }
 
     const data: OpenFoodFactsResponse = await response.json();
 
     if (data.status !== 1 || !data.product) {
-      console.log('[OpenFoodFacts] Ürün bulunamadı');
+      log.debug('OpenFoodFacts urun bulunamadi');
       return null;
     }
 
     const product = data.product;
-    console.log('[OpenFoodFacts] Bulundu:', product.product_name || product.product_name_tr);
+    log.debug('OpenFoodFacts bulundu', { name: product.product_name || product.product_name_tr });
 
     // İlaç olup olmadığını kontrol et
     const categories = (product.categories || '').toLowerCase();
@@ -81,7 +84,7 @@ export async function searchOpenFoodFacts(barcode: string): Promise<Partial<Glob
       imageUrl: product.image_url,
     };
   } catch (error) {
-    console.error('[OpenFoodFacts] Hata:', error);
+    log.error('OpenFoodFacts hata', error);
     return null;
   }
 }
@@ -106,11 +109,11 @@ interface TITCKMedicine {
  */
 export async function searchTITCKCache(barcode: string): Promise<Partial<GlobalMedicine> | null> {
   try {
-    console.log('[TİTCK Cache] Aranıyor:', barcode);
-    
+    log.debug('TITCK Cache araniyor', { barcode });
+
     const cacheData = await AsyncStorage.getItem(TITCK_CACHE_KEY);
     if (!cacheData) {
-      console.log('[TİTCK Cache] Cache boş');
+      log.debug('TITCK Cache bos');
       return null;
     }
 
@@ -118,11 +121,11 @@ export async function searchTITCKCache(barcode: string): Promise<Partial<GlobalM
     const found = medicines.find(m => m.barcode === barcode);
 
     if (!found) {
-      console.log('[TİTCK Cache] Bulunamadı');
+      log.debug('TITCK Cache bulunamadi');
       return null;
     }
 
-    console.log('[TİTCK Cache] Bulundu:', found.name);
+    log.debug('TITCK Cache bulundu', { name: found.name });
 
     return {
       barcode: found.barcode,
@@ -133,7 +136,7 @@ export async function searchTITCKCache(barcode: string): Promise<Partial<GlobalM
       country: 'TR',
     };
   } catch (error) {
-    console.error('[TİTCK Cache] Hata:', error);
+    log.error('TITCK Cache hata', error);
     return null;
   }
 }
@@ -146,9 +149,9 @@ export async function updateTITCKCache(medicines: TITCKMedicine[]): Promise<void
   try {
     await AsyncStorage.setItem(TITCK_CACHE_KEY, JSON.stringify(medicines));
     await AsyncStorage.setItem(TITCK_CACHE_TIMESTAMP_KEY, Date.now().toString());
-    console.log('[TİTCK Cache] Güncellendi:', medicines.length, 'ilaç');
+    log.debug('TITCK Cache guncellendi', { count: medicines.length });
   } catch (error) {
-    console.error('[TİTCK Cache] Güncelleme hatası:', error);
+    log.error('TITCK Cache guncelleme hatasi', error);
     throw error;
   }
 }
@@ -193,8 +196,8 @@ export async function getTITCKCacheCount(): Promise<number> {
  */
 export async function searchIlacabakByName(medicineName: string): Promise<Partial<GlobalMedicine>[] | null> {
   try {
-    console.log('[Ilacabak] İsim ile aranıyor:', medicineName);
-    
+    log.debug('Ilacabak isim ile araniyor', { medicineName });
+
     const encodedName = encodeURIComponent(medicineName);
     const response = await fetch(
       `https://ilacabak.com/canliArama.php?sorgu=${encodedName}`,
@@ -208,24 +211,24 @@ export async function searchIlacabakByName(medicineName: string): Promise<Partia
     );
 
     if (!response.ok) {
-      console.log('[Ilacabak] API hatası:', response.status);
+      log.debug('Ilacabak API hatasi', { status: response.status });
       return null;
     }
 
     const html = await response.text();
-    
+
     // HTML'den ilaç bilgilerini parse et
     const results = parseIlacabakResults(html);
-    
+
     if (results.length === 0) {
-      console.log('[Ilacabak] Sonuç bulunamadı');
+      log.debug('Ilacabak sonuc bulunamadi');
       return null;
     }
 
-    console.log('[Ilacabak] Bulundu:', results.length, 'sonuç');
+    log.debug('Ilacabak bulundu', { count: results.length });
     return results;
   } catch (error) {
-    console.error('[Ilacabak] Hata:', error);
+    log.error('Ilacabak hata', error);
     return null;
   }
 }
@@ -257,7 +260,7 @@ function parseIlacabakResults(html: string): Partial<GlobalMedicine>[] {
       });
     }
   } catch (error) {
-    console.error('[Ilacabak] Parse hatası:', error);
+    log.error('Ilacabak parse hatasi', error);
   }
 
   return results;

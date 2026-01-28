@@ -12,12 +12,38 @@ import notifee, {
   AlarmType,
 } from '@notifee/react-native';
 import { Platform, Vibration, Linking } from 'react-native';
+
+// PowerManagerInfo type (notifee'den dogrudan export edilmiyor)
+interface PowerManagerInfo {
+  manufacturer?: string;
+  activity?: string | null;
+}
 import { Medicine, ReminderTime, UserSettings } from '../types';
 import { addMinutes } from 'date-fns';
+import { createScopedLogger } from './logger';
 
-// Kanal ID'leri
-const ALARM_CHANNEL_ID = 'medicine-alarms';
-const REMINDER_CHANNEL_ID = 'medicine-reminders';
+const log = createScopedLogger('Notifications');
+
+// Kanal ID'leri - Versiyon değişince yeni kanal oluşur (ses ayarı için gerekli)
+const CHANNEL_VERSION = 'v3';
+const ALARM_CHANNEL_ID = `medicine-alarms-${CHANNEL_VERSION}`;
+const REMINDER_CHANNEL_ID = `medicine-reminders-${CHANNEL_VERSION}`;
+
+// Shared notification config
+const ALARM_ACTIONS = [
+  { title: '😴 Ertele', pressAction: { id: 'snooze' } },
+  { title: '⬛ Kapat', pressAction: { id: 'stop' } },
+];
+
+const FULL_SCREEN_ACTION = {
+  id: 'default',
+  launchActivity: 'com.ilachatirlatici.MainActivity',
+};
+
+const PRESS_ACTION = {
+  id: 'default',
+  launchActivity: 'com.ilachatirlatici.MainActivity',
+};
 
 /**
  * Bildirim kanallarını oluştur
@@ -26,22 +52,20 @@ export async function createNotificationChannels(): Promise<void> {
   if (Platform.OS !== 'android') return;
 
   try {
-    // Ana alarm kanalı - Tam ekran, sessiz modda bile çalar
+    // Ana alarm kanalı - Custom alarm sesi ile
     await notifee.createChannel({
       id: ALARM_CHANNEL_ID,
       name: 'Ilac Alarmlari',
       description: 'Kritik ilac hatirlatmalari - Sessiz modda bile calar',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
-      sound: 'default',
+      sound: 'alarm', // res/raw/alarm.mp3
       vibration: true,
-      // vibrationPattern kaldırıldı - varsayılan titreşim kullanılacak
       lights: true,
       lightColor: '#FF0000',
       bypassDnd: true,
-      lightColor: '#FF0000',
     });
-    console.log('Alarm kanalı oluşturuldu');
+    log.debug('Alarm kanali olusturuldu (custom sound)');
 
     // Normal hatırlatma kanalı
     await notifee.createChannel({
@@ -52,13 +76,47 @@ export async function createNotificationChannels(): Promise<void> {
       visibility: AndroidVisibility.PUBLIC,
       sound: 'default',
       vibration: true,
-      // vibrationPattern kaldırıldı - varsayılan titreşim kullanılacak
     });
-    console.log('Hatırlatma kanalı oluşturuldu');
+    log.debug('Hatirlatma kanali olusturuldu');
 
-    console.log('Notifee bildirim kanalları oluşturuldu');
+    log.debug('Notifee bildirim kanallari olusturuldu');
   } catch (error) {
-    console.error('Kanal oluşturma hatası:', error);
+    log.error('Kanal olusturma hatasi', error);
+  }
+}
+
+/**
+ * Power Manager bilgilerini al (MIUI, EMUI, ColorOS vb. için kritik)
+ */
+export async function getPowerManagerInfo(): Promise<PowerManagerInfo | null> {
+  if (Platform.OS !== 'android') return null;
+
+  try {
+    const info = await notifee.getPowerManagerInfo();
+    log.debug('Power Manager bilgisi', {
+      manufacturer: info.manufacturer,
+      activity: info.activity
+    });
+    return info;
+  } catch (error) {
+    log.error('Power Manager bilgisi alinamadi', error);
+    return null;
+  }
+}
+
+/**
+ * Cihaza özel power manager ayarlarını aç (MIUI autostart vb.)
+ */
+export async function openPowerManagerSettings(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+
+  try {
+    await notifee.openPowerManagerSettings();
+    log.debug('Power Manager ayarlari acildi');
+  } catch (error) {
+    log.error('Power Manager ayarlari acilamadi', error);
+    // Fallback: Genel pil ayarlarını aç
+    await notifee.openBatteryOptimizationSettings();
   }
 }
 
@@ -71,27 +129,56 @@ export async function checkAllPermissions(): Promise<{
   batteryOptimization: boolean;
   dnd: boolean;
   fullScreenIntent: boolean;
+  powerManagerRestricted: boolean;
+  manufacturer: string | null;
 }> {
   const settings = await notifee.getNotificationSettings();
-  
+
   // Android 14+ için full screen intent izni kontrolü
   let fullScreenIntentEnabled = true;
   if (Platform.OS === 'android' && Platform.Version >= 34) {
     // Android 14+ için özel kontrol gerekiyor
-    // @ts-ignore - notifee types may not include this yet
-    fullScreenIntentEnabled = settings.android?.fullScreenIntent !== 0;
+    // Notifee tipler henuz fullScreenIntent'i icermeyebilir
+    const androidSettings = settings.android as { fullScreenIntent?: number };
+    fullScreenIntentEnabled = androidSettings?.fullScreenIntent !== 0;
   }
-  
+
+  // batteryOptimizationStatus notifee tiplerinde olmayabilir
+  const androidSettingsWithBattery = settings.android as { batteryOptimizationStatus?: number };
+
+  // Power Manager bilgisi (MIUI, EMUI, ColorOS vb.)
+  let powerManagerRestricted = false;
+  let manufacturer: string | null = null;
+
+  if (Platform.OS === 'android') {
+    try {
+      const powerInfo = await notifee.getPowerManagerInfo();
+      manufacturer = powerInfo.manufacturer || null;
+      // Eger cihaz ureticisi ozel power manager'a sahipse ve activity varsa
+      // bu, kullanicinin ayarlari yapmasi gerektigini gosterir
+      powerManagerRestricted = !!powerInfo.activity;
+      log.debug('Power Manager durumu', {
+        manufacturer,
+        hasActivity: !!powerInfo.activity,
+        activity: powerInfo.activity
+      });
+    } catch (e) {
+      log.debug('Power Manager bilgisi alinamadi');
+    }
+  }
+
   return {
     notifications: settings.authorizationStatus === AuthorizationStatus.AUTHORIZED,
-    exactAlarm: Platform.OS === 'android' 
-      ? settings.android.alarm === AndroidNotificationSetting.ENABLED 
+    exactAlarm: Platform.OS === 'android'
+      ? settings.android.alarm === AndroidNotificationSetting.ENABLED
       : true,
     batteryOptimization: Platform.OS === 'android'
-      ? !settings.android.batteryOptimizationStatus || settings.android.batteryOptimizationStatus === 1
+      ? !androidSettingsWithBattery.batteryOptimizationStatus || androidSettingsWithBattery.batteryOptimizationStatus === 1
       : true,
     dnd: true, // Notifee kanal ayarlarıyla bypass ediliyor
     fullScreenIntent: fullScreenIntentEnabled,
+    powerManagerRestricted,
+    manufacturer,
   };
 }
 
@@ -114,26 +201,26 @@ export async function openFullScreenIntentSettings(): Promise<void> {
  */
 export async function requestNotificationPermissions(): Promise<boolean> {
   try {
-    console.log('requestNotificationPermissions çağrıldı');
+    log.debug('requestNotificationPermissions cagirildi');
     const settings = await notifee.requestPermission();
-    console.log('notifee.requestPermission sonucu:', JSON.stringify(settings));
-    
+    log.debug('notifee.requestPermission sonucu', { authorizationStatus: settings.authorizationStatus });
+
     // Kanalları her durumda oluştur
     await createNotificationChannels();
-    console.log('Kanallar oluşturuldu');
-    
+    log.debug('Kanallar olusturuldu');
+
     const isAuthorized = settings.authorizationStatus === AuthorizationStatus.AUTHORIZED ||
                          settings.authorizationStatus === AuthorizationStatus.PROVISIONAL;
-    
-    console.log('İzin durumu:', isAuthorized ? 'Verildi' : 'Verilmedi');
+
+    log.debug('Izin durumu', { isAuthorized });
     return isAuthorized;
   } catch (error) {
-    console.error('requestNotificationPermissions hatası:', error);
+    log.error('requestNotificationPermissions hatasi', error);
     // Hata durumunda bile kanalları oluşturmayı dene
     try {
       await createNotificationChannels();
     } catch (e) {
-      console.error('Kanal oluşturma hatası:', e);
+      log.error('Kanal olusturma hatasi', e);
     }
     return true; // Hata durumunda devam et
   }
@@ -186,40 +273,31 @@ export async function displayFullScreenAlarm(
   reminderTime: ReminderTime,
   scheduledTime: string
 ): Promise<string> {
+  const timeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  
   const notificationId = await notifee.displayNotification({
     id: `alarm-${medicine.id}-${reminderTime.id}`,
-    title: `${medicine.name}`,
-    body: `${medicine.dosage} almanin zamani geldi!`,
+    title: `💊 ${medicine.name}`,
+    subtitle: timeStr,
+    body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
     android: {
       channelId: ALARM_CHANNEL_ID,
       category: AndroidCategory.ALARM,
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
-      fullScreenAction: {
-        id: 'default',
-        launchActivity: 'com.ilachatirlatici.MainActivity',
-      },
-      pressAction: {
-        id: 'default',
-        launchActivity: 'com.ilachatirlatici.MainActivity',
-      },
+      ongoing: true,
       autoCancel: false,
+      onlyAlertOnce: false,
+      loopSound: true,
+      fullScreenAction: FULL_SCREEN_ACTION,
+      pressAction: PRESS_ACTION,
       smallIcon: 'ic_launcher',
-      color: '#FF6B6B',
-      actions: [
-        {
-          title: 'Aldim',
-          pressAction: { id: 'take' },
-        },
-        {
-          title: 'Ertele',
-          pressAction: { id: 'snooze' },
-        },
-        {
-          title: 'Atla',
-          pressAction: { id: 'skip' },
-        },
-      ],
+      color: '#2196F3',
+      colorized: true,
+      sound: 'alarm',
+      vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
+      lights: ['#2196F3', 500, 500] as [string, number, number],
+      actions: ALARM_ACTIONS,
     },
     data: {
       medicineId: medicine.id,
@@ -229,7 +307,7 @@ export async function displayFullScreenAlarm(
     },
   });
 
-  console.log('Tam ekran alarm gösterildi:', notificationId);
+  log.debug('Tam ekran alarm gosterildi', { notificationId });
   return notificationId;
 }
 
@@ -239,8 +317,20 @@ export async function displayFullScreenAlarm(
 export async function scheduleMedicineNotification(
   medicine: Medicine,
   reminderTime: ReminderTime,
-  fullScreenAlarm: boolean = true
+  fullScreenAlarm: boolean = true,
+  bypassBuffer: boolean = false
 ): Promise<string | null> {
+  // Guard clause: Gecersiz medicine veya reminderTime kontrolu
+  if (!medicine?.id || !reminderTime?.id || !reminderTime?.time) {
+    log.warn('scheduleMedicineNotification: Gecersiz parametre, bildirim planlanmadi', {
+      hasMedicine: !!medicine,
+      hasMedicineId: !!medicine?.id,
+      hasReminderTime: !!reminderTime,
+      hasReminderTimeId: !!reminderTime?.id,
+    });
+    return null;
+  }
+
   try {
     // Mevcut bildirimi iptal et
     await cancelNotification(`alarm-${medicine.id}-${reminderTime.id}`);
@@ -251,14 +341,27 @@ export async function scheduleMedicineNotification(
     const now = new Date();
     let triggerDate = new Date();
     triggerDate.setHours(hours, minutes, 0, 0);
-    
-    // Eğer zaman geçtiyse yarın için planla
-    if (triggerDate <= now) {
-      triggerDate.setDate(triggerDate.getDate() + 1);
+
+    // KRİTİK: Eğer zaman geçtiyse yarın için planla
+    // bypassBuffer=true ise sadece geçmiş zamanları kontrol et (test ilaçları için)
+    if (bypassBuffer) {
+      // Sadece zaman geçmişse yarına al
+      if (triggerDate <= now) {
+        triggerDate.setDate(triggerDate.getDate() + 1);
+        log.debug('Alarm yarina planlandi (zaman gecti)', { triggerDate: triggerDate.toISOString() });
+      }
+    } else {
+      // Normal ilaçlar için 10 dakikalık buffer uygula
+      // Bu, alarm çaldıktan sonra hemen yeniden planlamada bugün için tekrar tetiklenmesini önler
+      const bufferMinutes = 10;
+      const bufferTime = new Date(now.getTime() + bufferMinutes * 60 * 1000);
+      if (triggerDate <= bufferTime) {
+        triggerDate.setDate(triggerDate.getDate() + 1);
+        log.debug('Alarm yarina planlandi (buffer kontrolu)', { triggerDate: triggerDate.toISOString() });
+      }
     }
 
-    console.log(`Ilac bildirimi planlaniyor: ${medicine.name} - ${reminderTime.time}`);
-    console.log('Hedef zaman:', triggerDate.toISOString());
+    log.debug('Ilac bildirimi planlaniyor', { name: medicine.name, time: reminderTime.time, targetDate: triggerDate.toISOString() });
 
     const trigger: TimestampTrigger = {
       type: TriggerType.TIMESTAMP,
@@ -270,31 +373,33 @@ export async function scheduleMedicineNotification(
       },
     };
 
+    // Saat formatı
+    const timeStr = triggerDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    
     const notificationId = await notifee.createTriggerNotification(
       {
         id: `alarm-${medicine.id}-${reminderTime.id}`,
-        title: `${medicine.name}`,
-        body: `${medicine.dosage} almanin zamani geldi!`,
+        title: `💊 ${medicine.name}`,
+        subtitle: timeStr,
+        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
         android: {
           channelId: fullScreenAlarm ? ALARM_CHANNEL_ID : REMINDER_CHANNEL_ID,
           category: AndroidCategory.ALARM,
           importance: AndroidImportance.HIGH,
           visibility: AndroidVisibility.PUBLIC,
-          fullScreenAction: fullScreenAlarm ? {
-            id: 'default',
-            launchActivity: 'com.ilachatirlatici.MainActivity',
-          } : undefined,
-          pressAction: {
-            id: 'default',
-            launchActivity: 'com.ilachatirlatici.MainActivity',
-          },
-          autoCancel: false,
+          ongoing: fullScreenAlarm,
+          autoCancel: !fullScreenAlarm,
+          onlyAlertOnce: false,
+          loopSound: fullScreenAlarm,
+          fullScreenAction: fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
+          pressAction: PRESS_ACTION,
           smallIcon: 'ic_launcher',
-          color: '#FF6B6B',
-          // Ses ve titreşim
-          sound: 'default',
-          vibrationPattern: [500, 200, 500, 200, 500, 200],
-          lights: ['#FF0000', 500, 500], // [color, onMs, offMs]
+          color: '#2196F3',
+          colorized: true,
+          sound: 'alarm',
+          vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
+          lights: ['#2196F3', 500, 500] as [string, number, number],
+          actions: ALARM_ACTIONS,
         },
         data: {
           medicineId: medicine.id,
@@ -306,15 +411,15 @@ export async function scheduleMedicineNotification(
       trigger
     );
 
-    console.log(`Bildirim planlandi: ${reminderTime.time} - ${notificationId}`);
-    
+    log.debug('Bildirim planlandi', { time: reminderTime.time, notificationId });
+
     // Doğrulama
     const triggers = await notifee.getTriggerNotificationIds();
-    console.log('Aktif trigger sayisi:', triggers.length);
-    
+    log.debug('Aktif trigger sayisi', { count: triggers.length });
+
     return notificationId;
   } catch (error) {
-    console.error('Bildirim planlanirken hata:', error);
+    log.error('Bildirim planlanirken hata', error);
     return null;
   }
 }
@@ -326,143 +431,170 @@ export async function scheduleTestAlarmNotification(
   minutesFromNow: number,
   language: 'tr' | 'en' = 'tr'
 ): Promise<string> {
-  const seconds = Math.max(15, Math.round(minutesFromNow * 60));
+  const seconds = Math.round(minutesFromNow * 60);
   const scheduledTime = new Date(Date.now() + seconds * 1000);
 
-  console.log('=== TEST ALARM PLANLANIYOR ===');
-  console.log('Şu anki zaman:', new Date().toISOString());
-  console.log('Hedef zaman:', scheduledTime.toISOString());
-  console.log('Saniye sonra:', seconds);
+  log.debug('Test alarm planlaniyor', {
+    currentTime: new Date().toISOString(),
+    targetTime: scheduledTime.toISOString(),
+    delaySeconds: seconds,
+  });
 
   // Kanalın oluşturulduğundan emin ol
   await createNotificationChannels();
 
-  // Exact alarm izni kontrolü
-  const settings = await notifee.getNotificationSettings();
-  console.log('Alarm izni durumu:', settings.android?.alarm);
+  // Sabit ID kullan - dismiss için gerekli
+  const testMedicineId = 'test-medicine';
+  const testReminderId = 'test-reminder';
+  const notifId = `alarm-${testMedicineId}-${testReminderId}`;
 
-  // Trigger oluştur - alarmManager ile exact alarm
-  const trigger: TimestampTrigger = {
-    type: TriggerType.TIMESTAMP,
-    timestamp: scheduledTime.getTime(),
-    alarmManager: {
-      allowWhileIdle: true,
-      type: AlarmType.SET_ALARM_CLOCK,
+  // Önceki test alarmını iptal et
+  await notifee.cancelNotification(notifId);
+
+  // Saat formatı
+  const timeStr = scheduledTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  
+  const notificationConfig = {
+    id: notifId,
+    title: language === 'tr' ? '💊 Test Ilaci' : '💊 Test Medicine',
+    subtitle: timeStr,
+    body: language === 'tr' 
+      ? `Aspirin 500mg almanin zamani!\n⏰ ${timeStr}`
+      : `Time to take Aspirin 500mg!\n⏰ ${timeStr}`,
+    android: {
+      channelId: ALARM_CHANNEL_ID,
+      category: AndroidCategory.ALARM,
+      importance: AndroidImportance.HIGH,
+      visibility: AndroidVisibility.PUBLIC,
+      ongoing: true,
+      autoCancel: false,
+      onlyAlertOnce: false,
+      fullScreenAction: FULL_SCREEN_ACTION,
+      pressAction: PRESS_ACTION,
+      smallIcon: 'ic_launcher',
+      color: '#2196F3',
+      colorized: true,
+      sound: 'alarm',
+      vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
+      lights: ['#2196F3', 500, 500] as [string, number, number],
+      actions: ALARM_ACTIONS,
+    },
+    data: {
+      medicineId: testMedicineId,
+      reminderTimeId: testReminderId,
+      scheduledTime: scheduledTime.toISOString(),
+      fullScreenAlarm: 'true',
     },
   };
 
-  console.log('Trigger:', JSON.stringify(trigger));
-
   try {
-    const notificationId = await notifee.createTriggerNotification(
-      {
-        id: 'test-alarm-' + Date.now(),
-        title: language === 'tr' ? 'Ilac Zamani' : 'Medicine Time',
-        body: language === 'tr' 
-          ? 'Aspirin 500mg almanin zamani geldi!'
-          : 'Time to take Aspirin 500mg!',
-        android: {
-          channelId: ALARM_CHANNEL_ID,
-          importance: AndroidImportance.HIGH,
-          visibility: AndroidVisibility.PUBLIC,
-          category: AndroidCategory.ALARM,
-          fullScreenAction: {
-            id: 'default',
-            launchActivity: 'com.ilachatirlatici.MainActivity',
-          },
-          pressAction: {
-            id: 'default',
-            launchActivity: 'com.ilachatirlatici.MainActivity',
-          },
-          smallIcon: 'ic_launcher',
-          autoCancel: false,
-          sound: 'default',
-          vibrationPattern: [500, 200, 500, 200, 500, 200],
-          lights: ['#FF0000', 500, 500],
-        },
-        data: {
-          medicineId: 'test-medicine',
-          reminderTimeId: 'test-reminder',
-          scheduledTime: scheduledTime.toISOString(),
-          fullScreenAlarm: 'true',
-        },
-      },
-      trigger
-    );
-
-    console.log('Test alarm basariyla planlandi. ID:', notificationId);
+    // Minimum 5 saniye (Android kısıtlaması)
+    const minSeconds = Math.max(5, seconds);
+    const adjustedTime = new Date(Date.now() + minSeconds * 1000);
     
-    // Planlanan bildirimleri kontrol et
-    const triggers = await notifee.getTriggerNotificationIds();
-    console.log('Planlanan bildirim IDleri:', triggers);
-
-    return notificationId;
-  } catch (error) {
-    console.error('Test alarm planlama hatasi:', error);
-    throw error;
-  }
-}
-
-/**
- * Erteleme bildirimi planla
- */
-export async function scheduleSnoozeNotification(
-  medicine: Medicine,
-  reminderTime: ReminderTime,
-  snoozeDuration: number = 5
-): Promise<string | null> {
-  try {
-    const snoozeTime = addMinutes(new Date(), snoozeDuration);
-
+    // Her zaman createTriggerNotification kullan (setTimeout arka planda çalışmaz)
     const trigger: TimestampTrigger = {
       type: TriggerType.TIMESTAMP,
-      timestamp: snoozeTime.getTime(),
+      timestamp: adjustedTime.getTime(),
       alarmManager: {
         allowWhileIdle: true,
         type: AlarmType.SET_ALARM_CLOCK,
       },
     };
 
+    log.debug('Trigger olusturuldu', { 
+      triggerType: trigger.type, 
+      timestamp: trigger.timestamp,
+      delaySeconds: minSeconds 
+    });
+
     const notificationId = await notifee.createTriggerNotification(
+      notificationConfig,
+      trigger
+    );
+
+    log.debug('Test alarm basariyla planlandi', { notificationId });
+
+    // Planlanan bildirimleri kontrol et
+    const triggers = await notifee.getTriggerNotificationIds();
+    log.debug('Planlanan bildirim IDleri', { triggers });
+
+    return notificationId;
+  } catch (error) {
+    log.error('Test alarm planlama hatasi', error);
+    throw error;
+  }
+}
+
+export interface ScheduleSnoozeParams {
+  medicine: Medicine;
+  reminderTime: ReminderTime;
+  snoozeDuration?: number;
+  snoozeId: string;
+  originalScheduledTime: string;
+  snoozeCount: number;
+}
+
+export async function scheduleSnoozeNotification(params: ScheduleSnoozeParams): Promise<{ notificationId: string; triggerTime: Date } | null> {
+  const { medicine, reminderTime, snoozeDuration = 5, snoozeId, originalScheduledTime, snoozeCount } = params;
+  
+  try {
+    const triggerTime = addMinutes(new Date(), snoozeDuration);
+    const notificationId = `snooze-${snoozeId}`;
+
+    const trigger: TimestampTrigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: triggerTime.getTime(),
+      alarmManager: {
+        allowWhileIdle: true,
+        type: AlarmType.SET_ALARM_CLOCK,
+      },
+    };
+
+    const timeStr = triggerTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    
+    await notifee.createTriggerNotification(
       {
-        id: `snooze-${medicine.id}-${Date.now()}`,
-        title: `${medicine.name} (Ertelendi)`,
-        body: `${medicine.dosage} almanin zamani geldi!`,
+        id: notificationId,
+        title: `🔔 ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
+        subtitle: timeStr,
+        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
         android: {
           channelId: ALARM_CHANNEL_ID,
           category: AndroidCategory.ALARM,
           importance: AndroidImportance.HIGH,
           visibility: AndroidVisibility.PUBLIC,
-          fullScreenAction: {
-            id: 'default',
-            launchActivity: 'com.ilachatirlatici.MainActivity',
-          },
-          pressAction: {
-            id: 'default',
-            launchActivity: 'com.ilachatirlatici.MainActivity',
-          },
+          ongoing: true,
           autoCancel: false,
+          loopSound: true,
+          fullScreenAction: FULL_SCREEN_ACTION,
+          pressAction: PRESS_ACTION,
           smallIcon: 'ic_launcher',
           color: '#FF6B6B',
-          sound: 'default',
+          colorized: true,
+          sound: 'alarm',
           vibrationPattern: [500, 200, 500, 200, 500, 200],
-          lights: ['#FF0000', 500, 500],
+          lights: ['#FF0000', 500, 500] as [string, number, number],
+          actions: ALARM_ACTIONS,
         },
         data: {
           medicineId: medicine.id,
           reminderTimeId: reminderTime.id,
-          scheduledTime: snoozeTime.toISOString(),
+          scheduledTime: triggerTime.toISOString(),
+          originalScheduledTime,
           fullScreenAlarm: 'true',
           isSnooze: 'true',
+          snoozeId,
+          snoozeCount: String(snoozeCount),
         },
       },
       trigger
     );
 
-    console.log(`Erteleme bildirimi planlandı: ${snoozeDuration} dakika sonra`);
-    return notificationId;
+    log.debug('Erteleme bildirimi planlandi', { snoozeDuration, notificationId, snoozeCount });
+    return { notificationId, triggerTime };
   } catch (error) {
-    console.error('Erteleme bildirimi planlanırken hata:', error);
+    log.error('Erteleme bildirimi planlanirken hata', error);
     return null;
   }
 }
@@ -474,7 +606,45 @@ export async function cancelNotification(notificationId: string): Promise<void> 
   try {
     await notifee.cancelNotification(notificationId);
   } catch (error) {
-    console.error('Bildirim iptal edilirken hata:', error);
+    log.error('Bildirim iptal edilirken hata', error);
+  }
+}
+
+/**
+ * Belirli bir ilaca ait TÜM bildirimleri iptal et
+ * İlaç silindiğinde çağrılmalı - phantom notification'ları engeller
+ */
+export async function cancelMedicineNotifications(medicineId: string): Promise<void> {
+  try {
+    // Tüm planlanmış (trigger) bildirimleri al
+    const triggerIds = await notifee.getTriggerNotificationIds();
+    
+    // Bu ilaca ait olanları filtrele (alarm-{medicineId}-* ve snooze-{medicineId}-*)
+    const medicineNotificationIds = triggerIds.filter(
+      (id) => id.startsWith(`alarm-${medicineId}-`) || id.startsWith(`snooze-${medicineId}-`)
+    );
+    
+    // Her birini iptal et
+    for (const notifId of medicineNotificationIds) {
+      await notifee.cancelNotification(notifId);
+      log.debug('Ilac bildirimi iptal edildi', { notifId, medicineId });
+    }
+    
+    // Görüntülenen bildirimleri de kontrol et
+    const displayedNotifications = await notifee.getDisplayedNotifications();
+    for (const notif of displayedNotifications) {
+      if (notif.id?.startsWith(`alarm-${medicineId}-`) || notif.id?.startsWith(`snooze-${medicineId}-`)) {
+        await notifee.cancelDisplayedNotification(notif.id);
+        log.debug('Goruntulen bildirim iptal edildi', { notifId: notif.id, medicineId });
+      }
+    }
+    
+    log.debug('Ilaca ait tum bildirimler iptal edildi', { 
+      medicineId, 
+      cancelledCount: medicineNotificationIds.length 
+    });
+  } catch (error) {
+    log.error('Ilac bildirimleri iptal edilirken hata', error);
   }
 }
 
@@ -486,13 +656,68 @@ export async function cancelAllNotifications(): Promise<void> {
 }
 
 /**
+ * Yetim (orphan) bildirimleri temizle
+ * Gecerli ilac ID'leri ile eslesmeyenleri iptal eder
+ * Uygulama acilisinda cagrilmali
+ */
+export async function cleanupOrphanNotifications(validMedicineIds: string[]): Promise<number> {
+  try {
+    // Test alarmi her zaman gecerli kabul edilir
+    const validIds = new Set([...validMedicineIds, 'test-medicine']);
+
+    // Tum planlanmis trigger'lari al
+    const triggerIds = await notifee.getTriggerNotificationIds();
+    let cancelledCount = 0;
+
+    for (const triggerId of triggerIds) {
+      // alarm-{medicineId}-{reminderTimeId} veya snooze-{medicineId}-{timestamp} formatini parse et
+      const alarmMatch = triggerId.match(/^alarm-([^-]+)-/);
+      const snoozeMatch = triggerId.match(/^snooze-([^-]+)-/);
+      const medicineId = alarmMatch?.[1] || snoozeMatch?.[1];
+
+      // Medicine ID bulunamadiysa veya gecerli listede degilse iptal et
+      if (medicineId && !validIds.has(medicineId)) {
+        await notifee.cancelNotification(triggerId);
+        cancelledCount++;
+        log.debug('Yetim bildirim iptal edildi', { triggerId, medicineId });
+      }
+    }
+
+    // Goruntulen bildirimleri de kontrol et
+    const displayedNotifications = await notifee.getDisplayedNotifications();
+    for (const notif of displayedNotifications) {
+      if (!notif.id) continue;
+
+      const alarmMatch = notif.id.match(/^alarm-([^-]+)-/);
+      const snoozeMatch = notif.id.match(/^snooze-([^-]+)-/);
+      const medicineId = alarmMatch?.[1] || snoozeMatch?.[1];
+
+      if (medicineId && !validIds.has(medicineId)) {
+        await notifee.cancelDisplayedNotification(notif.id);
+        cancelledCount++;
+        log.debug('Goruntulen yetim bildirim iptal edildi', { notifId: notif.id, medicineId });
+      }
+    }
+
+    if (cancelledCount > 0) {
+      log.debug('Yetim bildirim temizligi tamamlandi', { cancelledCount, validMedicineCount: validMedicineIds.length });
+    }
+
+    return cancelledCount;
+  } catch (error) {
+    log.error('Yetim bildirim temizligi sirasinda hata', error);
+    return 0;
+  }
+}
+
+/**
  * Görüntülenen bildirimi kapat
  */
 export async function dismissNotification(notificationId: string): Promise<void> {
   try {
     await notifee.cancelDisplayedNotification(notificationId);
   } catch (error) {
-    console.error('Bildirim kapatılırken hata:', error);
+    log.error('Bildirim kapatilirken hata', error);
   }
 }
 
@@ -561,39 +786,65 @@ export function stopAlarmVibration(): void {
 /**
  * Notifee event listener'ı kur
  */
+interface NotificationData {
+  medicineId?: string;
+  reminderTimeId?: string;
+  scheduledTime?: string;
+  fullScreenAlarm?: string;
+  isSnooze?: string;
+  snoozeId?: string;
+  snoozeCount?: string;
+}
+
+export interface AlarmPressData {
+  medicineId: string;
+  reminderTimeId: string;
+  scheduledTime: string;
+  isSnooze?: string;
+  snoozeId?: string;
+}
+
 export function setupNotificationListeners(
-  onAlarmPress: (data: { medicineId: string; reminderTimeId: string; scheduledTime: string }) => void,
-  onAction: (actionId: string, data: any) => void
+  onAlarmPress: (data: AlarmPressData) => void,
+  onAction: (actionId: string, data: NotificationData | undefined) => void
 ): () => void {
-  return notifee.onForegroundEvent(({ type, detail }: Event) => {
+  return notifee.onForegroundEvent(async ({ type, detail }: Event) => {
     const { notification, pressAction } = detail;
-    
-    console.log('[Foreground] Event type:', type, 'Notification:', notification?.id);
-    
-    // DELIVERED - Bildirim teslim edildi, alarm ekranını aç
+
+    log.debug('Foreground event', { type, notificationId: notification?.id });
+
     if (type === EventType.DELIVERED) {
-      console.log('[Foreground] Notification delivered:', notification?.id);
-      if (notification?.data?.fullScreenAlarm === 'true') {
-        console.log('[Foreground] Full screen alarm - opening alarm screen');
+      log.debug('Notification delivered', { notificationId: notification?.id });
+      if (notification?.data?.fullScreenAlarm === 'true' && notification?.id) {
+        log.debug('Full screen alarm - opening alarm screen');
+        
+        await notifee.cancelDisplayedNotification(notification.id);
+        log.debug('Bildirim iptal edildi (DELIVERED)', { notificationId: notification.id });
+        
         onAlarmPress({
           medicineId: notification.data.medicineId as string,
           reminderTimeId: notification.data.reminderTimeId as string,
           scheduledTime: notification.data.scheduledTime as string,
+          isSnooze: notification.data.isSnooze as string | undefined,
+          snoozeId: notification.data.snoozeId as string | undefined,
         });
       }
     }
     
     if (type === EventType.PRESS) {
-      // Bildirime tıklandı
+      if (notification?.id) {
+        await notifee.cancelDisplayedNotification(notification.id);
+      }
       if (notification?.data) {
         onAlarmPress({
           medicineId: notification.data.medicineId as string,
           reminderTimeId: notification.data.reminderTimeId as string,
           scheduledTime: notification.data.scheduledTime as string,
+          isSnooze: notification.data.isSnooze as string | undefined,
+          snoozeId: notification.data.snoozeId as string | undefined,
         });
       }
     } else if (type === EventType.ACTION_PRESS && pressAction) {
-      // Aksiyon butonuna tıklandı
       onAction(pressAction.id, notification?.data);
     }
   });
@@ -604,10 +855,26 @@ export function setupNotificationListeners(
  */
 export function registerBackgroundHandler(
   onAlarmPress: (data: { medicineId: string; reminderTimeId: string; scheduledTime: string }) => void,
-  onAction: (actionId: string, data: any) => void
+  onAction: (actionId: string, data: NotificationData | undefined) => void
 ): void {
   notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
     const { notification, pressAction } = detail;
+    
+    log.debug('Background event', { type, notificationId: notification?.id });
+    
+    // DELIVERED - Bildirim geldi, uygulamayı açmayı dene (MIUI için)
+    if (type === EventType.DELIVERED) {
+      log.debug('Background: Notification delivered', { notificationId: notification?.id });
+      if (notification?.data?.fullScreenAlarm === 'true') {
+        log.debug('Background: Full screen alarm - trying to open app');
+        // Deep link ile uygulamayı açmayı dene
+        try {
+          await Linking.openURL('ilachatirlatici://alarm');
+        } catch (e) {
+          log.debug('Could not open app via deep link');
+        }
+      }
+    }
     
     if (type === EventType.PRESS) {
       if (notification?.data) {

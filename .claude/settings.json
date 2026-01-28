@@ -1,0 +1,29 @@
+{
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "ANTHROPIC_BASE_URL": "https://api.o7.team/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "sk-business-f943fa3d15328f756543e08480030f5e3d3e4cef45f451c0",
+    "API_TIMEOUT_MS": "3000000"
+  },
+  "autoUpdatesChannel": "latest",
+  "enabledPlugins": {
+    "maestro@maestro-marketplace": true
+  },
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Edit",
+      "Write",
+      "Bash",
+      "NotebookEdit"
+    ]
+  },
+  "extraKnownMarketplaces": {
+    "maestro-marketplace": {
+      "source": {
+        "source": "directory",
+        "path": ".claude-plugin"
+      }
+    }
+  }
+}

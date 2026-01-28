@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 
 type AuthStackParamList = {
@@ -82,7 +82,7 @@ export default function RegisterScreen() {
     try {
       clearError();
       await register(email.trim(), password, name.trim());
-    } catch (err: any) {
+    } catch {
       // Hata AuthContext'te zaten set ediliyor
     }
   };
@@ -217,7 +217,7 @@ export default function RegisterScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
