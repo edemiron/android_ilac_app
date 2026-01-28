@@ -1,0 +1,56 @@
+appId: com.ilachatirlatici
+name: "03 - Add Medicine Flow Test"
+---
+# İlaç Hatırlatıcı - İlaç Ekleme Testi
+
+- launchApp:
+    appId: com.ilachatirlatici
+
+# Ana ekrana git (izinler daha önce verilmiş olmalı)
+- assertVisible:
+    text: "İlaçlarım"
+    timeout: 15000
+
+# İlaç ekle butonuna tıkla
+- tapOn:
+    text: "İlaç Ekle"
+
+# İlaç ekleme ekranını bekle
+- assertVisible:
+    text: "Yeni İlaç"
+    timeout: 5000
+
+# İlaç adı gir
+- tapOn:
+    text: "İlaç adı"
+
+- inputText: "Aspirin Test"
+
+# Dozaj gir
+- tapOn:
+    text: "Dozaj"
+    optional: true
+
+- inputText: "100mg"
+  optional: true
+
+# Sıklık seç (günde 1 kez varsayılan olabilir)
+- assertVisible:
+    text: "Sıklık"
+    optional: true
+
+# Hatırlatma zamanı ekle
+- tapOn:
+    text: "Saat Ekle"
+    optional: true
+
+# Kaydet
+- tapOn:
+    text: "Kaydet"
+
+# Ana ekrana dön ve ilacın eklendiğini doğrula
+- assertVisible:
+    text: "Aspirin Test"
+    timeout: 5000
+
+- takeScreenshot: "03_medicine_added"

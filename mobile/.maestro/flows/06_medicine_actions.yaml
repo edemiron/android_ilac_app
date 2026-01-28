@@ -1,0 +1,55 @@
+appId: com.ilachatirlatici
+name: "06 - Medicine Actions Test"
+---
+# İlaç Hatırlatıcı - İlaç Aksiyonları (Düzenle/Sil)
+
+- launchApp:
+    appId: com.ilachatirlatici
+
+# Ana ekranı bekle
+- assertVisible:
+    text: "İlaçlarım"
+    timeout: 10000
+
+# İlaçlar sekmesine git
+- tapOn:
+    text: "İlaçlar"
+    optional: true
+
+# İlaç listesini bekle
+- assertVisible:
+    text: "Tüm İlaçlar"
+    optional: true
+    timeout: 5000
+
+# İlk ilaca tıkla (düzenleme için)
+- tapOn:
+    index: 0
+    id: "medicine-item"
+    optional: true
+
+# Düzenleme ekranı açıldıysa
+- assertVisible:
+    text: "Düzenle"
+    optional: true
+    timeout: 3000
+
+# Geri dön
+- back
+
+# İlaç silme testi - long press
+- longPressOn:
+    id: "medicine-item"
+    optional: true
+
+# Sil butonu görünürse
+- tapOn:
+    text: "Sil"
+    optional: true
+
+# Onay dialogu
+- tapOn:
+    text: "İptal"
+    optional: true
+
+- takeScreenshot: "06_medicine_actions"

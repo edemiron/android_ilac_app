@@ -1,0 +1,61 @@
+appId: com.ilachatirlatici
+name: "04 - Home Screen Interactions Test"
+---
+# İlaç Hatırlatıcı - Ana Ekran Etkileşimleri
+
+- launchApp:
+    appId: com.ilachatirlatici
+
+# Ana ekranı bekle
+- assertVisible:
+    text: "İlaçlarım"
+    timeout: 10000
+
+# Hero kart görünürlüğü
+- assertVisible:
+    text: "Bugün"
+    optional: true
+
+# İlaç kartlarını kontrol et (varsa)
+- assertVisible:
+    id: "medicine-card"
+    optional: true
+
+# Pull to refresh
+- swipe:
+    direction: DOWN
+    duration: 500
+
+- extendedWaitUntil:
+    visible:
+      text: "İlaçlarım"
+    timeout: 5000
+
+# Tab navigation - İstatistikler
+- tapOn:
+    text: "İstatistikler"
+    optional: true
+
+- assertVisible:
+    text: "Uyum Oranı"
+    optional: true
+    timeout: 3000
+
+# Tab navigation - Ayarlar
+- tapOn:
+    text: "Ayarlar"
+
+- assertVisible:
+    text: "Görünüm"
+    timeout: 3000
+
+# Ana ekrana geri dön
+- tapOn:
+    text: "Ana Sayfa"
+    optional: true
+
+- tapOn:
+    text: "İlaçlarım"
+    optional: true
+
+- takeScreenshot: "04_home_interactions"

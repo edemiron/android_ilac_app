@@ -1,0 +1,46 @@
+appId: com.ilachatirlatici
+name: "02 - Permissions Flow Test"
+---
+# İlaç Hatırlatıcı - İzin Akışı Testi
+
+- launchApp:
+    appId: com.ilachatirlatici
+    clearState: true
+
+# İzin ekranını bekle
+- assertVisible:
+    text: "İzinler"
+    timeout: 10000
+
+# Bildirim izni butonu
+- assertVisible:
+    text: "Bildirim İzni"
+
+- tapOn:
+    text: "Bildirim İzni"
+    optional: true
+
+# Sistem izin dialogu gelirse izin ver
+- tapOn:
+    text: "İzin ver"
+    optional: true
+
+- tapOn:
+    text: "Allow"
+    optional: true
+
+# Alarm izni
+- tapOn:
+    text: "Alarm İzni"
+    optional: true
+
+- tapOn:
+    text: "İzin ver"
+    optional: true
+
+# Tüm izinler verildikten sonra devam et
+- tapOn:
+    text: "Devam"
+    optional: true
+
+- takeScreenshot: "02_permissions_completed"
