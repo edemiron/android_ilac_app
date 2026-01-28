@@ -95,7 +95,7 @@ export async function getPowerManagerInfo(): Promise<PowerManagerInfo | null> {
     const info = await notifee.getPowerManagerInfo();
     log.debug('Power Manager bilgisi', {
       manufacturer: info.manufacturer,
-      activity: info.activity
+      activity: info.activity,
     });
     return info;
   } catch (error) {
@@ -160,7 +160,7 @@ export async function checkAllPermissions(): Promise<{
       log.debug('Power Manager durumu', {
         manufacturer,
         hasActivity: !!powerInfo.activity,
-        activity: powerInfo.activity
+        activity: powerInfo.activity,
       });
     } catch (e) {
       log.debug('Power Manager bilgisi alinamadi');
@@ -169,12 +169,15 @@ export async function checkAllPermissions(): Promise<{
 
   return {
     notifications: settings.authorizationStatus === AuthorizationStatus.AUTHORIZED,
-    exactAlarm: Platform.OS === 'android'
-      ? settings.android.alarm === AndroidNotificationSetting.ENABLED
-      : true,
-    batteryOptimization: Platform.OS === 'android'
-      ? !androidSettingsWithBattery.batteryOptimizationStatus || androidSettingsWithBattery.batteryOptimizationStatus === 1
-      : true,
+    exactAlarm:
+      Platform.OS === 'android'
+        ? settings.android.alarm === AndroidNotificationSetting.ENABLED
+        : true,
+    batteryOptimization:
+      Platform.OS === 'android'
+        ? !androidSettingsWithBattery.batteryOptimizationStatus ||
+          androidSettingsWithBattery.batteryOptimizationStatus === 1
+        : true,
     dnd: true, // Notifee kanal ayarlarıyla bypass ediliyor
     fullScreenIntent: fullScreenIntentEnabled,
     powerManagerRestricted,
@@ -203,14 +206,17 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   try {
     log.debug('requestNotificationPermissions cagirildi');
     const settings = await notifee.requestPermission();
-    log.debug('notifee.requestPermission sonucu', { authorizationStatus: settings.authorizationStatus });
+    log.debug('notifee.requestPermission sonucu', {
+      authorizationStatus: settings.authorizationStatus,
+    });
 
     // Kanalları her durumda oluştur
     await createNotificationChannels();
     log.debug('Kanallar olusturuldu');
 
-    const isAuthorized = settings.authorizationStatus === AuthorizationStatus.AUTHORIZED ||
-                         settings.authorizationStatus === AuthorizationStatus.PROVISIONAL;
+    const isAuthorized =
+      settings.authorizationStatus === AuthorizationStatus.AUTHORIZED ||
+      settings.authorizationStatus === AuthorizationStatus.PROVISIONAL;
 
     log.debug('Izin durumu', { isAuthorized });
     return isAuthorized;
@@ -274,7 +280,7 @@ export async function displayFullScreenAlarm(
   scheduledTime: string
 ): Promise<string> {
   const timeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-  
+
   const notificationId = await notifee.displayNotification({
     id: `alarm-${medicine.id}-${reminderTime.id}`,
     title: `💊 ${medicine.name}`,
@@ -336,7 +342,7 @@ export async function scheduleMedicineNotification(
     await cancelNotification(`alarm-${medicine.id}-${reminderTime.id}`);
 
     const [hours, minutes] = reminderTime.time.split(':').map(Number);
-    
+
     // Bugün için zamanı hesapla
     const now = new Date();
     let triggerDate = new Date();
@@ -348,7 +354,9 @@ export async function scheduleMedicineNotification(
       // Sadece zaman geçmişse yarına al
       if (triggerDate <= now) {
         triggerDate.setDate(triggerDate.getDate() + 1);
-        log.debug('Alarm yarina planlandi (zaman gecti)', { triggerDate: triggerDate.toISOString() });
+        log.debug('Alarm yarina planlandi (zaman gecti)', {
+          triggerDate: triggerDate.toISOString(),
+        });
       }
     } else {
       // Normal ilaçlar için 10 dakikalık buffer uygula
@@ -357,11 +365,17 @@ export async function scheduleMedicineNotification(
       const bufferTime = new Date(now.getTime() + bufferMinutes * 60 * 1000);
       if (triggerDate <= bufferTime) {
         triggerDate.setDate(triggerDate.getDate() + 1);
-        log.debug('Alarm yarina planlandi (buffer kontrolu)', { triggerDate: triggerDate.toISOString() });
+        log.debug('Alarm yarina planlandi (buffer kontrolu)', {
+          triggerDate: triggerDate.toISOString(),
+        });
       }
     }
 
-    log.debug('Ilac bildirimi planlaniyor', { name: medicine.name, time: reminderTime.time, targetDate: triggerDate.toISOString() });
+    log.debug('Ilac bildirimi planlaniyor', {
+      name: medicine.name,
+      time: reminderTime.time,
+      targetDate: triggerDate.toISOString(),
+    });
 
     const trigger: TimestampTrigger = {
       type: TriggerType.TIMESTAMP,
@@ -375,7 +389,7 @@ export async function scheduleMedicineNotification(
 
     // Saat formatı
     const timeStr = triggerDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-    
+
     const notificationId = await notifee.createTriggerNotification(
       {
         id: `alarm-${medicine.id}-${reminderTime.id}`,
@@ -453,14 +467,15 @@ export async function scheduleTestAlarmNotification(
 
   // Saat formatı
   const timeStr = scheduledTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-  
+
   const notificationConfig = {
     id: notifId,
     title: language === 'tr' ? '💊 Test Ilaci' : '💊 Test Medicine',
     subtitle: timeStr,
-    body: language === 'tr' 
-      ? `Aspirin 500mg almanin zamani!\n⏰ ${timeStr}`
-      : `Time to take Aspirin 500mg!\n⏰ ${timeStr}`,
+    body:
+      language === 'tr'
+        ? `Aspirin 500mg almanin zamani!\n⏰ ${timeStr}`
+        : `Time to take Aspirin 500mg!\n⏰ ${timeStr}`,
     android: {
       channelId: ALARM_CHANNEL_ID,
       category: AndroidCategory.ALARM,
@@ -491,7 +506,7 @@ export async function scheduleTestAlarmNotification(
     // Minimum 5 saniye (Android kısıtlaması)
     const minSeconds = Math.max(5, seconds);
     const adjustedTime = new Date(Date.now() + minSeconds * 1000);
-    
+
     // Her zaman createTriggerNotification kullan (setTimeout arka planda çalışmaz)
     const trigger: TimestampTrigger = {
       type: TriggerType.TIMESTAMP,
@@ -502,16 +517,13 @@ export async function scheduleTestAlarmNotification(
       },
     };
 
-    log.debug('Trigger olusturuldu', { 
-      triggerType: trigger.type, 
+    log.debug('Trigger olusturuldu', {
+      triggerType: trigger.type,
       timestamp: trigger.timestamp,
-      delaySeconds: minSeconds 
+      delaySeconds: minSeconds,
     });
 
-    const notificationId = await notifee.createTriggerNotification(
-      notificationConfig,
-      trigger
-    );
+    const notificationId = await notifee.createTriggerNotification(notificationConfig, trigger);
 
     log.debug('Test alarm basariyla planlandi', { notificationId });
 
@@ -535,9 +547,18 @@ export interface ScheduleSnoozeParams {
   snoozeCount: number;
 }
 
-export async function scheduleSnoozeNotification(params: ScheduleSnoozeParams): Promise<{ notificationId: string; triggerTime: Date } | null> {
-  const { medicine, reminderTime, snoozeDuration = 5, snoozeId, originalScheduledTime, snoozeCount } = params;
-  
+export async function scheduleSnoozeNotification(
+  params: ScheduleSnoozeParams
+): Promise<{ notificationId: string; triggerTime: Date } | null> {
+  const {
+    medicine,
+    reminderTime,
+    snoozeDuration = 5,
+    snoozeId,
+    originalScheduledTime,
+    snoozeCount,
+  } = params;
+
   try {
     const triggerTime = addMinutes(new Date(), snoozeDuration);
     const notificationId = `snooze-${snoozeId}`;
@@ -552,7 +573,7 @@ export async function scheduleSnoozeNotification(params: ScheduleSnoozeParams): 
     };
 
     const timeStr = triggerTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-    
+
     await notifee.createTriggerNotification(
       {
         id: notificationId,
@@ -618,30 +639,33 @@ export async function cancelMedicineNotifications(medicineId: string): Promise<v
   try {
     // Tüm planlanmış (trigger) bildirimleri al
     const triggerIds = await notifee.getTriggerNotificationIds();
-    
+
     // Bu ilaca ait olanları filtrele (alarm-{medicineId}-* ve snooze-{medicineId}-*)
     const medicineNotificationIds = triggerIds.filter(
-      (id) => id.startsWith(`alarm-${medicineId}-`) || id.startsWith(`snooze-${medicineId}-`)
+      id => id.startsWith(`alarm-${medicineId}-`) || id.startsWith(`snooze-${medicineId}-`)
     );
-    
+
     // Her birini iptal et
     for (const notifId of medicineNotificationIds) {
       await notifee.cancelNotification(notifId);
       log.debug('Ilac bildirimi iptal edildi', { notifId, medicineId });
     }
-    
+
     // Görüntülenen bildirimleri de kontrol et
     const displayedNotifications = await notifee.getDisplayedNotifications();
     for (const notif of displayedNotifications) {
-      if (notif.id?.startsWith(`alarm-${medicineId}-`) || notif.id?.startsWith(`snooze-${medicineId}-`)) {
+      if (
+        notif.id?.startsWith(`alarm-${medicineId}-`) ||
+        notif.id?.startsWith(`snooze-${medicineId}-`)
+      ) {
         await notifee.cancelDisplayedNotification(notif.id);
         log.debug('Goruntulen bildirim iptal edildi', { notifId: notif.id, medicineId });
       }
     }
-    
-    log.debug('Ilaca ait tum bildirimler iptal edildi', { 
-      medicineId, 
-      cancelledCount: medicineNotificationIds.length 
+
+    log.debug('Ilaca ait tum bildirimler iptal edildi', {
+      medicineId,
+      cancelledCount: medicineNotificationIds.length,
     });
   } catch (error) {
     log.error('Ilac bildirimleri iptal edilirken hata', error);
@@ -700,7 +724,10 @@ export async function cleanupOrphanNotifications(validMedicineIds: string[]): Pr
     }
 
     if (cancelledCount > 0) {
-      log.debug('Yetim bildirim temizligi tamamlandi', { cancelledCount, validMedicineCount: validMedicineIds.length });
+      log.debug('Yetim bildirim temizligi tamamlandi', {
+        cancelledCount,
+        validMedicineCount: validMedicineIds.length,
+      });
     }
 
     return cancelledCount;
@@ -753,7 +780,7 @@ export function isInQuietHours(settings: UserSettings): boolean {
 
   const [startHour, startMinute] = settings.quietHoursStart.split(':').map(Number);
   const [endHour, endMinute] = settings.quietHoursEnd.split(':').map(Number);
-  
+
   const startTime = startHour * 60 + startMinute;
   const endTime = endHour * 60 + endMinute;
 
@@ -817,10 +844,10 @@ export function setupNotificationListeners(
       log.debug('Notification delivered', { notificationId: notification?.id });
       if (notification?.data?.fullScreenAlarm === 'true' && notification?.id) {
         log.debug('Full screen alarm - opening alarm screen');
-        
+
         await notifee.cancelDisplayedNotification(notification.id);
         log.debug('Bildirim iptal edildi (DELIVERED)', { notificationId: notification.id });
-        
+
         onAlarmPress({
           medicineId: notification.data.medicineId as string,
           reminderTimeId: notification.data.reminderTimeId as string,
@@ -830,7 +857,7 @@ export function setupNotificationListeners(
         });
       }
     }
-    
+
     if (type === EventType.PRESS) {
       if (notification?.id) {
         await notifee.cancelDisplayedNotification(notification.id);
@@ -854,14 +881,18 @@ export function setupNotificationListeners(
  * Background event handler (App.tsx'te çağrılacak)
  */
 export function registerBackgroundHandler(
-  onAlarmPress: (data: { medicineId: string; reminderTimeId: string; scheduledTime: string }) => void,
+  onAlarmPress: (data: {
+    medicineId: string;
+    reminderTimeId: string;
+    scheduledTime: string;
+  }) => void,
   onAction: (actionId: string, data: NotificationData | undefined) => void
 ): void {
   notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
     const { notification, pressAction } = detail;
-    
+
     log.debug('Background event', { type, notificationId: notification?.id });
-    
+
     // DELIVERED - Bildirim geldi, uygulamayı açmayı dene (MIUI için)
     if (type === EventType.DELIVERED) {
       log.debug('Background: Notification delivered', { notificationId: notification?.id });
@@ -875,7 +906,7 @@ export function registerBackgroundHandler(
         }
       }
     }
-    
+
     if (type === EventType.PRESS) {
       if (notification?.data) {
         onAlarmPress({
@@ -888,6 +919,100 @@ export function registerBackgroundHandler(
       onAction(pressAction.id, notification?.data);
     }
   });
+}
+
+/**
+ * Son kullanma tarihi hatırlatma bildirimi planla
+ */
+export async function scheduleExpiryReminder(
+  medicine: Medicine,
+  expiryDate: string,
+  reminderDays: number,
+  language: 'tr' | 'en' = 'tr'
+): Promise<string | null> {
+  try {
+    const expiry = new Date(expiryDate);
+    const reminderDate = new Date(expiry);
+    reminderDate.setDate(reminderDate.getDate() - reminderDays);
+
+    // Bildirim zamanı sabah 10:00
+    reminderDate.setHours(10, 0, 0, 0);
+
+    // Geçmiş tarih kontrolü
+    if (reminderDate <= new Date()) {
+      log.debug('Son kullanma hatirlatma tarihi gecmis, planlanmadi', {
+        medicineName: medicine.name,
+        reminderDate: reminderDate.toISOString(),
+      });
+      return null;
+    }
+
+    const notificationId = `expiry-${medicine.id}`;
+
+    // Mevcut bildirimi iptal et
+    await cancelNotification(notificationId);
+
+    const trigger: TimestampTrigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: reminderDate.getTime(),
+      alarmManager: {
+        allowWhileIdle: true,
+      },
+    };
+
+    const title =
+      language === 'tr'
+        ? `⚠️ ${medicine.name} - Son Kullanma Tarihi Yaklaşıyor`
+        : `⚠️ ${medicine.name} - Expiry Date Approaching`;
+
+    const body =
+      language === 'tr'
+        ? `${medicine.name} ilacınızın son kullanma tarihine ${reminderDays} gün kaldı.`
+        : `${medicine.name} will expire in ${reminderDays} days.`;
+
+    await notifee.createTriggerNotification(
+      {
+        id: notificationId,
+        title,
+        body,
+        android: {
+          channelId: REMINDER_CHANNEL_ID,
+          importance: AndroidImportance.HIGH,
+          pressAction: PRESS_ACTION,
+          smallIcon: 'ic_launcher',
+          color: '#FF6B6B',
+        },
+        data: {
+          medicineId: medicine.id,
+          type: 'expiry_reminder',
+        },
+      },
+      trigger
+    );
+
+    log.debug('Son kullanma hatirlatmasi planlandi', {
+      medicineName: medicine.name,
+      reminderDate: reminderDate.toISOString(),
+      notificationId,
+    });
+
+    return notificationId;
+  } catch (error) {
+    log.error('Son kullanma hatirlatmasi planlanirken hata', error);
+    return null;
+  }
+}
+
+/**
+ * Son kullanma tarihi bildirimini iptal et
+ */
+export async function cancelExpiryReminder(medicineId: string): Promise<void> {
+  try {
+    await cancelNotification(`expiry-${medicineId}`);
+    log.debug('Son kullanma hatirlatmasi iptal edildi', { medicineId });
+  } catch (error) {
+    log.error('Son kullanma hatirlatmasi iptal edilirken hata', error);
+  }
 }
 
 // Expo-notifications ile uyumluluk için eski fonksiyon adları

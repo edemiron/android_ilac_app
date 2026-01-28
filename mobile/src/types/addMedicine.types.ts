@@ -17,6 +17,10 @@ export interface AddMedicineFormState {
   stockCount: number;
   stockThreshold: number;
   stockUnit: string;
+
+  // Son kullanma tarihi
+  expiryDate: string | null; // ISO date string veya null (opsiyonel)
+  expiryReminderDays: number; // Varsayılan: 30
 }
 
 /**
@@ -67,4 +71,4 @@ export interface FormValidationResult {
  * Frequency seçenekleri
  */
 export const FREQUENCY_OPTIONS = [1, 2, 3, 4, 5, 6] as const;
-export type FrequencyOption = typeof FREQUENCY_OPTIONS[number];
+export type FrequencyOption = (typeof FREQUENCY_OPTIONS)[number];

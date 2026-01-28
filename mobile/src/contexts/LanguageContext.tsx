@@ -25,13 +25,13 @@ const tr = {
   error: 'Hata',
   success: 'Başarılı',
   warning: 'Uyarı',
-  
+
   // Tab bar
   tab_home: 'Ana Sayfa',
   tab_medicines: 'İlaçlarım',
   tab_statistics: 'İstatistikler',
   tab_settings: 'Ayarlar',
-  
+
   // Ana sayfa
   home_title: 'İlaç Hatırlatıcı',
   home_today_reminders: 'Bugünkü Hatırlatmalar',
@@ -44,7 +44,7 @@ const tr = {
   home_pending: 'Bekliyor',
   home_skipped: 'Atlandı',
   home_missed: 'Kaçırıldı',
-  
+
   // İlaç listesi
   medicines_title: 'İlaçlarım',
   medicines_empty: 'Henüz ilaç eklenmemiş',
@@ -52,7 +52,7 @@ const tr = {
   medicines_active: 'Aktif',
   medicines_inactive: 'Pasif',
   medicines_times_per_day: 'günde {count} kez',
-  
+
   // İlaç ekleme/düzenleme
   add_medicine_title: 'Yeni İlaç Ekle',
   edit_medicine_title: 'İlacı Düzenle',
@@ -68,7 +68,7 @@ const tr = {
   medicine_end_date: 'Bitiş Tarihi (Opsiyonel)',
   medicine_reminder_times: 'Hatırlatma Zamanları',
   medicine_scan_barcode: 'Barkod Tara',
-  
+
   // Kullanım talimatları
   instruction_before_meal: 'Yemekten önce',
   instruction_after_meal: 'Yemekten sonra',
@@ -76,14 +76,14 @@ const tr = {
   instruction_empty_stomach: 'Aç karnına',
   instruction_before_sleep: 'Yatmadan önce',
   instruction_any_time: 'Herhangi bir zaman',
-  
+
   // Ayarlar
   settings_title: 'Ayarlar',
   settings_general: 'Genel',
   settings_notifications: 'Bildirimler',
   settings_appearance: 'Görünüm',
   settings_about: 'Hakkında',
-  
+
   settings_wake_time: 'Uyanma Saati',
   settings_sleep_time: 'Uyku Saati',
   settings_language: 'Dil',
@@ -91,7 +91,7 @@ const tr = {
   settings_theme_light: 'Açık',
   settings_theme_dark: 'Koyu',
   settings_theme_system: 'Sistem',
-  
+
   settings_notifications_enabled: 'Bildirimler',
   settings_sound: 'Ses',
   settings_vibration: 'Titreşim',
@@ -100,11 +100,11 @@ const tr = {
   settings_test_notification: 'Test Bildirimi Gönder',
   settings_open_settings: 'Ayarları Aç',
   settings_notification_permission: 'Bildirim izni gerekli',
-  
+
   settings_version: 'Versiyon',
   settings_rate_app: 'Uygulamayı Değerlendir',
   settings_contact: 'İletişim',
-  
+
   // İstatistikler
   stats_title: 'İstatistikler',
   stats_weekly: 'Haftalık',
@@ -117,24 +117,24 @@ const tr = {
   stats_best_streak: 'En İyi Seri',
   stats_no_data: 'Henüz veri yok',
   stats_history: 'Geçmiş',
-  
+
   // Alarm
   alarm_time_to_take: 'İlaç zamanı!',
   alarm_take_now: 'Şimdi Al',
   alarm_snooze: 'Ertele',
   alarm_skip: 'Atla',
   alarm_snooze_minutes: '{minutes} dakika ertele',
-  
+
   // Barkod tarama
   barcode_title: 'Barkod Tara',
   barcode_scanning: 'Taranıyor...',
   barcode_align: 'Barkodu çerçeveye hizalayın',
   barcode_not_found: 'İlaç bulunamadı',
   barcode_camera_permission: 'Kamera izni gerekli',
-  
+
   // Prospektüs
   prospectus_title: 'Prospektüs',
-  
+
   // İlaç etkileşimi
   interaction_title: 'İlaç Etkileşimleri',
   interaction_checking: 'Kontrol ediliyor...',
@@ -144,20 +144,35 @@ const tr = {
   interaction_severity_moderate: 'Orta',
   interaction_severity_high: 'Yüksek',
   interaction_consult_doctor: 'Doktorunuza danışın',
-  
+
   // Stok takibi
   stock_title: 'Stok Durumu',
   stock_remaining: 'Kalan: {count}',
   stock_low: 'Stok azalıyor',
   stock_empty: 'Stok bitti',
   stock_refill_reminder: 'Yenileme hatırlatıcısı',
-  
+
+  // Son kullanma tarihi
+  expiry_title: 'Son Kullanma Tarihi',
+  expiry_date: 'Tarih',
+  expiry_date_placeholder: 'Tarih seçin',
+  expiry_reminder: 'Hatırlatma',
+  expiry_reminder_days: '{days} gün önce',
+  expiry_1_week: '1 hafta',
+  expiry_2_weeks: '2 hafta',
+  expiry_1_month: '1 ay',
+  expiry_3_months: '3 ay',
+  expiry_expired: 'Süresi doldu',
+  expiry_expires_today: 'Bugün doluyor',
+  expiry_expires_soon: '{days} gün kaldı',
+  expiry_clear: 'Temizle',
+
   // Hata mesajları
   error_required_field: 'Bu alan zorunludur',
   error_invalid_time: 'Geçersiz zaman formatı',
   error_network: 'Bağlantı hatası',
   error_unknown: 'Bilinmeyen hata',
-  
+
   // Onay mesajları
   confirm_delete_medicine: 'Bu ilacı silmek istediğinizden emin misiniz?',
   confirm_skip_medicine: 'Bu dozu atlamak istediğinizden emin misiniz?',
@@ -180,13 +195,13 @@ const en: typeof tr = {
   error: 'Error',
   success: 'Success',
   warning: 'Warning',
-  
+
   // Tab bar
   tab_home: 'Home',
   tab_medicines: 'Medicines',
   tab_statistics: 'Statistics',
   tab_settings: 'Settings',
-  
+
   // Home screen
   home_title: 'Medicine Reminder',
   home_today_reminders: "Today's Reminders",
@@ -199,7 +214,7 @@ const en: typeof tr = {
   home_pending: 'Pending',
   home_skipped: 'Skipped',
   home_missed: 'Missed',
-  
+
   // Medicine list
   medicines_title: 'My Medicines',
   medicines_empty: 'No medicines added yet',
@@ -207,7 +222,7 @@ const en: typeof tr = {
   medicines_active: 'Active',
   medicines_inactive: 'Inactive',
   medicines_times_per_day: '{count} times/day',
-  
+
   // Add/Edit medicine
   add_medicine_title: 'Add New Medicine',
   edit_medicine_title: 'Edit Medicine',
@@ -223,7 +238,7 @@ const en: typeof tr = {
   medicine_end_date: 'End Date (Optional)',
   medicine_reminder_times: 'Reminder Times',
   medicine_scan_barcode: 'Scan Barcode',
-  
+
   // Instructions
   instruction_before_meal: 'Before meal',
   instruction_after_meal: 'After meal',
@@ -231,14 +246,14 @@ const en: typeof tr = {
   instruction_empty_stomach: 'Empty stomach',
   instruction_before_sleep: 'Before sleep',
   instruction_any_time: 'Any time',
-  
+
   // Settings
   settings_title: 'Settings',
   settings_general: 'General',
   settings_notifications: 'Notifications',
   settings_appearance: 'Appearance',
   settings_about: 'About',
-  
+
   settings_wake_time: 'Wake Up Time',
   settings_sleep_time: 'Sleep Time',
   settings_language: 'Language',
@@ -246,7 +261,7 @@ const en: typeof tr = {
   settings_theme_light: 'Light',
   settings_theme_dark: 'Dark',
   settings_theme_system: 'System',
-  
+
   settings_notifications_enabled: 'Notifications',
   settings_sound: 'Sound',
   settings_vibration: 'Vibration',
@@ -255,11 +270,11 @@ const en: typeof tr = {
   settings_test_notification: 'Send Test Notification',
   settings_open_settings: 'Open Settings',
   settings_notification_permission: 'Notification permission required',
-  
+
   settings_version: 'Version',
   settings_rate_app: 'Rate App',
   settings_contact: 'Contact',
-  
+
   // Statistics
   stats_title: 'Statistics',
   stats_weekly: 'Weekly',
@@ -272,24 +287,24 @@ const en: typeof tr = {
   stats_best_streak: 'Best Streak',
   stats_no_data: 'No data yet',
   stats_history: 'History',
-  
+
   // Alarm
   alarm_time_to_take: 'Time to take medicine!',
   alarm_take_now: 'Take Now',
   alarm_snooze: 'Snooze',
   alarm_skip: 'Skip',
   alarm_snooze_minutes: 'Snooze {minutes} min',
-  
+
   // Barcode scanning
   barcode_title: 'Scan Barcode',
   barcode_scanning: 'Scanning...',
   barcode_align: 'Align barcode in frame',
   barcode_not_found: 'Medicine not found',
   barcode_camera_permission: 'Camera permission required',
-  
+
   // Prospectus
   prospectus_title: 'Prospectus',
-  
+
   // Drug interactions
   interaction_title: 'Drug Interactions',
   interaction_checking: 'Checking...',
@@ -299,20 +314,35 @@ const en: typeof tr = {
   interaction_severity_moderate: 'Moderate',
   interaction_severity_high: 'High',
   interaction_consult_doctor: 'Consult your doctor',
-  
+
   // Stock tracking
   stock_title: 'Stock Status',
   stock_remaining: 'Remaining: {count}',
   stock_low: 'Stock is low',
   stock_empty: 'Out of stock',
   stock_refill_reminder: 'Refill reminder',
-  
+
+  // Expiry date
+  expiry_title: 'Expiry Date',
+  expiry_date: 'Date',
+  expiry_date_placeholder: 'Select date',
+  expiry_reminder: 'Reminder',
+  expiry_reminder_days: '{days} days before',
+  expiry_1_week: '1 week',
+  expiry_2_weeks: '2 weeks',
+  expiry_1_month: '1 month',
+  expiry_3_months: '3 months',
+  expiry_expired: 'Expired',
+  expiry_expires_today: 'Expires today',
+  expiry_expires_soon: '{days} days left',
+  expiry_clear: 'Clear',
+
   // Error messages
   error_required_field: 'This field is required',
   error_invalid_time: 'Invalid time format',
   error_network: 'Network error',
   error_unknown: 'Unknown error',
-  
+
   // Confirmation messages
   confirm_delete_medicine: 'Are you sure you want to delete this medicine?',
   confirm_skip_medicine: 'Are you sure you want to skip this dose?',
@@ -377,14 +407,14 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
   // Çeviri fonksiyonu
   const t = (key: TranslationKey, params?: Record<string, string | number>): string => {
     let text = translations[language][key] || translations['tr'][key] || key;
-    
+
     // Parametreleri değiştir
     if (params) {
       Object.entries(params).forEach(([paramKey, value]) => {
         text = text.replace(`{${paramKey}}`, String(value));
       });
     }
-    
+
     return text;
   };
 

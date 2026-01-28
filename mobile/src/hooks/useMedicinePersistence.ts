@@ -5,7 +5,11 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, Medicine } from '../types';
-import { scheduleMedicineNotification } from '../utils/notifications';
+import {
+  scheduleMedicineNotification,
+  scheduleExpiryReminder,
+  cancelExpiryReminder,
+} from '../utils/notifications';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { AddMedicineFormState } from '../types/addMedicine.types';
 import { TranslationKey } from '../contexts/LanguageContext';
@@ -57,7 +61,7 @@ export function useMedicinePersistence({
           frequency: formState.frequency,
           instruction: formState.instruction,
         });
-        newMedicineTimes = calculatedTimes.map((rt) => rt.time);
+        newMedicineTimes = calculatedTimes.map(rt => rt.time);
       }
 
       // Mevcut aktif ilaçların saatlerini al (düzenleme modunda kendi saatlerini hariç tut)
@@ -85,10 +89,10 @@ export function useMedicinePersistence({
 
       // Çakışan saatleri grupla
       const conflictMessages = existingConflicts
-        .map((c) => `⏰ ${c.time} - ${c.medicineName}`)
+        .map(c => `⏰ ${c.time} - ${c.medicineName}`)
         .join('\n');
 
-      return new Promise<boolean>((resolve) => {
+      return new Promise<boolean>(resolve => {
         Alert.alert(
           language === 'tr' ? '⏰ Saat Çakışması Tespit Edildi' : '⏰ Time Conflict Detected',
           `${language === 'tr' ? 'Bu ilaç aşağıdaki ilaçlarla aynı saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${conflictMessages}\n\n${language === 'tr' ? 'Yine de eklemek istiyor musunuz?' : 'Do you still want to add this medicine?'}`,
@@ -160,7 +164,7 @@ export function useMedicinePersistence({
       }
 
       if (!isEditing) {
-        const activeMedicines = medicines.filter((m) => m.isActive);
+        const activeMedicines = medicines.filter(m => m.isActive);
         const limitCheck = checkCanAddMedicine(activeMedicines.length);
         if (!limitCheck.allowed) {
           Alert.alert(
@@ -183,18 +187,18 @@ export function useMedicinePersistence({
 
       // İlaç etkileşim kontrolü
       const activeMedicineNames = medicines
-        .filter((m) => m.isActive && (!isEditing || m.id !== medicineId))
-        .map((m) => m.name);
+        .filter(m => m.isActive && (!isEditing || m.id !== medicineId))
+        .map(m => m.name);
       const allDrugNames = [...activeMedicineNames, formState.name.trim()];
 
       const interactionResult = checkMultipleInteractions(allDrugNames);
 
       if (interactionResult.hasInteractions) {
         const interactionMessages = interactionResult.interactions
-          .map((i) => `${getSeverityIcon(i.severity)} ${i.drug1} + ${i.drug2}\n${i.description}`)
+          .map(i => `${getSeverityIcon(i.severity)} ${i.drug1} + ${i.drug2}\n${i.description}`)
           .join('\n\n');
 
-        return new Promise<boolean>((resolve) => {
+        return new Promise<boolean>(resolve => {
           Alert.alert(
             language === 'tr' ? '⚠️ İlaç Etkileşimi Tespit Edildi' : '⚠️ Drug Interaction Detected',
             `${interactionMessages}\n\n${language === 'tr' ? 'Yine de eklemek istiyor musunuz?' : 'Do you still want to add this medicine?'}`,
@@ -231,15 +235,7 @@ export function useMedicinePersistence({
 
       return saveMedicine(formState);
     },
-    [
-      isEditing,
-      medicineId,
-      medicines,
-      checkCanAddMedicine,
-      language,
-      t,
-      navigation,
-    ]
+    [isEditing, medicineId, medicines, checkCanAddMedicine, language, t, navigation]
   );
 
   const saveMedicine = useCallback(
@@ -257,6 +253,9 @@ export function useMedicinePersistence({
           stockCount: formState.stockEnabled ? formState.stockCount : undefined,
           stockThreshold: formState.stockEnabled ? formState.stockThreshold : undefined,
           stockUnit: formState.stockEnabled ? formState.stockUnit : undefined,
+          // Son kullanma tarihi
+          expiryDate: formState.expiryDate || undefined,
+          expiryReminderDays: formState.expiryDate ? formState.expiryReminderDays : undefined,
         };
 
         if (isEditing && medicineId) {
@@ -266,11 +265,18 @@ export function useMedicinePersistence({
           const medicine = freshState.getMedicineById(medicineId);
           if (medicine) {
             for (const time of times) {
-              await scheduleMedicineNotification(
+              await scheduleMedicineNotification(medicine, time, settings.fullScreenAlarmEnabled);
+            }
+            // Son kullanma tarihi bildirimi planla/iptal et
+            if (formState.expiryDate && formState.expiryReminderDays) {
+              await scheduleExpiryReminder(
                 medicine,
-                time,
-                settings.fullScreenAlarmEnabled
+                formState.expiryDate,
+                formState.expiryReminderDays,
+                language
               );
+            } else {
+              await cancelExpiryReminder(medicineId);
             }
           }
         } else {
@@ -283,21 +289,26 @@ export function useMedicinePersistence({
           const freshState = useMedicineStore.getState();
           const times = freshState.getReminderTimesForMedicine(newMedicineId);
           const medicine = freshState.getMedicineById(newMedicineId);
-          
+
           log.debug('Yeni ilac eklendi', {
             medicineId: newMedicineId,
             medicineName: medicine?.name,
             reminderTimesCount: times.length,
           });
-          
+
           if (medicine && times.length > 0) {
             for (const time of times) {
-              await scheduleMedicineNotification(
-                medicine,
-                time,
-                settings.fullScreenAlarmEnabled
-              );
+              await scheduleMedicineNotification(medicine, time, settings.fullScreenAlarmEnabled);
               log.debug('Bildirim planlandi', { time: time.time });
+            }
+            // Son kullanma tarihi bildirimi planla
+            if (formState.expiryDate && formState.expiryReminderDays) {
+              await scheduleExpiryReminder(
+                medicine,
+                formState.expiryDate,
+                formState.expiryReminderDays,
+                language
+              );
             }
           } else {
             log.warn('Ilac veya reminder times bulunamadi', {

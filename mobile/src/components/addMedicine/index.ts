@@ -7,3 +7,4 @@ export { ReminderTimes } from './ReminderTimes';
 export { FormButtons } from './FormButtons';
 export { BarcodeSection } from './BarcodeSection';
 export { StockSection } from './StockSection';
+export { ExpirySection } from './ExpirySection';

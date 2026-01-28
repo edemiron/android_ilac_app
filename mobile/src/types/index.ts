@@ -21,16 +21,20 @@ export interface Medicine {
   stockCount?: number; // Mevcut stok sayısı
   stockThreshold?: number; // Az kaldı uyarı eşiği (varsayılan: 5)
   stockUnit?: string; // Birim: "tablet", "kapsül", "ml", "doz" vb.
+
+  // Son kullanma tarihi
+  expiryDate?: string; // ISO date string (YYYY-MM-DD)
+  expiryReminderDays?: number; // Kaç gün önce hatırlat (7, 14, 30, 90)
 }
 
 // İlaç kullanım talimatları
-export type MedicineInstruction = 
-  | 'before_meal'    // Yemekten önce
-  | 'after_meal'     // Yemekten sonra
-  | 'with_meal'      // Yemekle birlikte
-  | 'empty_stomach'  // Aç karnına
-  | 'before_sleep'   // Yatmadan önce
-  | 'any_time';      // Herhangi bir zaman
+export type MedicineInstruction =
+  | 'before_meal' // Yemekten önce
+  | 'after_meal' // Yemekten sonra
+  | 'with_meal' // Yemekle birlikte
+  | 'empty_stomach' // Aç karnına
+  | 'before_sleep' // Yatmadan önce
+  | 'any_time'; // Herhangi bir zaman
 
 // Hatırlatma zamanı
 export interface ReminderTime {
@@ -47,24 +51,24 @@ export type AlarmSoundType = 'alarm' | 'default' | 'gentle' | 'urgent';
 
 export interface UserSettings {
   wakeUpTime: string; // "HH:mm" - varsayılan "08:00"
-  sleepTime: string;  // "HH:mm" - varsayılan "23:00"
+  sleepTime: string; // "HH:mm" - varsayılan "23:00"
   notificationSound: string;
   vibrationEnabled: boolean;
   fullScreenAlarmEnabled: boolean;
   language: 'tr' | 'en';
-  
+
   // Alarm sesi ayarı
   alarmSound: AlarmSoundType; // Varsayılan 'alarm'
   alarmVolume: number; // 0-100 arası (varsayılan 80)
-  
+
   // Erteleme ayarları
   snoozeDuration: number; // dakika cinsinden (varsayılan 5)
-  
+
   // Gece modu (sessiz saatler)
   quietHoursEnabled: boolean;
   quietHoursStart: string; // "HH:mm" formatında (varsayılan "23:00")
-  quietHoursEnd: string;   // "HH:mm" formatında (varsayılan "07:00")
-  
+  quietHoursEnd: string; // "HH:mm" formatında (varsayılan "07:00")
+
   // Alarm modu - Sessizde bile ses çıkar
   alarmModeEnabled: boolean; // Telefon sessizde/titreşimde bile alarm sesi çalar
 }
@@ -167,17 +171,17 @@ export interface GlobalMedicine {
   form: MedicineForm; // Tablet, şurup, vb.
   manufacturer: string; // Üretici firma
   country: string; // Ülke kodu (TR, US, DE, vb.)
-  
+
   // Prospektüs bilgileri
   prospectus?: MedicineProspectus;
-  
+
   // Meta bilgiler
   imageUrl?: string;
   isVerified: boolean; // Admin onaylı mı?
   addedBy: 'ai' | 'user' | 'admin';
   addedByUserId?: string;
   searchCount: number; // Popülerlik için
-  
+
   createdAt: string;
   updatedAt: string;
 
@@ -186,7 +190,7 @@ export interface GlobalMedicine {
 }
 
 // İlaç formu
-export type MedicineForm = 
+export type MedicineForm =
   | 'tablet'
   | 'capsule'
   | 'syrup'
@@ -242,12 +246,12 @@ export interface AISearchResult {
 // ============ HİBRİT ARAMA SİSTEMİ ============
 
 // Arama kaynağı
-export type SearchSource = 
-  | 'firebase'        // Firebase globalMedicines
-  | 'titck_cache'     // TİTCK Excel cache
+export type SearchSource =
+  | 'firebase' // Firebase globalMedicines
+  | 'titck_cache' // TİTCK Excel cache
   | 'open_food_facts' // Open Food Facts API
-  | 'ai'              // AI (Gemini/OpenAI)
-  | 'manual';         // Kullanıcı manuel girişi
+  | 'ai' // AI (Gemini/OpenAI)
+  | 'manual'; // Kullanıcı manuel girişi
 
 // Hibrit arama sonucu
 export interface HybridSearchResult {

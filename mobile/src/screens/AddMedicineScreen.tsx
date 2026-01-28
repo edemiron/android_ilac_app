@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAddMedicine } from '../hooks/useAddMedicine';
@@ -21,6 +15,7 @@ import {
   FormButtons,
   BarcodeSection,
   StockSection,
+  ExpirySection,
 } from '../components/addMedicine';
 
 export default function AddMedicineScreen() {
@@ -83,7 +78,7 @@ export default function AddMedicineScreen() {
 
           <MedicineNameInput
             value={formState.name}
-            onChangeText={(text) => updateFormField('name', text)}
+            onChangeText={text => updateFormField('name', text)}
             onFocus={() => setNameInputFocused(true)}
             onBlur={() => setNameInputFocused(false)}
             autocompleteState={autocompleteState}
@@ -95,7 +90,7 @@ export default function AddMedicineScreen() {
 
           <DosageInput
             value={formState.dosage}
-            onChangeText={(text) => updateFormField('dosage', text)}
+            onChangeText={text => updateFormField('dosage', text)}
             label={t('medicine_dosage')}
             placeholder={t('medicine_dosage_placeholder')}
             colors={colors}
@@ -103,14 +98,14 @@ export default function AddMedicineScreen() {
 
           <FrequencySelector
             value={formState.frequency}
-            onSelect={(freq) => updateFormField('frequency', freq)}
+            onSelect={freq => updateFormField('frequency', freq)}
             label={t('medicine_frequency')}
             colors={colors}
           />
 
           <InstructionSelector
             value={formState.instruction}
-            onSelect={(inst) => updateFormField('instruction', inst)}
+            onSelect={inst => updateFormField('instruction', inst)}
             options={INSTRUCTION_OPTIONS}
             label={t('medicine_instruction')}
             colors={colors}
@@ -118,7 +113,7 @@ export default function AddMedicineScreen() {
 
           <ColorPicker
             value={formState.selectedColor}
-            onSelect={(color) => updateFormField('selectedColor', color)}
+            onSelect={color => updateFormField('selectedColor', color)}
             label={t('medicine_color')}
             colors={colors}
           />
@@ -148,11 +143,21 @@ export default function AddMedicineScreen() {
             count={formState.stockCount}
             threshold={formState.stockThreshold}
             unit={formState.stockUnit}
-            onEnabledChange={(enabled) => updateFormField('stockEnabled', enabled)}
-            onCountChange={(count) => updateFormField('stockCount', count)}
-            onThresholdChange={(threshold) => updateFormField('stockThreshold', threshold)}
-            onUnitChange={(unit) => updateFormField('stockUnit', unit)}
+            onEnabledChange={enabled => updateFormField('stockEnabled', enabled)}
+            onCountChange={count => updateFormField('stockCount', count)}
+            onThresholdChange={threshold => updateFormField('stockThreshold', threshold)}
+            onUnitChange={unit => updateFormField('stockUnit', unit)}
             label={language === 'tr' ? 'Stok Takibi' : 'Stock Tracking'}
+            colors={colors}
+            language={language}
+          />
+
+          <ExpirySection
+            expiryDate={formState.expiryDate}
+            expiryReminderDays={formState.expiryReminderDays}
+            onExpiryDateChange={date => updateFormField('expiryDate', date)}
+            onReminderDaysChange={days => updateFormField('expiryReminderDays', days)}
+            label={t('expiry_title')}
             colors={colors}
             language={language}
           />

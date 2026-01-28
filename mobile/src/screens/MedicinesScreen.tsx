@@ -15,11 +15,37 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, Medicine } from '../types';
 import { formatTimeDisplay, getInstructionText } from '../utils/timeCalculator';
+import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage, TranslationKey } from '../contexts/LanguageContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+// Son kullanma tarihi durumu hesaplama
+type ExpiryStatus =
+  | { type: 'expired' }
+  | { type: 'expires_today' }
+  | { type: 'expires_soon'; daysLeft: number }
+  | { type: 'ok' }
+  | null;
+
+function getExpiryStatus(expiryDate: string | undefined): ExpiryStatus {
+  if (!expiryDate) return null;
+
+  try {
+    const today = startOfDay(new Date());
+    const expiry = startOfDay(parseISO(expiryDate));
+    const daysLeft = differenceInDays(expiry, today);
+
+    if (daysLeft < 0) return { type: 'expired' };
+    if (daysLeft === 0) return { type: 'expires_today' };
+    if (daysLeft <= 30) return { type: 'expires_soon', daysLeft };
+    return { type: 'ok' };
+  } catch {
+    return null;
+  }
+}
 
 interface SectionProps {
   icon: string;
@@ -31,11 +57,16 @@ interface SectionProps {
 }
 
 const Section: React.FC<SectionProps> = ({ icon, title, count, children, colors, isDark }) => (
-  <View style={[styles.section, { 
-    backgroundColor: colors.card,
-    shadowOpacity: isDark ? 0 : 0.05,
-    elevation: isDark ? 0 : 1,
-  }]}>
+  <View
+    style={[
+      styles.section,
+      {
+        backgroundColor: colors.card,
+        shadowOpacity: isDark ? 0 : 0.05,
+        elevation: isDark ? 0 : 1,
+      },
+    ]}
+  >
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionIcon}>{icon}</Text>
       <Text style={[styles.sectionTitle, { color: colors.primary }]}>
@@ -88,8 +119,12 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
       [
         {
           text: medicine.isActive
-            ? (language === 'tr' ? 'Duraklat' : 'Pause')
-            : (language === 'tr' ? 'Aktifleştir' : 'Activate'),
+            ? language === 'tr'
+              ? 'Duraklat'
+              : 'Pause'
+            : language === 'tr'
+              ? 'Aktifleştir'
+              : 'Activate',
           onPress: onToggleActive,
         },
         {
@@ -119,6 +154,47 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
     }
   };
 
+  // Son kullanma tarihi durumunu hesapla
+  const expiryStatus = getExpiryStatus(medicine.expiryDate);
+
+  const getExpiryBadge = () => {
+    if (!expiryStatus) return null;
+
+    switch (expiryStatus.type) {
+      case 'expired':
+        return (
+          <View style={[styles.expiryBadge, { backgroundColor: colors.error + '20' }]}>
+            <Ionicons name="alert-circle" size={12} color={colors.error} />
+            <Text style={[styles.expiryBadgeText, { color: colors.error }]}>
+              {language === 'tr' ? 'Süresi doldu' : 'Expired'}
+            </Text>
+          </View>
+        );
+      case 'expires_today':
+        return (
+          <View style={[styles.expiryBadge, { backgroundColor: colors.error + '20' }]}>
+            <Ionicons name="alert-circle" size={12} color={colors.error} />
+            <Text style={[styles.expiryBadgeText, { color: colors.error }]}>
+              {language === 'tr' ? 'Bugün doluyor' : 'Expires today'}
+            </Text>
+          </View>
+        );
+      case 'expires_soon':
+        return (
+          <View
+            style={[styles.expiryBadge, { backgroundColor: (colors.warning || '#F59E0B') + '20' }]}
+          >
+            <Ionicons name="time-outline" size={12} color={colors.warning || '#F59E0B'} />
+            <Text style={[styles.expiryBadgeText, { color: colors.warning || '#F59E0B' }]}>
+              {language === 'tr' ? `${expiryStatus.daysLeft} gün` : `${expiryStatus.daysLeft} days`}
+            </Text>
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <TouchableOpacity
       style={[
@@ -133,11 +209,13 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
     >
       <View style={styles.rowContent}>
         {isSelectionMode && (
-          <View style={[
-            styles.checkbox,
-            { borderColor: isSelected ? colors.primary : colors.border },
-            isSelected && { backgroundColor: colors.primary },
-          ]}>
+          <View
+            style={[
+              styles.checkbox,
+              { borderColor: isSelected ? colors.primary : colors.border },
+              isSelected && { backgroundColor: colors.primary },
+            ]}
+          >
             {isSelected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
           </View>
         )}
@@ -146,11 +224,13 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
         </View>
         <View style={styles.medicineInfo}>
           <View style={styles.medicineHeader}>
-            <Text style={[
-              styles.medicineName, 
-              { color: colors.text },
-              !medicine.isActive && { color: colors.textMuted }
-            ]}>
+            <Text
+              style={[
+                styles.medicineName,
+                { color: colors.text },
+                !medicine.isActive && { color: colors.textMuted },
+              ]}
+            >
               {medicine.name}
             </Text>
             {!medicine.isActive && (
@@ -160,6 +240,7 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
                 </Text>
               </View>
             )}
+            {getExpiryBadge()}
           </View>
           <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
             {medicine.dosage} • {t('medicines_times_per_day', { count: medicine.frequency })}
@@ -169,9 +250,21 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
             {times.map((time, index) => (
               <View
                 key={index}
-                style={[styles.timeChip, { backgroundColor: medicine.isActive ? medicine.color + '15' : colors.inputBackground }]}
+                style={[
+                  styles.timeChip,
+                  {
+                    backgroundColor: medicine.isActive
+                      ? medicine.color + '15'
+                      : colors.inputBackground,
+                  },
+                ]}
               >
-                <Text style={[styles.timeChipText, { color: medicine.isActive ? medicine.color : colors.textMuted }]}>
+                <Text
+                  style={[
+                    styles.timeChipText,
+                    { color: medicine.isActive ? medicine.color : colors.textMuted },
+                  ]}
+                >
                   {formatTimeDisplay(time)}
                 </Text>
               </View>
@@ -190,19 +283,15 @@ export default function MedicinesScreen() {
   const { t, language } = useLanguage();
   const { canAddMedicine } = useSubscription();
 
-  const {
-    medicines,
-    getReminderTimesForMedicine,
-    toggleMedicineActive,
-    deleteMedicine
-  } = useMedicineStore();
+  const { medicines, getReminderTimesForMedicine, toggleMedicineActive, deleteMedicine } =
+    useMedicineStore();
 
   // Selection mode state
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const activeMedicines = medicines.filter((m) => m.isActive);
-  const inactiveMedicines = medicines.filter((m) => !m.isActive);
+  const activeMedicines = medicines.filter(m => m.isActive);
+  const inactiveMedicines = medicines.filter(m => !m.isActive);
 
   // Toggle selection for a medicine
   const toggleSelection = useCallback((id: string) => {
@@ -251,7 +340,7 @@ export default function MedicinesScreen() {
           onPress: () => {
             selectedIds.forEach(id => deleteMedicine(id));
             exitSelectionMode();
-          }
+          },
         },
       ]
     );
@@ -259,30 +348,34 @@ export default function MedicinesScreen() {
 
   const handleAddMedicine = () => {
     const { allowed, reason } = canAddMedicine(medicines.length);
-    
+
     if (!allowed) {
-      Alert.alert(
-        language === 'tr' ? 'İlaç Limiti' : 'Medicine Limit',
-        reason,
-        [
-          { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
-          { 
-            text: language === 'tr' ? 'Premium\'a Geç' : 'Go Premium',
-            onPress: () => navigation.navigate('Premium'),
-          },
-        ]
-      );
+      Alert.alert(language === 'tr' ? 'İlaç Limiti' : 'Medicine Limit', reason, [
+        { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
+        {
+          text: language === 'tr' ? "Premium'a Geç" : 'Go Premium',
+          onPress: () => navigation.navigate('Premium'),
+        },
+      ]);
       return;
     }
-    
+
     navigation.navigate('AddMedicine', {});
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['bottom']}
+    >
       {/* Selection Mode Header */}
       {isSelectionMode && (
-        <View style={[styles.selectionHeader, { backgroundColor: colors.card, borderBottomColor: colors.divider }]}>
+        <View
+          style={[
+            styles.selectionHeader,
+            { backgroundColor: colors.card, borderBottomColor: colors.divider },
+          ]}
+        >
           <TouchableOpacity onPress={exitSelectionMode} style={styles.selectionHeaderButton}>
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
@@ -302,9 +395,16 @@ export default function MedicinesScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {medicines.length === 0 ? (
           <View style={styles.emptyStateContainer}>
-            <Section icon="💊" title={language === 'tr' ? 'İLAÇLARIM' : 'MY MEDICINES'} colors={colors} isDark={isDark}>
+            <Section
+              icon="💊"
+              title={language === 'tr' ? 'İLAÇLARIM' : 'MY MEDICINES'}
+              colors={colors}
+              isDark={isDark}
+            >
               <View style={styles.emptyState}>
-                <View style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '15' }]}>
+                <View
+                  style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '15' }]}
+                >
                   <Text style={styles.emptyIconLarge}>💊</Text>
                 </View>
                 <Text style={[styles.emptyTitle, { color: colors.text }]}>
@@ -324,7 +424,12 @@ export default function MedicinesScreen() {
               </View>
             </Section>
 
-            <Section icon="❓" title={language === 'tr' ? 'NASIL BAŞLARIM' : 'HOW TO START'} colors={colors} isDark={isDark}>
+            <Section
+              icon="❓"
+              title={language === 'tr' ? 'NASIL BAŞLARIM' : 'HOW TO START'}
+              colors={colors}
+              isDark={isDark}
+            >
               <View style={styles.tipRow}>
                 <View style={[styles.tipBullet, { backgroundColor: colors.primary }]}>
                   <Text style={styles.tipBulletText}>1</Text>
@@ -333,15 +438,27 @@ export default function MedicinesScreen() {
                   {language === 'tr' ? 'Yukarıdaki butona tıklayın' : 'Tap the button above'}
                 </Text>
               </View>
-              <View style={[styles.tipRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }]}>
+              <View
+                style={[
+                  styles.tipRow,
+                  { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
+                ]}
+              >
                 <View style={[styles.tipBullet, { backgroundColor: colors.primary }]}>
                   <Text style={styles.tipBulletText}>2</Text>
                 </View>
                 <Text style={[styles.tipText, { color: colors.textSecondary }]}>
-                  {language === 'tr' ? 'İlaç bilgilerini girin veya barkod tarayın' : 'Enter medicine info or scan barcode'}
+                  {language === 'tr'
+                    ? 'İlaç bilgilerini girin veya barkod tarayın'
+                    : 'Enter medicine info or scan barcode'}
                 </Text>
               </View>
-              <View style={[styles.tipRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }]}>
+              <View
+                style={[
+                  styles.tipRow,
+                  { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
+                ]}
+              >
                 <View style={[styles.tipBullet, { backgroundColor: colors.primary }]}>
                   <Text style={styles.tipBulletText}>3</Text>
                 </View>
@@ -362,13 +479,15 @@ export default function MedicinesScreen() {
                 isDark={isDark}
               >
                 {activeMedicines.map((medicine, index) => {
-                  const times = getReminderTimesForMedicine(medicine.id).map((rt) => rt.time);
+                  const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
                   return (
                     <MedicineRow
                       key={medicine.id}
                       medicine={medicine}
                       times={times}
-                      onPress={() => navigation.navigate('AddMedicine', { medicineId: medicine.id })}
+                      onPress={() =>
+                        navigation.navigate('AddMedicine', { medicineId: medicine.id })
+                      }
                       onToggleActive={() => toggleMedicineActive(medicine.id)}
                       onDelete={() => deleteMedicine(medicine.id)}
                       colors={colors}
@@ -378,7 +497,9 @@ export default function MedicinesScreen() {
                       isSelectionMode={isSelectionMode}
                       isSelected={selectedIds.has(medicine.id)}
                       onSelect={() => toggleSelection(medicine.id)}
-                      onLongPressSelect={!isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined}
+                      onLongPressSelect={
+                        !isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined
+                      }
                     />
                   );
                 })}
@@ -394,13 +515,15 @@ export default function MedicinesScreen() {
                 isDark={isDark}
               >
                 {inactiveMedicines.map((medicine, index) => {
-                  const times = getReminderTimesForMedicine(medicine.id).map((rt) => rt.time);
+                  const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
                   return (
                     <MedicineRow
                       key={medicine.id}
                       medicine={medicine}
                       times={times}
-                      onPress={() => navigation.navigate('AddMedicine', { medicineId: medicine.id })}
+                      onPress={() =>
+                        navigation.navigate('AddMedicine', { medicineId: medicine.id })
+                      }
                       onToggleActive={() => toggleMedicineActive(medicine.id)}
                       onDelete={() => deleteMedicine(medicine.id)}
                       colors={colors}
@@ -410,20 +533,27 @@ export default function MedicinesScreen() {
                       isSelectionMode={isSelectionMode}
                       isSelected={selectedIds.has(medicine.id)}
                       onSelect={() => toggleSelection(medicine.id)}
-                      onLongPressSelect={!isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined}
+                      onLongPressSelect={
+                        !isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined
+                      }
                     />
                   );
                 })}
               </Section>
             )}
 
-            <Section icon="💡" title={language === 'tr' ? 'İPUCU' : 'TIP'} colors={colors} isDark={isDark}>
+            <Section
+              icon="💡"
+              title={language === 'tr' ? 'İPUCU' : 'TIP'}
+              colors={colors}
+              isDark={isDark}
+            >
               <View style={styles.tipRow}>
                 <View style={[styles.tipIconContainer, { backgroundColor: '#DBEAFE' }]}>
                   <Text style={styles.tipIconEmoji}>👆</Text>
                 </View>
                 <Text style={[styles.tipText, { color: colors.textSecondary, flex: 1 }]}>
-                  {language === 'tr' 
+                  {language === 'tr'
                     ? 'Düzenlemek için ilaca dokunun, silmek veya duraklatmak için basılı tutun'
                     : 'Tap to edit, long press to delete or pause'}
                 </Text>
@@ -431,13 +561,18 @@ export default function MedicinesScreen() {
             </Section>
           </>
         )}
-        
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Selection Mode Action Bar */}
       {isSelectionMode && selectedIds.size > 0 && (
-        <View style={[styles.selectionActionBar, { backgroundColor: colors.card, borderTopColor: colors.divider }]}>
+        <View
+          style={[
+            styles.selectionActionBar,
+            { backgroundColor: colors.card, borderTopColor: colors.divider },
+          ]}
+        >
           <TouchableOpacity
             style={[styles.deleteSelectedButton, { backgroundColor: colors.error }]}
             onPress={deleteSelected}
@@ -449,7 +584,6 @@ export default function MedicinesScreen() {
           </TouchableOpacity>
         </View>
       )}
-
     </SafeAreaView>
   );
 }
@@ -581,6 +715,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   pausedText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  expiryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 4,
+  },
+  expiryBadgeText: {
     fontSize: 10,
     fontWeight: '600',
   },

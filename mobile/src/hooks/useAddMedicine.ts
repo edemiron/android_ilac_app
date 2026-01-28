@@ -39,13 +39,17 @@ export function useAddMedicine() {
   const isEditing = !!existingMedicine;
 
   // Persistence hook
-  const { handleScanBarcode, handleSave: persistSave, handleCancel, settings: persistSettings } =
-    useMedicinePersistence({
-      isEditing,
-      medicineId: routeParams.medicineId,
-      t,
-      language,
-    });
+  const {
+    handleScanBarcode,
+    handleSave: persistSave,
+    handleCancel,
+    settings: persistSettings,
+  } = useMedicinePersistence({
+    isEditing,
+    medicineId: routeParams.medicineId,
+    t,
+    language,
+  });
 
   // Form state
   const [formState, setFormState] = useState<AddMedicineFormState>({
@@ -62,6 +66,9 @@ export function useAddMedicine() {
     stockCount: existingMedicine?.stockCount ?? 30,
     stockThreshold: existingMedicine?.stockThreshold ?? 5,
     stockUnit: existingMedicine?.stockUnit ?? 'tablet',
+    // Son kullanma tarihi
+    expiryDate: existingMedicine?.expiryDate ?? null,
+    expiryReminderDays: existingMedicine?.expiryReminderDays ?? 30,
   });
 
   // Autocomplete state
@@ -90,7 +97,7 @@ export function useAddMedicine() {
     if (routeParams.scannedDosage) updates.dosage = routeParams.scannedDosage;
 
     if (Object.keys(updates).length > 0) {
-      setFormState((prev) => ({ ...prev, ...updates }));
+      setFormState(prev => ({ ...prev, ...updates }));
     }
   }, [
     routeParams.prefillName,
@@ -103,19 +110,19 @@ export function useAddMedicine() {
   useEffect(() => {
     const searchAutocomplete = async () => {
       if (routeParams.prefillName || routeParams.scannedName) {
-        setAutocompleteState((prev) => ({ ...prev, showAutocomplete: false }));
+        setAutocompleteState(prev => ({ ...prev, showAutocomplete: false }));
         return;
       }
 
       if (debouncedName.length < 2 || !autocompleteState.inputFocused) {
-        setAutocompleteState((prev) => ({ ...prev, showAutocomplete: false, results: [] }));
+        setAutocompleteState(prev => ({ ...prev, showAutocomplete: false, results: [] }));
         return;
       }
 
-      setAutocompleteState((prev) => ({ ...prev, isLoading: true }));
+      setAutocompleteState(prev => ({ ...prev, isLoading: true }));
       try {
         const results = await autocomplete(debouncedName, 'TR', 5);
-        setAutocompleteState((prev) => ({
+        setAutocompleteState(prev => ({
           ...prev,
           results,
           showAutocomplete: results.length > 0,
@@ -123,7 +130,7 @@ export function useAddMedicine() {
         }));
       } catch (error) {
         log.error('Autocomplete hatasi', error);
-        setAutocompleteState((prev) => ({
+        setAutocompleteState(prev => ({
           ...prev,
           results: [],
           showAutocomplete: false,
@@ -151,18 +158,18 @@ export function useAddMedicine() {
   // Form field updaters
   const updateFormField = useCallback(
     <K extends keyof AddMedicineFormState>(field: K, value: AddMedicineFormState[K]) => {
-      setFormState((prev) => ({ ...prev, [field]: value }));
+      setFormState(prev => ({ ...prev, [field]: value }));
     },
     []
   );
 
   const setNameInputFocused = useCallback((focused: boolean) => {
-    setAutocompleteState((prev) => ({ ...prev, inputFocused: focused }));
+    setAutocompleteState(prev => ({ ...prev, inputFocused: focused }));
   }, []);
 
   const handleSelectAutocomplete = useCallback((item: MedicineAutocompleteResult) => {
-    setFormState((prev) => ({ ...prev, name: item.name, dosage: item.dosage }));
-    setAutocompleteState((prev) => ({ ...prev, showAutocomplete: false, inputFocused: false }));
+    setFormState(prev => ({ ...prev, name: item.name, dosage: item.dosage }));
+    setAutocompleteState(prev => ({ ...prev, showAutocomplete: false, inputFocused: false }));
   }, []);
 
   // Time management callbacks
@@ -178,7 +185,7 @@ export function useAddMedicine() {
   }, []);
 
   const handleDeleteTime = useCallback((index: number) => {
-    setFormState((prev) => {
+    setFormState(prev => {
       const newTimes = prev.customTimes.filter((_, i) => i !== index);
       return { ...prev, customTimes: newTimes, useCustomTimes: newTimes.length > 0 };
     });
@@ -188,7 +195,7 @@ export function useAddMedicine() {
     (date: Date) => {
       const timeStr = format(date, 'HH:mm');
 
-      setFormState((prev) => {
+      setFormState(prev => {
         let newTimes: string[];
         if (timePickerState.editingTimeIndex !== null) {
           newTimes = [...prev.customTimes];
@@ -201,7 +208,7 @@ export function useAddMedicine() {
         }
         return { ...prev, customTimes: newTimes.sort(), useCustomTimes: true };
       });
-      setTimePickerState((prev) => ({ ...prev, showTimePicker: false }));
+      setTimePickerState(prev => ({ ...prev, showTimePicker: false }));
     },
     [timePickerState.editingTimeIndex]
   );
@@ -209,11 +216,11 @@ export function useAddMedicine() {
   const handleTimeChange = useCallback(
     (event: DateTimePickerEvent, selectedDate?: Date) => {
       if (Platform.OS === 'android') {
-        setTimePickerState((prev) => ({ ...prev, showTimePicker: false }));
+        setTimePickerState(prev => ({ ...prev, showTimePicker: false }));
       }
 
       if (selectedDate) {
-        setTimePickerState((prev) => ({ ...prev, tempTime: selectedDate }));
+        setTimePickerState(prev => ({ ...prev, tempTime: selectedDate }));
 
         if (Platform.OS === 'android') {
           saveTimeSelection(selectedDate);
@@ -229,16 +236,16 @@ export function useAddMedicine() {
 
   const switchToManualTimes = useCallback(() => {
     if (!formState.useCustomTimes && previewTimes.length > 0) {
-      setFormState((prev) => ({
+      setFormState(prev => ({
         ...prev,
-        customTimes: previewTimes.map((t) => t.time),
+        customTimes: previewTimes.map(t => t.time),
         useCustomTimes: true,
       }));
     }
   }, [formState.useCustomTimes, previewTimes]);
 
   const closeTimePicker = useCallback(() => {
-    setTimePickerState((prev) => ({ ...prev, showTimePicker: false }));
+    setTimePickerState(prev => ({ ...prev, showTimePicker: false }));
   }, []);
 
   // Save wrapper
