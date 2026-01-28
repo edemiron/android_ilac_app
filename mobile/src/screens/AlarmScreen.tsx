@@ -17,7 +17,13 @@ import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, ReminderTime } from '../types';
 import { formatTimeDisplay, getInstructionText } from '../utils/timeCalculator';
 import { speakMedicineReminder, stopSpeaking } from '../utils/speech';
-import { scheduleSnoozeNotification, scheduleMedicineNotification, dismissNotification, cancelNotification, cancelMedicineNotifications } from '../utils/notifications';
+import {
+  scheduleSnoozeNotification,
+  scheduleMedicineNotification,
+  dismissNotification,
+  cancelNotification,
+  cancelMedicineNotifications,
+} from '../utils/notifications';
 import { generateId } from '../utils/idGenerator';
 import { format } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
@@ -36,13 +42,13 @@ export default function AlarmScreen() {
   const route = useRoute<RouteProps>();
   const { medicineId, reminderTimeId, scheduledTime } = route.params;
   const { t, language } = useLanguage();
-  
+
   const dateLocale = language === 'tr' ? tr : enUS;
 
-  const { 
-    getMedicineById, 
+  const {
+    getMedicineById,
     getReminderTimesForMedicine,
-    logMedicineTaken, 
+    logMedicineTaken,
     logMedicineSkipped,
     dismissAlarm,
     settings,
@@ -52,25 +58,28 @@ export default function AlarmScreen() {
 
   // Test modu kontrolü
   const isTestMode = medicineId === 'test-medicine';
-  
+
   // Test için örnek ilaç - useMemo ile SADECE BİR KEZ oluştur
-  const testMedicine = useMemo(() => ({
-    id: 'test-medicine',
-    name: 'Aspirin',
-    dosage: '500mg',
-    frequency: 2,
-    instructions: 'after_meal' as const,
-    color: '#FF6B6B',
-    startDate: '2024-01-01T00:00:00.000Z', // Sabit değer
-    isActive: true,
-    createdAt: '2024-01-01T00:00:00.000Z', // Sabit değer
-    updatedAt: '2024-01-01T00:00:00.000Z', // Sabit değer
-  }), []); // Boş dependency - sadece bir kez oluşur
-  
+  const testMedicine = useMemo(
+    () => ({
+      id: 'test-medicine',
+      name: 'Aspirin',
+      dosage: '500mg',
+      frequency: 2,
+      instructions: 'after_meal' as const,
+      color: '#FF6B6B',
+      startDate: '2024-01-01T00:00:00.000Z', // Sabit değer
+      isActive: true,
+      createdAt: '2024-01-01T00:00:00.000Z', // Sabit değer
+      updatedAt: '2024-01-01T00:00:00.000Z', // Sabit değer
+    }),
+    []
+  ); // Boş dependency - sadece bir kez oluşur
+
   const medicine = isTestMode ? testMedicine : getMedicineById(medicineId);
   const reminderTimes = medicine && !isTestMode ? getReminderTimesForMedicine(medicine.id) : [];
   const currentReminderTime = reminderTimes.find(rt => rt.id === reminderTimeId);
-  
+
   // Erteleme süresi ayarlardan al (varsayılan 5 dakika)
   const snoozeDuration = settings.snoozeDuration || 5;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -100,6 +109,37 @@ export default function AlarmScreen() {
     return () => pulse.stop();
   }, []);
 
+  // Alarm durdurma fonksiyonu - useEffect'lerden önce tanımlanmalı
+  const stopAlarm = useCallback(async () => {
+    log.debug('stopAlarm basladi');
+
+    isStoppedRef.current = true;
+
+    if (vibrationIntervalRef.current) {
+      clearInterval(vibrationIntervalRef.current);
+      vibrationIntervalRef.current = null;
+    }
+
+    Vibration.cancel();
+
+    if (ttsTimeoutRef.current) {
+      clearTimeout(ttsTimeoutRef.current);
+      ttsTimeoutRef.current = null;
+    }
+
+    try {
+      await stopSpeaking();
+    } catch (e) {
+      log.debug('stopSpeaking hatasi', { error: e });
+    }
+
+    await stopAlarmSound();
+
+    Vibration.cancel();
+
+    log.debug('stopAlarm bitti');
+  }, []);
+
   // Alarm ekranı açıldığında bildirimi kapat
   useEffect(() => {
     // Bildirimi hemen kapat - kullanıcı alarm ekranını gördü
@@ -111,17 +151,24 @@ export default function AlarmScreen() {
   // Kullanıcı bildirimden butona bastığında AlarmScreen açık olabilir - sesi durdurmak için gerekli
   useEffect(() => {
     const unsubscribe = notifee.onForegroundEvent(async ({ type, detail }) => {
-      log.debug('Foreground event alindi', { type, notificationId: detail.notification?.id, pressAction: detail.pressAction?.id });
-      
+      log.debug('Foreground event alindi', {
+        type,
+        notificationId: detail.notification?.id,
+        pressAction: detail.pressAction?.id,
+      });
+
       if (type === EventType.ACTION_PRESS) {
         const actionId = detail.pressAction?.id;
         const notificationMedicineId = detail.notification?.data?.medicineId as string;
-        
-        if (notificationMedicineId === medicineId || detail.notification?.id?.includes(medicineId)) {
+
+        if (
+          notificationMedicineId === medicineId ||
+          detail.notification?.id?.includes(medicineId)
+        ) {
           log.debug('Bu alarm icin action algilandi, ses durduruluyor', { actionId });
-          
+
           await stopAlarm();
-          
+
           dismissAlarm();
           if (navigation.canGoBack()) {
             navigation.goBack();
@@ -133,10 +180,13 @@ export default function AlarmScreen() {
           }
         }
       }
-      
+
       if (type === EventType.DISMISSED) {
         const notificationMedicineId = detail.notification?.data?.medicineId as string;
-        if (notificationMedicineId === medicineId || detail.notification?.id?.includes(medicineId)) {
+        if (
+          notificationMedicineId === medicineId ||
+          detail.notification?.id?.includes(medicineId)
+        ) {
           log.debug('Notification dismissed, ses durduruluyor');
           await stopAlarm();
         }
@@ -150,22 +200,22 @@ export default function AlarmScreen() {
   useEffect(() => {
     if (!medicine && !isTestMode) {
       log.debug('PHANTOM ALARM ALGILANDI - Ilac bulunamadi, hemen kapatiliyor', { medicineId });
-      
+
       // HEMEN alarm flag'ini set et - ses/titreşim başlamasını engelle
       isStoppedRef.current = true;
-      
+
       // Titreşimi HEMEN durdur
       Vibration.cancel();
-      
+
       // Bildirimi iptal et
       dismissNotification(`alarm-${medicineId}-${reminderTimeId}`);
-      
+
       // Tüm phantom bildirimleri temizle
       cancelMedicineNotifications(medicineId);
-      
+
       // Alarm state'ini temizle
       dismissAlarm();
-      
+
       // Navigation RESET ile ana ekrana dön - bu her zaman çalışır
       navigation.reset({
         index: 0,
@@ -181,7 +231,7 @@ export default function AlarmScreen() {
       log.debug('Ilac bulunamadi, ses/titresim baslatilmiyor');
       return;
     }
-    
+
     // Eğer alarm zaten durdurulduysa (phantom guard tarafından), başlatma
     if (isStoppedRef.current) {
       log.debug('Alarm zaten durduruldu, ses/titresim baslatilmiyor');
@@ -193,12 +243,12 @@ export default function AlarmScreen() {
 
     // Titreşim pattern (sürekli)
     const vibrationPattern = [0, 500, 500, 500];
-    
+
     // İlk titreşim
     if (settings.vibrationEnabled && !isStoppedRef.current) {
       Vibration.vibrate(vibrationPattern);
     }
-    
+
     // Tekrarlayan titreşim - ref'te sakla
     vibrationIntervalRef.current = setInterval(() => {
       // Eğer alarm durdurulduysa, interval'i temizle ve çık
@@ -214,7 +264,10 @@ export default function AlarmScreen() {
       }
     }, 2000);
 
-    ReactNativeHapticFeedback.trigger('notificationWarning', { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
+    ReactNativeHapticFeedback.trigger('notificationWarning', {
+      enableVibrateFallback: true,
+      ignoreAndroidSystemSettings: false,
+    });
 
     if (!isStoppedRef.current) {
       playAlarmSound(settings.alarmVolume ?? 80);
@@ -253,38 +306,8 @@ export default function AlarmScreen() {
       stopSpeaking();
       stopAlarmSound();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicine, isTestMode, medicineId, settings.vibrationEnabled, language]);
-
-  const stopAlarm = useCallback(async () => {
-    log.debug('stopAlarm basladi');
-
-    isStoppedRef.current = true;
-
-    if (vibrationIntervalRef.current) {
-      clearInterval(vibrationIntervalRef.current);
-      vibrationIntervalRef.current = null;
-    }
-
-    Vibration.cancel();
-
-    if (ttsTimeoutRef.current) {
-      clearTimeout(ttsTimeoutRef.current);
-      ttsTimeoutRef.current = null;
-    }
-
-    try {
-      await stopSpeaking();
-    } catch (e) {
-      log.debug('stopSpeaking hatasi', { error: e });
-    }
-
-    await stopAlarmSound();
-
-    Vibration.cancel();
-
-    log.debug('stopAlarm bitti');
-  }, []);
 
   const handleTake = async () => {
     await stopAlarm();
@@ -380,17 +403,18 @@ export default function AlarmScreen() {
         time: format(new Date(), 'HH:mm'),
         isEnabled: true,
       };
-      
+
       const reminderTimeToUse = currentReminderTime || testReminderTime;
       const snoozeId = generateId();
       const originalScheduledTime = scheduledTime || new Date().toISOString();
-      
+
       const existingSnoozeCount = snoozes.filter(
-        s => s.medicineId === medicine.id && 
-             s.reminderTimeId === reminderTimeToUse.id && 
-             s.originalScheduledTime === originalScheduledTime
+        s =>
+          s.medicineId === medicine.id &&
+          s.reminderTimeId === reminderTimeToUse.id &&
+          s.originalScheduledTime === originalScheduledTime
       ).length;
-      
+
       try {
         const result = await scheduleSnoozeNotification({
           medicine,
@@ -400,7 +424,7 @@ export default function AlarmScreen() {
           originalScheduledTime,
           snoozeCount: existingSnoozeCount + 1,
         });
-        
+
         if (result) {
           createSnooze(
             medicine.id,
@@ -409,10 +433,10 @@ export default function AlarmScreen() {
             result.triggerTime,
             result.notificationId
           );
-          log.debug('Ilac ertelendi ve DB\'ye kaydedildi', { 
-            snoozeDuration, 
+          log.debug("Ilac ertelendi ve DB'ye kaydedildi", {
+            snoozeDuration,
             notificationId: result.notificationId,
-            triggerTime: result.triggerTime.toISOString()
+            triggerTime: result.triggerTime.toISOString(),
           });
         } else {
           log.error('Snooze planlanamadi - result null');
@@ -455,11 +479,18 @@ export default function AlarmScreen() {
         });
       }, 500);
     }
-    
+
     return (
-      <View style={[styles.container, { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }]}>
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
         <Text style={styles.errorText}>
-          {language === 'tr' ? 'İlaç bulunamadı, ana ekrana dönülüyor...' : 'Medicine not found, returning to home...'}
+          {language === 'tr'
+            ? 'İlaç bulunamadı, ana ekrana dönülüyor...'
+            : 'Medicine not found, returning to home...'}
         </Text>
         <TouchableOpacity
           style={{ marginTop: 20, padding: 15, backgroundColor: '#4ECDC4', borderRadius: 10 }}
@@ -484,7 +515,7 @@ export default function AlarmScreen() {
   // Talimat metni
   const getInstructionDisplay = () => {
     if (!medicine.instructions) return null;
-    
+
     const instructionTexts: Record<string, { tr: string; en: string }> = {
       before_meal: { tr: '🍽️ Yemekten önce', en: '🍽️ Before meal' },
       after_meal: { tr: '🍽️ Yemekten sonra', en: '🍽️ After meal' },
@@ -492,7 +523,7 @@ export default function AlarmScreen() {
       empty_stomach: { tr: '⚠️ Aç karnına', en: '⚠️ Empty stomach' },
       before_sleep: { tr: '🌙 Yatmadan önce', en: '🌙 Before sleep' },
     };
-    
+
     return instructionTexts[medicine.instructions]?.[language] || null;
   };
 
@@ -506,24 +537,17 @@ export default function AlarmScreen() {
 
       {/* Orta kısım - İlaç bilgisi */}
       <View style={styles.medicineSection}>
-        <Animated.View
-          style={[
-            styles.iconContainer,
-            { transform: [{ scale: pulseAnim }] },
-          ]}
-        >
+        <Animated.View style={[styles.iconContainer, { transform: [{ scale: pulseAnim }] }]}>
           <Text style={styles.medicineIcon}>💊</Text>
         </Animated.View>
-        
+
         <Text style={styles.alarmTitle}>{t('alarm_time_to_take')}</Text>
         <Text style={styles.medicineName}>{medicine.name}</Text>
         <Text style={styles.dosageText}>{medicine.dosage}</Text>
-        
+
         {getInstructionDisplay() && (
           <View style={styles.instructionBadge}>
-            <Text style={styles.instructionText}>
-              {getInstructionDisplay()}
-            </Text>
+            <Text style={styles.instructionText}>{getInstructionDisplay()}</Text>
           </View>
         )}
       </View>
@@ -531,32 +555,20 @@ export default function AlarmScreen() {
       {/* Alt kısım - Butonlar */}
       <View style={styles.actionSection}>
         {/* Ana buton - Aldım */}
-        <TouchableOpacity
-          style={styles.takeButton}
-          onPress={handleTake}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity style={styles.takeButton} onPress={handleTake} activeOpacity={0.8}>
           <Text style={styles.takeButtonIcon}>✓</Text>
           <Text style={styles.takeButtonText}>{t('alarm_take_now')}</Text>
         </TouchableOpacity>
 
         {/* İkincil butonlar */}
         <View style={styles.secondaryButtons}>
-          <TouchableOpacity
-            style={styles.snoozeButton}
-            onPress={handleSnooze}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.snoozeButton} onPress={handleSnooze} activeOpacity={0.8}>
             <Text style={styles.snoozeButtonText}>
               ⏰ {t('alarm_snooze_minutes', { minutes: snoozeDuration })}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkip}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip} activeOpacity={0.8}>
             <Text style={styles.skipButtonText}>{t('alarm_skip')}</Text>
           </TouchableOpacity>
         </View>

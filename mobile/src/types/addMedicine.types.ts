@@ -72,3 +72,9 @@ export interface FormValidationResult {
  */
 export const FREQUENCY_OPTIONS = [1, 2, 3, 4, 5, 6] as const;
 export type FrequencyOption = (typeof FREQUENCY_OPTIONS)[number];
+
+/**
+ * Maksimum frequency (günde max 24 kez - saatlik)
+ */
+export const MAX_FREQUENCY = 24;
+export const MIN_FREQUENCY = 1;

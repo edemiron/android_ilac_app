@@ -15,7 +15,8 @@ import { registerBootTask } from './src/utils/bootHandler';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { stopAlarmSound } from './src/utils/alarmSoundManager';
 import { stopSpeaking } from './src/utils/speech';
-import { name as appName } from './app.json';
+// Android MainActivity expects "main" as the component name
+const appName = 'main';
 
 registerBootTask();
 

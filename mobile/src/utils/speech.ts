@@ -63,7 +63,11 @@ export async function speakMedicineReminder(
     Tts.addEventListener('tts-finish', onFinish);
     Tts.addEventListener('tts-cancel', onCancel);
 
-    Tts.speak(message).catch(reject);
+    try {
+      Tts.speak(message);
+    } catch (error) {
+      reject(error);
+    }
   });
 }
 
@@ -95,7 +99,11 @@ export async function speak(message: string, language: 'tr' | 'en' = 'tr'): Prom
     Tts.addEventListener('tts-finish', onFinish);
     Tts.addEventListener('tts-cancel', onCancel);
 
-    Tts.speak(message).catch(reject);
+    try {
+      Tts.speak(message);
+    } catch (error) {
+      reject(error);
+    }
   });
 }
 

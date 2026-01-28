@@ -22,6 +22,7 @@ const tr = {
   yes: 'Evet',
   no: 'Hayır',
   ok: 'Tamam',
+  update: 'Güncelle',
   error: 'Hata',
   success: 'Başarılı',
   warning: 'Uyarı',
@@ -183,6 +184,12 @@ const tr = {
   conflict_auto_adjust: 'Otomatik Düzenle',
   conflict_auto_adjust_desc: 'Saatleri otomatik olarak kaydır',
   conflict_minutes: '{minutes} dakika',
+
+  // Özel frequency
+  custom: 'Özel',
+  custom_frequency_title: 'Özel Saat Sayısı',
+  custom_frequency_placeholder: 'Sayı girin (7-24)',
+  frequency_range_error: '1-24 arası bir sayı girin',
 };
 
 // İngilizce çeviriler
@@ -199,6 +206,7 @@ const en: typeof tr = {
   yes: 'Yes',
   no: 'No',
   ok: 'OK',
+  update: 'Update',
   error: 'Error',
   success: 'Success',
   warning: 'Warning',
@@ -360,6 +368,12 @@ const en: typeof tr = {
   conflict_auto_adjust: 'Auto Adjust',
   conflict_auto_adjust_desc: 'Automatically shift times',
   conflict_minutes: '{minutes} minutes',
+
+  // Custom frequency
+  custom: 'Custom',
+  custom_frequency_title: 'Custom Frequency',
+  custom_frequency_placeholder: 'Enter number (7-24)',
+  frequency_range_error: 'Enter a number between 1-24',
 };
 
 const translations = { tr, en };

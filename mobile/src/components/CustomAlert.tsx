@@ -117,6 +117,7 @@ export function CustomAlert({
               const isDestructive = button.style === 'destructive';
               const isCancel = button.style === 'cancel';
               const isPrimary = !isCancel && index === defaultButtons.length - 1;
+              const isNormal = !isDestructive && !isCancel && !isPrimary;
 
               return (
                 <TouchableOpacity
@@ -130,6 +131,11 @@ export function CustomAlert({
                       borderWidth: 1,
                       borderColor: colors.border,
                     },
+                    isNormal && {
+                      backgroundColor: colors.surface,
+                      borderWidth: 1.5,
+                      borderColor: colors.primary,
+                    },
                   ]}
                   onPress={() => handleButtonPress(button)}
                   activeOpacity={0.8}
@@ -137,8 +143,10 @@ export function CustomAlert({
                   <Text
                     style={[
                       styles.buttonText,
+                      { color: colors.text },
                       (isPrimary || isDestructive) && { color: '#FFFFFF' },
                       isCancel && { color: colors.textSecondary },
+                      isNormal && { color: colors.primary },
                     ]}
                   >
                     {button.text}

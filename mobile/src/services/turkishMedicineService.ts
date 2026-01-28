@@ -74,12 +74,13 @@ export async function searchOpenFoodFacts(
       categories.includes('ilaç') ||
       categories.includes('drug');
 
+    const rawName = product.product_name_tr || product.product_name || 'Bilinmeyen Ürün';
     return {
       barcode: barcode,
-      name: product.product_name_tr || product.product_name || 'Bilinmeyen Ürün',
+      name: fixTurkishCharacters(rawName),
       manufacturer: product.brands || 'Bilinmiyor',
-      dosage: product.quantity || '',
-      form: detectMedicineForm(product.product_name || ''),
+      dosage: fixTurkishCharacters(product.quantity || ''),
+      form: detectMedicineForm(rawName),
       country: detectCountry(product.countries),
       imageUrl: product.image_url,
     };
@@ -127,11 +128,12 @@ export async function searchTITCKCache(barcode: string): Promise<Partial<GlobalM
 
     log.debug('TITCK Cache bulundu', { name: found.name });
 
+    const fixedName = fixTurkishCharacters(found.name);
     return {
       barcode: found.barcode,
-      name: found.name,
+      name: fixedName,
       manufacturer: found.manufacturer,
-      dosage: found.dosage || extractDosageFromName(found.name),
+      dosage: fixTurkishCharacters(found.dosage || extractDosageFromName(found.name)),
       form: detectMedicineForm(found.name),
       country: 'TR',
     };
@@ -251,9 +253,10 @@ function parseIlacabakResults(html: string): Partial<GlobalMedicine>[] {
       const barcodeMatch = url.match(/-(\d{13})$/);
       const barcode = barcodeMatch ? barcodeMatch[1] : undefined;
 
+      const fixedName = fixTurkishCharacters(name.trim());
       results.push({
         barcode,
-        name: name.trim(),
+        name: fixedName,
         dosage: extractDosageFromName(name),
         form: detectMedicineForm(name),
         country: 'TR',
@@ -267,6 +270,71 @@ function parseIlacabakResults(html: string): Partial<GlobalMedicine>[] {
 }
 
 // ============ YARDIMCI FONKSİYONLAR ============
+
+/**
+ * Türkçe karakter düzeltme - API'lerden gelen ASCII metinleri düzelt
+ * Yaygın ilaç terimlerindeki eksik Türkçe karakterleri ekler
+ */
+const TURKISH_CORRECTIONS: Record<string, string> = {
+  // Büyük harf düzeltmeleri
+  GOZ: 'GÖZ',
+  SURUP: 'ŞURUP',
+  KAPSUL: 'KAPSÜL',
+  SUSPANSIYON: 'SÜSPANSİYON',
+  EMULSIYON: 'EMÜLSİYON',
+  FITIL: 'FİTİL',
+  SASE: 'SAŞE',
+  GRANUL: 'GRANÜL',
+  COZUCU: 'ÇÖZÜCÜ',
+  COZELTI: 'ÇÖZELTİ',
+  ENJEKSIYON: 'ENJEKSİYON',
+  LOSYON: 'LOSYON',
+  MERHEM: 'MERHEM',
+  KREM: 'KREM',
+  JEL: 'JEL',
+  SPREY: 'SPREY',
+  INHALER: 'İNHALER',
+  ILAC: 'İLAÇ',
+  OZEL: 'ÖZEL',
+  URUN: 'ÜRÜN',
+  ICIN: 'İÇİN',
+  AGIZ: 'AĞIZ',
+  ORAL: 'ORAL',
+  TOPIKAL: 'TOPİKAL',
+  OFTALMIK: 'OFTALMİK',
+  // Küçük harf düzeltmeleri
+  goz: 'göz',
+  surup: 'şurup',
+  kapsul: 'kapsül',
+  suspansiyon: 'süspansiyon',
+  emulsiyon: 'emülsiyon',
+  fitil: 'fitil',
+  sase: 'saşe',
+  granul: 'granül',
+  cozucu: 'çözücü',
+  cozelti: 'çözelti',
+  enjeksiyon: 'enjeksiyon',
+  ilac: 'ilaç',
+  ozel: 'özel',
+  urun: 'ürün',
+  icin: 'için',
+  agiz: 'ağız',
+};
+
+function fixTurkishCharacters(text: string): string {
+  if (!text) return text;
+
+  let result = text;
+
+  // Her kelimeyi kontrol et ve düzelt
+  for (const [wrong, correct] of Object.entries(TURKISH_CORRECTIONS)) {
+    // Kelime sınırlarını dikkate alarak değiştir
+    const regex = new RegExp(`\\b${wrong}\\b`, 'g');
+    result = result.replace(regex, correct);
+  }
+
+  return result;
+}
 
 /**
  * İlaç adından doz bilgisi çıkar

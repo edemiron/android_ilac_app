@@ -16,6 +16,7 @@ describe('isInQuietHours', () => {
     quietHoursStart: '23:00',
     quietHoursEnd: '07:00',
     alarmModeEnabled: true,
+    conflictIntervalMinutes: 10,
   };
 
   beforeEach(() => {

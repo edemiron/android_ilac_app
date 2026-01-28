@@ -4,7 +4,7 @@ import { useRoute, RouteProp } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
-import { useMedicineStore, MEDICINE_COLORS } from '../stores/medicineStore';
+import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, MedicineAutocompleteResult } from '../types';
 import { calculateMedicineTimes } from '../utils/timeCalculator';
 import { useTheme } from '../contexts/ThemeContext';
@@ -31,7 +31,7 @@ export function useAddMedicine() {
 
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
-  const { getMedicineById, settings } = useMedicineStore();
+  const { getMedicineById, settings, getNextAvailableColor } = useMedicineStore();
 
   const existingMedicine = routeParams.medicineId
     ? getMedicineById(routeParams.medicineId)
@@ -51,6 +51,9 @@ export function useAddMedicine() {
     language,
   });
 
+  // Yeni ilaç için otomatik renk belirle
+  const initialColor = existingMedicine?.color || getNextAvailableColor();
+
   // Form state
   const [formState, setFormState] = useState<AddMedicineFormState>({
     name: existingMedicine?.name || routeParams.prefillName || routeParams.scannedName || '',
@@ -58,7 +61,7 @@ export function useAddMedicine() {
       existingMedicine?.dosage || routeParams.prefillDosage || routeParams.scannedDosage || '',
     frequency: existingMedicine?.frequency || 3,
     instruction: existingMedicine?.instructions || 'any_time',
-    selectedColor: existingMedicine?.color || MEDICINE_COLORS[0],
+    selectedColor: initialColor,
     customTimes: [],
     useCustomTimes: false,
     // Stok takibi

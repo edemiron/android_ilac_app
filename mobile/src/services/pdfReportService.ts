@@ -83,6 +83,58 @@ const translations = {
   },
 };
 
+function decodeUnicodeEscapes(str: string): string {
+  if (!str) return str;
+  return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+// Türkçe karakter düzeltme - API'lerden gelen ASCII metinleri düzelt
+const TURKISH_CORRECTIONS: Record<string, string> = {
+  GOZ: 'GÖZ',
+  SURUP: 'ŞURUP',
+  KAPSUL: 'KAPSÜL',
+  SUSPANSIYON: 'SÜSPANSİYON',
+  EMULSIYON: 'EMÜLSİYON',
+  FITIL: 'FİTİL',
+  SASE: 'SAŞE',
+  GRANUL: 'GRANÜL',
+  COZUCU: 'ÇÖZÜCÜ',
+  COZELTI: 'ÇÖZELTİ',
+  ENJEKSIYON: 'ENJEKSİYON',
+  INHALER: 'İNHALER',
+  ILAC: 'İLAÇ',
+  OZEL: 'ÖZEL',
+  URUN: 'ÜRÜN',
+  ICIN: 'İÇİN',
+  AGIZ: 'AĞIZ',
+  TOPIKAL: 'TOPİKAL',
+  OFTALMIK: 'OFTALMİK',
+  goz: 'göz',
+  surup: 'şurup',
+  kapsul: 'kapsül',
+  suspansiyon: 'süspansiyon',
+  emulsiyon: 'emülsiyon',
+  sase: 'saşe',
+  granul: 'granül',
+  cozucu: 'çözücü',
+  cozelti: 'çözelti',
+  ilac: 'ilaç',
+  ozel: 'özel',
+  urun: 'ürün',
+  icin: 'için',
+  agiz: 'ağız',
+};
+
+function fixTurkishCharacters(text: string): string {
+  if (!text) return text;
+  let result = decodeUnicodeEscapes(text);
+  for (const [wrong, correct] of Object.entries(TURKISH_CORRECTIONS)) {
+    const regex = new RegExp(`\\b${wrong}\\b`, 'g');
+    result = result.replace(regex, correct);
+  }
+  return result;
+}
+
 function getStatusColor(status: string): string {
   switch (status) {
     case 'taken':
@@ -118,17 +170,17 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
   const endDate = format(data.dateRange.end, 'dd MMMM yyyy', { locale });
 
   // İstatistikleri hesapla
-  const filteredLogs = data.logs.filter((logItem) => {
+  const filteredLogs = data.logs.filter(logItem => {
     const logDate = new Date(logItem.scheduledTime);
     return logDate >= data.dateRange.start && logDate <= data.dateRange.end;
   });
 
-  const takenCount = filteredLogs.filter((l) => l.status === 'taken').length;
-  const skippedCount = filteredLogs.filter((l) => l.status === 'skipped').length;
-  const missedCount = filteredLogs.filter((l) => l.status === 'missed').length;
+  const takenCount = filteredLogs.filter(l => l.status === 'taken').length;
+  const skippedCount = filteredLogs.filter(l => l.status === 'skipped').length;
+  const missedCount = filteredLogs.filter(l => l.status === 'missed').length;
 
   // Aktif ilaçlar
-  const activeMedicines = data.medicines.filter((m) => m.isActive);
+  const activeMedicines = data.medicines.filter(m => m.isActive);
 
   // HTML oluştur
   const html = `
@@ -137,6 +189,10 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
 <head>
   <meta charset="UTF-8">
   <style>
+    @page {
+      size: A4;
+      margin: 1.27cm;
+    }
     * {
       margin: 0;
       padding: 0;
@@ -146,7 +202,7 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
       font-family: 'Helvetica Neue', Arial, sans-serif;
       font-size: 12px;
       color: #333;
-      padding: 20px;
+      padding: 0;
       background: #fff;
     }
     .header {
@@ -296,11 +352,11 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     <div class="section-title">📋 ${t.medicineList} (${activeMedicines.length})</div>
     ${activeMedicines
       .map(
-        (med) => `
+        med => `
       <div class="medicine-card" style="border-left-color: ${med.color || '#4ECDC4'}">
-        <div class="medicine-name">${med.name}</div>
+        <div class="medicine-name">${fixTurkishCharacters(med.name)}</div>
         <div class="medicine-details">
-          ${med.dosage ? `${t.dosage}: ${med.dosage} | ` : ''}
+          ${med.dosage ? `${t.dosage}: ${fixTurkishCharacters(med.dosage)} | ` : ''}
           ${t.frequency}: ${med.frequency}x ${t.perDay}
           ${med.stockEnabled ? ` | ${t.stock}: ${med.stockCount} ${t.remaining}` : ''}
         </div>
@@ -328,13 +384,13 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
         ${filteredLogs
           .sort((a, b) => new Date(b.scheduledTime).getTime() - new Date(a.scheduledTime).getTime())
           .slice(0, 100)
-          .map((logEntry) => {
-            const medicine = data.medicines.find((m) => m.id === logEntry.medicineId);
+          .map(logEntry => {
+            const medicine = data.medicines.find(m => m.id === logEntry.medicineId);
             const scheduledDate = new Date(logEntry.scheduledTime);
             return `
             <tr>
               <td>${format(scheduledDate, 'dd/MM/yyyy', { locale })}</td>
-              <td>${medicine?.name || 'Bilinmeyen'}</td>
+              <td>${fixTurkishCharacters(medicine?.name || 'Bilinmeyen')}</td>
               <td>${format(scheduledDate, 'HH:mm')}</td>
               <td>
                 <span class="status-badge" style="background: ${getStatusColor(logEntry.status)}">
@@ -378,10 +434,24 @@ export async function generatePDFReport(
       fileName: string;
       directory?: string;
       base64: boolean;
+      width?: number;
+      height?: number;
+      paddingTop?: number;
+      paddingBottom?: number;
+      paddingLeft?: number;
+      paddingRight?: number;
     } = {
       html,
       fileName: `ilac-raporu-${format(new Date(), 'yyyy-MM-dd')}`,
       base64: false,
+      // A4 boyutu (595 x 842 pt)
+      width: 595,
+      height: 842,
+      // 1.27cm kenar boşlukları (1.27cm ≈ 36pt)
+      paddingTop: 36,
+      paddingBottom: 36,
+      paddingLeft: 36,
+      paddingRight: 36,
     };
 
     // iOS requires Documents directory, Android uses cache by default

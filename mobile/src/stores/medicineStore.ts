@@ -4,6 +4,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Medicine, ReminderTime, UserSettings, MedicineLog, AlarmState, Snooze } from '../types';
 import { calculateMedicineTimes } from '../utils/timeCalculator';
 import { generateId } from '../utils/idGenerator';
+
+// Türkçe karakter encoding sorunlarını düzelt
+function sanitizeString(str: string | undefined | null): string {
+  if (!str) return str as string;
+  // Unicode escape sequence'ları decode et (\u00fc -> ü)
+  return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+function sanitizeMedicineData<T extends { name?: string; dosage?: string }>(data: T): T {
+  return {
+    ...data,
+    name: data.name ? sanitizeString(data.name) : data.name,
+    dosage: data.dosage ? sanitizeString(data.dosage) : data.dosage,
+  };
+}
 import { getSyncQueue } from '../utils/syncQueue';
 import { markMissedReminders as calculateMissedReminders } from '../utils/missedReminders';
 import { validateSyncData } from '../utils/syncDataValidator';
@@ -22,14 +37,14 @@ import {
   SyncData,
 } from '../services/firestoreSync';
 
-// Varsayılan renk paleti
+// Varsayılan renk paleti - Hem açık hem koyu modda iyi görünür
 export const MEDICINE_COLORS = [
   '#FF6B6B', // Kırmızı
   '#4ECDC4', // Turkuaz
   '#45B7D1', // Mavi
   '#96CEB4', // Yeşil
-  '#FFEAA7', // Sarı
-  '#DDA0DD', // Mor
+  '#FFD93D', // Sarı (daha canlı)
+  '#C9A0DC', // Mor (daha dengeli)
   '#FF8C69', // Turuncu
   '#98D8C8', // Mint
 ];
@@ -102,6 +117,9 @@ interface MedicineState {
   getLowStockMedicines: () => Medicine[];
   updateMedicineStock: (medicineId: string, newCount: number) => void;
   decrementStock: (medicineId: string, amount?: number) => void;
+
+  // Renk yönetimi
+  getNextAvailableColor: () => string;
 
   clearAllData: () => void;
   importData: (data: SyncData) => void;
@@ -290,8 +308,11 @@ export const useMedicineStore = create<MedicineState>()(
         const now = new Date().toISOString();
         const { settings, userId } = get();
 
+        // Türkçe karakter encoding sorunlarını düzelt
+        const sanitizedData = sanitizeMedicineData(medicineData);
+
         const newMedicine: Medicine = {
-          ...medicineData,
+          ...sanitizedData,
           id,
           isActive: true,
           createdAt: now,
@@ -335,9 +356,12 @@ export const useMedicineStore = create<MedicineState>()(
         const now = new Date().toISOString();
         const { userId } = get();
 
+        // Türkçe karakter encoding sorunlarını düzelt
+        const sanitizedUpdates = sanitizeMedicineData(updates);
+
         set(state => ({
           medicines: state.medicines.map(m =>
-            m.id === id ? { ...m, ...updates, updatedAt: now } : m
+            m.id === id ? { ...m, ...sanitizedUpdates, updatedAt: now } : m
           ),
         }));
 
@@ -919,6 +943,41 @@ export const useMedicineStore = create<MedicineState>()(
         if (userId) {
           scheduleBackgroundSync(() => get().syncToCloud());
         }
+      },
+
+      // Bir sonraki uygun rengi getir
+      getNextAvailableColor: () => {
+        const { medicines } = get();
+
+        // Sadece aktif ilaçların renklerini al
+        const usedColors = medicines.filter(m => m.isActive).map(m => m.color);
+
+        // İlk kullanılmayan rengi bul
+        const unusedColor = MEDICINE_COLORS.find(color => !usedColors.includes(color));
+        if (unusedColor) {
+          return unusedColor;
+        }
+
+        // Tüm renkler kullanılıyorsa, en az kullanılan rengi bul
+        const colorCounts = new Map<string, number>();
+        MEDICINE_COLORS.forEach(color => colorCounts.set(color, 0));
+
+        usedColors.forEach(color => {
+          const count = colorCounts.get(color) || 0;
+          colorCounts.set(color, count + 1);
+        });
+
+        let minCount = Infinity;
+        let leastUsedColor = MEDICINE_COLORS[0];
+
+        colorCounts.forEach((count, color) => {
+          if (count < minCount) {
+            minCount = count;
+            leastUsedColor = color;
+          }
+        });
+
+        return leastUsedColor;
       },
 
       clearAllData: () => {

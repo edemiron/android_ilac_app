@@ -2,10 +2,9 @@ import type { ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import { ThemeColors } from '../../contexts/ThemeContext';
 import { Language, TranslationKey } from '../../contexts/LanguageContext';
-import type Ionicons from 'react-native-vector-icons/Ionicons';
 
 export interface SettingIconProps {
-  name: keyof typeof Ionicons.glyphMap;
+  name: string;
   color: string;
   size?: number;
 }
@@ -24,7 +23,7 @@ export interface SettingRowProps {
 }
 
 export interface SettingsSectionProps {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   title: string;
   description?: string;
   children: ReactNode;

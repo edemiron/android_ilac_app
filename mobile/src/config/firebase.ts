@@ -1,17 +1,12 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
-import {
-  initializeAuth,
-  getAuth,
-  Auth,
-  Persistence,
-} from 'firebase/auth';
+import { initializeAuth, getAuth, Auth, Persistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Config from 'react-native-config';
+import Constants from 'expo-constants';
 
 // Firebase Auth React Native persistence için tip tanımı
 // Firebase v12+ için getReactNativePersistence TypeScript'te eksik
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 const { getReactNativePersistence } = require('firebase/auth') as {
   getReactNativePersistence: (storage: typeof AsyncStorage) => Persistence;
 };
@@ -21,7 +16,7 @@ import { initializeFirebaseAppCheck } from './appCheck';
 const log = createScopedLogger('Firebase');
 
 /**
- * Gets Firebase config from environment variables via react-native-config.
+ * Firebase config from app.json extra.firebase
  *
  * SECURITY NOTE: Firebase client credentials are meant to be public.
  * Security is enforced through:
@@ -29,21 +24,15 @@ const log = createScopedLogger('Firebase');
  * 2. App Check (attestation)
  * 3. API key restrictions (in Firebase Console)
  */
-const getConfig = (envKey: string): string => {
-  const value = Config[envKey];
-  if (!value) {
-    throw new Error(`Missing Firebase config: ${envKey}. Check .env file.`);
-  }
-  return value;
-};
+const expoConfig = Constants.expoConfig?.extra?.firebase;
 
 const firebaseConfig = {
-  apiKey: getConfig('FIREBASE_API_KEY'),
-  authDomain: getConfig('FIREBASE_AUTH_DOMAIN'),
-  projectId: getConfig('FIREBASE_PROJECT_ID'),
-  storageBucket: getConfig('FIREBASE_STORAGE_BUCKET'),
-  messagingSenderId: getConfig('FIREBASE_MESSAGING_SENDER_ID'),
-  appId: getConfig('FIREBASE_APP_ID'),
+  apiKey: expoConfig?.apiKey || '',
+  authDomain: expoConfig?.authDomain || '',
+  projectId: expoConfig?.projectId || '',
+  storageBucket: expoConfig?.storageBucket || '',
+  messagingSenderId: expoConfig?.messagingSenderId || '',
+  appId: expoConfig?.appId || '',
 };
 
 // Firebase uygulamasini baslat (zaten varsa tekrar baslatma)

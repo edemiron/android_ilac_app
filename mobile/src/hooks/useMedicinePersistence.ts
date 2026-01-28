@@ -246,6 +246,120 @@ export function useMedicinePersistence({
     navigation.navigate('BarcodeScanner');
   }, [canUseBarcodeScanner, language, navigation, showAlert]);
 
+  const saveMedicine = useCallback(
+    async (formState: AddMedicineFormState): Promise<boolean> => {
+      try {
+        const medicineData = {
+          name: formState.name.trim(),
+          dosage: formState.dosage.trim(),
+          frequency: formState.useCustomTimes ? formState.customTimes.length : formState.frequency,
+          instructions: formState.instruction,
+          color: formState.selectedColor,
+          customTimes: formState.useCustomTimes ? formState.customTimes : undefined,
+          // Stok takibi
+          stockEnabled: formState.stockEnabled,
+          stockCount: formState.stockEnabled ? formState.stockCount : undefined,
+          stockThreshold: formState.stockEnabled ? formState.stockThreshold : undefined,
+          stockUnit: formState.stockEnabled ? formState.stockUnit : undefined,
+          // Son kullanma tarihi
+          expiryDate: formState.expiryDate || undefined,
+          expiryReminderDays: formState.expiryDate ? formState.expiryReminderDays : undefined,
+        };
+
+        if (isEditing && medicineId) {
+          updateMedicine(medicineId, medicineData);
+          const freshState = useMedicineStore.getState();
+          const times = freshState.getReminderTimesForMedicine(medicineId);
+          const medicine = freshState.getMedicineById(medicineId);
+          if (medicine) {
+            for (const time of times) {
+              // Düzenleme modunda bypassBuffer=true - kullanıcı saati bilinçli değiştirdi
+              await scheduleMedicineNotification(
+                medicine,
+                time,
+                settings.fullScreenAlarmEnabled,
+                true
+              );
+            }
+            // Son kullanma tarihi bildirimi planla/iptal et
+            if (formState.expiryDate && formState.expiryReminderDays) {
+              await scheduleExpiryReminder(
+                medicine,
+                formState.expiryDate,
+                formState.expiryReminderDays,
+                language
+              );
+            } else {
+              await cancelExpiryReminder(medicineId);
+            }
+          }
+        } else {
+          const newMedicineId = addMedicine({
+            ...medicineData,
+            startDate: new Date().toISOString(),
+          });
+          // CRITICAL: useMedicineStore.getState() kullan - hook closure'u eski state'e bakar
+          // addMedicine senkron olsa da, hook'taki fonksiyonlar eski closure'da kalır
+          const freshState = useMedicineStore.getState();
+          const times = freshState.getReminderTimesForMedicine(newMedicineId);
+          const medicine = freshState.getMedicineById(newMedicineId);
+
+          log.debug('Yeni ilaç eklendi', {
+            medicineId: newMedicineId,
+            medicineName: medicine?.name,
+            reminderTimesCount: times.length,
+          });
+
+          if (medicine && times.length > 0) {
+            for (const time of times) {
+              // Yeni ilaç eklenirken bypassBuffer=true - kullanıcı bugün için alarm istiyor
+              await scheduleMedicineNotification(
+                medicine,
+                time,
+                settings.fullScreenAlarmEnabled,
+                true
+              );
+              log.debug('Bildirim planlandı', { time: time.time });
+            }
+            // Son kullanma tarihi bildirimi planla
+            if (formState.expiryDate && formState.expiryReminderDays) {
+              await scheduleExpiryReminder(
+                medicine,
+                formState.expiryDate,
+                formState.expiryReminderDays,
+                language
+              );
+            }
+          } else {
+            log.warn('İlaç veya hatırlatma saatleri bulunamadı', {
+              hasMedicine: !!medicine,
+              timesCount: times.length,
+            });
+          }
+        }
+
+        navigation.goBack();
+        return true;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('Medicine save error:', error);
+        showError(t('error'), `${t('error_unknown')}\n\n${errorMessage}`);
+        return false;
+      }
+    },
+    [
+      isEditing,
+      medicineId,
+      language,
+      t,
+      navigation,
+      updateMedicine,
+      addMedicine,
+      settings.fullScreenAlarmEnabled,
+      showError,
+    ]
+  );
+
   const handleSave = useCallback(
     async (formState: AddMedicineFormState) => {
       if (!formState.name.trim()) {
@@ -364,112 +478,6 @@ export function useMedicinePersistence({
       checkTimeConflict,
       saveMedicine,
       showAlert,
-      showError,
-    ]
-  );
-
-  const saveMedicine = useCallback(
-    async (formState: AddMedicineFormState): Promise<boolean> => {
-      try {
-        const medicineData = {
-          name: formState.name.trim(),
-          dosage: formState.dosage.trim(),
-          frequency: formState.useCustomTimes ? formState.customTimes.length : formState.frequency,
-          instructions: formState.instruction,
-          color: formState.selectedColor,
-          customTimes: formState.useCustomTimes ? formState.customTimes : undefined,
-          // Stok takibi
-          stockEnabled: formState.stockEnabled,
-          stockCount: formState.stockEnabled ? formState.stockCount : undefined,
-          stockThreshold: formState.stockEnabled ? formState.stockThreshold : undefined,
-          stockUnit: formState.stockEnabled ? formState.stockUnit : undefined,
-          // Son kullanma tarihi
-          expiryDate: formState.expiryDate || undefined,
-          expiryReminderDays: formState.expiryDate ? formState.expiryReminderDays : undefined,
-        };
-
-        if (isEditing && medicineId) {
-          updateMedicine(medicineId, medicineData);
-          const freshState = useMedicineStore.getState();
-          const times = freshState.getReminderTimesForMedicine(medicineId);
-          const medicine = freshState.getMedicineById(medicineId);
-          if (medicine) {
-            for (const time of times) {
-              await scheduleMedicineNotification(medicine, time, settings.fullScreenAlarmEnabled);
-            }
-            // Son kullanma tarihi bildirimi planla/iptal et
-            if (formState.expiryDate && formState.expiryReminderDays) {
-              await scheduleExpiryReminder(
-                medicine,
-                formState.expiryDate,
-                formState.expiryReminderDays,
-                language
-              );
-            } else {
-              await cancelExpiryReminder(medicineId);
-            }
-          }
-        } else {
-          const newMedicineId = addMedicine({
-            ...medicineData,
-            startDate: new Date().toISOString(),
-          });
-          // CRITICAL: useMedicineStore.getState() kullan - hook closure'u eski state'e bakar
-          // addMedicine senkron olsa da, hook'taki fonksiyonlar eski closure'da kalır
-          const freshState = useMedicineStore.getState();
-          const times = freshState.getReminderTimesForMedicine(newMedicineId);
-          const medicine = freshState.getMedicineById(newMedicineId);
-
-          log.debug('Yeni ilaç eklendi', {
-            medicineId: newMedicineId,
-            medicineName: medicine?.name,
-            reminderTimesCount: times.length,
-          });
-
-          if (medicine && times.length > 0) {
-            for (const time of times) {
-              await scheduleMedicineNotification(medicine, time, settings.fullScreenAlarmEnabled);
-              log.debug('Bildirim planlandı', { time: time.time });
-            }
-            // Son kullanma tarihi bildirimi planla
-            if (formState.expiryDate && formState.expiryReminderDays) {
-              await scheduleExpiryReminder(
-                medicine,
-                formState.expiryDate,
-                formState.expiryReminderDays,
-                language
-              );
-            }
-          } else {
-            log.warn('İlaç veya hatırlatma saatleri bulunamadı', {
-              hasMedicine: !!medicine,
-              timesCount: times.length,
-            });
-          }
-        }
-
-        navigation.goBack();
-        return true;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('Medicine save error:', error);
-        showError(t('error'), `${t('error_unknown')}\n\n${errorMessage}`);
-        return false;
-      }
-    },
-    [
-      isEditing,
-      medicineId,
-      medicines,
-      checkCanAddMedicine,
-      language,
-      t,
-      navigation,
-      updateMedicine,
-      addMedicine,
-      getReminderTimesForMedicine,
-      getMedicineById,
-      settings.fullScreenAlarmEnabled,
       showError,
     ]
   );

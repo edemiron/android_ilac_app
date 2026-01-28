@@ -46,6 +46,13 @@
 | 01-26 | Full-screen alarm | MIUI/Xiaomi uyumlu |
 | 01-26 | Notification actions | Take/Skip/Snooze çalışıyor |
 | 01-26 | Deep link support | `ilachatirlatici://` scheme |
+| 01-28 | PDF rapor oluşturma | Statistics ekranına PDF export |
+| 01-28 | Son kullanma tarihi | Expiry date + badge gösterimi |
+| 01-28 | Çakışma aralığı ayarı | Auto-adjust feature |
+| 01-28 | Custom modal system | Native Alert değiştirildi |
+| 01-28 | Circular progress | Yükleme göstergesi |
+| 01-28 | Türkçe karakter fix | ı, İ, ş, Ş, ğ, Ğ vb. |
+| 01-28 | Card layout fix | Uzun ilaç isimleri için |
 
 ### Bekleyen Görevler (Opsiyonel)
 
@@ -85,9 +92,13 @@ cd mobile/android && ./gradlew assembleRelease --no-daemon
 
 # Install release to device
 adb install -r "mobile/android/app/build/outputs/apk/release/app-release.apk"
+
+# JS Bundle yeniden oluştur (JS değişikliklerinde ZORUNLU)
+cd mobile && npx react-native bundle --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res
 ```
 
 **NOT:** Metro bundler KULLANILMAZ. Debug build de JS bundle içerir (`debuggableVariants = []`).
+**ÖNEMLİ:** `./gradlew clean` JS bundle'ı TEMİZLEMEZ! JS değişikliklerinde `npx react-native bundle` ZORUNLU.
 
 ---
 

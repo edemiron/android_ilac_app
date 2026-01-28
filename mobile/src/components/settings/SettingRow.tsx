@@ -21,7 +21,7 @@ export const SettingRow: React.FC<SettingRowProps> = ({
   const { colors, isDark } = useTheme();
   const styles = createSettingsStyles(colors, isDark);
 
-  const getChevronName = (): keyof typeof Ionicons.glyphMap => {
+  const getChevronName = (): string => {
     switch (chevronDirection) {
       case 'up':
         return 'chevron-up';

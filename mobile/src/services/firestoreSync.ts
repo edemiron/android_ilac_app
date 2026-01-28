@@ -15,6 +15,23 @@ import { createScopedLogger } from '../utils/logger';
 const log = createScopedLogger('FirestoreSync');
 
 /**
+ * Türkçe karakter encoding sorunlarını düzelt
+ * Unicode escape sequence'ları decode et (\u00fc -> ü)
+ */
+function sanitizeString(str: string | undefined | null): string {
+  if (!str) return str as string;
+  return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+function sanitizeMedicine(medicine: Medicine): Medicine {
+  return {
+    ...medicine,
+    name: sanitizeString(medicine.name) || medicine.name,
+    dosage: medicine.dosage ? sanitizeString(medicine.dosage) : medicine.dosage,
+  };
+}
+
+/**
  * Firestore undefined değerleri kabul etmiyor.
  * Bu fonksiyon objedeki undefined değerleri temizler.
  */
@@ -98,10 +115,13 @@ export async function getMedicinesFromCloud(userId: string): Promise<Medicine[]>
   const medicinesRef = getMedicinesRef(userId);
   const snapshot = await getDocs(medicinesRef);
 
-  return snapshot.docs.map(doc => ({
-    ...doc.data(),
-    id: doc.id,
-  })) as Medicine[];
+  // Türkçe karakter encoding sorunlarını düzelt
+  return snapshot.docs.map(doc =>
+    sanitizeMedicine({
+      ...doc.data(),
+      id: doc.id,
+    } as Medicine)
+  );
 }
 
 // ============ HATIRLATMA ZAMANLARI ============
@@ -123,7 +143,7 @@ export async function syncReminderTimesToCloud(
   // Yeni zamanları ekle
   reminderTimes.forEach(time => {
     const docRef = doc(timesRef, time.id);
-    batch.set(docRef, time);
+    batch.set(docRef, sanitizeForFirestore(time as unknown as Record<string, unknown>));
   });
 
   await batch.commit();
@@ -162,7 +182,7 @@ export async function syncMedicineLogsToCloud(userId: string, logs: MedicineLog[
   // Yeni logları ekle
   recentLogs.forEach(log => {
     const docRef = doc(logsRef, log.id);
-    batch.set(docRef, log);
+    batch.set(docRef, sanitizeForFirestore(log as unknown as Record<string, unknown>));
   });
 
   await batch.commit();
@@ -171,7 +191,7 @@ export async function syncMedicineLogsToCloud(userId: string, logs: MedicineLog[
 // Tek bir log kaydet
 export async function saveMedicineLogToCloud(userId: string, log: MedicineLog): Promise<void> {
   const docRef = doc(getMedicineLogsRef(userId), log.id);
-  await setDoc(docRef, log);
+  await setDoc(docRef, sanitizeForFirestore(log as unknown as Record<string, unknown>));
 }
 
 // Tüm logları getir
@@ -217,6 +237,7 @@ export async function getSettingsFromCloud(userId: string): Promise<UserSettings
       quietHoursStart: data.quietHoursStart ?? '23:00',
       quietHoursEnd: data.quietHoursEnd ?? '07:00',
       alarmModeEnabled: data.alarmModeEnabled ?? true,
+      conflictIntervalMinutes: data.conflictIntervalMinutes ?? 10,
     };
   }
 
@@ -314,6 +335,7 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
         quietHoursStart: '23:00',
         quietHoursEnd: '07:00',
         alarmModeEnabled: true,
+        conflictIntervalMinutes: 10,
       },
     };
   } catch (error: unknown) {
