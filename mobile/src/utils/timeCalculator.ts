@@ -112,10 +112,11 @@ function getSingleDoseTime(
       return format(addMinutes(sleep, -30), 'HH:mm');
     
     case 'any_time':
-    default:
+    default: {
       // Günün ortası
       const midpoint = differenceInMinutes(sleep, wakeUp) / 2;
       return format(addMinutes(wakeUp, midpoint), 'HH:mm');
+    }
   }
 }
 

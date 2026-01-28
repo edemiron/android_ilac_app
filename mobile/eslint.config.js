@@ -42,6 +42,9 @@ export default [
         alert: 'readonly',
         requestAnimationFrame: 'readonly',
         cancelAnimationFrame: 'readonly',
+        // Node.js / TypeScript globals
+        NodeJS: 'readonly',
+        global: 'readonly',
       },
     },
     plugins: {
@@ -85,6 +88,7 @@ export default [
         beforeAll: 'readonly',
         afterAll: 'readonly',
         test: 'readonly',
+        global: 'writable',
       },
     },
   },
