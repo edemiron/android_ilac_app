@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -7,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   Animated,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -323,6 +325,35 @@ export default function MedicinesScreen() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Tip dismissed state
+  const [tipDismissed, setTipDismissed] = useState(true); // Default true to hide while loading
+
+  // Delete confirmation modal state
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+
+  // Load tip dismissed state from AsyncStorage
+  useEffect(() => {
+    const loadTipState = async () => {
+      try {
+        const dismissed = await AsyncStorage.getItem('medicines_tip_dismissed');
+        setTipDismissed(dismissed === 'true');
+      } catch {
+        setTipDismissed(false);
+      }
+    };
+    loadTipState();
+  }, []);
+
+  // Dismiss tip handler
+  const dismissTip = useCallback(async () => {
+    setTipDismissed(true);
+    try {
+      await AsyncStorage.setItem('medicines_tip_dismissed', 'true');
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
+
   const activeMedicines = medicines.filter(m => m.isActive);
   const inactiveMedicines = medicines.filter(m => !m.isActive);
 
@@ -357,27 +388,22 @@ export default function MedicinesScreen() {
     setSelectedIds(new Set(allIds));
   }, [medicines]);
 
-  // Delete selected medicines
-  const deleteSelected = useCallback(() => {
-    const count = selectedIds.size;
-    Alert.alert(
-      language === 'tr' ? 'Toplu Silme' : 'Bulk Delete',
-      language === 'tr'
-        ? `${count} ilacı silmek istediğinize emin misiniz?`
-        : `Are you sure you want to delete ${count} medicine(s)?`,
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('delete'),
-          style: 'destructive',
-          onPress: () => {
-            selectedIds.forEach(id => deleteMedicine(id));
-            exitSelectionMode();
-          },
-        },
-      ]
-    );
-  }, [selectedIds, language, t, deleteMedicine, exitSelectionMode]);
+  // Show delete confirmation modal
+  const showDeleteModal = useCallback(() => {
+    setDeleteModalVisible(true);
+  }, []);
+
+  // Confirm delete selected medicines
+  const confirmDeleteSelected = useCallback(() => {
+    selectedIds.forEach(id => deleteMedicine(id));
+    setDeleteModalVisible(false);
+    exitSelectionMode();
+  }, [selectedIds, deleteMedicine, exitSelectionMode]);
+
+  // Cancel delete
+  const cancelDelete = useCallback(() => {
+    setDeleteModalVisible(false);
+  }, []);
 
   const handleAddMedicine = () => {
     const { allowed, reason } = canAddMedicine(medicines.length);
@@ -575,23 +601,24 @@ export default function MedicinesScreen() {
               </Section>
             )}
 
-            <Section
-              icon="💡"
-              title={language === 'tr' ? 'İPUCU' : 'TIP'}
-              colors={colors}
-              isDark={isDark}
-            >
-              <View style={styles.tipRow}>
-                <View style={[styles.tipIconContainer, { backgroundColor: '#DBEAFE' }]}>
-                  <Text style={styles.tipIconEmoji}>👆</Text>
+            {!tipDismissed && (
+              <View style={[styles.tipCard, { backgroundColor: colors.primary + '15' }]}>
+                <View style={styles.tipContent}>
+                  <Ionicons name="bulb" size={18} color={colors.primary} />
+                  <Text style={[styles.tipText, { color: colors.text }]}>
+                    {language === 'tr'
+                      ? 'Düzenlemek için dokunun, silmek için basılı tutun'
+                      : 'Tap to edit, long press to delete'}
+                  </Text>
                 </View>
-                <Text style={[styles.tipText, { color: colors.textSecondary, flex: 1 }]}>
-                  {language === 'tr'
-                    ? 'Düzenlemek için ilaca dokunun, silmek veya duraklatmak için basılı tutun'
-                    : 'Tap to edit, long press to delete or pause'}
-                </Text>
+                <TouchableOpacity
+                  onPress={dismissTip}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close" size={18} color={colors.textMuted} />
+                </TouchableOpacity>
               </View>
-            </Section>
+            )}
           </>
         )}
 
@@ -608,7 +635,7 @@ export default function MedicinesScreen() {
         >
           <TouchableOpacity
             style={[styles.deleteSelectedButton, { backgroundColor: colors.error }]}
-            onPress={deleteSelected}
+            onPress={showDeleteModal}
           >
             <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
             <Text style={styles.deleteSelectedText}>
@@ -617,6 +644,86 @@ export default function MedicinesScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={cancelDelete}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconContainer, { backgroundColor: colors.error + '20' }]}>
+                <Ionicons name="trash" size={28} color={colors.error} />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                {language === 'tr' ? 'Toplu Silme' : 'Bulk Delete'}
+              </Text>
+            </View>
+
+            <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
+              {language === 'tr'
+                ? `${selectedIds.size} ilacı silmek istediğinize emin misiniz?`
+                : `Are you sure you want to delete ${selectedIds.size} medicine(s)?`}
+            </Text>
+
+            <View style={styles.modalMedicineList}>
+              {Array.from(selectedIds)
+                .slice(0, 3)
+                .map(id => {
+                  const medicine = medicines.find(m => m.id === id);
+                  if (!medicine) return null;
+                  return (
+                    <View key={id} style={styles.modalMedicineItem}>
+                      <View
+                        style={[
+                          styles.modalMedicineIcon,
+                          { backgroundColor: medicine.color + '20' },
+                        ]}
+                      >
+                        <Ionicons name="medical" size={16} color={medicine.color} />
+                      </View>
+                      <Text
+                        style={[styles.modalMedicineName, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {medicine.name}
+                      </Text>
+                    </View>
+                  );
+                })}
+              {selectedIds.size > 3 && (
+                <Text style={[styles.modalMoreText, { color: colors.textMuted }]}>
+                  {language === 'tr'
+                    ? `+${selectedIds.size - 3} ilaç daha`
+                    : `+${selectedIds.size - 3} more`}
+                </Text>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.error }]}
+              onPress={confirmDeleteSelected}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.modalButtonText}>{language === 'tr' ? 'Sil' : 'Delete'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalCancelButton, { borderColor: colors.border }]}
+              onPress={cancelDelete}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>
+                {t('cancel')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -829,11 +936,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  tipRow: {
+  tipCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
+    borderRadius: 12,
+  },
+  tipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
   },
   tipBullet: {
     width: 24,
@@ -848,19 +965,107 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  tipIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  tipRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  tipIconEmoji: {
-    fontSize: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   tipText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  modalIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    flex: 1,
+  },
+  modalDescription: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalMedicineList: {
+    width: '100%',
+    marginBottom: 20,
+    gap: 8,
+  },
+  modalMedicineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  modalMedicineIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalMedicineName: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
+  modalMoreText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginTop: 4,
+    paddingLeft: 42,
+  },
+  modalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 8,
+    marginBottom: 10,
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalCancelButton: {
+    width: '100%',
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

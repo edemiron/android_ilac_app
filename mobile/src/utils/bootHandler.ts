@@ -1,6 +1,13 @@
 import { AppRegistry } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import notifee, { TriggerType, AlarmType, TimestampTrigger, AndroidImportance, AndroidVisibility, AndroidCategory } from '@notifee/react-native';
+import notifee, {
+  TriggerType,
+  AlarmType,
+  TimestampTrigger,
+  AndroidImportance,
+  AndroidVisibility,
+  AndroidCategory,
+} from '@notifee/react-native';
 import { createScopedLogger } from './logger';
 
 const log = createScopedLogger('BootHandler');
@@ -8,6 +15,7 @@ const log = createScopedLogger('BootHandler');
 const ALARM_CHANNEL_ID = 'medicine-alarms-v3';
 const REMINDER_CHANNEL_ID = 'medicine-reminders-v3';
 const BOOT_RECOVERY_KEY = 'boot-recovery-result';
+const SYNC_NOTIFICATION_ID = 'alarm-sync-notification';
 
 interface Medicine {
   id: string;
@@ -60,7 +68,10 @@ function parseTimeToDate(time: string): Date {
   return date;
 }
 
-async function scheduleReminderNotification(medicine: Medicine, reminderTime: ReminderTime): Promise<string | null> {
+async function scheduleReminderNotification(
+  medicine: Medicine,
+  reminderTime: ReminderTime
+): Promise<string | null> {
   const triggerDate = parseTimeToDate(reminderTime.time);
   const timeStr = triggerDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
@@ -125,7 +136,7 @@ async function scheduleReminderNotification(medicine: Medicine, reminderTime: Re
 
 async function scheduleActiveSnooze(snooze: Snooze, medicine: Medicine): Promise<string | null> {
   const triggerTime = new Date(snooze.triggerTime);
-  
+
   if (triggerTime <= new Date()) {
     log.debug('Snooze time has passed, skipping', { snoozeId: snooze.id });
     return null;
@@ -208,7 +219,11 @@ async function showRecoveryNotification(result: BootRecoveryResult): Promise<voi
   if (total === 0) return;
 
   try {
+    // Önce varolan bildirimi iptal et (duplicate önleme)
+    await notifee.cancelNotification(SYNC_NOTIFICATION_ID);
+
     await notifee.displayNotification({
+      id: SYNC_NOTIFICATION_ID, // Sabit ID ile aynı bildirimi günceller
       title: '✅ Alarmlar Senkronize Edildi',
       body: `${result.reminders} hatirlatma${result.snoozes > 0 ? ` ve ${result.snoozes} erteleme` : ''} yeniden planlandi.`,
       android: {
@@ -263,7 +278,7 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
 
   try {
     const storedData = await AsyncStorage.getItem('medicine-storage');
-    
+
     if (!storedData) {
       log.debug('No stored data found');
       return { reminders: 0, snoozes: 0, trigger, timestamp };
@@ -297,7 +312,7 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
 
     if (snoozes) {
       const activeSnoozes = snoozes.filter(s => s.isActive);
-      
+
       for (const snooze of activeSnoozes) {
         const medicine = medicineMap.get(snooze.medicineId);
         if (!medicine) continue;
@@ -309,8 +324,8 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
       }
     }
 
-    const result: BootRecoveryResult = { 
-      reminders: registeredReminders, 
+    const result: BootRecoveryResult = {
+      reminders: registeredReminders,
       snoozes: registeredSnoozes,
       trigger,
       timestamp,
@@ -327,16 +342,16 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
 
 async function ReRegisterAlarmsTask(taskData: TaskData): Promise<void> {
   const { trigger = 'unknown', timestamp } = taskData || {};
-  
+
   log.debug('HeadlessJS task started', { trigger, timestamp });
 
   try {
     const result = await reRegisterAllAlarms(trigger);
-    
+
     await saveBootRecoveryResult(result);
-    
+
     await showRecoveryNotification(result);
-    
+
     log.debug('HeadlessJS task completed', { ...result });
   } catch (error) {
     log.error('HeadlessJS task failed', error);

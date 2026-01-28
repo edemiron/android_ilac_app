@@ -14,6 +14,20 @@ import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('FirestoreSync');
 
+/**
+ * Firestore undefined değerleri kabul etmiyor.
+ * Bu fonksiyon objedeki undefined değerleri temizler.
+ */
+function sanitizeForFirestore<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const sanitized: Partial<T> = {};
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key) && obj[key] !== undefined) {
+      sanitized[key as keyof T] = obj[key] as T[keyof T];
+    }
+  }
+  return sanitized;
+}
+
 // Collection isimleri
 const COLLECTIONS = {
   USERS: 'users',
@@ -27,39 +41,36 @@ const COLLECTIONS = {
 const getUserDocRef = (userId: string) => doc(db, COLLECTIONS.USERS, userId);
 
 // Alt koleksiyon referansları
-const getMedicinesRef = (userId: string) => 
+const getMedicinesRef = (userId: string) =>
   collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINES);
 
-const getReminderTimesRef = (userId: string) => 
+const getReminderTimesRef = (userId: string) =>
   collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.REMINDER_TIMES);
 
-const getMedicineLogsRef = (userId: string) => 
+const getMedicineLogsRef = (userId: string) =>
   collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINE_LOGS);
 
-const getSettingsDocRef = (userId: string) => 
+const getSettingsDocRef = (userId: string) =>
   doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SETTINGS, 'userSettings');
 
 // ============ İLAÇLAR ============
 
 // Tüm ilaçları kaydet (batch)
-export async function syncMedicinesToCloud(
-  userId: string,
-  medicines: Medicine[]
-): Promise<void> {
+export async function syncMedicinesToCloud(userId: string, medicines: Medicine[]): Promise<void> {
   const batch = writeBatch(db);
   const medicinesRef = getMedicinesRef(userId);
 
   // Önce mevcut tüm ilaçları sil
   const existingDocs = await getDocs(medicinesRef);
-  existingDocs.forEach((doc) => {
+  existingDocs.forEach(doc => {
     batch.delete(doc.ref);
   });
 
   // Yeni ilaçları ekle
-  medicines.forEach((medicine) => {
+  medicines.forEach(medicine => {
     const docRef = doc(medicinesRef, medicine.id);
     batch.set(docRef, {
-      ...medicine,
+      ...sanitizeForFirestore(medicine as unknown as Record<string, unknown>),
       updatedAt: Timestamp.now(),
     });
   });
@@ -68,22 +79,16 @@ export async function syncMedicinesToCloud(
 }
 
 // Tek bir ilaç kaydet
-export async function saveMedicineToCloud(
-  userId: string,
-  medicine: Medicine
-): Promise<void> {
+export async function saveMedicineToCloud(userId: string, medicine: Medicine): Promise<void> {
   const docRef = doc(getMedicinesRef(userId), medicine.id);
   await setDoc(docRef, {
-    ...medicine,
+    ...sanitizeForFirestore(medicine as unknown as Record<string, unknown>),
     updatedAt: Timestamp.now(),
   });
 }
 
 // İlaç sil
-export async function deleteMedicineFromCloud(
-  userId: string,
-  medicineId: string
-): Promise<void> {
+export async function deleteMedicineFromCloud(userId: string, medicineId: string): Promise<void> {
   const docRef = doc(getMedicinesRef(userId), medicineId);
   await deleteDoc(docRef);
 }
@@ -92,8 +97,8 @@ export async function deleteMedicineFromCloud(
 export async function getMedicinesFromCloud(userId: string): Promise<Medicine[]> {
   const medicinesRef = getMedicinesRef(userId);
   const snapshot = await getDocs(medicinesRef);
-  
-  return snapshot.docs.map((doc) => ({
+
+  return snapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id,
   })) as Medicine[];
@@ -111,12 +116,12 @@ export async function syncReminderTimesToCloud(
 
   // Mevcut tüm zamanları sil
   const existingDocs = await getDocs(timesRef);
-  existingDocs.forEach((doc) => {
+  existingDocs.forEach(doc => {
     batch.delete(doc.ref);
   });
 
   // Yeni zamanları ekle
-  reminderTimes.forEach((time) => {
+  reminderTimes.forEach(time => {
     const docRef = doc(timesRef, time.id);
     batch.set(docRef, time);
   });
@@ -128,8 +133,8 @@ export async function syncReminderTimesToCloud(
 export async function getReminderTimesFromCloud(userId: string): Promise<ReminderTime[]> {
   const timesRef = getReminderTimesRef(userId);
   const snapshot = await getDocs(timesRef);
-  
-  return snapshot.docs.map((doc) => ({
+
+  return snapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id,
   })) as ReminderTime[];
@@ -138,10 +143,7 @@ export async function getReminderTimesFromCloud(userId: string): Promise<Reminde
 // ============ İLAÇ LOGLARI ============
 
 // Tüm logları kaydet
-export async function syncMedicineLogsToCloud(
-  userId: string,
-  logs: MedicineLog[]
-): Promise<void> {
+export async function syncMedicineLogsToCloud(userId: string, logs: MedicineLog[]): Promise<void> {
   const batch = writeBatch(db);
   const logsRef = getMedicineLogsRef(userId);
 
@@ -149,18 +151,16 @@ export async function syncMedicineLogsToCloud(
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const recentLogs = logs.filter(
-    (log) => new Date(log.scheduledTime) >= thirtyDaysAgo
-  );
+  const recentLogs = logs.filter(log => new Date(log.scheduledTime) >= thirtyDaysAgo);
 
   // Mevcut logları sil
   const existingDocs = await getDocs(logsRef);
-  existingDocs.forEach((doc) => {
+  existingDocs.forEach(doc => {
     batch.delete(doc.ref);
   });
 
   // Yeni logları ekle
-  recentLogs.forEach((log) => {
+  recentLogs.forEach(log => {
     const docRef = doc(logsRef, log.id);
     batch.set(docRef, log);
   });
@@ -169,10 +169,7 @@ export async function syncMedicineLogsToCloud(
 }
 
 // Tek bir log kaydet
-export async function saveMedicineLogToCloud(
-  userId: string,
-  log: MedicineLog
-): Promise<void> {
+export async function saveMedicineLogToCloud(userId: string, log: MedicineLog): Promise<void> {
   const docRef = doc(getMedicineLogsRef(userId), log.id);
   await setDoc(docRef, log);
 }
@@ -181,8 +178,8 @@ export async function saveMedicineLogToCloud(
 export async function getMedicineLogsFromCloud(userId: string): Promise<MedicineLog[]> {
   const logsRef = getMedicineLogsRef(userId);
   const snapshot = await getDocs(logsRef);
-  
-  return snapshot.docs.map((doc) => ({
+
+  return snapshot.docs.map(doc => ({
     ...doc.data(),
     id: doc.id,
   })) as MedicineLog[];
@@ -191,10 +188,7 @@ export async function getMedicineLogsFromCloud(userId: string): Promise<Medicine
 // ============ AYARLAR ============
 
 // Ayarları kaydet
-export async function syncSettingsToCloud(
-  userId: string,
-  settings: UserSettings
-): Promise<void> {
+export async function syncSettingsToCloud(userId: string, settings: UserSettings): Promise<void> {
   const docRef = getSettingsDocRef(userId);
   await setDoc(docRef, {
     ...settings,
@@ -206,7 +200,7 @@ export async function syncSettingsToCloud(
 export async function getSettingsFromCloud(userId: string): Promise<UserSettings | null> {
   const docRef = getSettingsDocRef(userId);
   const snapshot = await getDoc(docRef);
-  
+
   if (snapshot.exists()) {
     const data = snapshot.data();
     return {
@@ -225,7 +219,7 @@ export async function getSettingsFromCloud(userId: string): Promise<UserSettings
       alarmModeEnabled: data.alarmModeEnabled ?? true,
     };
   }
-  
+
   return null;
 }
 
@@ -239,20 +233,19 @@ export interface SyncData {
 }
 
 // Timeout wrapper fonksiyonu
-const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> => {
+const withTimeout = <T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> => {
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) => 
-      setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
-    ),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(errorMessage)), timeoutMs)),
   ]);
 };
 
 // Tüm verileri buluta yükle
-export async function uploadAllDataToCloud(
-  userId: string,
-  data: SyncData
-): Promise<void> {
+export async function uploadAllDataToCloud(userId: string, data: SyncData): Promise<void> {
   log.debug('Veriler buluta yukleniyor');
 
   try {
@@ -340,15 +333,15 @@ export async function deleteAllUserData(userId: string): Promise<void> {
 
   // İlaçları sil
   const medicines = await getDocs(getMedicinesRef(userId));
-  medicines.forEach((doc) => batch.delete(doc.ref));
+  medicines.forEach(doc => batch.delete(doc.ref));
 
   // Zamanları sil
   const times = await getDocs(getReminderTimesRef(userId));
-  times.forEach((doc) => batch.delete(doc.ref));
+  times.forEach(doc => batch.delete(doc.ref));
 
   // Logları sil
   const logs = await getDocs(getMedicineLogsRef(userId));
-  logs.forEach((doc) => batch.delete(doc.ref));
+  logs.forEach(doc => batch.delete(doc.ref));
 
   // Ayarları sil
   batch.delete(getSettingsDocRef(userId));
