@@ -15,7 +15,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, Medicine } from '../types';
 import { formatTimeDisplay, getInstructionText } from '../utils/timeCalculator';
-import { differenceInDays, parseISO, startOfDay } from 'date-fns';
+import { differenceInDays, parseISO, startOfDay, format } from 'date-fns';
+import { tr, enUS } from 'date-fns/locale';
 import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage, TranslationKey } from '../contexts/LanguageContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
@@ -157,6 +158,21 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
   // Son kullanma tarihi durumunu hesapla
   const expiryStatus = getExpiryStatus(medicine.expiryDate);
 
+  // Son kullanma tarihini formatla
+  const formatExpiryDate = (dateStr: string): string => {
+    try {
+      const date = parseISO(dateStr);
+      const locale = language === 'tr' ? tr : enUS;
+      // "SKT: 31 Oca 2027" veya "EXP: Jan 31, 2027"
+      if (language === 'tr') {
+        return `SKT: ${format(date, 'd MMM yyyy', { locale })}`;
+      }
+      return `EXP: ${format(date, 'MMM d, yyyy', { locale })}`;
+    } catch {
+      return '';
+    }
+  };
+
   const getExpiryBadge = () => {
     if (!expiryStatus) return null;
 
@@ -190,6 +206,19 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
             </Text>
           </View>
         );
+      case 'ok':
+        // 30 gunden fazla var - tarihi goster
+        if (medicine.expiryDate) {
+          return (
+            <View style={[styles.expiryBadge, { backgroundColor: colors.textMuted + '15' }]}>
+              <Ionicons name="calendar-outline" size={11} color={colors.textMuted} />
+              <Text style={[styles.expiryBadgeText, { color: colors.textMuted }]}>
+                {formatExpiryDate(medicine.expiryDate)}
+              </Text>
+            </View>
+          );
+        }
+        return null;
       default:
         return null;
     }
