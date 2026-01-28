@@ -31,7 +31,7 @@ type ExpiryStatus =
   | { type: 'ok' }
   | null;
 
-function getExpiryStatus(expiryDate: string | undefined): ExpiryStatus {
+function getExpiryStatus(expiryDate: string | undefined, reminderDays?: number): ExpiryStatus {
   if (!expiryDate) return null;
 
   try {
@@ -39,9 +39,12 @@ function getExpiryStatus(expiryDate: string | undefined): ExpiryStatus {
     const expiry = startOfDay(parseISO(expiryDate));
     const daysLeft = differenceInDays(expiry, today);
 
+    // Kullanıcının seçtiği hatırlatma süresi (varsayılan: 30 gün)
+    const threshold = reminderDays || 30;
+
     if (daysLeft < 0) return { type: 'expired' };
     if (daysLeft === 0) return { type: 'expires_today' };
-    if (daysLeft <= 30) return { type: 'expires_soon', daysLeft };
+    if (daysLeft <= threshold) return { type: 'expires_soon', daysLeft };
     return { type: 'ok' };
   } catch {
     return null;
@@ -155,8 +158,8 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
     }
   };
 
-  // Son kullanma tarihi durumunu hesapla
-  const expiryStatus = getExpiryStatus(medicine.expiryDate);
+  // Son kullanma tarihi durumunu hesapla (kullanıcının seçtiği hatırlatma süresini kullan)
+  const expiryStatus = getExpiryStatus(medicine.expiryDate, medicine.expiryReminderDays);
 
   // Son kullanma tarihini formatla
   const formatExpiryDate = (dateStr: string): string => {
