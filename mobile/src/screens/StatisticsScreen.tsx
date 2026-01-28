@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
@@ -15,6 +17,12 @@ import { tr, enUS } from 'date-fns/locale';
 import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useMedicineStore } from '../stores/medicineStore';
+import {
+  generatePDFReport,
+  sharePDFReport,
+  prepareReportData,
+  ReportOptions,
+} from '../services/pdfReportService';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -67,9 +75,10 @@ const StatRow: React.FC<StatRowProps> = ({ icon, iconBg, label, value, valueColo
 export default function StatisticsScreen() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
-  const { medicineLogs } = useMedicineStore();
-  
+  const { medicineLogs, medicines, settings, getAdherenceRate, getCurrentStreak } = useMedicineStore();
+
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('weekly');
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   
   const dateLocale = language === 'tr' ? tr : enUS;
   
@@ -228,6 +237,59 @@ export default function StatisticsScreen() {
     if (rate >= 80) return colors.success;
     if (rate >= 50) return '#F59E0B';
     return '#EF4444';
+  };
+
+  const handleGeneratePDF = async (days: 7 | 30 | 90) => {
+    try {
+      setIsGeneratingPDF(true);
+
+      const reportData = prepareReportData(
+        medicines,
+        medicineLogs,
+        settings,
+        getAdherenceRate(days),
+        getCurrentStreak(),
+        days
+      );
+
+      const options: ReportOptions = {
+        days,
+        includeDetails: true,
+        language: language as 'tr' | 'en',
+      };
+
+      const filePath = await generatePDFReport(reportData, options);
+
+      if (filePath) {
+        await sharePDFReport(filePath);
+      } else {
+        Alert.alert(
+          language === 'tr' ? 'Hata' : 'Error',
+          language === 'tr' ? 'PDF oluşturulamadı' : 'Could not generate PDF'
+        );
+      }
+    } catch (error) {
+      console.error('PDF error:', error);
+      Alert.alert(
+        language === 'tr' ? 'Hata' : 'Error',
+        language === 'tr' ? 'PDF oluşturulurken bir hata oluştu' : 'Error generating PDF'
+      );
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const showPDFOptions = () => {
+    Alert.alert(
+      language === 'tr' ? 'Rapor Oluştur' : 'Generate Report',
+      language === 'tr' ? 'Hangi dönem için rapor oluşturmak istiyorsunuz?' : 'Which period do you want to report?',
+      [
+        { text: language === 'tr' ? 'Son 7 Gün' : 'Last 7 Days', onPress: () => handleGeneratePDF(7) },
+        { text: language === 'tr' ? 'Son 30 Gün' : 'Last 30 Days', onPress: () => handleGeneratePDF(30) },
+        { text: language === 'tr' ? 'Son 90 Gün' : 'Last 90 Days', onPress: () => handleGeneratePDF(90) },
+        { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   return (
@@ -468,7 +530,25 @@ export default function StatisticsScreen() {
           </View>
         ))}
       </Section>
-      
+
+      {/* PDF Rapor Butonu */}
+      <TouchableOpacity
+        style={[styles.pdfButton, { backgroundColor: colors.primary }]}
+        onPress={showPDFOptions}
+        disabled={isGeneratingPDF}
+      >
+        {isGeneratingPDF ? (
+          <ActivityIndicator color="#FFFFFF" size="small" />
+        ) : (
+          <>
+            <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
+            <Text style={styles.pdfButtonText}>
+              {language === 'tr' ? 'PDF Rapor Oluştur' : 'Generate PDF Report'}
+            </Text>
+          </>
+        )}
+      </TouchableOpacity>
+
       <View style={{ height: 40 }} />
     </ScrollView>
   );
@@ -691,5 +771,20 @@ const styles = StyleSheet.create({
   suggestionHint: {
     fontSize: 13,
     marginTop: 2,
+  },
+  pdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  pdfButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

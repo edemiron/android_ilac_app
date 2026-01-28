@@ -29,28 +29,30 @@ jest.mock('@notifee/react-native', () => ({
   },
 }));
 
-// Mock expo-haptics
-jest.mock('expo-haptics', () => ({
-  impactAsync: jest.fn(),
-  notificationAsync: jest.fn(),
-  selectionAsync: jest.fn(),
-  ImpactFeedbackStyle: {
-    Light: 'light',
-    Medium: 'medium',
-    Heavy: 'heavy',
-  },
-  NotificationFeedbackType: {
-    Success: 'success',
-    Warning: 'warning',
-    Error: 'error',
-  },
+// Mock react-native-haptic-feedback
+jest.mock('react-native-haptic-feedback', () => ({
+  trigger: jest.fn(),
 }));
 
-// Mock expo-speech
-jest.mock('expo-speech', () => ({
+// Mock react-native-tts
+jest.mock('react-native-tts', () => ({
   speak: jest.fn(),
   stop: jest.fn(),
-  isSpeakingAsync: jest.fn(() => Promise.resolve(false)),
+  setDefaultLanguage: jest.fn(),
+  setDefaultRate: jest.fn(),
+  setDefaultPitch: jest.fn(),
+  addEventListener: jest.fn(),
+  removeEventListener: jest.fn(),
+}));
+
+// Mock react-native-html-to-pdf
+jest.mock('react-native-html-to-pdf', () => ({
+  generatePDF: jest.fn(() => Promise.resolve({ filePath: '/mock/path/report.pdf' })),
+}));
+
+// Mock react-native-share
+jest.mock('react-native-share', () => ({
+  open: jest.fn(() => Promise.resolve()),
 }));
 
 // Silence console warnings in tests
