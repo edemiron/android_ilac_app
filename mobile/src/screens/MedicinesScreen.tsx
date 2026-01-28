@@ -83,9 +83,9 @@ interface MedicineRowProps {
   onDelete: () => void;
   onShowActionMenu: (medicine: Medicine, onToggle: () => void, onDel: () => void) => void;
   colors: ThemeColors;
+  isDark: boolean;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   language: 'tr' | 'en';
-  isFirst?: boolean;
   isSelectionMode?: boolean;
   isSelected?: boolean;
   onSelect?: () => void;
@@ -100,9 +100,9 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
   onDelete,
   onShowActionMenu,
   colors,
+  isDark,
   t,
   language,
-  isFirst,
   isSelectionMode,
   isSelected,
   onSelect,
@@ -196,10 +196,18 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
   return (
     <TouchableOpacity
       style={[
-        styles.medicineRow,
-        !isFirst && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
+        styles.medicineCard,
+        {
+          backgroundColor: colors.card,
+          shadowOpacity: isDark ? 0 : 0.08,
+          elevation: isDark ? 0 : 2,
+        },
         !medicine.isActive && { opacity: 0.6 },
-        isSelected && { backgroundColor: colors.primary + '15' },
+        isSelected && {
+          backgroundColor: colors.primary + '15',
+          borderColor: colors.primary,
+          borderWidth: 2,
+        },
       ]}
       onPress={handlePress}
       onLongPress={handleLongPress}
@@ -557,14 +565,15 @@ export default function MedicinesScreen() {
         ) : (
           <>
             {activeMedicines.length > 0 && (
-              <Section
-                icon="💚"
-                title={language === 'tr' ? 'AKTİF İLAÇLAR' : 'ACTIVE MEDICINES'}
-                count={activeMedicines.length}
-                colors={colors}
-                isDark={isDark}
-              >
-                {activeMedicines.map((medicine, index) => {
+              <View style={styles.sectionContainer}>
+                <View style={styles.sectionHeaderStandalone}>
+                  <Text style={styles.sectionIcon}>💚</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+                    {language === 'tr' ? 'AKTİF İLAÇLAR' : 'ACTIVE MEDICINES'} (
+                    {activeMedicines.length})
+                  </Text>
+                </View>
+                {activeMedicines.map(medicine => {
                   const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
                   return (
                     <MedicineRow
@@ -578,9 +587,9 @@ export default function MedicinesScreen() {
                       onDelete={() => deleteMedicine(medicine.id)}
                       onShowActionMenu={showActionMenu}
                       colors={colors}
+                      isDark={isDark}
                       t={t}
                       language={language}
-                      isFirst={index === 0}
                       isSelectionMode={isSelectionMode}
                       isSelected={selectedIds.has(medicine.id)}
                       onSelect={() => toggleSelection(medicine.id)}
@@ -590,18 +599,19 @@ export default function MedicinesScreen() {
                     />
                   );
                 })}
-              </Section>
+              </View>
             )}
 
             {inactiveMedicines.length > 0 && (
-              <Section
-                icon="⏸️"
-                title={language === 'tr' ? 'DURAKLATILAN İLAÇLAR' : 'PAUSED MEDICINES'}
-                count={inactiveMedicines.length}
-                colors={colors}
-                isDark={isDark}
-              >
-                {inactiveMedicines.map((medicine, index) => {
+              <View style={styles.sectionContainer}>
+                <View style={styles.sectionHeaderStandalone}>
+                  <Text style={styles.sectionIcon}>⏸️</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+                    {language === 'tr' ? 'DURAKLATILAN İLAÇLAR' : 'PAUSED MEDICINES'} (
+                    {inactiveMedicines.length})
+                  </Text>
+                </View>
+                {inactiveMedicines.map(medicine => {
                   const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
                   return (
                     <MedicineRow
@@ -615,9 +625,9 @@ export default function MedicinesScreen() {
                       onDelete={() => deleteMedicine(medicine.id)}
                       onShowActionMenu={showActionMenu}
                       colors={colors}
+                      isDark={isDark}
                       t={t}
                       language={language}
-                      isFirst={index === 0}
                       isSelectionMode={isSelectionMode}
                       isSelected={selectedIds.has(medicine.id)}
                       onSelect={() => toggleSelection(medicine.id)}
@@ -627,7 +637,7 @@ export default function MedicinesScreen() {
                     />
                   );
                 })}
-              </Section>
+              </View>
             )}
 
             {!tipDismissed && (
@@ -969,9 +979,25 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  medicineRow: {
+  medicineCard: {
+    marginHorizontal: 16,
+    marginBottom: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
+    borderRadius: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+  },
+  sectionContainer: {
+    marginTop: 16,
+  },
+  sectionHeaderStandalone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    gap: 8,
   },
   rowContent: {
     flexDirection: 'row',
