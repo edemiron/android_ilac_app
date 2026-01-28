@@ -373,12 +373,21 @@ export async function generatePDFReport(
 
     const html = generateHTMLReport(data, options);
 
-    const pdfOptions = {
+    const pdfOptions: {
+      html: string;
+      fileName: string;
+      directory?: string;
+      base64: boolean;
+    } = {
       html,
       fileName: `ilac-raporu-${format(new Date(), 'yyyy-MM-dd')}`,
-      directory: Platform.OS === 'ios' ? 'Documents' : 'Downloads',
       base64: false,
     };
+
+    // iOS requires Documents directory, Android uses cache by default
+    if (Platform.OS === 'ios') {
+      pdfOptions.directory = 'Documents';
+    }
 
     const file = await generatePDF(pdfOptions);
 
