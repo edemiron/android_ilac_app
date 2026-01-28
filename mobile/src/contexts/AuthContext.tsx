@@ -52,7 +52,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     // Auth durumu değişikliklerini dinle
-    const unsubscribe = subscribeToAuthChanges(async authUser => {
+    const unsubscribe = subscribeToAuthChanges(authUser => {
       const newUserId = authUser?.uid || null;
       const previousUserId = previousUserIdRef.current;
 
@@ -64,23 +64,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
           useMedicineStore.getState().clearAllData();
         }
 
-        // userId'yi set et ve Firebase'den verileri indir
+        // userId'yi set et
         useMedicineStore.getState().setUserId(newUserId);
-        log.debug('Firebase sync başlatılıyor', { userId: newUserId });
 
-        try {
-          await useMedicineStore.getState().syncFromCloud();
-          const medicines = useMedicineStore.getState().medicines;
-          log.debug('Sync tamamlandı', { medicineCount: medicines.length });
-        } catch (err: unknown) {
-          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          log.error('Sync hatası', new Error(errorMessage));
-        }
+        // PERFORMANCE: Firebase sync'i ARKA PLANDA yap, UI'ı bekleme
+        // Zustand persist zaten local cache'den veriyi yükler
+        log.debug('Firebase sync başlatılıyor (background)', { userId: newUserId });
+        useMedicineStore
+          .getState()
+          .syncFromCloud()
+          .then(() => {
+            const medicines = useMedicineStore.getState().medicines;
+            log.debug('Sync tamamlandı', { medicineCount: medicines.length });
+          })
+          .catch((err: unknown) => {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+            log.error('Sync hatası', new Error(errorMessage));
+          });
       }
 
       previousUserIdRef.current = newUserId;
       setUser(authUser);
-      setIsLoading(false);
+      setIsLoading(false); // UI hemen gösterilir, sync arka planda devam eder
     });
 
     // Google Play Services kontrolü

@@ -1,7 +1,7 @@
 // Polyfill for crypto.getRandomValues (required for uuid package)
 import 'react-native-get-random-values';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
 import {
   StatusBar,
   View,
@@ -28,13 +28,16 @@ import {
   AlarmScreen,
   StatisticsScreen,
   InteractionsScreen,
-  BarcodeScannerScreen,
+  // BarcodeScannerScreen - lazy loaded to avoid vision-camera startup cost
   LoginScreen,
   RegisterScreen,
   MedicineProspectusScreen,
   PremiumScreen,
   PermissionsScreen,
 } from './src/screens';
+
+// Lazy load BarcodeScannerScreen - vision-camera is HEAVY and slows startup by ~5s
+const BarcodeScannerScreen = lazy(() => import('./src/screens/BarcodeScannerScreen'));
 import { RootStackParamList, MainTabParamList, AuthStackParamList } from './src/types';
 import {
   requestNotificationPermissions,
@@ -339,6 +342,22 @@ const loadingStyles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+// Lazy-loaded BarcodeScanner wrapper (vision-camera is heavy)
+function LazyBarcodeScannerScreen(props: any) {
+  const { colors } = useTheme();
+  return (
+    <Suspense
+      fallback={
+        <View style={[loadingStyles.container, { backgroundColor: colors.background }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      }
+    >
+      <BarcodeScannerScreen {...props} />
+    </Suspense>
+  );
+}
 
 // Main App Content with Navigation
 function AppContent() {
@@ -874,7 +893,7 @@ function AppContent() {
         />
         <Stack.Screen
           name="BarcodeScanner"
-          component={BarcodeScannerScreen}
+          component={LazyBarcodeScannerScreen}
           options={{
             headerShown: false,
             presentation: 'fullScreenModal',
