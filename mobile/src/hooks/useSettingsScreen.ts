@@ -142,30 +142,36 @@ export function useSettingsScreen() {
   );
 
   const handleTestNotification = useCallback(async () => {
-    const hasPermission = await requestNotificationPermissions();
-    if (hasPermission) {
-      await sendTestNotification();
-      showSuccess(
-        t('success'),
-        language === 'tr'
-          ? '2 saniye içinde test bildirimi alacaksınız.'
-          : 'You will receive a test notification in 2 seconds.'
-      );
-    } else {
-      showAlert({
-        type: 'warning',
-        title: t('settings_notification_permission'),
-        message:
-          language === 'tr'
-            ? 'Bildirimlerin çalışması için izin vermeniz gerekiyor.'
-            : 'You need to grant permission for notifications to work.',
-        buttons: [
-          { text: t('cancel'), style: 'cancel' },
-          { text: t('settings_open_settings'), onPress: () => Linking.openSettings() },
-        ],
-      });
+    log.debug('handleTestNotification called');
+    try {
+      const hasPermission = await requestNotificationPermissions();
+      log.debug('Permission result', { hasPermission });
+      if (hasPermission) {
+        await sendTestNotification();
+        log.debug('sendTestNotification completed');
+        showSuccess(
+          t('success'),
+          language === 'tr' ? 'Test bildirimi gönderildi!' : 'Test notification sent!'
+        );
+      } else {
+        showAlert({
+          type: 'warning',
+          title: t('settings_notification_permission'),
+          message:
+            language === 'tr'
+              ? 'Bildirimlerin çalışması için izin vermeniz gerekiyor.'
+              : 'You need to grant permission for notifications to work.',
+          buttons: [
+            { text: t('cancel'), style: 'cancel' },
+            { text: t('settings_open_settings'), onPress: () => Linking.openSettings() },
+          ],
+        });
+      }
+    } catch (error) {
+      log.error('handleTestNotification error', error);
+      showError(t('error'), String(error));
     }
-  }, [language, t, showSuccess, showAlert]);
+  }, [language, t, showSuccess, showAlert, showError]);
 
   const handleTestVoice = useCallback(async () => {
     const message =

@@ -1,11 +1,11 @@
 {
   "name": "IlacHatirlatici",
-  "displayName": "Ilac Hatirlatici",
+  "displayName": "İlaç Hatırlatıcı",
   "react-native-google-mobile-ads": {
     "android_app_id": "ca-app-pub-3909827768413000~3359162942"
   },
   "expo": {
-    "name": "Ilac Hatirlatici",
+    "name": "İlaç Hatırlatıcı",
     "slug": "ilac-hatirlatici",
     "version": "1.0.8",
     "orientation": "portrait",

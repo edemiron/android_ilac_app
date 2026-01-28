@@ -752,12 +752,15 @@ export async function dismissNotification(notificationId: string): Promise<void>
  * Test bildirimi gönder
  */
 export async function sendTestNotification(): Promise<void> {
+  // Kanal oluşturulduğundan emin ol
+  await createNotificationChannels();
+
   await notifee.displayNotification({
     title: '🔔 Test Bildirimi',
     body: 'İlaç hatırlatma sistemi çalışıyor!',
     android: {
       channelId: REMINDER_CHANNEL_ID,
-      smallIcon: 'ic_notification',
+      smallIcon: 'ic_launcher',
       pressAction: {
         id: 'default',
       },
