@@ -246,7 +246,7 @@ const withTimeout = <T>(
 
 // Tüm verileri buluta yükle
 export async function uploadAllDataToCloud(userId: string, data: SyncData): Promise<void> {
-  log.debug('Veriler buluta yukleniyor');
+  log.debug('Veriler buluta yükleniyor');
 
   try {
     await withTimeout(
@@ -257,16 +257,16 @@ export async function uploadAllDataToCloud(userId: string, data: SyncData): Prom
         syncSettingsToCloud(userId, data.settings),
       ]),
       30000, // 30 saniye timeout
-      'Senkronizasyon zaman asimina ugradi. Internet baglantinizi kontrol edin.'
+      'Senkronizasyon zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
     );
 
-    log.debug('Veriler buluta yuklendi');
+    log.debug('Veriler buluta yüklendi');
   } catch (error: unknown) {
-    log.error('Buluta yukleme hatasi', error);
+    log.error('Buluta yükleme hatası', error);
     // Offline hatası için özel mesaj
     const errorObj = error as { code?: string; message?: string };
     if (errorObj.code === 'unavailable' || errorObj.message?.includes('offline')) {
-      throw new Error('Internet baglantisi yok. Lutfen baglantinizi kontrol edin.');
+      throw new Error('İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.');
     }
     throw error;
   }
@@ -285,12 +285,12 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
         getSettingsFromCloud(userId),
       ]),
       30000, // 30 saniye timeout
-      'Veri indirme zaman asimina ugradi. Internet baglantinizi kontrol edin.'
+      'Veri indirme zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
     );
 
     // Eğer hiç veri yoksa null döndür
     if (medicines.length === 0 && !settings) {
-      log.debug('Bulutta veri bulunamadi');
+      log.debug('Bulutta veri bulunamadı');
       return null;
     }
 
@@ -317,11 +317,11 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
       },
     };
   } catch (error: unknown) {
-    log.error('Buluttan veri indirme hatasi', error);
+    log.error('Buluttan veri indirme hatası', error);
     // Offline hatası için özel mesaj
     const errorObj = error as { code?: string; message?: string };
     if (errorObj.code === 'unavailable' || errorObj.message?.includes('offline')) {
-      throw new Error('Internet baglantisi yok. Lutfen baglantinizi kontrol edin.');
+      throw new Error('İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.');
     }
     throw error;
   }

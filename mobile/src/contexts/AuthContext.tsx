@@ -60,21 +60,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Kullanıcı giriş yaptı
         if (previousUserId !== null && previousUserId !== newUserId) {
           // Farklı bir kullanıcı giriş yaptı - önce store'u temizle
-          log.debug('Farkli kullanici, store temizleniyor');
+          log.debug('Farklı kullanıcı, store temizleniyor');
           useMedicineStore.getState().clearAllData();
         }
 
         // userId'yi set et ve Firebase'den verileri indir
         useMedicineStore.getState().setUserId(newUserId);
-        log.debug('Firebase sync baslatiliyor', { userId: newUserId });
+        log.debug('Firebase sync başlatılıyor', { userId: newUserId });
 
         try {
           await useMedicineStore.getState().syncFromCloud();
           const medicines = useMedicineStore.getState().medicines;
-          log.debug('Sync tamamlandi', { medicineCount: medicines.length });
+          log.debug('Sync tamamlandı', { medicineCount: medicines.length });
         } catch (err: unknown) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          log.error('Sync hatasi', new Error(errorMessage));
+          log.error('Sync hatası', new Error(errorMessage));
         }
       }
 
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(true);
       await loginWithEmail(email, password);
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Giris hatasi';
+      const errorMessage = err instanceof Error ? err.message : 'Giriş hatası';
       setError(errorMessage);
       throw err;
     } finally {
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(authUser);
       previousUserIdRef.current = authUser.uid;
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Kayit hatasi';
+      const errorMessage = err instanceof Error ? err.message : 'Kayıt hatası';
       setError(errorMessage);
       throw err;
     } finally {
@@ -140,7 +140,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Sonra Firebase'den çıkış yap
       await authLogout();
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Cikis hatasi';
+      const errorMessage = err instanceof Error ? err.message : 'Çıkış hatası';
       setError(errorMessage);
       throw err;
     }
@@ -151,7 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(null);
       await authResetPassword(email);
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Sifre sifirlama hatasi';
+      const errorMessage = err instanceof Error ? err.message : 'Şifre sıfırlama hatası';
       setError(errorMessage);
       throw err;
     }
@@ -179,7 +179,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await loginWithGoogle(idToken);
       } else {
         throw new Error(
-          'Google ID token alinamadi. Lutfen webClientId yapilandirmasini kontrol edin.'
+          'Google ID token alınamadı. Lütfen webClientId yapılandırmasını kontrol edin.'
         );
       }
     } catch (err: unknown) {
@@ -190,14 +190,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Kullanıcı iptal etti
         setError(null);
       } else if (errorObj.code === statusCodes.IN_PROGRESS) {
-        setError('Giris islemi devam ediyor...');
+        setError('Giriş işlemi devam ediyor...');
       } else if (errorObj.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        setError('Google Play Services kullanilamiyor');
+        setError('Google Play Services kullanılamıyor');
       } else if (errorObj.code === '10' || errorObj.code === 10) {
         // DEVELOPER_ERROR - SHA-1 veya package name uyuşmazlığı
-        setError('Google yapilandirma hatasi. SHA-1 veya package name kontrol edin.');
+        setError('Google yapılandırma hatası. SHA-1 veya package name kontrol edin.');
       } else {
-        setError(errorObj.message || 'Google ile giris basarisiz');
+        setError(errorObj.message || 'Google ile giriş başarısız');
       }
     } finally {
       setIsLoading(false);

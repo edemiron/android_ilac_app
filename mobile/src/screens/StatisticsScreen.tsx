@@ -379,6 +379,24 @@ export default function StatisticsScreen() {
         <Text style={styles.adherenceValue}>%{overallStats.adherenceRate}</Text>
       </LinearGradient>
 
+      {/* PDF Rapor Butonu - Üstte */}
+      <TouchableOpacity
+        style={[styles.pdfButton, { backgroundColor: colors.primary }]}
+        onPress={showPDFOptions}
+        disabled={isGeneratingPDF}
+      >
+        {isGeneratingPDF ? (
+          <ActivityIndicator color="#FFFFFF" size="small" />
+        ) : (
+          <>
+            <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
+            <Text style={styles.pdfButtonText}>
+              {language === 'tr' ? 'PDF Rapor Oluştur' : 'Generate PDF Report'}
+            </Text>
+          </>
+        )}
+      </TouchableOpacity>
+
       {suggestions.length > 0 && (
         <Section
           icon="💡"
@@ -648,24 +666,6 @@ export default function StatisticsScreen() {
             </View>
           ))}
       </Section>
-
-      {/* PDF Rapor Butonu */}
-      <TouchableOpacity
-        style={[styles.pdfButton, { backgroundColor: colors.primary }]}
-        onPress={showPDFOptions}
-        disabled={isGeneratingPDF}
-      >
-        {isGeneratingPDF ? (
-          <ActivityIndicator color="#FFFFFF" size="small" />
-        ) : (
-          <>
-            <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.pdfButtonText}>
-              {language === 'tr' ? 'PDF Rapor Oluştur' : 'Generate PDF Report'}
-            </Text>
-          </>
-        )}
-      </TouchableOpacity>
 
       <View style={{ height: 40 }} />
     </ScrollView>

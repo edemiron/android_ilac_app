@@ -47,14 +47,14 @@ export const QuietHoursSection: React.FC<QuietHoursSectionProps> = ({
         title={language === 'tr' ? 'Gece Modu' : 'Quiet Hours'}
         description={
           language === 'tr'
-            ? 'Belirtilen saatlerde tam ekran alarm devre disi kalir'
+            ? 'Belirtilen saatlerde tam ekran alarm devre dışı kalır'
             : 'Full screen alarm is disabled during these hours'
         }
       >
         <SettingRow
           icon={{ name: 'bed-outline', color: '#6366F1' }}
           label={language === 'tr' ? 'Gece Modu' : 'Quiet Hours'}
-          description={language === 'tr' ? 'Sessiz saatleri etkinlestir' : 'Enable quiet hours'}
+          description={language === 'tr' ? 'Sessiz saatleri etkinleştir' : 'Enable quiet hours'}
           rightElement={
             <Switch
               value={settings.quietHoursEnabled || false}
@@ -69,8 +69,10 @@ export const QuietHoursSection: React.FC<QuietHoursSectionProps> = ({
           <>
             <SettingRow
               icon={{ name: 'notifications-off-outline', color: '#8B5CF6' }}
-              label={language === 'tr' ? 'Baslangic Saati' : 'Start Time'}
-              description={language === 'tr' ? 'Gece modunun basladigi saat' : 'When quiet hours begin'}
+              label={language === 'tr' ? 'Başlangıç Saati' : 'Start Time'}
+              description={
+                language === 'tr' ? 'Gece modunun başladığı saat' : 'When quiet hours begin'
+              }
               value={formatTimeDisplay(settings.quietHoursStart || '23:00')}
               onPress={onQuietStartPress}
               showChevron
@@ -78,8 +80,8 @@ export const QuietHoursSection: React.FC<QuietHoursSectionProps> = ({
 
             <SettingRow
               icon={{ name: 'notifications-outline', color: '#10B981' }}
-              label={language === 'tr' ? 'Bitis Saati' : 'End Time'}
-              description={language === 'tr' ? 'Gece modunun bittigi saat' : 'When quiet hours end'}
+              label={language === 'tr' ? 'Bitiş Saati' : 'End Time'}
+              description={language === 'tr' ? 'Gece modunun bittiği saat' : 'When quiet hours end'}
               value={formatTimeDisplay(settings.quietHoursEnd || '07:00')}
               onPress={onQuietEndPress}
               showChevron

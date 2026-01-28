@@ -148,7 +148,7 @@ export function useSettingsScreen() {
       showSuccess(
         t('success'),
         language === 'tr'
-          ? '2 saniye icinde test bildirimi alacaksiniz.'
+          ? '2 saniye içinde test bildirimi alacaksınız.'
           : 'You will receive a test notification in 2 seconds.'
       );
     } else {
@@ -157,7 +157,7 @@ export function useSettingsScreen() {
         title: t('settings_notification_permission'),
         message:
           language === 'tr'
-            ? 'Bildirimlerin calismasi icin izin vermeniz gerekiyor.'
+            ? 'Bildirimlerin çalışması için izin vermeniz gerekiyor.'
             : 'You need to grant permission for notifications to work.',
         buttons: [
           { text: t('cancel'), style: 'cancel' },
@@ -170,7 +170,7 @@ export function useSettingsScreen() {
   const handleTestVoice = useCallback(async () => {
     const message =
       language === 'tr'
-        ? 'Ilac zamani! Aspirin, 500 miligram. Yemekten sonra aliniz.'
+        ? 'İlaç zamanı! Aspirin, 500 miligram. Yemekten sonra alınız.'
         : 'Medicine time! Aspirin, 500 milligrams. Take after meal.';
     await speak(message, language);
   }, [language]);
@@ -179,7 +179,7 @@ export function useSettingsScreen() {
     showConfirm(
       language === 'tr' ? 'Tam Ekran Alarm Testi' : 'Full Screen Alarm Test',
       language === 'tr'
-        ? '2 saniye sonra tam ekran alarm acilacak.'
+        ? '2 saniye sonra tam ekran alarm açılacak.'
         : 'Full screen alarm will open in 2 seconds.',
       () => {
         setTimeout(() => {
@@ -190,7 +190,7 @@ export function useSettingsScreen() {
           });
         }, 2000);
       },
-      { confirmText: language === 'tr' ? 'Baslat' : 'Start', cancelText: t('cancel') }
+      { confirmText: language === 'tr' ? 'Başlat' : 'Start', cancelText: t('cancel') }
     );
   }, [language, navigation, t, showConfirm]);
 
@@ -203,7 +203,7 @@ export function useSettingsScreen() {
           title: t('settings_notification_permission'),
           message:
             language === 'tr'
-              ? 'Bildirimlerin calismasi icin izin vermeniz gerekiyor.'
+              ? 'Bildirimlerin çalışması için izin vermeniz gerekiyor.'
               : 'You need to grant permission for notifications to work.',
           buttons: [
             { text: t('cancel'), style: 'cancel' },
@@ -230,19 +230,19 @@ export function useSettingsScreen() {
               : `${minutes} minutes`;
 
         showSuccess(
-          language === 'tr' ? 'Alarm Planlandi' : 'Alarm Scheduled',
+          language === 'tr' ? 'Alarm Planlandı' : 'Alarm Scheduled',
           language === 'tr'
-            ? `Test alarmi saat ${timeStr} (${timeDisplay} sonra) calacak.\n\nTelefonu sessiz moda alarak test edebilirsiniz.`
+            ? `Test alarmı saat ${timeStr} (${timeDisplay} sonra) çalacak.\n\nTelefonu sessiz moda alarak test edebilirsiniz.`
             : `Test alarm will ring at ${timeStr} (in ${timeDisplay}).\n\nYou can test by putting your phone in silent mode.`
         );
       } catch (error: unknown) {
-        log.error('Test alarm planlama hatasi', error);
+        log.error('Test alarm planlama hatası', error);
         const errorObj = error as { message?: string };
         const errorMessage = errorObj?.message || String(error) || 'Bilinmeyen hata';
         showError(
           t('error'),
           language === 'tr'
-            ? `Alarm plananamadi.\n\nHata: ${errorMessage}`
+            ? `Alarm planlanamadı.\n\nHata: ${errorMessage}`
             : `Failed to schedule alarm.\n\nError: ${errorMessage}`
         );
       }
@@ -264,7 +264,7 @@ export function useSettingsScreen() {
         error instanceof Error
           ? error.message
           : language === 'tr'
-            ? 'Senkronizasyon basarisiz oldu.'
+            ? 'Senkronizasyon başarısız oldu.'
             : 'Sync failed.';
       showError(t('error'), errorMessage);
     }
@@ -379,7 +379,7 @@ export function useSettingsScreen() {
       }
 
       showSuccess(
-        language === 'tr' ? 'Test Ilaci Eklendi' : 'Test Medicine Added',
+        language === 'tr' ? 'Test İlacı Eklendi' : 'Test Medicine Added',
         language === 'tr'
           ? `${randomName} (${randomDose}) eklendi.\n\nAlarm: ${timeStr} (1 dakika sonra)`
           : `${randomName} (${randomDose}) added.\n\nAlarm: ${timeStr} (in 1 minute)`
@@ -413,7 +413,7 @@ export function useSettingsScreen() {
       }
 
       showSuccess(
-        language === 'tr' ? 'Test Ilaci Eklendi' : 'Test Medicine Added',
+        language === 'tr' ? 'Test İlacı Eklendi' : 'Test Medicine Added',
         language === 'tr'
           ? `${randomName} (${randomDose}) eklendi.\n\nAlarm: ${newTimeStr} (${1 + offsetMinutes} dakika sonra)`
           : `${randomName} (${randomDose}) added.\n\nAlarm: ${newTimeStr} (in ${1 + offsetMinutes} minutes)`
@@ -434,10 +434,10 @@ export function useSettingsScreen() {
 
           showAlert({
             type: 'warning',
-            title: language === 'tr' ? 'Saat Cakismasi Tespit Edildi' : 'Time Conflict Detected',
-            message: `${language === 'tr' ? 'Bu ilac asagidaki ilaclarla ayni saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${timeConflictResult.conflictMessages}\n\n${language === 'tr' ? 'Ne yapmak istersiniz?' : 'What would you like to do?'}`,
+            title: language === 'tr' ? 'Saat Çakışması Tespit Edildi' : 'Time Conflict Detected',
+            message: `${language === 'tr' ? 'Bu ilaç aşağıdaki ilaçlarla aynı saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${timeConflictResult.conflictMessages}\n\n${language === 'tr' ? 'Ne yapmak istersiniz?' : 'What would you like to do?'}`,
             buttons: [
-              { text: language === 'tr' ? 'Iptal' : 'Cancel', style: 'cancel' },
+              { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
               {
                 text: language === 'tr' ? `${suggestedTime}'e Ekle` : `Add at ${suggestedTime}`,
                 onPress: () => doAddMedicineWithOffset(offsetMinutes),
@@ -453,10 +453,10 @@ export function useSettingsScreen() {
           // 5 dakika icinde cakismayan saat bulunamadi
           showAlert({
             type: 'warning',
-            title: language === 'tr' ? 'Saat Cakismasi Tespit Edildi' : 'Time Conflict Detected',
-            message: `${language === 'tr' ? 'Bu ilac asagidaki ilaclarla ayni saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${timeConflictResult.conflictMessages}\n\n${language === 'tr' ? '5 dakika icinde uygun bos saat bulunamadi.' : 'No available time slot found within 5 minutes.'}`,
+            title: language === 'tr' ? 'Saat Çakışması Tespit Edildi' : 'Time Conflict Detected',
+            message: `${language === 'tr' ? 'Bu ilaç aşağıdaki ilaçlarla aynı saate denk geliyor:' : 'This medicine conflicts with the following medicines:'}\n\n${timeConflictResult.conflictMessages}\n\n${language === 'tr' ? '5 dakika içinde uygun boş saat bulunamadı.' : 'No available time slot found within 5 minutes.'}`,
             buttons: [
-              { text: language === 'tr' ? 'Iptal' : 'Cancel', style: 'cancel' },
+              { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
               {
                 text: language === 'tr' ? 'Yine de Ekle' : 'Add Anyway',
                 style: 'destructive',
@@ -501,28 +501,28 @@ export function useSettingsScreen() {
     if (testMedicines.length === 0) {
       showInfo(
         language === 'tr' ? 'Bilgi' : 'Info',
-        language === 'tr' ? 'Silinecek test ilaci yok.' : 'No test medicines to delete.'
+        language === 'tr' ? 'Silinecek test ilacı yok.' : 'No test medicines to delete.'
       );
       return;
     }
 
     showConfirm(
-      language === 'tr' ? 'Test Ilaclarini Sil' : 'Delete Test Medicines',
+      language === 'tr' ? 'Test İlaçlarını Sil' : 'Delete Test Medicines',
       language === 'tr'
-        ? `${testMedicines.length} adet test ilaci silinecek. Emin misiniz?`
+        ? `${testMedicines.length} adet test ilacı silinecek. Emin misiniz?`
         : `${testMedicines.length} test medicines will be deleted. Are you sure?`,
       () => {
         testMedicines.forEach(m => deleteMedicine(m.id));
         showSuccess(
           t('success'),
           language === 'tr'
-            ? `${testMedicines.length} test ilaci silindi.`
+            ? `${testMedicines.length} test ilacı silindi.`
             : `${testMedicines.length} test medicines deleted.`
         );
       },
       {
         confirmText: language === 'tr' ? 'Sil' : 'Delete',
-        cancelText: language === 'tr' ? 'Iptal' : 'Cancel',
+        cancelText: language === 'tr' ? 'İptal' : 'Cancel',
         destructive: true,
       }
     );
@@ -544,26 +544,26 @@ export function useSettingsScreen() {
         triggerIds.length > 0
           ? triggerIds.join('\n')
           : language === 'tr'
-            ? 'Hic planlanmis bildirim yok!'
+            ? 'Hiç planlanmış bildirim yok!'
             : 'No scheduled notifications!';
 
       showInfo(
         language === 'tr' ? 'Debug Bilgisi' : 'Debug Info',
-        `${language === 'tr' ? 'Ilaclar' : 'Medicines'} (${medicines.length}):\n${medicineInfo || 'Yok'}\n\n` +
-          `${language === 'tr' ? 'Planlanmis Bildirimler' : 'Scheduled Notifications'} (${triggerIds.length}):\n${triggerInfo}\n\n` +
-          `${language === 'tr' ? 'Goruntulen Bildirimler' : 'Displayed Notifications'}: ${displayedNotifs.length}`
+        `${language === 'tr' ? 'İlaçlar' : 'Medicines'} (${medicines.length}):\n${medicineInfo || 'Yok'}\n\n` +
+          `${language === 'tr' ? 'Planlanmış Bildirimler' : 'Scheduled Notifications'} (${triggerIds.length}):\n${triggerInfo}\n\n` +
+          `${language === 'tr' ? 'Görüntülen Bildirimler' : 'Displayed Notifications'}: ${displayedNotifs.length}`
       );
     } catch (error) {
-      log.error('Debug bilgisi alinamadi', error);
+      log.error('Debug bilgisi alınamadı', error);
       showError('Error', String(error));
     }
   }, [medicines, reminderTimes, language, showInfo, showError]);
 
   const handleLogout = useCallback(() => {
     showConfirm(
-      language === 'tr' ? 'Cikis Yap' : 'Logout',
+      language === 'tr' ? 'Çıkış Yap' : 'Logout',
       language === 'tr'
-        ? 'Hesabinizdan cikis yapmak istediginize emin misiniz?'
+        ? 'Hesabınızdan çıkış yapmak istediğinize emin misiniz?'
         : 'Are you sure you want to logout?',
       async () => {
         try {
@@ -574,7 +574,7 @@ export function useSettingsScreen() {
         }
       },
       {
-        confirmText: language === 'tr' ? 'Cikis Yap' : 'Logout',
+        confirmText: language === 'tr' ? 'Çıkış Yap' : 'Logout',
         cancelText: t('cancel'),
         destructive: true,
       }
@@ -583,7 +583,7 @@ export function useSettingsScreen() {
 
   const formatLastSync = useCallback(() => {
     if (!lastSyncAt) {
-      return language === 'tr' ? 'Henuz senkronize edilmedi' : 'Never synced';
+      return language === 'tr' ? 'Henüz senkronize edilmedi' : 'Never synced';
     }
     const date = new Date(lastSyncAt);
     return format(date, 'dd.MM.yyyy HH:mm');
@@ -609,7 +609,7 @@ export function useSettingsScreen() {
   );
 
   const getLanguageLabel = useCallback((lang: Language) => {
-    return lang === 'tr' ? 'Turkce' : 'English';
+    return lang === 'tr' ? 'Türkçe' : 'English';
   }, []);
 
   return {

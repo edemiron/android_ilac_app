@@ -25,6 +25,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { InlineAdBanner } from '../components/AdBanner';
 import { scheduleSnoozeNotification } from '../utils/notifications';
 import { useAlert } from '../contexts/AlertContext';
+import { CircularProgress } from '../components/CircularProgress';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -618,13 +619,17 @@ export default function HomeScreen() {
               <Text style={[styles.heroDate, { color: colors.textMuted }]}>{today}</Text>
             </View>
 
-            {/* Uyum Oranı Circle */}
+            {/* Uyum Oranı Circular Progress */}
             <View style={styles.progressContainer}>
-              <View style={[styles.progressCircle, { borderColor: colors.primary }]}>
-                <Text style={[styles.progressPercent, { color: colors.primary }]}>
-                  {progressPercent}%
-                </Text>
-              </View>
+              <CircularProgress
+                percentage={progressPercent}
+                size={70}
+                strokeWidth={8}
+                progressColor={colors.primary}
+                trackColor={isDark ? 'rgba(255, 255, 255, 0.1)' : '#E8F4F4'}
+                textColor={colors.primary}
+                backgroundColor={isDark ? 'rgba(255, 255, 255, 0.05)' : '#F0F9F9'}
+              />
               <Text style={[styles.progressLabel, { color: colors.textMuted }]}>
                 {language === 'tr' ? 'Uyum oranı' : 'Adherence'}
               </Text>
@@ -978,21 +983,9 @@ const styles = StyleSheet.create({
   progressContainer: {
     alignItems: 'center',
   },
-  progressCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressPercent: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
   progressLabel: {
     fontSize: 11,
-    marginTop: 4,
+    marginTop: 6,
     fontWeight: '500',
   },
   heroStats: {

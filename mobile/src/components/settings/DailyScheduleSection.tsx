@@ -39,14 +39,14 @@ export const DailyScheduleSection: React.FC<DailyScheduleSectionProps> = ({
         title={t('settings_general')}
         description={
           language === 'tr'
-            ? 'Ilac saatleri bu zaman dilimine gore otomatik hesaplanir'
+            ? 'İlaç saatleri bu zaman dilimine göre otomatik hesaplanır'
             : 'Medicine times are calculated based on these hours'
         }
       >
         <SettingRow
           icon={{ name: 'sunny', color: '#F59E0B' }}
           label={t('settings_wake_time')}
-          description={language === 'tr' ? 'Gunun baslangici' : 'Start of day'}
+          description={language === 'tr' ? 'Günün başlangıcı' : 'Start of day'}
           value={formatTimeDisplay(wakeUpTime)}
           onPress={onWakeUpPress}
           showChevron
@@ -54,7 +54,7 @@ export const DailyScheduleSection: React.FC<DailyScheduleSectionProps> = ({
         <SettingRow
           icon={{ name: 'moon', color: '#6366F1' }}
           label={t('settings_sleep_time')}
-          description={language === 'tr' ? 'Gunun bitisi' : 'End of day'}
+          description={language === 'tr' ? 'Günün bitişi' : 'End of day'}
           value={formatTimeDisplay(sleepTime)}
           onPress={onSleepPress}
           showChevron

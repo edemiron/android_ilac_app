@@ -51,10 +51,10 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
       showAlert({
         type: 'warning',
         title: 'Barkod Bulunamadı',
-        message: `Barkod: ${barcode}\n\nBu ilac tum kaynaklarda aramasina ragmen bulunamadi.\n\nManuel olarak ekleyebilirsiniz.`,
+        message: `Barkod: ${barcode}\n\nBu ilaç tüm kaynaklarda aramasına rağmen bulunamadı.\n\nManuel olarak ekleyebilirsiniz.`,
         buttons: [
           {
-            text: 'Iptal',
+            text: 'İptal',
             onPress: () => navigation.goBack(),
             style: 'cancel',
           },
@@ -85,16 +85,16 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
       setConfidence(0);
       setCurrentSearchStep(0);
 
-      log.debug('Barkod tarandi', { barcode: result.data });
+      log.debug('Barkod tarandı', { barcode: result.data });
 
       setSearchStatus('searching');
-      setStatusMessage('Arama baslatiliyor...');
+      setStatusMessage('Arama başlatılıyor...');
 
       try {
         const searchResult: SearchResult = await searchByBarcode(result.data, handleSearchProgress);
 
         if (searchResult.success && searchResult.medicine) {
-          log.debug('Ilac bulundu', {
+          log.debug('İlaç bulundu', {
             name: searchResult.medicine.name,
             source: searchResult.source,
             confidence: searchResult.confidence,
@@ -104,23 +104,23 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
           setSearchSource(searchResult.source);
           setConfidence(searchResult.confidence);
           setSearchStatus('found');
-          setStatusMessage('Ilac bulundu!');
+          setStatusMessage('İlaç bulundu!');
           setShowResultModal(true);
         } else {
-          log.debug('Ilac bulunamadi');
+          log.debug('İlaç bulunamadı');
           setSearchStatus('not_found');
-          setStatusMessage('Ilac bulunamadi');
+          setStatusMessage('İlaç bulunamadı');
           showNotFoundAlert(result.data);
         }
       } catch (error: unknown) {
-        log.error('Arama hatasi', error);
+        log.error('Arama hatası', error);
         const errorObj = error as { message?: string };
         setSearchStatus('error');
-        setStatusMessage('Arama hatasi olustu');
+        setStatusMessage('Arama hatası oluştu');
         showAlert({
           type: 'error',
           title: 'Hata',
-          message: errorObj.message || 'Arama sirasinda bir hata olustu.',
+          message: errorObj.message || 'Arama sırasında bir hata oluştu.',
           buttons: [
             { text: 'Tekrar Dene', onPress: () => setScanned(false), style: 'default' },
             { text: 'Kapat', onPress: () => navigation.goBack(), style: 'cancel' },
@@ -175,11 +175,11 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
     if (exists) {
       showAlert({
         type: 'warning',
-        title: 'Bu Ilac Zaten Listenizde',
-        message: `"${existingMedicine?.name || foundMedicine.name}" adli ilac zaten kayitli.\n\nYine de eklemek istiyor musunuz?`,
+        title: 'Bu İlaç Zaten Listenizde',
+        message: `"${existingMedicine?.name || foundMedicine.name}" adlı ilaç zaten kayıtlı.\n\nYine de eklemek istiyor musunuz?`,
         buttons: [
           {
-            text: 'Iptal',
+            text: 'İptal',
             style: 'cancel',
             onPress: () => {
               setShowResultModal(false);
@@ -188,7 +188,7 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
             },
           },
           {
-            text: 'Mevcut Ilaca Git',
+            text: 'Mevcut İlaca Git',
             style: 'default',
             onPress: () => {
               setShowResultModal(false);

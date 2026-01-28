@@ -17,7 +17,7 @@ function SourceBadge({
   return (
     <View style={[modalStyles.sourceBadge, { backgroundColor: info.color }]}>
       <Text style={modalStyles.sourceBadgeText}>{info.name}</Text>
-      <Text style={modalStyles.confidenceText}>{confidence}% guven</Text>
+      <Text style={modalStyles.confidenceText}>{confidence}% güven</Text>
     </View>
   );
 }
@@ -27,7 +27,7 @@ function LowConfidenceWarning() {
     <View style={modalStyles.warningBanner}>
       <Text style={modalStyles.warningIcon}>!</Text>
       <Text style={modalStyles.warningBannerText}>
-        Guven skoru dusuk. Bilgileri kontrol etmenizi oneririz.
+        Güven skoru düşük. Bilgileri kontrol etmenizi öneririz.
       </Text>
     </View>
   );
@@ -64,15 +64,10 @@ export function MedicineResultModal({
   const sourceInfo = getSourceInfo(searchSource);
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={modalStyles.overlay}>
         <View style={[modalStyles.content, { backgroundColor: colors.card }]}>
-          <Text style={[modalStyles.title, { color: colors.text }]}>Ilac Bulundu!</Text>
+          <Text style={[modalStyles.title, { color: colors.text }]}>İlaç Bulundu!</Text>
 
           <SourceBadge source={searchSource} confidence={confidence} />
 
@@ -80,7 +75,7 @@ export function MedicineResultModal({
 
           <ScrollView style={modalStyles.medicineInfo}>
             <InfoRow
-              label="Ilac Adi:"
+              label="İlaç Adı:"
               value={foundMedicine?.name}
               textColor={colors.text}
               secondaryColor={colors.textSecondary}
@@ -110,7 +105,7 @@ export function MedicineResultModal({
             />
 
             <InfoRow
-              label="Uretici:"
+              label="Üretici:"
               value={foundMedicine?.manufacturer}
               textColor={colors.text}
               secondaryColor={colors.textSecondary}
@@ -135,7 +130,7 @@ export function MedicineResultModal({
               style={[modalStyles.button, modalStyles.editButton, { borderColor: colors.primary }]}
               onPress={onEdit}
             >
-              <Text style={[modalStyles.editButtonText, { color: colors.primary }]}>Duzenle</Text>
+              <Text style={[modalStyles.editButtonText, { color: colors.primary }]}>Düzenle</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

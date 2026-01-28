@@ -20,12 +20,12 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({ isPremium, remainingDa
   const getSubtitle = () => {
     if (isPremium) {
       return remainingDays !== null
-        ? `${remainingDays} ${language === 'tr' ? 'gun kaldi' : 'days remaining'}`
+        ? `${remainingDays} ${language === 'tr' ? 'gün kaldı' : 'days remaining'}`
         : language === 'tr'
-          ? 'Tum ozelliklerin keyfini cikarin'
+          ? 'Tüm özelliklerin keyfini çıkarın'
           : 'Enjoy all features';
     }
-    return language === 'tr' ? 'Sinirsiz ilac, reklamsiz kullanim' : 'Unlimited meds, ad-free';
+    return language === 'tr' ? 'Sınırsız ilaç, reklamsız kullanım' : 'Unlimited meds, ad-free';
   };
 
   return (
@@ -56,10 +56,10 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({ isPremium, remainingDa
           <Text style={[styles.premiumTitle, { color: isPremium ? '#1A1A2E' : '#FFFFFF' }]}>
             {isPremium
               ? language === 'tr'
-                ? 'Premium Uyesiniz!'
+                ? 'Premium Üyesiniz!'
                 : "You're Premium!"
               : language === 'tr'
-                ? "Premium'a Gecin"
+                ? "Premium'a Geçin"
                 : 'Go Premium'}
           </Text>
           <Text

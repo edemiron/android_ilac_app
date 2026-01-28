@@ -14,8 +14,8 @@ export function ScanOverlay({
   return (
     <View style={scannerStyles.overlay}>
       <View style={scannerStyles.overlaySection}>
-        <Text style={scannerStyles.headerText}>Barkod Tarayici</Text>
-        <Text style={scannerStyles.headerSubtext}>TITCK Resmi Ilac Veritabani</Text>
+        <Text style={scannerStyles.headerText}>Barkod Tarayıcı</Text>
+        <Text style={scannerStyles.headerSubtext}>TİTCK Resmi İlaç Veritabanı</Text>
       </View>
 
       <View style={scannerStyles.middleSection}>

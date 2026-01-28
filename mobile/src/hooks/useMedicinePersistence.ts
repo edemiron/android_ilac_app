@@ -209,12 +209,12 @@ export function useMedicinePersistence({
     if (!allowed) {
       showAlert({
         type: 'warning',
-        title: language === 'tr' ? 'Barkod Tarama Hakki Doldu' : 'Barcode Scan Limit Reached',
+        title: language === 'tr' ? 'Barkod Tarama Hakkı Doldu' : 'Barcode Scan Limit Reached',
         message: reason,
         buttons: [
-          { text: language === 'tr' ? 'Iptal' : 'Cancel', style: 'cancel' },
+          { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
           {
-            text: language === 'tr' ? "Premium'a Gec" : 'Go Premium',
+            text: language === 'tr' ? "Premium'a Geç" : 'Go Premium',
             style: 'default',
             onPress: () => navigation.navigate('Premium'),
           },
@@ -229,10 +229,10 @@ export function useMedicinePersistence({
         title: language === 'tr' ? 'Barkod Tarama' : 'Barcode Scan',
         message:
           language === 'tr'
-            ? `Kalan tarama hakkiniz: ${remaining}\n\nDevam etmek istiyor musunuz?`
+            ? `Kalan tarama hakkınız: ${remaining}\n\nDevam etmek istiyor musunuz?`
             : `Remaining scans: ${remaining}\n\nDo you want to continue?`,
         buttons: [
-          { text: language === 'tr' ? 'Iptal' : 'Cancel', style: 'cancel' },
+          { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
           {
             text: language === 'tr' ? 'Tara' : 'Scan',
             style: 'default',
@@ -263,16 +263,16 @@ export function useMedicinePersistence({
         if (!limitCheck.allowed) {
           showAlert({
             type: 'warning',
-            title: language === 'tr' ? 'Ilac Limiti' : 'Medicine Limit',
+            title: language === 'tr' ? 'İlaç Limiti' : 'Medicine Limit',
             message:
               limitCheck.reason ||
               (language === 'tr'
-                ? 'Ucretsiz planda en fazla 3 ilac ekleyebilirsiniz.'
+                ? 'Ücretsiz planda en fazla 3 ilaç ekleyebilirsiniz.'
                 : 'You can add up to 3 medicines in the free plan.'),
             buttons: [
               { text: t('cancel'), style: 'cancel' },
               {
-                text: language === 'tr' ? "Premium'a Gec" : 'Go Premium',
+                text: language === 'tr' ? "Premium'a Geç" : 'Go Premium',
                 style: 'default',
                 onPress: () => navigation.navigate('Premium'),
               },
@@ -420,7 +420,7 @@ export function useMedicinePersistence({
           const times = freshState.getReminderTimesForMedicine(newMedicineId);
           const medicine = freshState.getMedicineById(newMedicineId);
 
-          log.debug('Yeni ilac eklendi', {
+          log.debug('Yeni ilaç eklendi', {
             medicineId: newMedicineId,
             medicineName: medicine?.name,
             reminderTimesCount: times.length,
@@ -429,7 +429,7 @@ export function useMedicinePersistence({
           if (medicine && times.length > 0) {
             for (const time of times) {
               await scheduleMedicineNotification(medicine, time, settings.fullScreenAlarmEnabled);
-              log.debug('Bildirim planlandi', { time: time.time });
+              log.debug('Bildirim planlandı', { time: time.time });
             }
             // Son kullanma tarihi bildirimi planla
             if (formState.expiryDate && formState.expiryReminderDays) {
@@ -441,7 +441,7 @@ export function useMedicinePersistence({
               );
             }
           } else {
-            log.warn('Ilac veya reminder times bulunamadi', {
+            log.warn('İlaç veya hatırlatma saatleri bulunamadı', {
               hasMedicine: !!medicine,
               timesCount: times.length,
             });

@@ -1,15 +1,15 @@
 /**
  * Medicine Search Orchestrator
- * 
+ *
  * Hibrit ilaç arama sistemi koordinatörü.
  * Tüm kaynakları sırayla dener ve en iyi sonucu döndürür.
- * 
+ *
  * Arama Sırası:
  * 1. Firebase globalMedicines DB (en güvenilir, doğrulanmış)
  * 2. TİTCK Excel Cache (resmi Türkiye listesi)
  * 3. Open Food Facts API (açık kaynak)
  * 4. AI Fallback (Gemini/OpenAI)
- * 
+ *
  * Her aşamada bulunan ilaç Firebase'e kaydedilir (caching).
  */
 
@@ -24,11 +24,11 @@ const log = createScopedLogger('Orchestrator');
 
 // ============ TYPES ============
 
-export type SearchSource = 
-  | 'firebase'      // Firebase globalMedicines (doğrulanmış)
-  | 'titck_cache'   // TİTCK Excel cache (resmi liste)
-  | 'manual';       // Kullanıcı manuel girişi
-  // AI ve Open Food Facts kaldırıldı - Türk ilaçları için güvenilir değil
+export type SearchSource =
+  | 'firebase' // Firebase globalMedicines (doğrulanmış)
+  | 'titck_cache' // TİTCK Excel cache (resmi liste)
+  | 'manual'; // Kullanıcı manuel girişi
+// AI ve Open Food Facts kaldırıldı - Türk ilaçları için güvenilir değil
 
 export interface SearchResult {
   success: boolean;
@@ -51,9 +51,9 @@ export type SearchProgressCallback = (progress: SearchProgress) => void;
 // ============ CONFIDENCE SCORES ============
 
 const CONFIDENCE_SCORES: Record<SearchSource, number> = {
-  firebase: 95,        // Doğrulanmış kaynak
-  titck_cache: 90,     // Resmi TİTCK listesi
-  manual: 50,          // Kullanıcı girişi
+  firebase: 95, // Doğrulanmış kaynak
+  titck_cache: 90, // Resmi TİTCK listesi
+  manual: 50, // Kullanıcı girişi
 };
 
 // ============ MAIN SEARCH FUNCTION ============
@@ -69,8 +69,8 @@ export async function searchByBarcode(
   const startTime = Date.now();
   // Sadece güvenilir kaynaklar: Firebase ve TİTCK
   const sources: SearchSource[] = ['firebase', 'titck_cache'];
-  
-  log.debug('Barkod aramasi basladi', { barcode });
+
+  log.debug('Barkod araması başladı', { barcode });
 
   for (let i = 0; i < sources.length; i++) {
     const source = sources[i];
@@ -107,14 +107,14 @@ export async function searchByBarcode(
         };
       }
     } catch (error) {
-      log.error(`${source} hatasi`, error);
+      log.error(`${source} hatası`, error);
       // Hatayı logla ama aramaya devam et
     }
   }
 
   // Hiçbir kaynakta bulunamadı
   const searchDuration = Date.now() - startTime;
-  log.debug('Bulunamadi', { searchDuration });
+  log.debug('Bulunamadı', { searchDuration });
 
   return {
     success: false,
@@ -179,7 +179,7 @@ async function saveToFirebase(
 
     log.debug('Firebase kaydedildi', { name: medicine.name });
   } catch (error) {
-    log.error('Firebase kayit hatasi', error);
+    log.error('Firebase kayıt hatası', error);
     // Hata olsa bile ana akışı bozma
   }
 }
@@ -196,7 +196,7 @@ export async function searchByName(
   const startTime = Date.now();
   const results: SearchResult[] = [];
 
-  log.debug('Isim aramasi basladi', { name });
+  log.debug('İsim araması başladı', { name });
 
   // 1. Firebase'de ara
   if (onProgress) {
@@ -222,7 +222,7 @@ export async function searchByName(
       }
     }
   } catch (error) {
-    log.error('Firebase isim aramasi hatasi', error);
+    log.error('Firebase isim araması hatası', error);
   }
 
   // 2. İlacabak'ta ara (isim araması için web scraping)
@@ -241,8 +241,8 @@ export async function searchByName(
       if (ilacabakResults) {
         for (const medicine of ilacabakResults) {
           // Zaten Firebase sonuçlarında yoksa ekle
-          const exists = results.some(r => 
-            r.medicine?.name?.toLowerCase() === medicine.name?.toLowerCase()
+          const exists = results.some(
+            r => r.medicine?.name?.toLowerCase() === medicine.name?.toLowerCase()
           );
           if (!exists) {
             results.push({
@@ -255,13 +255,13 @@ export async function searchByName(
         }
       }
     } catch (error) {
-      log.error('Ilacabak isim aramasi hatasi', error);
+      log.error('İlacabak isim araması hatası', error);
     }
   }
   // AI kaldırıldı - güvenilir sonuç vermiyordu
 
   const searchDuration = Date.now() - startTime;
-  log.debug('Isim aramasi tamamlandi', { resultCount: results.length, searchDuration });
+  log.debug('İsim araması tamamlandı', { resultCount: results.length, searchDuration });
 
   // Confidence'a göre sırala
   return results.sort((a, b) => b.confidence - a.confidence);

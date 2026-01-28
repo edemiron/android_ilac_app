@@ -15,14 +15,14 @@ export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps>
   return (
     <SettingsSection
       icon="flash-outline"
-      title={language === 'tr' ? 'Ek Ozellikler' : 'Additional Features'}
+      title={language === 'tr' ? 'Ek Özellikler' : 'Additional Features'}
     >
       <SettingRow
         icon={{ name: 'warning-outline', color: '#F59E0B' }}
         label={t('interaction_title')}
         description={
           language === 'tr'
-            ? 'Ilaclariniz arasindaki etkilesimler'
+            ? 'İlaçlarınız arasındaki etkileşimler'
             : 'Interactions between your medicines'
         }
         onPress={onInteractionsPress}

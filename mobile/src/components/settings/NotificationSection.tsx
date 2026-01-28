@@ -110,7 +110,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
       <SettingRow
         icon={{ name: 'phone-portrait-outline', color: '#8B5CF6' }}
         label={t('settings_vibration')}
-        description={language === 'tr' ? 'Hatirlatmalarda titret' : 'Vibrate on reminders'}
+        description={language === 'tr' ? 'Hatırlatmalarda titret' : 'Vibrate on reminders'}
         rightElement={
           <Switch
             value={settings.vibrationEnabled}
@@ -124,7 +124,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
       <SettingRow
         icon={{ name: 'expand-outline', color: '#EC4899' }}
         label={t('settings_fullscreen_alarm')}
-        description={language === 'tr' ? 'Kilit ekraninda goster' : 'Show on lock screen'}
+        description={language === 'tr' ? 'Kilit ekranında göster' : 'Show on lock screen'}
         rightElement={
           <Switch
             value={settings.fullScreenAlarmEnabled}
@@ -139,7 +139,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         icon={{ name: 'volume-high', color: '#EF4444' }}
         label={language === 'tr' ? 'Alarm Modu' : 'Alarm Mode'}
         description={
-          language === 'tr' ? 'Telefon sessizde bile ses cikar' : 'Sound plays even in silent mode'
+          language === 'tr' ? 'Telefon sessizde bile ses çıkar' : 'Sound plays even in silent mode'
         }
         rightElement={
           <Switch
@@ -155,7 +155,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         icon={{ name: 'volume-medium-outline', color: '#8B5CF6' }}
         label={language === 'tr' ? 'Alarm Ses Seviyesi' : 'Alarm Volume'}
         description={
-          language === 'tr' ? 'Telefondan bagimsiz ses seviyesi' : 'Volume independent of phone'
+          language === 'tr' ? 'Telefondan bağımsız ses seviyesi' : 'Volume independent of phone'
         }
         value={getVolumeLabel(settings.alarmVolume ?? 80)}
         onPress={handleVolumePress}
@@ -174,10 +174,10 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
 
       <SettingRow
         icon={{ name: 'time-outline', color: '#F59E0B' }}
-        label={language === 'tr' ? 'Erteleme Suresi' : 'Snooze Duration'}
+        label={language === 'tr' ? 'Erteleme Süresi' : 'Snooze Duration'}
         description={
           language === 'tr'
-            ? 'Alarm ertelendiginde bekleme suresi'
+            ? 'Alarm ertelendiğinde bekleme süresi'
             : 'Wait time when alarm is snoozed'
         }
         value={
@@ -222,7 +222,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         icon={{ name: 'notifications-outline', color: '#3B82F6' }}
         label={t('settings_test_notification')}
         description={
-          language === 'tr' ? 'Bildirimlerin calistigini kontrol et' : 'Test if notifications work'
+          language === 'tr' ? 'Bildirimlerin çalıştığını kontrol et' : 'Test if notifications work'
         }
         onPress={onTestNotification}
         showChevron
@@ -233,7 +233,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         label={language === 'tr' ? 'Tam Ekran Alarm Testi' : 'Full Screen Alarm Test'}
         description={
           language === 'tr'
-            ? '2 saniye sonra alarm ekrani acilir'
+            ? '2 saniye sonra alarm ekranı açılır'
             : 'Alarm screen opens after 2 seconds'
         }
         onPress={onTestFullScreenAlarm}
@@ -243,7 +243,7 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
       <SettingRow
         icon={{ name: 'volume-high-outline', color: '#10B981' }}
         label={t('settings_voice_reminder')}
-        description={language === 'tr' ? 'Sesli hatirlatmayi test et' : 'Test voice reminder'}
+        description={language === 'tr' ? 'Sesli hatırlatmayı test et' : 'Test voice reminder'}
         onPress={onTestVoice}
         showChevron
       />

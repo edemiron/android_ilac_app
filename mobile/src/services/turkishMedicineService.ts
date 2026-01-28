@@ -1,6 +1,6 @@
 /**
  * Turkish Medicine Service
- * 
+ *
  * Hibrit ilaç arama servisi:
  * 1. Open Food Facts API - Ücretsiz, açık kaynak barkod veritabanı
  * 2. TİTCK Excel cache - Türkiye resmi ilaç listesi (offline)
@@ -38,29 +38,28 @@ interface OpenFoodFactsResponse {
  * Open Food Facts API ile barkod ara
  * Not: Ağırlıklı olarak gıda ürünleri için, ilaçlar sınırlı olabilir
  */
-export async function searchOpenFoodFacts(barcode: string): Promise<Partial<GlobalMedicine> | null> {
+export async function searchOpenFoodFacts(
+  barcode: string
+): Promise<Partial<GlobalMedicine> | null> {
   try {
-    log.debug('OpenFoodFacts araniyor', { barcode });
+    log.debug('OpenFoodFacts aranıyor', { barcode });
 
-    const response = await fetch(
-      `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`,
-      {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'IlacHatirlatici/1.0 (Android)',
-        },
-      }
-    );
+    const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'IlacHatirlatici/1.0 (Android)',
+      },
+    });
 
     if (!response.ok) {
-      log.debug('OpenFoodFacts API hatasi', { status: response.status });
+      log.debug('OpenFoodFacts API hatası', { status: response.status });
       return null;
     }
 
     const data: OpenFoodFactsResponse = await response.json();
 
     if (data.status !== 1 || !data.product) {
-      log.debug('OpenFoodFacts urun bulunamadi');
+      log.debug('OpenFoodFacts ürün bulunamadı');
       return null;
     }
 
@@ -69,10 +68,11 @@ export async function searchOpenFoodFacts(barcode: string): Promise<Partial<Glob
 
     // İlaç olup olmadığını kontrol et
     const categories = (product.categories || '').toLowerCase();
-    const isMedicine = categories.includes('medicine') || 
-                       categories.includes('pharmaceutical') ||
-                       categories.includes('ilaç') ||
-                       categories.includes('drug');
+    const isMedicine =
+      categories.includes('medicine') ||
+      categories.includes('pharmaceutical') ||
+      categories.includes('ilaç') ||
+      categories.includes('drug');
 
     return {
       barcode: barcode,
@@ -109,11 +109,11 @@ interface TITCKMedicine {
  */
 export async function searchTITCKCache(barcode: string): Promise<Partial<GlobalMedicine> | null> {
   try {
-    log.debug('TITCK Cache araniyor', { barcode });
+    log.debug('TITCK Cache aranıyor', { barcode });
 
     const cacheData = await AsyncStorage.getItem(TITCK_CACHE_KEY);
     if (!cacheData) {
-      log.debug('TITCK Cache bos');
+      log.debug('TITCK Cache boş');
       return null;
     }
 
@@ -121,7 +121,7 @@ export async function searchTITCKCache(barcode: string): Promise<Partial<GlobalM
     const found = medicines.find(m => m.barcode === barcode);
 
     if (!found) {
-      log.debug('TITCK Cache bulunamadi');
+      log.debug('TITCK Cache bulunamadı');
       return null;
     }
 
@@ -149,9 +149,9 @@ export async function updateTITCKCache(medicines: TITCKMedicine[]): Promise<void
   try {
     await AsyncStorage.setItem(TITCK_CACHE_KEY, JSON.stringify(medicines));
     await AsyncStorage.setItem(TITCK_CACHE_TIMESTAMP_KEY, Date.now().toString());
-    log.debug('TITCK Cache guncellendi', { count: medicines.length });
+    log.debug('TITCK Cache güncellendi', { count: medicines.length });
   } catch (error) {
-    log.error('TITCK Cache guncelleme hatasi', error);
+    log.error('TITCK Cache güncelleme hatası', error);
     throw error;
   }
 }
@@ -180,7 +180,7 @@ export async function getTITCKCacheCount(): Promise<number> {
   try {
     const cacheData = await AsyncStorage.getItem(TITCK_CACHE_KEY);
     if (!cacheData) return 0;
-    
+
     const medicines: TITCKMedicine[] = JSON.parse(cacheData);
     return medicines.length;
   } catch {
@@ -194,24 +194,23 @@ export async function getTITCKCacheCount(): Promise<number> {
  * ilacabak.com'dan ilaç adı ile ara (web scraping)
  * Not: Bu fonksiyon rate-limiting'e dikkat ederek kullanılmalı
  */
-export async function searchIlacabakByName(medicineName: string): Promise<Partial<GlobalMedicine>[] | null> {
+export async function searchIlacabakByName(
+  medicineName: string
+): Promise<Partial<GlobalMedicine>[] | null> {
   try {
-    log.debug('Ilacabak isim ile araniyor', { medicineName });
+    log.debug('İlacabak isim ile aranıyor', { medicineName });
 
     const encodedName = encodeURIComponent(medicineName);
-    const response = await fetch(
-      `https://ilacabak.com/canliArama.php?sorgu=${encodedName}`,
-      {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
-          'Accept': 'text/html',
-        },
-      }
-    );
+    const response = await fetch(`https://ilacabak.com/canliArama.php?sorgu=${encodedName}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
+        Accept: 'text/html',
+      },
+    });
 
     if (!response.ok) {
-      log.debug('Ilacabak API hatasi', { status: response.status });
+      log.debug('İlacabak API hatası', { status: response.status });
       return null;
     }
 
@@ -221,7 +220,7 @@ export async function searchIlacabakByName(medicineName: string): Promise<Partia
     const results = parseIlacabakResults(html);
 
     if (results.length === 0) {
-      log.debug('Ilacabak sonuc bulunamadi');
+      log.debug('İlacabak sonuç bulunamadı');
       return null;
     }
 
@@ -238,15 +237,16 @@ export async function searchIlacabakByName(medicineName: string): Promise<Partia
  */
 function parseIlacabakResults(html: string): Partial<GlobalMedicine>[] {
   const results: Partial<GlobalMedicine>[] = [];
-  
+
   try {
     // <li> elementlerini bul
-    const liRegex = /<li[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*title="([^"]+)"[^>]*>([^<]+)<\/a>[\s\S]*?<\/li>/gi;
+    const liRegex =
+      /<li[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*title="([^"]+)"[^>]*>([^<]+)<\/a>[\s\S]*?<\/li>/gi;
     let match;
 
     while ((match = liRegex.exec(html)) !== null) {
       const [, url, title, name] = match;
-      
+
       // URL'den barkod çıkar (varsa)
       const barcodeMatch = url.match(/-(\d{13})$/);
       const barcode = barcodeMatch ? barcodeMatch[1] : undefined;
@@ -260,7 +260,7 @@ function parseIlacabakResults(html: string): Partial<GlobalMedicine>[] {
       });
     }
   } catch (error) {
-    log.error('Ilacabak parse hatasi', error);
+    log.error('İlacabak parse hatası', error);
   }
 
   return results;
@@ -301,13 +301,30 @@ function detectMedicineForm(name: string): MedicineForm {
   if (nameLower.includes('kapsül') || nameLower.includes('kapsul') || nameLower.includes('caps')) {
     return 'capsule';
   }
-  if (nameLower.includes('şurup') || nameLower.includes('surup') || nameLower.includes('syrup') || nameLower.includes('suspansiyon')) {
+  if (
+    nameLower.includes('şurup') ||
+    nameLower.includes('surup') ||
+    nameLower.includes('syrup') ||
+    nameLower.includes('suspansiyon')
+  ) {
     return 'syrup';
   }
-  if (nameLower.includes('enjeksiyon') || nameLower.includes('ampul') || nameLower.includes('flakon') || nameLower.includes('iv') || nameLower.includes('im')) {
+  if (
+    nameLower.includes('enjeksiyon') ||
+    nameLower.includes('ampul') ||
+    nameLower.includes('flakon') ||
+    nameLower.includes('iv') ||
+    nameLower.includes('im')
+  ) {
     return 'injection';
   }
-  if (nameLower.includes('krem') || nameLower.includes('cream') || nameLower.includes('merhem') || nameLower.includes('pomad') || nameLower.includes('jel')) {
+  if (
+    nameLower.includes('krem') ||
+    nameLower.includes('cream') ||
+    nameLower.includes('merhem') ||
+    nameLower.includes('pomad') ||
+    nameLower.includes('jel')
+  ) {
     return 'cream';
   }
   if (nameLower.includes('damla') || nameLower.includes('drop') || nameLower.includes('göz')) {
@@ -319,10 +336,19 @@ function detectMedicineForm(name: string): MedicineForm {
   if (nameLower.includes('patch') || nameLower.includes('bant') || nameLower.includes('flaster')) {
     return 'patch';
   }
-  if (nameLower.includes('supozituvar') || nameLower.includes('suppository') || nameLower.includes('fitil')) {
+  if (
+    nameLower.includes('supozituvar') ||
+    nameLower.includes('suppository') ||
+    nameLower.includes('fitil')
+  ) {
     return 'suppository';
   }
-  if (nameLower.includes('toz') || nameLower.includes('powder') || nameLower.includes('saşe') || nameLower.includes('granül')) {
+  if (
+    nameLower.includes('toz') ||
+    nameLower.includes('powder') ||
+    nameLower.includes('saşe') ||
+    nameLower.includes('granül')
+  ) {
     return 'powder';
   }
 
@@ -334,10 +360,14 @@ function detectMedicineForm(name: string): MedicineForm {
  */
 function detectCountry(countries?: string): string {
   if (!countries) return 'TR';
-  
+
   const countriesLower = countries.toLowerCase();
-  
-  if (countriesLower.includes('turkey') || countriesLower.includes('türkiye') || countriesLower.includes('turkiye')) {
+
+  if (
+    countriesLower.includes('turkey') ||
+    countriesLower.includes('türkiye') ||
+    countriesLower.includes('turkiye')
+  ) {
     return 'TR';
   }
   if (countriesLower.includes('germany') || countriesLower.includes('almanya')) {

@@ -34,7 +34,7 @@ export const AccountSection: React.FC<AccountSectionProps> = ({
 
       <SettingRow
         icon={{ name: 'cloud-outline', color: '#06B6D4' }}
-        label={language === 'tr' ? 'Simdi Senkronize Et' : 'Sync Now'}
+        label={language === 'tr' ? 'Şimdi Senkronize Et' : 'Sync Now'}
         description={`${language === 'tr' ? 'Son: ' : 'Last: '}${lastSyncFormatted}`}
         onPress={isSyncing ? undefined : onSyncPress}
         rightElement={
@@ -48,8 +48,8 @@ export const AccountSection: React.FC<AccountSectionProps> = ({
 
       <SettingRow
         icon={{ name: 'log-out-outline', color: '#EF4444' }}
-        label={language === 'tr' ? 'Cikis Yap' : 'Logout'}
-        description={language === 'tr' ? 'Hesabinizdan cikis yapin' : 'Sign out of your account'}
+        label={language === 'tr' ? 'Çıkış Yap' : 'Logout'}
+        description={language === 'tr' ? 'Hesabınızdan çıkış yapın' : 'Sign out of your account'}
         labelColor={colors.error || '#EF4444'}
         onPress={onLogoutPress}
         showChevron
