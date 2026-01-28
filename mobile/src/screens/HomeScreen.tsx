@@ -402,6 +402,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [expiryModalVisible, setExpiryModalVisible] = useState(false);
   const [expiringMedicines, setExpiringMedicines] = useState<Medicine[]>([]);
+  const [expiryWarningShown, setExpiryWarningShown] = useState(false); // Session'da bir kere göster
 
   const dateLocale = language === 'tr' ? tr : enUS;
 
@@ -426,6 +427,9 @@ export default function HomeScreen() {
 
   // Son kullanma tarihi uyarısı kontrolü
   useEffect(() => {
+    // Session'da zaten gösterildiyse tekrar gösterme
+    if (expiryWarningShown) return;
+
     const checkExpiringMedicines = () => {
       const today = startOfDay(new Date());
       const expiring = medicines.filter(medicine => {
@@ -442,13 +446,14 @@ export default function HomeScreen() {
       if (expiring.length > 0) {
         setExpiringMedicines(expiring);
         setExpiryModalVisible(true);
+        setExpiryWarningShown(true); // Bir kere gösterildi, tekrar gösterme
       }
     };
 
     // Sadece uygulama açıldığında kontrol et
     const timer = setTimeout(checkExpiringMedicines, 1000);
     return () => clearTimeout(timer);
-  }, [medicines]);
+  }, [medicines, expiryWarningShown]);
 
   const handleAddMedicine = () => {
     const { allowed, reason } = canAddMedicine(medicines.length);
