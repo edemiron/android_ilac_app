@@ -10,6 +10,14 @@ import notifee, {
 } from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// PERFORMANCE: Preload contexts in parallel BEFORE App imports
+// This eliminates the waterfall loading pattern
+import { preloadTheme } from './src/contexts/ThemeContext';
+import { preloadLanguage } from './src/contexts/LanguageContext';
+
+// Start both preloads in parallel immediately
+Promise.all([preloadTheme(), preloadLanguage()]).catch(() => {});
+
 import App from './App';
 import { registerBootTask } from './src/utils/bootHandler';
 import { useMedicineStore } from './src/stores/medicineStore';
