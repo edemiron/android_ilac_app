@@ -189,10 +189,6 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
 <head>
   <meta charset="UTF-8">
   <style>
-    @page {
-      size: A4;
-      margin: 1.27cm;
-    }
     * {
       margin: 0;
       padding: 0;
@@ -227,18 +223,18 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
       margin-bottom: 20px;
     }
     .summary-grid {
-      display: flex;
-      justify-content: space-around;
+      text-align: center;
       margin-bottom: 30px;
-      flex-wrap: wrap;
     }
     .summary-card {
+      display: inline-block;
       background: #f8f9fa;
       border-radius: 8px;
       padding: 15px 20px;
       text-align: center;
       min-width: 120px;
       margin: 5px;
+      vertical-align: top;
     }
     .summary-card .value {
       font-size: 28px;
