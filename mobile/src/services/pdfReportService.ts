@@ -30,7 +30,7 @@ const translations = {
   tr: {
     title: 'İlaç Takip Raporu',
     subtitle: 'Detaylı Uyum Raporu',
-    dateRange: 'Tarih Aralığı',
+    dateRange: 'Rapor Dönemi',
     summary: 'Özet',
     adherenceRate: 'Uyum Oranı',
     currentStreak: 'Mevcut Seri',
@@ -38,9 +38,10 @@ const translations = {
     totalMedicines: 'Toplam İlaç',
     totalDoses: 'Toplam Doz',
     taken: 'Alındı',
+    notTaken: 'Alınmadı',
     skipped: 'Atlandı',
     missed: 'Kaçırıldı',
-    medicineList: 'İlaç Listesi',
+    medicineList: 'İlaç Detayları',
     name: 'İlaç Adı',
     dosage: 'Dozaj',
     frequency: 'Sıklık',
@@ -53,11 +54,14 @@ const translations = {
     perDay: 'günde',
     stock: 'Stok',
     remaining: 'kalan',
+    adherenceByMedicine: 'İlaç Bazlı Uyum',
+    calendarView: 'Uyum Takvimi',
+    noData: 'Bu dönemde kayıt yok',
   },
   en: {
     title: 'Medicine Tracking Report',
     subtitle: 'Detailed Adherence Report',
-    dateRange: 'Date Range',
+    dateRange: 'Report Period',
     summary: 'Summary',
     adherenceRate: 'Adherence Rate',
     currentStreak: 'Current Streak',
@@ -65,9 +69,10 @@ const translations = {
     totalMedicines: 'Total Medicines',
     totalDoses: 'Total Doses',
     taken: 'Taken',
+    notTaken: 'Not Taken',
     skipped: 'Skipped',
     missed: 'Missed',
-    medicineList: 'Medicine List',
+    medicineList: 'Medicine Details',
     name: 'Medicine Name',
     dosage: 'Dosage',
     frequency: 'Frequency',
@@ -80,6 +85,9 @@ const translations = {
     perDay: 'per day',
     stock: 'Stock',
     remaining: 'remaining',
+    adherenceByMedicine: 'Adherence by Medicine',
+    calendarView: 'Adherence Calendar',
+    noData: 'No records for this period',
   },
 };
 
@@ -135,33 +143,6 @@ function fixTurkishCharacters(text: string): string {
   return result;
 }
 
-function getStatusColor(status: string): string {
-  switch (status) {
-    case 'taken':
-      return '#4CAF50';
-    case 'skipped':
-      return '#FF9800';
-    case 'missed':
-      return '#F44336';
-    default:
-      return '#9E9E9E';
-  }
-}
-
-function getStatusText(status: string, lang: 'tr' | 'en'): string {
-  const t = translations[lang];
-  switch (status) {
-    case 'taken':
-      return t.taken;
-    case 'skipped':
-      return t.skipped;
-    case 'missed':
-      return t.missed;
-    default:
-      return status;
-  }
-}
-
 function generateHTMLReport(data: ReportData, options: ReportOptions): string {
   const t = translations[options.language];
   const locale = options.language === 'tr' ? tr : undefined;
@@ -176,11 +157,101 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
   });
 
   const takenCount = filteredLogs.filter(l => l.status === 'taken').length;
-  const skippedCount = filteredLogs.filter(l => l.status === 'skipped').length;
-  const missedCount = filteredLogs.filter(l => l.status === 'missed').length;
+  const notTakenCount = filteredLogs.filter(
+    l => l.status === 'skipped' || l.status === 'missed'
+  ).length;
+  const totalDoses = takenCount + notTakenCount;
 
   // Aktif ilaçlar
   const activeMedicines = data.medicines.filter(m => m.isActive);
+
+  // İlaç bazlı uyum hesapla
+  const medicineAdherence = activeMedicines.map(med => {
+    const medLogs = filteredLogs.filter(l => l.medicineId === med.id);
+    const medTaken = medLogs.filter(l => l.status === 'taken').length;
+    const medTotal = medLogs.filter(
+      l => l.status === 'taken' || l.status === 'skipped' || l.status === 'missed'
+    ).length;
+    const rate = medTotal > 0 ? Math.round((medTaken / medTotal) * 100) : 0;
+    return { medicine: med, taken: medTaken, total: medTotal, rate };
+  });
+
+  // Günlük uyum takvimi (heatmap) hesapla
+  const dayCount = options.days;
+  const calendarDays: { date: Date; dateStr: string; taken: number; total: number }[] = [];
+  for (let i = dayCount - 1; i >= 0; i--) {
+    const day = subDays(new Date(), i);
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const dayLogs = filteredLogs.filter(l => l.scheduledTime.startsWith(dayStr));
+    const dayTaken = dayLogs.filter(l => l.status === 'taken').length;
+    const dayTotal = dayLogs.filter(
+      l => l.status === 'taken' || l.status === 'skipped' || l.status === 'missed'
+    ).length;
+    calendarDays.push({ date: day, dateStr: dayStr, taken: dayTaken, total: dayTotal });
+  }
+
+  // SVG Donut Chart — uyum oranı
+  const adherencePercent = data.adherenceRate;
+  const donutRadius = 54;
+  const donutStroke = 12;
+  const donutCircumference = 2 * Math.PI * donutRadius;
+  const donutFilled = (adherencePercent / 100) * donutCircumference;
+  const donutEmpty = donutCircumference - donutFilled;
+  const donutColor =
+    adherencePercent >= 80 ? '#4CAF50' : adherencePercent >= 50 ? '#FF9800' : '#F44336';
+
+  const donutSVG = `
+    <svg width="160" height="160" viewBox="0 0 140 140">
+      <circle cx="70" cy="70" r="${donutRadius}" fill="none" stroke="#f0f0f0" stroke-width="${donutStroke}"/>
+      <circle cx="70" cy="70" r="${donutRadius}" fill="none" stroke="${donutColor}" stroke-width="${donutStroke}"
+        stroke-dasharray="${donutFilled} ${donutEmpty}" stroke-dashoffset="${donutCircumference * 0.25}"
+        stroke-linecap="round"/>
+      <text x="70" y="65" text-anchor="middle" font-size="28" font-weight="bold" fill="${donutColor}">%${adherencePercent}</text>
+      <text x="70" y="85" text-anchor="middle" font-size="11" fill="#888">${t.adherenceRate}</text>
+    </svg>`;
+
+  // SVG Bar Chart — ilaç bazlı uyum
+  const barHeight = 28;
+  const barGap = 14;
+  const barMaxWidth = 280;
+  const barChartHeight = medicineAdherence.length * (barHeight + barGap) + 10;
+
+  const barsSVG =
+    medicineAdherence.length > 0
+      ? `<svg width="100%" height="${barChartHeight}" viewBox="0 0 440 ${barChartHeight}">
+      ${medicineAdherence
+        .map((item, i) => {
+          const y = i * (barHeight + barGap) + 5;
+          const barW = Math.max((item.rate / 100) * barMaxWidth, 2);
+          const barColor = item.rate >= 80 ? '#4CAF50' : item.rate >= 50 ? '#FF9800' : '#F44336';
+          const name = fixTurkishCharacters(item.medicine.name);
+          const truncName = name.length > 18 ? name.substring(0, 18) + '...' : name;
+          return `
+          <text x="0" y="${y + barHeight / 2 + 4}" font-size="11" fill="#444">${truncName}</text>
+          <rect x="150" y="${y}" width="${barW}" height="${barHeight}" rx="4" fill="${barColor}" opacity="0.85"/>
+          <rect x="150" y="${y}" width="${barMaxWidth}" height="${barHeight}" rx="4" fill="none" stroke="#e8e8e8" stroke-width="1"/>
+          <text x="${150 + barW + 8}" y="${y + barHeight / 2 + 4}" font-size="11" font-weight="bold" fill="${barColor}">%${item.rate}</text>`;
+        })
+        .join('')}
+    </svg>`
+      : '';
+
+  // Heatmap takvim
+  const cellSize = dayCount <= 7 ? 32 : dayCount <= 30 ? 18 : 11;
+  const cellGap = dayCount <= 7 ? 6 : dayCount <= 30 ? 3 : 2;
+  const cols = dayCount <= 7 ? 7 : 7;
+  const calendarHTML = calendarDays
+    .map((day, i) => {
+      let bg = '#f0f0f0'; // veri yok
+      if (day.total > 0) {
+        const ratio = day.taken / day.total;
+        bg = ratio >= 1 ? '#4CAF50' : ratio >= 0.5 ? '#FF9800' : '#F44336';
+      }
+      const dayLabel = format(day.date, 'd');
+      const isNewRow = i % cols === 0;
+      return `<div style="display:inline-block;width:${cellSize}px;height:${cellSize}px;background:${bg};border-radius:4px;margin:${cellGap}px;text-align:center;line-height:${cellSize}px;font-size:${cellSize <= 14 ? 7 : 9}px;color:#fff;${isNewRow && i > 0 ? '' : ''}">${dayLabel}</div>`;
+    })
+    .join('');
 
   // HTML oluştur
   const html = `
@@ -189,175 +260,105 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
 <head>
   <meta charset="UTF-8">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      font-size: 12px;
-      color: #333;
-      padding: 20px;
-      background: #fff;
-    }
-    .header {
-      text-align: center;
-      padding-bottom: 24px;
-      border-bottom: 2px solid #4ECDC4;
-      margin-bottom: 24px;
-    }
-    .header h1 {
-      color: #4ECDC4;
-      font-size: 24px;
-      margin-bottom: 8px;
-    }
-    .header h2 {
-      color: #666;
-      font-size: 14px;
-      font-weight: normal;
-    }
-    .date-range {
-      text-align: center;
-      color: #888;
-      margin-bottom: 28px;
-    }
-    .summary-grid {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-    .summary-card {
-      display: inline-block;
-      background: #f8f9fa;
-      border-radius: 10px;
-      padding: 16px 22px;
-      text-align: center;
-      min-width: 100px;
-      margin: 6px;
-      vertical-align: top;
-    }
-    .summary-card .value {
-      font-size: 28px;
-      font-weight: bold;
-      color: #4ECDC4;
-    }
-    .summary-card .label {
-      font-size: 11px;
-      color: #666;
-      margin-top: 5px;
-    }
-    .summary-card.green .value { color: #4CAF50; }
-    .summary-card.orange .value { color: #FF9800; }
-    .summary-card.red .value { color: #F44336; }
-    .section {
-      margin-bottom: 28px;
-    }
-    .section-title {
-      font-size: 16px;
-      color: #333;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 10px;
-      margin-bottom: 16px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 11px;
-    }
-    th {
-      background: #4ECDC4;
-      color: white;
-      padding: 12px 10px;
-      text-align: left;
-    }
-    td {
-      padding: 10px;
-      border-bottom: 1px solid #eee;
-    }
-    tr:nth-child(even) {
-      background: #f9f9f9;
-    }
-    .status-badge {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 12px;
-      color: white;
-      font-size: 10px;
-      font-weight: bold;
-    }
-    .footer {
-      margin-top: 36px;
-      padding-top: 18px;
-      border-top: 1px solid #eee;
-      text-align: center;
-      color: #888;
-      font-size: 10px;
-    }
-    .medicine-card {
-      background: #f8f9fa;
-      border-radius: 10px;
-      padding: 14px 16px;
-      margin-bottom: 12px;
-      border-left: 4px solid #4ECDC4;
-    }
-    .medicine-name {
-      font-weight: bold;
-      font-size: 14px;
-      margin-bottom: 6px;
-    }
-    .medicine-details {
-      color: #666;
-      font-size: 11px;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333; padding: 28px; background: #fff; }
+    .header { text-align: center; padding-bottom: 20px; margin-bottom: 24px; border-bottom: 3px solid #4ECDC4; }
+    .header h1 { color: #2C3E50; font-size: 22px; margin-bottom: 4px; letter-spacing: 0.5px; }
+    .header h2 { color: #888; font-size: 12px; font-weight: normal; }
+    .date-range { text-align: center; color: #666; margin-bottom: 28px; font-size: 12px; background: #f8fafb; padding: 8px 16px; border-radius: 6px; display: inline-block; }
+    .date-range-wrap { text-align: center; margin-bottom: 24px; }
+
+    .top-section { text-align: center; margin-bottom: 30px; }
+    .summary-row { text-align: center; margin-top: 16px; }
+    .summary-item { display: inline-block; text-align: center; margin: 0 16px; vertical-align: top; }
+    .summary-value { font-size: 22px; font-weight: bold; }
+    .summary-label { font-size: 10px; color: #888; margin-top: 2px; }
+
+    .section { margin-bottom: 28px; }
+    .section-title { font-size: 14px; font-weight: 600; color: #2C3E50; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; margin-bottom: 16px; }
+
+    .medicine-card { background: #f8fafb; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; border-left: 4px solid #4ECDC4; }
+    .medicine-name { font-weight: bold; font-size: 13px; margin-bottom: 4px; color: #2C3E50; }
+    .medicine-details { color: #666; font-size: 11px; }
+
+    .calendar-wrap { text-align: center; margin-bottom: 8px; }
+    .calendar-legend { text-align: center; margin-top: 8px; font-size: 10px; color: #888; }
+    .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 3px 0 10px; vertical-align: middle; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+    th { background: #2C3E50; color: white; padding: 10px 8px; text-align: left; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { padding: 9px 8px; border-bottom: 1px solid #f0f0f0; }
+    tr:nth-child(even) { background: #fafbfc; }
+    .status-taken { color: #4CAF50; font-weight: 600; }
+    .status-not-taken { color: #F44336; font-weight: 600; }
+
+    .footer { margin-top: 32px; padding-top: 16px; border-top: 2px solid #f0f0f0; text-align: center; color: #aaa; font-size: 9px; }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>💊 ${t.title}</h1>
+    <h1>${t.title}</h1>
     <h2>${t.subtitle}</h2>
   </div>
 
-  <div class="date-range">
-    ${t.dateRange}: ${startDate} - ${endDate}
+  <div class="date-range-wrap">
+    <div class="date-range">${t.dateRange}: ${startDate} — ${endDate}</div>
   </div>
 
-  <div class="summary-grid">
-    <div class="summary-card">
-      <div class="value">${data.adherenceRate}%</div>
-      <div class="label">${t.adherenceRate}</div>
+  <div class="top-section">
+    ${donutSVG}
+    <div class="summary-row">
+      <div class="summary-item">
+        <div class="summary-value" style="color:#4ECDC4">${data.currentStreak}</div>
+        <div class="summary-label">${t.currentStreak} (${t.days})</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-value" style="color:#4CAF50">${takenCount}</div>
+        <div class="summary-label">${t.taken}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-value" style="color:#F44336">${notTakenCount}</div>
+        <div class="summary-label">${t.notTaken}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-value" style="color:#2C3E50">${totalDoses}</div>
+        <div class="summary-label">${t.totalDoses}</div>
+      </div>
     </div>
-    <div class="summary-card">
-      <div class="value">${data.currentStreak}</div>
-      <div class="label">${t.currentStreak} (${t.days})</div>
-    </div>
-    <div class="summary-card green">
-      <div class="value">${takenCount}</div>
-      <div class="label">${t.taken}</div>
-    </div>
-    <div class="summary-card orange">
-      <div class="value">${skippedCount}</div>
-      <div class="label">${t.skipped}</div>
-    </div>
-    <div class="summary-card red">
-      <div class="value">${missedCount}</div>
-      <div class="label">${t.missed}</div>
+  </div>
+
+  ${
+    medicineAdherence.length > 0
+      ? `
+  <div class="section">
+    <div class="section-title">${t.adherenceByMedicine}</div>
+    ${barsSVG}
+  </div>`
+      : ''
+  }
+
+  <div class="section">
+    <div class="section-title">${t.calendarView}</div>
+    <div class="calendar-wrap">${calendarHTML}</div>
+    <div class="calendar-legend">
+      <span class="legend-dot" style="background:#4CAF50"></span> ${t.taken}
+      <span class="legend-dot" style="background:#FF9800"></span> ${options.language === 'tr' ? 'Kısmi' : 'Partial'}
+      <span class="legend-dot" style="background:#F44336"></span> ${t.notTaken}
+      <span class="legend-dot" style="background:#f0f0f0"></span> ${options.language === 'tr' ? 'Veri yok' : 'No data'}
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">📋 ${t.medicineList} (${activeMedicines.length})</div>
+    <div class="section-title">${t.medicineList} (${activeMedicines.length})</div>
     ${activeMedicines
       .map(
         med => `
       <div class="medicine-card" style="border-left-color: ${med.color || '#4ECDC4'}">
         <div class="medicine-name">${fixTurkishCharacters(med.name)}</div>
         <div class="medicine-details">
-          ${med.dosage ? `${t.dosage}: ${fixTurkishCharacters(med.dosage)} | ` : ''}
-          ${t.frequency}: ${med.frequency}x ${t.perDay}
-          ${med.stockEnabled ? ` | ${t.stock}: ${med.stockCount} ${t.remaining}` : ''}
+          ${med.dosage ? `${t.dosage}: ${fixTurkishCharacters(med.dosage)} · ` : ''}${t.frequency}: ${med.frequency}x ${t.perDay}${med.stockEnabled ? ` · ${t.stock}: ${med.stockCount} ${t.remaining}` : ''}
         </div>
-      </div>
-    `
+      </div>`
       )
       .join('')}
   </div>
@@ -366,7 +367,7 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     options.includeDetails && filteredLogs.length > 0
       ? `
   <div class="section">
-    <div class="section-title">📅 ${t.dailyLog}</div>
+    <div class="section-title">${t.dailyLog}</div>
     <table>
       <thead>
         <tr>
@@ -383,35 +384,29 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
           .map(logEntry => {
             const medicine = data.medicines.find(m => m.id === logEntry.medicineId);
             const scheduledDate = new Date(logEntry.scheduledTime);
+            const isTaken = logEntry.status === 'taken';
             return `
             <tr>
               <td>${format(scheduledDate, 'dd/MM/yyyy', { locale })}</td>
-              <td>${fixTurkishCharacters(medicine?.name || 'Bilinmeyen')}</td>
+              <td>${fixTurkishCharacters(medicine?.name || '-')}</td>
               <td>${format(scheduledDate, 'HH:mm')}</td>
-              <td>
-                <span class="status-badge" style="background: ${getStatusColor(logEntry.status)}">
-                  ${getStatusText(logEntry.status, options.language)}
-                </span>
+              <td class="${isTaken ? 'status-taken' : 'status-not-taken'}">
+                ${isTaken ? '✓ ' + t.taken : '✗ ' + t.notTaken}
               </td>
-            </tr>
-          `;
+            </tr>`;
           })
           .join('')}
       </tbody>
     </table>
-  </div>
-  `
+  </div>`
       : ''
   }
 
   <div class="footer">
-    ${t.generatedAt}: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale })}
-    <br>
-    İlaç Hatırlatıcı v1.0.5
+    ${t.generatedAt}: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale })} · İlaç Hatırlatıcı v1.1.0
   </div>
 </body>
-</html>
-  `;
+</html>`;
 
   return html;
 }
