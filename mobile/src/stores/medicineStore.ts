@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { Platform } from 'react-native';
+import { STORAGE_KEYS } from '../constants';
 import { Medicine, ReminderTime, UserSettings, MedicineLog, AlarmState, Snooze } from '../types';
 import { calculateMedicineTimes } from '../utils/timeCalculator';
 import { generateId } from '../utils/idGenerator';
@@ -1217,7 +1218,7 @@ export const useMedicineStore = create<MedicineState>()(
       },
     }),
     {
-      name: 'medicine-storage',
+      name: STORAGE_KEYS.MEDICINE_STORAGE,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: state => ({
         medicines: state.medicines,

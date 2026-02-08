@@ -60,7 +60,7 @@ import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { AlertProvider } from './src/contexts/AlertContext';
-import ErrorBoundary from './src/components/ErrorBoundary';
+import ErrorBoundary from './src/components/common/ErrorBoundary';
 import {
   getBootRecoveryResult,
   clearBootRecoveryResult,
@@ -68,8 +68,8 @@ import {
   reRegisterAllAlarms,
 } from './src/utils/bootHandler';
 import { isAlarmHandled } from './index';
-import { logAlarmFailure } from './src/utils/alarmFailureLogger';
 import { createScopedLogger } from './src/utils/logger';
+import { STORAGE_KEYS } from './src/constants';
 import {
   performSecurityCheck,
   getSecuritySettings,
@@ -529,16 +529,10 @@ function AppContent() {
       const medicine = storeState.getMedicineById(data.medicineId);
 
       if (!medicine) {
-        logAlarmFailure(
-          isSnooze ? 'snooze' : 'reminder',
-          'MEDICATION_DELETED',
-          {
-            medicineId: data.medicineId,
-            reminderTimeId: data.reminderTimeId,
-            snoozeId: data.snoozeId,
-          },
-          { source: 'navigateToAlarm' }
-        );
+        appLog.warn('Alarm: ilaç silinmiş', {
+          medicineId: data.medicineId,
+          reminderTimeId: data.reminderTimeId,
+        });
         if (isSnooze && data.snoozeId) {
           dismissNotification(`snooze-${data.snoozeId}`);
         } else {
@@ -558,16 +552,10 @@ function AppContent() {
       );
 
       if (alreadyLogged) {
-        logAlarmFailure(
-          isSnooze ? 'snooze' : 'reminder',
-          'ALREADY_LOGGED',
-          {
-            medicineId: data.medicineId,
-            reminderTimeId: data.reminderTimeId,
-            snoozeId: data.snoozeId,
-          },
-          { source: 'navigateToAlarm' }
-        );
+        appLog.warn('Alarm: zaten loglanmış', {
+          medicineId: data.medicineId,
+          reminderTimeId: data.reminderTimeId,
+        });
         if (isSnooze && data.snoozeId) {
           dismissNotification(`snooze-${data.snoozeId}`);
           storeState.deactivateSnooze(data.snoozeId);
@@ -580,16 +568,10 @@ function AppContent() {
       if (isSnooze && data.snoozeId) {
         const snooze = storeState.snoozes.find(s => s.id === data.snoozeId);
         if (snooze && !snooze.isActive) {
-          logAlarmFailure(
-            'snooze',
-            'SNOOZE_INACTIVE',
-            {
-              medicineId: data.medicineId,
-              reminderTimeId: data.reminderTimeId,
-              snoozeId: data.snoozeId,
-            },
-            { source: 'navigateToAlarm' }
-          );
+          appLog.warn('Alarm: snooze inaktif', {
+            snoozeId: data.snoozeId,
+            medicineId: data.medicineId,
+          });
           dismissNotification(`snooze-${data.snoozeId}`);
           return;
         }
@@ -803,9 +785,9 @@ function AppContent() {
     const checkInitialNotification = async () => {
       // 1. Önce AsyncStorage'daki pending-alarm'ı kontrol et (BG handler'dan gelir)
       try {
-        const pendingRaw = await AsyncStorage.getItem('pending-alarm');
+        const pendingRaw = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM);
         if (pendingRaw) {
-          await AsyncStorage.removeItem('pending-alarm');
+          await AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
           const pending = JSON.parse(pendingRaw);
           // 60 saniye içinde yazıldıysa geçerli
           if (pending.ts && Date.now() - pending.ts < 60_000 && pending.medicineId) {
@@ -891,9 +873,9 @@ function AppContent() {
     const appStateListener = AppState.addEventListener('change', async nextState => {
       if (nextState === 'active') {
         try {
-          const pendingRaw = await AsyncStorage.getItem('pending-alarm');
+          const pendingRaw = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM);
           if (pendingRaw) {
-            await AsyncStorage.removeItem('pending-alarm');
+            await AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
             const pending = JSON.parse(pendingRaw);
             if (pending.ts && Date.now() - pending.ts < 60_000 && pending.medicineId) {
               appLog.debug('AppState active: pending-alarm found', {

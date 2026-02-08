@@ -7,6 +7,7 @@ import { registerBootTask } from './src/utils/bootHandler';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { stopAlarmSound } from './src/utils/alarmSoundManager';
 import { stopSpeaking } from './src/utils/speech';
+import { STORAGE_KEYS, CHANNELS } from './src/constants';
 
 const appName = 'main';
 
@@ -18,18 +19,17 @@ registerBootTask();
 // Uygulama açılınca foreground handler bu set'i kontrol eder.
 // AsyncStorage'a da yazılır (uygulama cold start için).
 // ============================================================
-const HANDLED_ALARMS_KEY = 'handled-alarms';
 const handledAlarmsMemory = new Set<string>();
 
 async function markAlarmHandled(alarmKey: string): Promise<void> {
   handledAlarmsMemory.add(alarmKey);
   try {
-    const raw = await AsyncStorage.getItem(HANDLED_ALARMS_KEY);
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.HANDLED_ALARMS);
     const arr: { key: string; ts: number }[] = raw ? JSON.parse(raw) : [];
     arr.push({ key: alarmKey, ts: Date.now() });
     // Son 20 kaydı tut
     const trimmed = arr.slice(-20);
-    await AsyncStorage.setItem(HANDLED_ALARMS_KEY, JSON.stringify(trimmed));
+    await AsyncStorage.setItem(STORAGE_KEYS.HANDLED_ALARMS, JSON.stringify(trimmed));
   } catch (_e) {
     /* ignore */
   }
@@ -40,7 +40,7 @@ export async function isAlarmHandled(alarmKey: string): Promise<boolean> {
   if (handledAlarmsMemory.has(alarmKey)) return true;
   // Sonra AsyncStorage (cold start)
   try {
-    const raw = await AsyncStorage.getItem(HANDLED_ALARMS_KEY);
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.HANDLED_ALARMS);
     if (!raw) return false;
     const arr: { key: string; ts: number }[] = JSON.parse(raw);
     // 5 dakika içinde handle edildiyse geçerli
@@ -58,7 +58,7 @@ export async function isAlarmHandled(alarmKey: string): Promise<boolean> {
 export async function clearHandledAlarms(): Promise<void> {
   handledAlarmsMemory.clear();
   try {
-    await AsyncStorage.removeItem(HANDLED_ALARMS_KEY);
+    await AsyncStorage.removeItem(STORAGE_KEYS.HANDLED_ALARMS);
   } catch (_e) {
     /* ignore */
   }
@@ -69,7 +69,7 @@ export async function clearHandledAlarms(): Promise<void> {
 // ============================================================
 async function getSnoozeSettings(): Promise<{ snoozeDuration: number; maxSnoozeCount: number }> {
   try {
-    const stored = await AsyncStorage.getItem('medicine-storage');
+    const stored = await AsyncStorage.getItem(STORAGE_KEYS.MEDICINE_STORAGE);
     if (stored) {
       const parsed = JSON.parse(stored);
       const sd = parsed?.state?.settings?.snoozeDuration;
@@ -171,7 +171,7 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
           snoozeCount: notification.data?.snoozeCount as string | undefined,
           ts: Date.now(),
         };
-        await AsyncStorage.setItem('pending-alarm', JSON.stringify(pendingData));
+        await AsyncStorage.setItem(STORAGE_KEYS.PENDING_ALARM, JSON.stringify(pendingData));
         console.log(
           '[BG] pending-alarm SAVED:',
           pendingData.medicineId,
@@ -299,7 +299,7 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
             body: `${notification.body?.split('\n')[0] || 'İlacınızı almayı unutmayın!'}\n⏰ ${timeStr}`,
             android: {
               ...(notification.android || {}),
-              channelId: 'medicine-alarms-v4',
+              channelId: CHANNELS.ALARM,
             },
             data: {
               medicineId,

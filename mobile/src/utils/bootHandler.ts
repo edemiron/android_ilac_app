@@ -11,13 +11,14 @@ import notifee, {
 import { createScopedLogger } from './logger';
 import { scheduleMedicineNotification } from './notifications';
 import { Medicine, ReminderTime } from '../types';
+import { STORAGE_KEYS, CHANNELS, NOTIFICATION_IDS } from '../constants';
 
 const log = createScopedLogger('BootHandler');
 
-const ALARM_CHANNEL_ID = 'medicine-alarms-v4';
-const REMINDER_CHANNEL_ID = 'medicine-reminders-v4';
-const BOOT_RECOVERY_KEY = 'boot-recovery-result';
-const SYNC_NOTIFICATION_ID = 'alarm-sync-notification';
+const ALARM_CHANNEL_ID = CHANNELS.ALARM;
+const REMINDER_CHANNEL_ID = CHANNELS.REMINDER;
+const BOOT_RECOVERY_KEY = STORAGE_KEYS.BOOT_RECOVERY;
+const SYNC_NOTIFICATION_ID = NOTIFICATION_IDS.ALARM_SYNC;
 
 // bootHandler'da AsyncStorage'dan okunan veriler tam Medicine/ReminderTime olmayabilir
 // Ama scheduleMedicineNotification sadece id, name, dosage, time gibi alanları kullanıyor
@@ -198,7 +199,7 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
   const timestamp = new Date().toISOString();
 
   try {
-    const storedData = await AsyncStorage.getItem('medicine-storage');
+    const storedData = await AsyncStorage.getItem(STORAGE_KEYS.MEDICINE_STORAGE);
 
     if (!storedData) {
       log.debug('No stored data found');

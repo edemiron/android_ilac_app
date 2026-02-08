@@ -1,20 +1,29 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, ViewStyle, StyleProp } from 'react-native';
-import { useSubscription } from '../contexts/SubscriptionContext';
-import { useTheme } from '../contexts/ThemeContext';
-import { useLanguage } from '../contexts/LanguageContext';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  ViewStyle,
+  StyleProp,
+} from 'react-native';
+import { useSubscription } from '../../contexts/SubscriptionContext';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { createScopedLogger } from '../utils/logger';
-import { RootStackParamList } from '../types';
+import { createScopedLogger } from '../../utils/logger';
+import { RootStackParamList } from '../../types';
 
 const log = createScopedLogger('AdBanner');
 
 // AdMob Banner Ad Unit ID
-const BANNER_AD_UNIT_ID = Platform.select({
-  android: 'ca-app-pub-3909827768413000/6113318790',
-  ios: 'ca-app-pub-3909827768413000/6113318790', // iOS için de aynı veya farklı ID kullanılabilir
-}) || '';
+const BANNER_AD_UNIT_ID =
+  Platform.select({
+    android: 'ca-app-pub-3909827768413000/6113318790',
+    ios: 'ca-app-pub-3909827768413000/6113318790', // iOS için de aynı veya farklı ID kullanılabilir
+  }) || '';
 
 // AdMob SDK'yı dinamik olarak yükle
 // React Native Google Mobile Ads tipi dinamik olarak yuklendigi icin
@@ -38,7 +47,6 @@ let BannerAdSize: GoogleMobileAdsModule['BannerAdSize'] | null = null;
 let useForeground: GoogleMobileAdsModule['useForeground'] | null = null;
 
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const GoogleMobileAds = require('react-native-google-mobile-ads') as GoogleMobileAdsModule;
   BannerAd = GoogleMobileAds.BannerAd;
   BannerAdSize = GoogleMobileAds.BannerAdSize;
@@ -69,8 +77,12 @@ export default function AdBanner({ style }: AdBannerProps) {
   // AdMob yüklenemediyse veya hata olduysa placeholder göster
   if (!BannerAd || !BannerAdSize || adError) {
     return (
-      <TouchableOpacity 
-        style={[styles.placeholderContainer, { backgroundColor: colors.card, borderColor: colors.divider }, style]}
+      <TouchableOpacity
+        style={[
+          styles.placeholderContainer,
+          { backgroundColor: colors.card, borderColor: colors.divider },
+          style,
+        ]}
         onPress={() => navigation.navigate('Premium')}
         activeOpacity={0.8}
       >
@@ -122,7 +134,12 @@ export function BottomAdBanner() {
   }
 
   return (
-    <View style={[styles.bottomContainer, { backgroundColor: colors.background, borderTopColor: colors.divider }]}>
+    <View
+      style={[
+        styles.bottomContainer,
+        { backgroundColor: colors.background, borderTopColor: colors.divider },
+      ]}
+    >
       <AdBanner />
     </View>
   );

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import CustomAlert, { AlertType, AlertButton, AlertItem } from '../components/CustomAlert';
+import CustomAlert, { AlertType, AlertButton, AlertItem } from '../components/common/CustomAlert';
 
 interface AlertOptions {
   type?: AlertType;

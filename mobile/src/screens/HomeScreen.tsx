@@ -24,7 +24,7 @@ import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { InlineAdBanner } from '../components/AdBanner';
+import { InlineAdBanner } from '../components/common/AdBanner';
 import { scheduleSnoozeNotification } from '../utils/notifications';
 import {
   checkAndShowPersistentNotifications,
@@ -34,7 +34,7 @@ import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('HomeScreen');
 import { useAlert } from '../contexts/AlertContext';
-import { CircularProgress } from '../components/CircularProgress';
+import { CircularProgress } from '../components/common/CircularProgress';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 

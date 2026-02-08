@@ -62,6 +62,7 @@ import { useLanguage, Language } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { createScopedLogger } from '../utils/logger';
+import { CHANNELS } from '../constants';
 
 const log = createScopedLogger('SettingsScreen');
 
@@ -548,7 +549,7 @@ export function useSettingsScreen() {
             subtitle: notifTimeStr,
             body: `${medicine.dosage} almanin zamani!\n⏰ ${notifTimeStr}`,
             android: {
-              channelId: 'medicine-alarms-v4',
+              channelId: CHANNELS.ALARM,
               category: 'alarm' as any,
               importance: 4, // HIGH
               visibility: 1, // PUBLIC

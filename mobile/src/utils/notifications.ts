@@ -11,6 +11,7 @@ import notifee, {
   AlarmType,
 } from '@notifee/react-native';
 import { Platform, Vibration, Linking, NativeModules } from 'react-native';
+import { STORAGE_KEYS } from '../constants';
 
 // PowerManagerInfo type (notifee'den dogrudan export edilmiyor)
 interface PowerManagerInfo {
@@ -895,7 +896,7 @@ export function setupNotificationListeners(
         let handled = false;
         try {
           const AsyncStorageModule = require('@react-native-async-storage/async-storage').default;
-          const raw = await AsyncStorageModule.getItem('handled-alarms');
+          const raw = await AsyncStorageModule.getItem(STORAGE_KEYS.HANDLED_ALARMS);
           if (raw) {
             const arr: { key: string; ts: number }[] = JSON.parse(raw);
             handled = arr.some(a => a.key === alarmKey && Date.now() - a.ts < 5 * 60 * 1000);
@@ -916,7 +917,7 @@ export function setupNotificationListeners(
         // pending-alarm'ı temizle — checkInitialNotification ile çakışmayı engelle
         try {
           const AsyncStorageModule = require('@react-native-async-storage/async-storage').default;
-          await AsyncStorageModule.removeItem('pending-alarm');
+          await AsyncStorageModule.removeItem(STORAGE_KEYS.PENDING_ALARM);
         } catch (_e) {
           /* ignore */
         }

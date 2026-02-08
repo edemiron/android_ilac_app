@@ -8,7 +8,7 @@ import React, { Component, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 // Note: useTheme kaldırıldı - ErrorBoundary ThemeProvider dışında da çalışmalı
-import { createScopedLogger } from '../utils/logger';
+import { createScopedLogger } from '../../utils/logger';
 
 const log = createScopedLogger('ErrorBoundary');
 

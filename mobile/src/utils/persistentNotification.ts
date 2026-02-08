@@ -13,10 +13,11 @@ import notifee, {
 import { Platform } from 'react-native';
 import { Medicine, ReminderTime } from '../types';
 import { createScopedLogger } from './logger';
+import { CHANNELS } from '../constants';
 
 const log = createScopedLogger('PersistentNotification');
 
-const PERSISTENT_CHANNEL_ID = 'persistent-medicine-reminders';
+const PERSISTENT_CHANNEL_ID = CHANNELS.PERSISTENT;
 const PERSISTENT_NOTIFICATION_TAG = 'medicine-pending';
 
 /**
