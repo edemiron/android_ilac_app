@@ -63,7 +63,7 @@ describe('MedicineStore', () => {
 
     // Reset store to initial state
     const store = useMedicineStore.getState();
-    store.clearAllData();
+    await store.clearAllData();
     store.setUserId(null);
   });
 
@@ -145,9 +145,7 @@ describe('MedicineStore', () => {
       store.addMedicine({ ...baseMedicine, frequency: 3 });
 
       const { reminderTimes, medicines } = useMedicineStore.getState();
-      const medicineTimes = reminderTimes.filter(
-        (rt) => rt.medicineId === medicines[0].id
-      );
+      const medicineTimes = reminderTimes.filter(rt => rt.medicineId === medicines[0].id);
       expect(medicineTimes.length).toBe(3);
     });
 
@@ -158,11 +156,9 @@ describe('MedicineStore', () => {
       store.addMedicine({ ...baseMedicine, customTimes });
 
       const { reminderTimes, medicines } = useMedicineStore.getState();
-      const medicineTimes = reminderTimes.filter(
-        (rt) => rt.medicineId === medicines[0].id
-      );
+      const medicineTimes = reminderTimes.filter(rt => rt.medicineId === medicines[0].id);
       expect(medicineTimes.length).toBe(3);
-      expect(medicineTimes.map((t) => t.time)).toEqual(customTimes);
+      expect(medicineTimes.map(t => t.time)).toEqual(customTimes);
     });
 
     it('should trigger cloud sync when user is logged in', async () => {
@@ -172,7 +168,7 @@ describe('MedicineStore', () => {
       store.addMedicine(baseMedicine);
 
       // Wait for background sync to be scheduled
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(mockUploadAllDataToCloud).toHaveBeenCalled();
     });
@@ -182,7 +178,7 @@ describe('MedicineStore', () => {
 
       store.addMedicine(baseMedicine);
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(mockUploadAllDataToCloud).not.toHaveBeenCalled();
     });
@@ -216,7 +212,7 @@ describe('MedicineStore', () => {
       const originalUpdatedAt = beforeMedicines[0].updatedAt;
 
       // Small delay to ensure different timestamp (1ms is enough)
-      await new Promise((resolve) => setTimeout(resolve, 2));
+      await new Promise(resolve => setTimeout(resolve, 2));
 
       const store = useMedicineStore.getState();
       store.updateMedicine(medicineId, { dosage: '200mg' });
@@ -241,16 +237,12 @@ describe('MedicineStore', () => {
     it('should regenerate reminder times when frequency changes', () => {
       const store = useMedicineStore.getState();
       const { reminderTimes: beforeTimes } = useMedicineStore.getState();
-      const beforeCount = beforeTimes.filter(
-        (rt) => rt.medicineId === medicineId
-      ).length;
+      const beforeCount = beforeTimes.filter(rt => rt.medicineId === medicineId).length;
 
       store.updateMedicine(medicineId, { frequency: 4 });
 
       const { reminderTimes } = useMedicineStore.getState();
-      const afterCount = reminderTimes.filter(
-        (rt) => rt.medicineId === medicineId
-      ).length;
+      const afterCount = reminderTimes.filter(rt => rt.medicineId === medicineId).length;
       expect(afterCount).toBe(4);
       expect(afterCount).not.toBe(beforeCount);
     });
@@ -268,7 +260,7 @@ describe('MedicineStore', () => {
       store.updateMedicine(medicineId, { name: 'Updated First' });
 
       const { medicines } = useMedicineStore.getState();
-      const secondMedicine = medicines.find((m) => m.id === secondId);
+      const secondMedicine = medicines.find(m => m.id === secondId);
       expect(secondMedicine?.name).toBe('Second Medicine');
     });
   });
@@ -293,7 +285,7 @@ describe('MedicineStore', () => {
       store.deleteMedicine(medicineId);
 
       const { medicines } = useMedicineStore.getState();
-      expect(medicines.find((m) => m.id === medicineId)).toBeUndefined();
+      expect(medicines.find(m => m.id === medicineId)).toBeUndefined();
     });
 
     it('should remove associated reminder times', () => {
@@ -302,18 +294,14 @@ describe('MedicineStore', () => {
       store.deleteMedicine(medicineId);
 
       const { reminderTimes } = useMedicineStore.getState();
-      const orphanedTimes = reminderTimes.filter(
-        (rt) => rt.medicineId === medicineId
-      );
+      const orphanedTimes = reminderTimes.filter(rt => rt.medicineId === medicineId);
       expect(orphanedTimes.length).toBe(0);
     });
 
     it('should remove associated medicine logs', () => {
       const store = useMedicineStore.getState();
       const { reminderTimes } = useMedicineStore.getState();
-      const reminderTime = reminderTimes.find(
-        (rt) => rt.medicineId === medicineId
-      );
+      const reminderTime = reminderTimes.find(rt => rt.medicineId === medicineId);
 
       // Add a log first
       if (reminderTime) {
@@ -323,9 +311,7 @@ describe('MedicineStore', () => {
       store.deleteMedicine(medicineId);
 
       const { medicineLogs } = useMedicineStore.getState();
-      const orphanedLogs = medicineLogs.filter(
-        (log) => log.medicineId === medicineId
-      );
+      const orphanedLogs = medicineLogs.filter(log => log.medicineId === medicineId);
       expect(orphanedLogs.length).toBe(0);
     });
 
@@ -342,7 +328,7 @@ describe('MedicineStore', () => {
       store.deleteMedicine(medicineId);
 
       const { medicines } = useMedicineStore.getState();
-      expect(medicines.find((m) => m.id === keepId)).toBeDefined();
+      expect(medicines.find(m => m.id === keepId)).toBeDefined();
     });
   });
 
@@ -395,9 +381,7 @@ describe('MedicineStore', () => {
       });
 
       const { reminderTimes } = useMedicineStore.getState();
-      reminderTimeId = reminderTimes.find(
-        (rt) => rt.medicineId === medicineId
-      )!.id;
+      reminderTimeId = reminderTimes.find(rt => rt.medicineId === medicineId)!.id;
     });
 
     it('should create a taken log', () => {
@@ -456,9 +440,7 @@ describe('MedicineStore', () => {
       });
 
       const { reminderTimes } = useMedicineStore.getState();
-      reminderTimeId = reminderTimes.find(
-        (rt) => rt.medicineId === medicineId
-      )!.id;
+      reminderTimeId = reminderTimes.find(rt => rt.medicineId === medicineId)!.id;
     });
 
     it('should create a skipped log', () => {
@@ -536,8 +518,8 @@ describe('MedicineStore', () => {
       });
 
       const { medicines, reminderTimes } = useMedicineStore.getState();
-      medicine = medicines.find((m) => m.id === medicineId)!;
-      reminderTime = reminderTimes.find((rt) => rt.medicineId === medicineId)!;
+      medicine = medicines.find(m => m.id === medicineId)!;
+      reminderTime = reminderTimes.find(rt => rt.medicineId === medicineId)!;
     });
 
     it('should set alarm active', () => {
@@ -616,10 +598,10 @@ describe('MedicineStore', () => {
     });
 
     describe('getAdherenceRate', () => {
-      it('should return 100% when no active medicines exist', () => {
+      it('should return 100% when no active medicines exist', async () => {
         // Clear all data first - no medicines means 100% (nothing to miss)
         const store = useMedicineStore.getState();
-        store.clearAllData();
+        await store.clearAllData();
 
         const rate = store.getAdherenceRate(7);
 
@@ -669,9 +651,9 @@ describe('MedicineStore', () => {
         expect(rate).toBe(67); // 2/3 = 66.67% rounded
       });
 
-      it('should return 100% when only future reminders exist', () => {
+      it('should return 100% when only future reminders exist', async () => {
         const store = useMedicineStore.getState();
-        store.clearAllData();
+        await store.clearAllData();
 
         // Add medicine with only future reminder time (23:59)
         store.addMedicine({
@@ -825,7 +807,7 @@ describe('MedicineStore', () => {
   });
 
   describe('clearAllData', () => {
-    it('should reset all data to initial state', () => {
+    it('should reset all data to initial state', async () => {
       const store = useMedicineStore.getState();
       store.addMedicine({
         name: 'To Clear',
@@ -836,10 +818,9 @@ describe('MedicineStore', () => {
       });
       store.updateSettings({ wakeUpTime: '06:00' });
 
-      store.clearAllData();
+      await store.clearAllData();
 
-      const { medicines, reminderTimes, medicineLogs, settings } =
-        useMedicineStore.getState();
+      const { medicines, reminderTimes, medicineLogs, settings } = useMedicineStore.getState();
       expect(medicines).toEqual([]);
       expect(reminderTimes).toEqual([]);
       expect(medicineLogs).toEqual([]);
@@ -856,7 +837,7 @@ describe('MedicineStore', () => {
     it('should have valid hex colors', () => {
       const hexColorRegex = /^#[0-9A-Fa-f]{6}$/;
 
-      MEDICINE_COLORS.forEach((color) => {
+      MEDICINE_COLORS.forEach(color => {
         expect(color).toMatch(hexColorRegex);
       });
     });

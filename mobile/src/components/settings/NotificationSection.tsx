@@ -10,10 +10,12 @@ import { Settings } from './types';
 interface NotificationSectionProps {
   settings: Settings;
   showSnoozePicker: boolean;
+  showSnoozeCountPicker: boolean;
   showVolumePicker: boolean;
   showConflictIntervalPicker: boolean;
   onSettingChange: (updates: Partial<Settings>) => void;
   onSnoozePress: () => void;
+  onSnoozeCountPress: () => void;
   onVolumePress: () => void;
   onConflictIntervalPress: () => void;
   onTestNotification: () => void;
@@ -31,13 +33,17 @@ const VOLUME_OPTIONS = [
 
 const CONFLICT_INTERVAL_OPTIONS = [5, 10, 15, 20, 30];
 
+const MAX_SNOOZE_COUNT_OPTIONS = [1, 2, 3, 5, 10];
+
 export const NotificationSection: React.FC<NotificationSectionProps> = ({
   settings,
   showSnoozePicker,
+  showSnoozeCountPicker,
   showVolumePicker,
   showConflictIntervalPicker,
   onSettingChange,
   onSnoozePress,
+  onSnoozeCountPress,
   onVolumePress,
   onConflictIntervalPress,
   onTestNotification,
@@ -65,6 +71,16 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
   const handleSnoozeSelect = (duration: number) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     onSettingChange({ snoozeDuration: duration });
+  };
+
+  const handleSnoozeCountPress = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    onSnoozeCountPress();
+  };
+
+  const handleSnoozeCountSelect = (count: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    onSettingChange({ maxSnoozeCount: count });
   };
 
   const handleVolumeSelect = (volume: number) => {
@@ -103,6 +119,10 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
 
   const getConflictIntervalLabel = (interval: number) => {
     return `${interval} ${language === 'tr' ? 'dk' : 'min'}`;
+  };
+
+  const getSnoozeCountLabel = (count: number) => {
+    return `${count} ${language === 'tr' ? 'kez' : 'times'}`;
   };
 
   return (
@@ -192,10 +212,29 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
 
       {showSnoozePicker && (
         <OptionPicker<number>
-          options={[0.25, 5, 10, 15, 30]}
+          options={[0.25, 1, 5, 10, 15, 30]}
           selectedValue={settings.snoozeDuration || 5}
           onSelect={handleSnoozeSelect}
           getLabel={getSnoozeDurationLabel}
+        />
+      )}
+
+      <SettingRow
+        icon={{ name: 'refresh-outline', color: '#10B981' }}
+        label={language === 'tr' ? 'Erteleme Hakkı' : 'Snooze Limit'}
+        description={language === 'tr' ? 'Maksimum erteleme sayısı' : 'Maximum number of snoozes'}
+        value={getSnoozeCountLabel(settings.maxSnoozeCount || 3)}
+        onPress={handleSnoozeCountPress}
+        showChevron
+        chevronDirection={showSnoozeCountPicker ? 'up' : 'down'}
+      />
+
+      {showSnoozeCountPicker && (
+        <OptionPicker<number>
+          options={MAX_SNOOZE_COUNT_OPTIONS}
+          selectedValue={settings.maxSnoozeCount || 3}
+          onSelect={handleSnoozeCountSelect}
+          getLabel={getSnoozeCountLabel}
         />
       )}
 

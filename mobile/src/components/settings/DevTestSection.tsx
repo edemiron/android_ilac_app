@@ -9,15 +9,19 @@ import { createSettingsStyles } from './styles';
 interface DevTestSectionProps {
   onScheduleAlarm: (minutes: number) => void;
   onAddTestMedicine: () => void;
+  onAddTestMedicine10s: () => void;
   onDeleteTestMedicines: () => void;
   onShowScheduledNotifications: () => void;
+  onClearAllData?: () => void;
 }
 
 export const DevTestSection: React.FC<DevTestSectionProps> = ({
   onScheduleAlarm,
   onAddTestMedicine,
+  onAddTestMedicine10s,
   onDeleteTestMedicines,
   onShowScheduledNotifications,
+  onClearAllData,
 }) => {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
@@ -49,6 +53,18 @@ export const DevTestSection: React.FC<DevTestSectionProps> = ({
             : 'Random medicine, alarm in 1 minute'
         }
         onPress={onAddTestMedicine}
+        showChevron
+      />
+
+      <SettingRow
+        icon={{ name: 'add-circle-outline', color: '#06B6D4' }}
+        label={language === 'tr' ? 'Test İlacı Ekle (10sn)' : 'Add Test Medicine (10s)'}
+        description={
+          language === 'tr'
+            ? 'Random ilaç, 10 saniye sonra alarm'
+            : 'Random medicine, alarm in 10 seconds'
+        }
+        onPress={onAddTestMedicine10s}
         showChevron
       />
 
@@ -112,6 +128,25 @@ export const DevTestSection: React.FC<DevTestSectionProps> = ({
         onPress={() => onScheduleAlarm(1)}
         showChevron
       />
+
+      <View style={{ height: 12 }} />
+
+      {/* Firebase Temizlik */}
+      {onClearAllData && (
+        <SettingRow
+          icon={{ name: 'nuclear-outline', color: '#DC2626' }}
+          label={
+            language === 'tr' ? '⚠️ Tüm Verileri Sil (Firebase)' : '⚠️ Clear All Data (Firebase)'
+          }
+          description={
+            language === 'tr'
+              ? 'Tüm ilaçlar ve bildirimleri kalıcı sil'
+              : 'Permanently delete all medicines and notifications'
+          }
+          onPress={onClearAllData}
+          showChevron
+        />
+      )}
     </View>
   );
 };

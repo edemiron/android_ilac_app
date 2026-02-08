@@ -95,6 +95,7 @@ const UserSettingsSchema = z.object({
   alarmSound: z.enum(['alarm', 'default', 'gentle', 'urgent']).default('alarm'),
   alarmVolume: z.number().min(0).max(100).default(80),
   snoozeDuration: z.number().min(0.25).max(60),
+  maxSnoozeCount: z.number().min(1).max(20).default(3),
   quietHoursEnabled: z.boolean(),
   quietHoursStart: z.string().regex(TIME_REGEX, 'Invalid quiet hours start time'),
   quietHoursEnd: z.string().regex(TIME_REGEX, 'Invalid quiet hours end time'),

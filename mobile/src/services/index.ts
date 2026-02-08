@@ -1,7 +1,5 @@
 export * from './drugInteraction';
-export * from './aiMedicineService';
 export * from './turkishMedicineService';
-export * from './hybridBarcodeService';
 
 // globalMedicineService ve medicineSearchOrchestrator'da searchByBarcode çakışması var
 // Orchestrator versiyonunu ana export olarak kullan (hibrit arama)

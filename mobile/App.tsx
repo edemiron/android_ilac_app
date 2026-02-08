@@ -11,6 +11,7 @@ import {
   Alert,
   TouchableOpacity,
   Text,
+  AppState,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -34,6 +35,8 @@ import {
   MedicineProspectusScreen,
   PremiumScreen,
   PermissionsScreen,
+  SecurityScreen,
+  TtsSettingsScreen,
 } from './src/screens';
 
 // Lazy load BarcodeScannerScreen - vision-camera is HEAVY and slows startup by ~5s
@@ -49,6 +52,7 @@ import {
   cleanupOrphanNotifications,
   cancelAllNotifications,
 } from './src/utils/notifications';
+import { createPersistentNotificationChannel } from './src/utils/persistentNotification';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { generateId } from './src/utils/idGenerator';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
@@ -56,14 +60,24 @@ import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { AlertProvider } from './src/contexts/AlertContext';
+import ErrorBoundary from './src/components/ErrorBoundary';
 import {
   getBootRecoveryResult,
   clearBootRecoveryResult,
   BootRecoveryResult,
   reRegisterAllAlarms,
 } from './src/utils/bootHandler';
+import { isAlarmHandled } from './index';
 import { logAlarmFailure } from './src/utils/alarmFailureLogger';
 import { createScopedLogger } from './src/utils/logger';
+import {
+  performSecurityCheck,
+  getSecuritySettings,
+  authenticateWithBiometrics,
+  verifyPin,
+  updateLastActiveTime,
+  SecuritySettings,
+} from './src/utils/security';
 
 const appLog = createScopedLogger('App');
 
@@ -88,7 +102,7 @@ function getTriggerDisplayName(trigger: string): string {
 // Auth Navigator - Giriş yapmamış kullanıcılar için
 function AuthNavigator() {
   const { colors } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   return (
     <AuthStack.Navigator
@@ -133,7 +147,7 @@ interface CustomTabBarProps {
 
 function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
   const { colors, isDark } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const TAB_COLORS = getTabColors(isDark);
 
@@ -272,7 +286,7 @@ const tabBarStyles = StyleSheet.create({
 // Tab Navigator with Theme Support
 function MainTabs() {
   const { colors, isDark } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   return (
     <Tab.Navigator
@@ -363,8 +377,9 @@ function LazyBarcodeScannerScreen(props: any) {
 function AppContent() {
   const navigationRef = useRef<any>(null);
   const processedSnoozesRef = useRef<Set<string>>(new Set()); // Snooze işlemi yapılmış notification'lar
+  const activeAlarmKeysRef = useRef<Set<string>>(new Set()); // Şu an açık olan alarm key'leri (duplicate guard)
   const { colors, isDark } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const {
     setAlarmActive,
@@ -380,6 +395,12 @@ function AppContent() {
   const [showPermissions, setShowPermissions] = useState<boolean | null>(null);
   const [pendingAlarm, setPendingAlarm] = useState<any>(null);
   const [bootRecovery, setBootRecovery] = useState<BootRecoveryResult | null>(null);
+
+  // Güvenlik kontrolü state'leri - TÜM HOOK'LAR EN ÜSTTE
+  const [securityCheckComplete, setSecurityCheckComplete] = useState(false);
+  const [showPinEntry, setShowPinEntry] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [securitySettings, setSecuritySettings] = useState<SecuritySettings | null>(null);
 
   // İzin ekranı gösterildi mi kontrol et
   useEffect(() => {
@@ -410,14 +431,95 @@ function AppContent() {
     }
   }, [isAuthenticated, user]);
 
-  const navigateToAlarm = (data: {
+  // Güvenlik kontrolü - app açılışında
+  useEffect(() => {
+    const checkSecurity = async () => {
+      if (!isAuthenticated) return;
+
+      const secSettings = await getSecuritySettings();
+      if (!secSettings || !secSettings.securityEnabled || secSettings.securityType === 'none') {
+        setSecurityCheckComplete(true);
+        return;
+      }
+
+      setSecuritySettings(secSettings);
+
+      // Biyometrik kontrol
+      if (secSettings.securityType === 'biometric' || secSettings.securityType === 'both') {
+        const bioResult = await authenticateWithBiometrics();
+        if (bioResult.success) {
+          await updateLastActiveTime();
+          setSecurityCheckComplete(true);
+          return;
+        }
+        // Biyometrik başarısız ve "biometric" modundaysa, PIN gerekli
+        if (secSettings.securityType === 'biometric') {
+          setShowPinEntry(true);
+          return;
+        }
+      }
+
+      // PIN gerekli
+      if (secSettings.securityType === 'pin' || secSettings.securityType === 'both') {
+        setShowPinEntry(true);
+      }
+    };
+
+    checkSecurity();
+  }, [isAuthenticated]);
+
+  const handlePinVerify = async () => {
+    if (!pinInput || pinInput.length < 4) {
+      Alert.alert(
+        language === 'tr' ? 'Geçersiz PIN' : 'Invalid PIN',
+        language === 'tr' ? 'PIN en az 4 haneli olmalı.' : 'PIN must be at least 4 digits.'
+      );
+      return;
+    }
+
+    const isValid = await verifyPin(pinInput);
+    if (isValid) {
+      setPinInput('');
+      setShowPinEntry(false);
+      await updateLastActiveTime();
+      setSecurityCheckComplete(true);
+    } else {
+      Alert.alert(
+        language === 'tr' ? 'Yanlış PIN' : 'Incorrect PIN',
+        language === 'tr' ? 'Girdiğiniz PIN doğru değil.' : 'The PIN you entered is incorrect.'
+      );
+      setPinInput('');
+    }
+  };
+
+  const navigateToAlarm = async (data: {
     medicineId: string;
     reminderTimeId: string;
     scheduledTime: string;
     isSnooze?: string;
     snoozeId?: string;
+    snoozeCount?: string;
+    originalScheduledTime?: string;
   }) => {
-    console.log('Alarm ekranına yönlendiriliyor:', data);
+    console.log('🔴 navigateToAlarm:', data.medicineId, data.reminderTimeId);
+
+    // KRİTİK: Bu alarm zaten handle edildi mi? (ertele/aldım/dismiss)
+    const today = new Date().toISOString().split('T')[0];
+    const alarmKey = `${data.medicineId}-${data.reminderTimeId}-${today}`;
+    const handled = await isAlarmHandled(alarmKey);
+    if (handled) {
+      appLog.debug('Alarm already handled, skipping', { alarmKey });
+      return;
+    }
+
+    // DUPLICATE GUARD: Aynı alarm key için zaten ekran açıksa tekrar açma
+    if (activeAlarmKeysRef.current.has(alarmKey)) {
+      appLog.debug('Alarm already active on screen, skipping duplicate', { alarmKey });
+      return;
+    }
+    activeAlarmKeysRef.current.add(alarmKey);
+    // 60 saniye sonra guard'ı temizle (alarm ekranı kapanmış olmalı)
+    setTimeout(() => activeAlarmKeysRef.current.delete(alarmKey), 60_000);
 
     const isTestMode = data.medicineId === 'test-medicine';
     const isSnooze = data.isSnooze === 'true';
@@ -503,12 +605,24 @@ function AppContent() {
       medicineId: data.medicineId,
       reminderTimeId: data.reminderTimeId,
       scheduledTime: data.scheduledTime,
+      snoozeCount: data.snoozeCount ? parseInt(data.snoozeCount, 10) : undefined,
+      originalScheduledTime: data.originalScheduledTime,
     });
+
+    // KRİTİK: Navigate sonrası bildirimi HEMEN iptal et
+    // Foreground DELIVERED handler'ın tekrar tetiklenmesini engeller
+    const mainNotifId = `alarm-${data.medicineId}-${data.reminderTimeId}`;
+    try {
+      await notifee.cancelDisplayedNotification(mainNotifId);
+    } catch (_e) {
+      /* */
+    }
 
     if (isSnooze && data.snoozeId) {
       dismissNotification(`snooze-${data.snoozeId}`);
     } else {
-      dismissNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`);
+      dismissNotification(mainNotifId);
+      cancelMedicineNotifications(data.medicineId);
     }
   };
 
@@ -520,7 +634,7 @@ function AppContent() {
 
     const notificationId = `alarm-${data.medicineId}-${data.reminderTimeId}`;
 
-    if (actionId === 'take') {
+    if (actionId === 'take' || actionId === 'taken') {
       // İlaç alındı olarak işaretle (medicineId fallback ile)
       logMedicineTaken(
         data.reminderTimeId,
@@ -528,6 +642,10 @@ function AppContent() {
         data.medicineId
       );
       await dismissNotification(notificationId);
+      // Kalıcı bildirim varsa onu da kaldır
+      if (data.isPersistent === 'true') {
+        await dismissNotification(`persistent-${data.medicineId}-${data.reminderTimeId}`);
+      }
       console.log('İlaç alındı işaretlendi:', data.medicineId);
     } else if (actionId === 'skip') {
       // İlaç atlandı olarak işaretle (medicineId fallback ile)
@@ -592,8 +710,13 @@ function AppContent() {
         }
       }
     } else if (actionId === 'stop') {
-      // Sadece bildirimi kapat (ilaç durumunu değiştirme)
+      // Bildirimi kapat
       await dismissNotification(notificationId);
+      try {
+        await notifee.cancelNotification(notificationId);
+      } catch (_e) {
+        /* ignore */
+      }
       console.log('Alarm kapatıldı:', data.medicineId);
     }
   };
@@ -601,6 +724,33 @@ function AppContent() {
   useEffect(() => {
     const performStartupCleanup = async () => {
       try {
+        // Eski displayed bildirimleri temizle
+        // Sadece non-alarm bildirimleri ve zaten handle edilmiş alarmları temizle
+        const displayedNotifications = await notifee.getDisplayedNotifications();
+        const today = new Date().toISOString().split('T')[0];
+
+        for (const notification of displayedNotifications) {
+          const id = notification.notification.id;
+          const data = notification.notification.data;
+          if (!id) continue;
+
+          // Non-alarm bildirimleri temizle
+          if (!id.startsWith('alarm-') && !id.startsWith('snooze-')) {
+            await notifee.cancelDisplayedNotification(id);
+            continue;
+          }
+
+          // Alarm bildirimi — handle edildi mi kontrol et
+          if (data?.medicineId && data?.reminderTimeId) {
+            const key = `${data.medicineId}-${data.reminderTimeId}-${today}`;
+            const handled = await isAlarmHandled(key);
+            if (handled) {
+              await notifee.cancelDisplayedNotification(id);
+              appLog.debug('Startup: Handled alarm temizlendi', { id });
+            }
+          }
+        }
+
         const storeState = useMedicineStore.getState();
         const medicines = storeState.medicines;
         const validMedicineIds = medicines.map(m => m.id);
@@ -620,6 +770,7 @@ function AppContent() {
           appLog.debug('Stale snooze cleanup done', { staleCount });
         }
 
+        // Alarmları yeniden planla
         if (validMedicineIds.length > 0) {
           const result = await reRegisterAllAlarms('app_startup');
           appLog.debug('Startup alarm re-register done', { ...result });
@@ -642,6 +793,7 @@ function AppContent() {
   useEffect(() => {
     // Bildirim kanallarını oluştur
     createNotificationChannels();
+    createPersistentNotificationChannel();
 
     // Foreground event listener
     const unsubscribe = setupNotificationListeners(navigateToAlarm, handleAction);
@@ -649,147 +801,79 @@ function AppContent() {
     // Background event handler artık index.ts'te register ediliyor
 
     const checkInitialNotification = async () => {
+      // 1. Önce AsyncStorage'daki pending-alarm'ı kontrol et (BG handler'dan gelir)
+      try {
+        const pendingRaw = await AsyncStorage.getItem('pending-alarm');
+        if (pendingRaw) {
+          await AsyncStorage.removeItem('pending-alarm');
+          const pending = JSON.parse(pendingRaw);
+          // 60 saniye içinde yazıldıysa geçerli
+          if (pending.ts && Date.now() - pending.ts < 60_000 && pending.medicineId) {
+            appLog.debug('pending-alarm found', {
+              medicineId: pending.medicineId,
+              snoozeCount: pending.snoozeCount,
+              ageMs: Date.now() - pending.ts,
+            });
+            const today = new Date().toISOString().split('T')[0];
+            const key = `${pending.medicineId}-${pending.reminderTimeId}-${today}`;
+            const handled = await isAlarmHandled(key);
+            if (!handled) {
+              setPendingAlarm({
+                medicineId: pending.medicineId,
+                reminderTimeId: pending.reminderTimeId,
+                scheduledTime: pending.scheduledTime,
+                isSnooze: pending.isSnooze,
+                snoozeId: pending.snoozeId,
+                snoozeCount: pending.snoozeCount,
+                originalScheduledTime: pending.originalScheduledTime,
+              });
+              return; // pending-alarm bulundu, initialNotification'a bakmaya gerek yok
+            }
+          }
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+
+      // 2. Notifee initialNotification (kullanıcı bildirime tıkladığında)
       const initialNotification = await notifee.getInitialNotification();
       if (initialNotification) {
         console.log('Initial notification bulundu:', initialNotification);
-        const data = initialNotification.notification.data;
+        const { notification, pressAction: initPressAction } = initialNotification;
+        const data = notification.data;
+
+        // Action butonuyla açıldıysa alarm ekranı atla
+        if (initPressAction?.id && initPressAction.id !== 'default') {
+          console.log('Action butonuyla açıldı, alarm ekranı atlanıyor:', initPressAction.id);
+          return;
+        }
+
+        // Bu alarm zaten handle edildi mi kontrol et (ertele/aldım)
         if (data?.medicineId && data?.reminderTimeId) {
+          const today = new Date().toISOString().split('T')[0];
+          const key = `${data.medicineId}-${data.reminderTimeId}-${today}`;
+          const handled = await isAlarmHandled(key);
+          if (handled) {
+            console.log('Alarm already handled, skipping alarm screen:', key);
+            return;
+          }
+
           setPendingAlarm({
             medicineId: data.medicineId as string,
             reminderTimeId: data.reminderTimeId as string,
             scheduledTime: (data.scheduledTime as string) || new Date().toISOString(),
+            originalScheduledTime: data.originalScheduledTime as string | undefined,
             isSnooze: data.isSnooze as string | undefined,
             snoozeId: data.snoozeId as string | undefined,
+            snoozeCount: data.snoozeCount as string | undefined,
           });
-          return;
         }
       }
-
-      await checkDisplayedNotifications();
     };
     checkInitialNotification();
 
-    // Periyodik olarak displayed notifications kontrol et (DELIVERED event fallback)
-    // Bu, event tetiklenmese bile alarm ekranını açmayı sağlar
-    let isNavigatingToAlarm = false; // Çoklu navigate'i engelle
-
-    const checkDisplayedNotifications = async () => {
-      if (isNavigatingToAlarm) return;
-
-      const displayedNotifications = await notifee.getDisplayedNotifications();
-
-      for (const notification of displayedNotifications) {
-        const data = notification.notification.data;
-        if (data?.fullScreenAlarm === 'true' && data?.medicineId && data?.reminderTimeId) {
-          const notificationId = notification.notification.id;
-          const medicineId = data.medicineId as string;
-          const reminderTimeId = data.reminderTimeId as string;
-          const isSnooze = data.isSnooze === 'true';
-          const snoozeId = data.snoozeId as string | undefined;
-
-          console.log(
-            'Full screen alarm bildirimi bulundu (polling):',
-            notificationId,
-            isSnooze ? '(snooze)' : ''
-          );
-
-          const isTestMode = medicineId === 'test-medicine';
-          if (!isTestMode) {
-            const storeState = useMedicineStore.getState();
-            const medicine = storeState.getMedicineById(medicineId);
-
-            if (!medicine) {
-              logAlarmFailure(
-                isSnooze ? 'snooze' : 'reminder',
-                'MEDICATION_DELETED',
-                { medicineId, reminderTimeId, snoozeId },
-                { source: 'polling' }
-              );
-              if (notificationId) {
-                await notifee.cancelDisplayedNotification(notificationId);
-              }
-              cancelMedicineNotifications(medicineId);
-              continue;
-            }
-
-            const medicineLogs = storeState.medicineLogs;
-            const today = new Date().toISOString().split('T')[0];
-            const alreadyLogged = medicineLogs.some(
-              log =>
-                log.reminderTimeId === reminderTimeId &&
-                log.scheduledTime.startsWith(today) &&
-                (log.status === 'taken' || log.status === 'skipped')
-            );
-
-            if (alreadyLogged) {
-              logAlarmFailure(
-                isSnooze ? 'snooze' : 'reminder',
-                'ALREADY_LOGGED',
-                { medicineId, reminderTimeId, snoozeId },
-                { source: 'polling' }
-              );
-              if (notificationId) {
-                await notifee.cancelDisplayedNotification(notificationId);
-              }
-              if (isSnooze && snoozeId) {
-                storeState.deactivateSnooze(snoozeId);
-              }
-              continue;
-            }
-
-            if (isSnooze && snoozeId && !snoozeId.startsWith('bg-')) {
-              const snooze = storeState.snoozes.find(s => s.id === snoozeId);
-              if (snooze && !snooze.isActive) {
-                logAlarmFailure(
-                  'snooze',
-                  'SNOOZE_INACTIVE',
-                  { medicineId, reminderTimeId, snoozeId },
-                  { source: 'polling' }
-                );
-                if (notificationId) {
-                  await notifee.cancelDisplayedNotification(notificationId);
-                }
-                continue;
-              }
-            }
-          }
-
-          isNavigatingToAlarm = true;
-
-          if (notificationId) {
-            await notifee.cancelDisplayedNotification(notificationId);
-            console.log('Bildirim iptal edildi (polling):', notificationId);
-          }
-
-          const alarmData = {
-            medicineId: medicineId,
-            reminderTimeId: reminderTimeId,
-            scheduledTime: (data.scheduledTime as string) || new Date().toISOString(),
-            isSnooze: data.isSnooze as string | undefined,
-            snoozeId: snoozeId,
-          };
-
-          if (navigationRef.current?.isReady()) {
-            navigateToAlarm(alarmData);
-          } else {
-            setPendingAlarm(alarmData);
-          }
-
-          setTimeout(() => {
-            isNavigatingToAlarm = false;
-          }, 3000);
-
-          return;
-        }
-      }
-    };
-
-    // Her 2 saniyede bir kontrol et
-    const pollingInterval = setInterval(checkDisplayedNotifications, 2000);
-
     return () => {
       unsubscribe();
-      clearInterval(pollingInterval);
     };
   }, []);
 
@@ -799,6 +883,47 @@ function AppContent() {
       setPendingAlarm(null);
     }
   }, [pendingAlarm]);
+
+  // KRİTİK: Uygulama arka plandan öne geldiğinde pending-alarm kontrol et
+  // wakeAndOpenApp warm start'ta uygulamayı öne getirir ama checkInitialNotification
+  // sadece mount'ta çalışır — bu listener o boşluğu kapatır
+  useEffect(() => {
+    const appStateListener = AppState.addEventListener('change', async nextState => {
+      if (nextState === 'active') {
+        try {
+          const pendingRaw = await AsyncStorage.getItem('pending-alarm');
+          if (pendingRaw) {
+            await AsyncStorage.removeItem('pending-alarm');
+            const pending = JSON.parse(pendingRaw);
+            if (pending.ts && Date.now() - pending.ts < 60_000 && pending.medicineId) {
+              appLog.debug('AppState active: pending-alarm found', {
+                medicineId: pending.medicineId,
+                ageMs: Date.now() - pending.ts,
+              });
+              const today = new Date().toISOString().split('T')[0];
+              const key = `${pending.medicineId}-${pending.reminderTimeId}-${today}`;
+              const handled = await isAlarmHandled(key);
+              if (!handled) {
+                setPendingAlarm({
+                  medicineId: pending.medicineId,
+                  reminderTimeId: pending.reminderTimeId,
+                  scheduledTime: pending.scheduledTime,
+                  isSnooze: pending.isSnooze,
+                  snoozeId: pending.snoozeId,
+                  snoozeCount: pending.snoozeCount,
+                  originalScheduledTime: pending.originalScheduledTime,
+                });
+              }
+            }
+          }
+        } catch (_e) {
+          /* ignore */
+        }
+      }
+    });
+
+    return () => appStateListener.remove();
+  }, []);
 
   useEffect(() => {
     if (bootRecovery) {
@@ -838,6 +963,79 @@ function AppContent() {
       </NavigationContainer>
     );
   }
+
+  // PIN giriş ekranı - Overlay olarak göster
+  const renderPinOverlay = () => {
+    if (!showPinEntry) return null;
+
+    return (
+      <View style={[styles.pinOverlay, { backgroundColor: colors.background }]}>
+        <View style={styles.pinContainer}>
+          <Text style={[styles.pinTitle, { color: colors.text }]}>
+            🔒 {language === 'tr' ? 'Uygulama Kilitli' : 'App Locked'}
+          </Text>
+          <Text style={[styles.pinSubtitle, { color: colors.textMuted }]}>
+            {securitySettings?.securityType === 'biometric'
+              ? language === 'tr'
+                ? 'Biyometrik doğrulama başarısız. PIN girin.'
+                : 'Biometric failed. Enter PIN.'
+              : language === 'tr'
+                ? 'Devam etmek için PIN girin'
+                : 'Enter PIN to continue'}
+          </Text>
+
+          <View style={styles.pinInputContainer}>
+            <Text style={styles.pinDots}>{Array(pinInput.length).fill('●').join('')}</Text>
+          </View>
+
+          <View style={styles.pinPad}>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+              <TouchableOpacity
+                key={num}
+                style={[styles.pinButton, { backgroundColor: colors.card }]}
+                onPress={() => pinInput.length < 6 && setPinInput(prev => prev + num)}
+              >
+                <Text style={[styles.pinButtonText, { color: colors.text }]}>{num}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[styles.pinButton, { backgroundColor: colors.card }]}
+              onPress={() => setPinInput('')}
+            >
+              <Text style={[styles.pinButtonText, { color: colors.danger }]}>C</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.pinButton, { backgroundColor: colors.card }]}
+              onPress={() => pinInput.length < 6 && setPinInput(prev => prev + '0')}
+            >
+              <Text style={[styles.pinButtonText, { color: colors.text }]}>0</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.pinButton,
+                styles.pinConfirmButton,
+                { backgroundColor: colors.primary },
+              ]}
+              onPress={handlePinVerify}
+            >
+              <Text style={styles.pinConfirmText}>✓</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // Güvenlik kontrolü loading - Overlay olarak
+  const renderSecurityLoading = () => {
+    if (securityCheckComplete || !isAuthenticated) return null;
+
+    return (
+      <View style={[styles.pinOverlay, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  };
 
   // Giriş yapılmışsa ana uygulamayı göster
   return (
@@ -915,7 +1113,27 @@ function AppContent() {
             presentation: 'modal',
           }}
         />
+        <Stack.Screen
+          name="Security"
+          component={SecurityScreen}
+          options={{
+            title: language === 'tr' ? 'Güvenlik' : 'Security',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="TtsSettings"
+          component={TtsSettingsScreen}
+          options={{
+            title: language === 'tr' ? 'Sesli Bildirimler' : 'Voice Notifications',
+            presentation: 'card',
+          }}
+        />
       </Stack.Navigator>
+
+      {/* Güvenlik Overlay'leri - App arka planda çalışmaya devam etsin */}
+      {renderSecurityLoading()}
+      {renderPinOverlay()}
     </NavigationContainer>
   );
 }
@@ -923,17 +1141,90 @@ function AppContent() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <LanguageProvider>
-          <AuthProvider>
-            <SubscriptionProvider>
-              <AlertProvider>
-                <AppContent />
-              </AlertProvider>
-            </SubscriptionProvider>
-          </AuthProvider>
-        </LanguageProvider>
-      </ThemeProvider>
+      <ErrorBoundary componentName="App">
+        <ThemeProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <SubscriptionProvider>
+                <AlertProvider>
+                  <AppContent />
+                </AlertProvider>
+              </SubscriptionProvider>
+            </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  securityContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  pinContainer: {
+    alignItems: 'center',
+    padding: 32,
+    width: '100%',
+  },
+  pinTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  pinSubtitle: {
+    fontSize: 14,
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  pinInputContainer: {
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  pinDots: {
+    fontSize: 32,
+    letterSpacing: 16,
+    color: '#4ECDC4',
+  },
+  pinPad: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 16,
+    width: 280,
+  },
+  pinButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  pinButtonText: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  pinConfirmButton: {
+    backgroundColor: '#4ECDC4',
+  },
+  pinConfirmText: {
+    fontSize: 28,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+});

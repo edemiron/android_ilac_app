@@ -63,6 +63,7 @@ export interface UserSettings {
 
   // Erteleme ayarları
   snoozeDuration: number; // dakika cinsinden (varsayılan 5)
+  maxSnoozeCount: number; // maksimum erteleme hakkı (varsayılan 3)
 
   // Gece modu (sessiz saatler)
   quietHoursEnabled: boolean;
@@ -74,6 +75,27 @@ export interface UserSettings {
 
   // İlaç çakışma aralığı - Aynı saate denk gelen ilaçlar arası mesafe (dakika)
   conflictIntervalMinutes: number; // Varsayılan 10 dakika
+
+  // ===== GÜVENLİK AYARLARI =====
+  // PIN / Biyometrik güvenlik
+  securityEnabled: boolean; // Güvenlik aktif mi?
+  securityType: 'pin' | 'biometric' | 'both' | 'none'; // Güvenlik tipi
+  securityPin?: string; // SHA256 hashlenmiş PIN (4-6 hane)
+  biometricsEnabled: boolean; // Biyometrik (parmak izi/yüz) aktif mi?
+  lockTimeout: number; // Otomatik kilit süresi (dakika, 0 = hemen)
+  lastActiveTime?: string; // Son aktif zaman (ISO) - otomatik kilitleme için
+
+  // ===== TTS AYARLARI =====
+  ttsEnabled: boolean; // Sesli okuma aktif mi?
+  ttsVolume: number; // 0-100 arası
+  ttsRepeatCount: number; // Kaç kez tekrar etsin (0-3)
+  ttsSpeakMedicineName: boolean; // İlaç adı söylensin mi?
+  ttsSpeakDosage: boolean; // Dozaj söylensin mi?
+  ttsSpeakInstructions: boolean; // Talimatlar söylensin mi?
+
+  // ===== KALICI BİLDİRİM AYARLARI =====
+  persistentNotificationEnabled: boolean; // Kalıcı bildirim aktif mi?
+  persistentNotificationDuration: number; // Kaç dakika kalsın (30, 60, 120)
 }
 
 // İlaç alma kaydı
@@ -148,12 +170,16 @@ export type RootStackParamList = {
     medicineId: string;
     reminderTimeId: string;
     scheduledTime: string;
+    snoozeCount?: number; // Kaçıncı erteleme (background'dan gelen)
+    originalScheduledTime?: string; // Orijinal alarm zamanı (snooze'larda kullanılır)
   };
   Settings: undefined;
   History: undefined;
   Interactions: undefined;
   BarcodeScanner: undefined;
   Premium: undefined;
+  Security: undefined;
+  TtsSettings: undefined;
 };
 
 // Auth Stack Navigation

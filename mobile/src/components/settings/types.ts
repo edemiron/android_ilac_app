@@ -59,6 +59,7 @@ export interface Settings {
   alarmModeEnabled?: boolean;
   alarmVolume?: number;
   snoozeDuration?: number;
+  maxSnoozeCount?: number;
   quietHoursEnabled?: boolean;
   quietHoursStart?: string;
   quietHoursEnd?: string;

@@ -62,8 +62,8 @@ export function useAddMedicine() {
     frequency: existingMedicine?.frequency || 3,
     instruction: existingMedicine?.instructions || 'any_time',
     selectedColor: initialColor,
-    customTimes: [],
-    useCustomTimes: false,
+    customTimes: existingMedicine?.customTimes || [],
+    useCustomTimes: !!(existingMedicine?.customTimes && existingMedicine.customTimes.length > 0),
     // Stok takibi
     stockEnabled: existingMedicine?.stockEnabled ?? false,
     stockCount: existingMedicine?.stockCount ?? 30,
@@ -109,8 +109,10 @@ export function useAddMedicine() {
     routeParams.scannedDosage,
   ]);
 
-  // Autocomplete effect
+  // Autocomplete effect - race condition korumalı
   useEffect(() => {
+    let cancelled = false;
+
     const searchAutocomplete = async () => {
       if (routeParams.prefillName || routeParams.scannedName) {
         setAutocompleteState(prev => ({ ...prev, showAutocomplete: false }));
@@ -125,6 +127,10 @@ export function useAddMedicine() {
       setAutocompleteState(prev => ({ ...prev, isLoading: true }));
       try {
         const results = await autocomplete(debouncedName, 'TR', 5);
+
+        // Eğer bu effect temizlenmişse (cancelled), state güncelleme
+        if (cancelled) return;
+
         setAutocompleteState(prev => ({
           ...prev,
           results,
@@ -132,6 +138,9 @@ export function useAddMedicine() {
           isLoading: false,
         }));
       } catch (error) {
+        // Eğer cancelled ise log bile atma
+        if (cancelled) return;
+
         log.error('Autocomplete hatasi', error);
         setAutocompleteState(prev => ({
           ...prev,
@@ -143,6 +152,11 @@ export function useAddMedicine() {
     };
 
     searchAutocomplete();
+
+    // Cleanup: Yeni bir arama başladığında eskisini iptal et
+    return () => {
+      cancelled = true;
+    };
   }, [
     debouncedName,
     autocompleteState.inputFocused,
@@ -251,9 +265,15 @@ export function useAddMedicine() {
     setTimePickerState(prev => ({ ...prev, showTimePicker: false }));
   }, []);
 
-  // Save wrapper
+  // Save wrapper - error handling ile
   const handleSave = useCallback(async () => {
-    await persistSave(formState);
+    try {
+      await persistSave(formState);
+    } catch (error) {
+      log.error('Ilac kaydedilirken hata', error);
+      // Hata fırlat ki caller (screen) handle edebilsin
+      throw error;
+    }
   }, [persistSave, formState]);
 
   return {

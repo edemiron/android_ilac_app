@@ -5,7 +5,7 @@ import { SettingsSection } from './SettingsSection';
 import { SettingRow } from './SettingRow';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import appJson from '../../../app.json';
+import { useAppVersion } from '../../hooks/useAppVersion';
 
 interface AboutSectionProps {
   onVersionPress?: () => void;
@@ -15,7 +15,7 @@ interface AboutSectionProps {
 export const AboutSection: React.FC<AboutSectionProps> = ({ onVersionPress, isDevMode }) => {
   const { colors } = useTheme();
   const { language, t } = useLanguage();
-  const appVersion = appJson.expo.version;
+  const { fullVersion } = useAppVersion(); // UCES: Auto-sync with build.gradle
 
   const openTelegram = (handle: string) => {
     Linking.openURL(`https://t.me/${handle}`);
@@ -26,7 +26,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onVersionPress, isDe
       <SettingRow
         icon={{ name: 'code-slash-outline', color: '#8B5CF6' }}
         label={t('settings_version')}
-        value={isDevMode ? `${appVersion} (Dev)` : appVersion}
+        value={isDevMode ? `${fullVersion} (Dev)` : fullVersion}
         onPress={onVersionPress}
       />
 

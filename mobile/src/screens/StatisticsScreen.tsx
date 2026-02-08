@@ -23,8 +23,10 @@ import {
   ReportOptions,
 } from '../services/pdfReportService';
 import { useAlert } from '../contexts/AlertContext';
+import { createScopedLogger } from '../utils/logger';
 
 const screenWidth = Dimensions.get('window').width;
+const log = createScopedLogger('StatisticsScreen');
 
 type Period = 'weekly' | 'monthly';
 
@@ -290,7 +292,7 @@ export default function StatisticsScreen() {
         );
       }
     } catch (error) {
-      console.error('PDF error:', error);
+      log.error('PDF error', error);
       showError(
         language === 'tr' ? 'Hata' : 'Error',
         language === 'tr' ? 'PDF oluşturulurken bir hata oluştu' : 'Error generating PDF'

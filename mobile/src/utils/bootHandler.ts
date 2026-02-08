@@ -1,35 +1,28 @@
 import { AppRegistry } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import notifee, {
+  TimestampTrigger,
   TriggerType,
   AlarmType,
-  TimestampTrigger,
+  AndroidCategory,
   AndroidImportance,
   AndroidVisibility,
-  AndroidCategory,
 } from '@notifee/react-native';
 import { createScopedLogger } from './logger';
+import { scheduleMedicineNotification } from './notifications';
+import { Medicine, ReminderTime } from '../types';
 
 const log = createScopedLogger('BootHandler');
 
-const ALARM_CHANNEL_ID = 'medicine-alarms-v3';
-const REMINDER_CHANNEL_ID = 'medicine-reminders-v3';
+const ALARM_CHANNEL_ID = 'medicine-alarms-v4';
+const REMINDER_CHANNEL_ID = 'medicine-reminders-v4';
 const BOOT_RECOVERY_KEY = 'boot-recovery-result';
 const SYNC_NOTIFICATION_ID = 'alarm-sync-notification';
 
-interface Medicine {
-  id: string;
-  name: string;
-  dosage: string;
-  isActive: boolean;
-}
-
-interface ReminderTime {
-  id: string;
-  medicineId: string;
-  time: string;
-  isEnabled: boolean;
-}
+// bootHandler'da AsyncStorage'dan okunan veriler tam Medicine/ReminderTime olmayabilir
+// Ama scheduleMedicineNotification sadece id, name, dosage, time gibi alanları kullanıyor
+type StoredMedicine = Pick<Medicine, 'id' | 'name' | 'dosage' | 'isActive'>;
+type StoredReminderTime = Pick<ReminderTime, 'id' | 'medicineId' | 'time' | 'isEnabled'>;
 
 interface Snooze {
   id: string;
@@ -44,8 +37,8 @@ interface Snooze {
 
 interface StoredState {
   state: {
-    medicines: Medicine[];
-    reminderTimes: ReminderTime[];
+    medicines: StoredMedicine[];
+    reminderTimes: StoredReminderTime[];
     snoozes: Snooze[];
   };
 }
@@ -55,86 +48,14 @@ interface TaskData {
   timestamp: number;
 }
 
-function parseTimeToDate(time: string): Date {
-  const [hours, minutes] = time.split(':').map(Number);
-  const now = new Date();
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
+// parseTimeToDate fonksiyonu kaldırıldı - artık notifications.ts'deki scheduleMedicineNotification kullanılıyor
 
-  if (date <= now) {
-    date.setDate(date.getDate() + 1);
-  }
+// scheduleReminderNotification artik notifications.ts'den kullaniliyor
 
-  return date;
-}
-
-async function scheduleReminderNotification(
-  medicine: Medicine,
-  reminderTime: ReminderTime
+async function scheduleActiveSnooze(
+  snooze: Snooze,
+  medicine: StoredMedicine
 ): Promise<string | null> {
-  const triggerDate = parseTimeToDate(reminderTime.time);
-  const timeStr = triggerDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-
-  const trigger: TimestampTrigger = {
-    type: TriggerType.TIMESTAMP,
-    timestamp: triggerDate.getTime(),
-    alarmManager: {
-      allowWhileIdle: true,
-      type: AlarmType.SET_ALARM_CLOCK,
-    },
-  };
-
-  try {
-    const notificationId = await notifee.createTriggerNotification(
-      {
-        id: `alarm-${medicine.id}-${reminderTime.id}`,
-        title: `💊 ${medicine.name}`,
-        subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
-        android: {
-          channelId: ALARM_CHANNEL_ID,
-          category: AndroidCategory.ALARM,
-          importance: AndroidImportance.HIGH,
-          visibility: AndroidVisibility.PUBLIC,
-          ongoing: true,
-          autoCancel: false,
-          loopSound: true,
-          fullScreenAction: {
-            id: 'default',
-            launchActivity: 'com.ilachatirlatici.MainActivity',
-          },
-          pressAction: {
-            id: 'default',
-            launchActivity: 'com.ilachatirlatici.MainActivity',
-          },
-          smallIcon: 'ic_launcher',
-          color: '#2196F3',
-          colorized: true,
-          sound: 'alarm',
-          vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
-          actions: [
-            { title: '😴 Ertele', pressAction: { id: 'snooze' } },
-            { title: '⬛ Kapat', pressAction: { id: 'stop' } },
-          ],
-        },
-        data: {
-          medicineId: medicine.id,
-          reminderTimeId: reminderTime.id,
-          scheduledTime: triggerDate.toISOString(),
-          fullScreenAlarm: 'true',
-        },
-      },
-      trigger
-    );
-
-    return notificationId;
-  } catch (error) {
-    log.error('Failed to schedule reminder', error);
-    return null;
-  }
-}
-
-async function scheduleActiveSnooze(snooze: Snooze, medicine: Medicine): Promise<string | null> {
   const triggerTime = new Date(snooze.triggerTime);
 
   if (triggerTime <= new Date()) {
@@ -149,7 +70,7 @@ async function scheduleActiveSnooze(snooze: Snooze, medicine: Medicine): Promise
     timestamp: triggerTime.getTime(),
     alarmManager: {
       allowWhileIdle: true,
-      type: AlarmType.SET_ALARM_CLOCK,
+      type: AlarmType.RTC_WAKEUP,
     },
   };
 
@@ -183,7 +104,7 @@ async function scheduleActiveSnooze(snooze: Snooze, medicine: Medicine): Promise
           vibrationPattern: [500, 200, 500, 200, 500, 200],
           actions: [
             { title: '😴 Ertele', pressAction: { id: 'snooze' } },
-            { title: '⬛ Kapat', pressAction: { id: 'stop' } },
+            { title: '✅ Aldım', pressAction: { id: 'take' } },
           ],
         },
         data: {
@@ -295,8 +216,9 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
     const activeMedicines = medicines.filter(m => m.isActive);
     const medicineMap = new Map(activeMedicines.map(m => [m.id, m]));
 
-    await notifee.cancelAllNotifications();
-    log.debug('Cancelled all existing notifications');
+    // Her alarm scheduleMedicineNotification içinde kendi eski bildirimini iptal eder
+    // cancelAllNotifications çağırmıyoruz - race condition ve kayıp alarm riski var
+    log.debug('Re-registering alarms for active medicines', { count: activeMedicines.length });
 
     for (const reminderTime of reminderTimes) {
       if (!reminderTime.isEnabled) continue;
@@ -304,7 +226,13 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
       const medicine = medicineMap.get(reminderTime.medicineId);
       if (!medicine) continue;
 
-      const notificationId = await scheduleReminderNotification(medicine, reminderTime);
+      // notifications.ts'deki fonksiyonu kullan - bypassBuffer=false ile buffer uygula
+      const notificationId = await scheduleMedicineNotification(
+        medicine as Medicine,
+        reminderTime as ReminderTime,
+        true, // fullScreenAlarm
+        false // bypassBuffer - buffer uygula
+      );
       if (notificationId) {
         registeredReminders++;
       }

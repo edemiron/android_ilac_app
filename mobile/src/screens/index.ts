@@ -11,3 +11,5 @@ export { default as RegisterScreen } from './RegisterScreen';
 export { default as MedicineProspectusScreen } from './MedicineProspectusScreen';
 export { default as PremiumScreen } from './PremiumScreen';
 export { default as PermissionsScreen } from './PermissionsScreen';
+export { default as SecurityScreen } from './SecurityScreen';
+export { default as TtsSettingsScreen } from './TtsSettingsScreen';

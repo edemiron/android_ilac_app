@@ -171,7 +171,7 @@ export default function AddMedicineScreen() {
           isEditing={isEditing}
           cancelText={t('cancel')}
           saveText={t('save')}
-          updateText={language === 'tr' ? 'Guncelle' : 'Update'}
+          updateText={t('update')}
           colors={colors}
         />
       </KeyboardAvoidingView>

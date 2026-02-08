@@ -16,7 +16,7 @@ import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, ReminderTime } from '../types';
 import { formatTimeDisplay, getInstructionText } from '../utils/timeCalculator';
-import { speakMedicineReminder, stopSpeaking } from '../utils/speech';
+import { stopAdvancedSpeaking, speakAlarmNotification } from '../utils/advancedSpeech';
 import {
   scheduleSnoozeNotification,
   scheduleMedicineNotification,
@@ -40,7 +40,13 @@ const { width, height } = Dimensions.get('window');
 export default function AlarmScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
-  const { medicineId, reminderTimeId, scheduledTime } = route.params;
+  const {
+    medicineId,
+    reminderTimeId,
+    scheduledTime,
+    snoozeCount: routeSnoozeCount,
+    originalScheduledTime: routeOriginalScheduledTime,
+  } = route.params;
   const { t, language } = useLanguage();
 
   const dateLocale = language === 'tr' ? tr : enUS;
@@ -80,8 +86,40 @@ export default function AlarmScreen() {
   const reminderTimes = medicine && !isTestMode ? getReminderTimesForMedicine(medicine.id) : [];
   const currentReminderTime = reminderTimes.find(rt => rt.id === reminderTimeId);
 
-  // Erteleme süresi ayarlardan al (varsayılan 5 dakika)
+  // Erteleme süresi ve limiti ayarlardan al
   const snoozeDuration = settings.snoozeDuration || 5;
+  const maxSnoozeCount = settings.maxSnoozeCount || 3;
+
+  // Mevcut snooze sayısını hesapla
+  // Background'dan geliyorsa routeSnoozeCount kullan, yoksa snoozes array'den hesapla
+  const currentSnoozeCount = useMemo(() => {
+    // Route params'tan gelen snoozeCount varsa (background snooze'dan geldiyse)
+    if (routeSnoozeCount !== undefined && routeSnoozeCount > 0) {
+      return routeSnoozeCount;
+    }
+    // Yoksa snoozes array'den hesapla
+    if (!medicine) return 0;
+    const originalTime = routeOriginalScheduledTime || scheduledTime || new Date().toISOString();
+    const reminderTimeToCheck = currentReminderTime?.id || 'test-reminder';
+    return snoozes.filter(
+      s =>
+        s.medicineId === medicine.id &&
+        s.reminderTimeId === reminderTimeToCheck &&
+        s.originalScheduledTime === originalTime
+    ).length;
+  }, [
+    medicine,
+    currentReminderTime,
+    scheduledTime,
+    snoozes,
+    routeSnoozeCount,
+    routeOriginalScheduledTime,
+  ]);
+
+  // Erteleme hakkı kaldı mı?
+  const canSnooze = currentSnoozeCount < maxSnoozeCount;
+  const remainingSnoozes = maxSnoozeCount - currentSnoozeCount;
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ttsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -128,7 +166,7 @@ export default function AlarmScreen() {
     }
 
     try {
-      await stopSpeaking();
+      await stopAdvancedSpeaking();
     } catch (e) {
       log.debug('stopSpeaking hatasi', { error: e });
     }
@@ -175,7 +213,7 @@ export default function AlarmScreen() {
           } else {
             navigation.reset({
               index: 0,
-              routes: [{ name: 'Main' as any }],
+              routes: [{ name: 'Main' }],
             });
           }
         }
@@ -219,7 +257,7 @@ export default function AlarmScreen() {
       // Navigation RESET ile ana ekrana dön - bu her zaman çalışır
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Main' as any }],
+        routes: [{ name: 'Main' }],
       });
     }
   }, [medicine, isTestMode, medicineId, reminderTimeId, navigation, dismissAlarm]);
@@ -280,11 +318,19 @@ export default function AlarmScreen() {
           return;
         }
         try {
-          await speakMedicineReminder(
+          await speakAlarmNotification(
             medicine.name,
             medicine.dosage,
             medicine.instructions,
-            language
+            language,
+            {
+              ttsEnabled: settings.ttsEnabled,
+              ttsVolume: settings.ttsVolume,
+              ttsRepeatCount: settings.ttsRepeatCount,
+              ttsSpeakMedicineName: settings.ttsSpeakMedicineName,
+              ttsSpeakDosage: settings.ttsSpeakDosage,
+              ttsSpeakInstructions: settings.ttsSpeakInstructions,
+            }
           );
         } catch (error) {
           log.debug('TTS hatasi', { error });
@@ -303,7 +349,7 @@ export default function AlarmScreen() {
         vibrationIntervalRef.current = null;
       }
       Vibration.cancel();
-      stopSpeaking();
+      stopAdvancedSpeaking();
       stopAlarmSound();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -311,9 +357,15 @@ export default function AlarmScreen() {
 
   const handleTake = async () => {
     await stopAlarm();
-    log.debug('handleTake called', { isTestMode, reminderTimeId, scheduledTime, medicineId });
+    // KRİTİK: scheduledTime'ı HomeScreen ile aynı formatta oluştur
+    // getTodayReminders `l.scheduledTime.startsWith(today)` ile eşleştirir
+    // toISOString() UTC verir, gece saatlerinde tarih uyuşmaz
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const timeStr = currentReminderTime?.time || format(new Date(), 'HH:mm');
+    const logTime = `${todayStr}T${timeStr}:00`;
+    log.debug('handleTake called', { isTestMode, reminderTimeId, logTime, medicineId });
     if (!isTestMode) {
-      logMedicineTaken(reminderTimeId, scheduledTime, medicineId);
+      logMedicineTaken(reminderTimeId, logTime, medicineId);
       log.debug('logMedicineTaken called from handleTake with medicineId fallback');
     } else {
       log.debug('Test mode - take not logged');
@@ -339,9 +391,13 @@ export default function AlarmScreen() {
 
   const handleSkip = async () => {
     await stopAlarm();
-    log.debug('handleSkip called', { isTestMode, reminderTimeId, scheduledTime, medicineId });
+    // KRİTİK: scheduledTime'ı HomeScreen ile aynı formatta oluştur
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const timeStr = currentReminderTime?.time || format(new Date(), 'HH:mm');
+    const logTime = `${todayStr}T${timeStr}:00`;
+    log.debug('handleSkip called', { isTestMode, reminderTimeId, logTime, medicineId });
     if (!isTestMode) {
-      logMedicineSkipped(reminderTimeId, scheduledTime, medicineId);
+      logMedicineSkipped(reminderTimeId, logTime, medicineId);
       log.debug('logMedicineSkipped called from handleSkip with medicineId fallback');
     } else {
       log.debug('Test mode - skip not logged');
@@ -371,9 +427,27 @@ export default function AlarmScreen() {
       log.debug('handleSnooze zaten çalışıyor, atlanıyor');
       return;
     }
+
+    // Erteleme limiti tamamen dolmuşsa (olmaması lazım ama güvenlik)
+    if (!canSnooze) {
+      log.debug('Erteleme limiti doldu', { currentSnoozeCount, maxSnoozeCount });
+      await handleSkip();
+      return;
+    }
+
+    // Son hak — ertele basıldığında ilaç atlanır, yeni alarm planlanmaz
+    if (remainingSnoozes === 1) {
+      log.debug('Son erteleme hakkı kullanıldı, ilaç atlanıyor', {
+        currentSnoozeCount,
+        maxSnoozeCount,
+      });
+      await handleSkip();
+      return;
+    }
+
     isSnoozingRef.current = true;
 
-    log.debug('handleSnooze basladi');
+    log.debug('handleSnooze basladi', { currentSnoozeCount, remainingSnoozes });
 
     try {
       await stopAlarm();
@@ -408,12 +482,15 @@ export default function AlarmScreen() {
       const snoozeId = generateId();
       const originalScheduledTime = scheduledTime || new Date().toISOString();
 
-      const existingSnoozeCount = snoozes.filter(
-        s =>
-          s.medicineId === medicine.id &&
-          s.reminderTimeId === reminderTimeToUse.id &&
-          s.originalScheduledTime === originalScheduledTime
-      ).length;
+      // KRİTİK: currentSnoozeCount kullan (route params veya snoozes array'den zaten doğru hesaplandı)
+      // existingSnoozeCount kullanma - background snoozeler snoozes array'e eklenmediği için uyumsuz
+      const newSnoozeCount = currentSnoozeCount + 1;
+
+      log.debug('Snooze planlanıyor', {
+        currentSnoozeCount,
+        newSnoozeCount,
+        maxSnoozeCount,
+      });
 
       try {
         const result = await scheduleSnoozeNotification({
@@ -422,7 +499,7 @@ export default function AlarmScreen() {
           snoozeDuration,
           snoozeId,
           originalScheduledTime,
-          snoozeCount: existingSnoozeCount + 1,
+          snoozeCount: newSnoozeCount,
         });
 
         if (result) {
@@ -460,7 +537,7 @@ export default function AlarmScreen() {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.navigate('Main' as any);
+      navigation.navigate('Main');
     }
 
     log.debug('handleSnooze bitti');
@@ -475,7 +552,7 @@ export default function AlarmScreen() {
       setTimeout(() => {
         navigation.reset({
           index: 0,
-          routes: [{ name: 'Main' as any }],
+          routes: [{ name: 'Main' }],
         });
       }, 500);
     }
@@ -497,7 +574,7 @@ export default function AlarmScreen() {
           onPress={() => {
             navigation.reset({
               index: 0,
-              routes: [{ name: 'Main' as any }],
+              routes: [{ name: 'Main' }],
             });
           }}
         >
@@ -560,18 +637,28 @@ export default function AlarmScreen() {
           <Text style={styles.takeButtonText}>{t('alarm_take_now')}</Text>
         </TouchableOpacity>
 
-        {/* İkincil butonlar */}
-        <View style={styles.secondaryButtons}>
-          <TouchableOpacity style={styles.snoozeButton} onPress={handleSnooze} activeOpacity={0.8}>
-            <Text style={styles.snoozeButtonText}>
-              ⏰ {t('alarm_snooze_minutes', { minutes: snoozeDuration })}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.skipButton} onPress={handleSkip} activeOpacity={0.8}>
-            <Text style={styles.skipButtonText}>{t('alarm_skip')}</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Erteleme butonu */}
+        <TouchableOpacity
+          style={[styles.snoozeButton, !canSnooze && styles.snoozeButtonDisabled]}
+          onPress={handleSnooze}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.snoozeButtonText, !canSnooze && styles.snoozeButtonTextDisabled]}>
+            {(() => {
+              const durationLabel =
+                snoozeDuration < 1
+                  ? `${Math.round(snoozeDuration * 60)} ${language === 'tr' ? 'sn' : 'sec'}`
+                  : `${snoozeDuration} ${language === 'tr' ? 'dk' : 'min'}`;
+              if (!canSnooze) {
+                return `❌ ${language === 'tr' ? 'Erteleme hakkın bitti' : 'No snoozes left'}`;
+              }
+              if (remainingSnoozes === 1) {
+                return `⚠️ ${language === 'tr' ? 'Ertele — Son hak! (İlaç atlanır)' : 'Snooze — Last chance! (Medicine skipped)'}`;
+              }
+              return `⏰ ${durationLabel} ${language === 'tr' ? 'ertele' : 'snooze'} — ${language === 'tr' ? `${remainingSnoozes} hak` : `${remainingSnoozes} left`}`;
+            })()}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -676,32 +763,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1A1A2E',
   },
-  secondaryButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
   snoozeButton: {
-    flex: 1,
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  snoozeButtonDisabled: {
+    backgroundColor: 'rgba(100,100,100,0.3)',
   },
   snoozeButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  skipButton: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  skipButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
+  snoozeButtonTextDisabled: {
+    color: 'rgba(255,255,255,0.5)',
   },
 });

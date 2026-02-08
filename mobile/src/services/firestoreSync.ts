@@ -7,6 +7,7 @@ import {
   deleteDoc,
   writeBatch,
   Timestamp,
+  QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../types';
@@ -14,12 +15,15 @@ import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('FirestoreSync');
 
+// Firestore batch limiti
+const FIRESTORE_BATCH_LIMIT = 500;
+
 /**
  * Türkçe karakter encoding sorunlarını düzelt
  * Unicode escape sequence'ları decode et (\u00fc -> ü)
  */
 function sanitizeString(str: string | undefined | null): string {
-  if (!str) return str as string;
+  if (!str) return '';
   return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
 }
 
@@ -70,29 +74,80 @@ const getMedicineLogsRef = (userId: string) =>
 const getSettingsDocRef = (userId: string) =>
   doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SETTINGS, 'userSettings');
 
+/**
+ * Batch işlemleri için yardımcı fonksiyon
+ * Firestore'un 500'lük limitini aşmamak için bölerek işler
+ */
+async function executeBatches(
+  operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }>
+): Promise<void> {
+  // 500'lük gruplar halinde işle
+  for (let i = 0; i < operations.length; i += FIRESTORE_BATCH_LIMIT) {
+    const batch = writeBatch(db);
+    const chunk = operations.slice(i, i + FIRESTORE_BATCH_LIMIT);
+
+    chunk.forEach(op => {
+      if (op.type === 'set' && op.data) {
+        batch.set(op.ref, op.data);
+      } else if (op.type === 'delete') {
+        batch.delete(op.ref);
+      }
+    });
+
+    await batch.commit();
+    log.debug(`Batch işlemi tamamlandı: ${chunk.length} operasyon`);
+  }
+}
+
 // ============ İLAÇLAR ============
 
-// Tüm ilaçları kaydet (batch)
+/**
+ * İlaçları buluta senkronize et
+ * STRATEJI: Sil-tümünü-ekle yerine, sadece değişenleri güncelle
+ * Bu veri kaybı riskini ortadan kaldırır
+ */
 export async function syncMedicinesToCloud(userId: string, medicines: Medicine[]): Promise<void> {
-  const batch = writeBatch(db);
   const medicinesRef = getMedicinesRef(userId);
 
-  // Önce mevcut tüm ilaçları sil
-  const existingDocs = await getDocs(medicinesRef);
-  existingDocs.forEach(doc => {
-    batch.delete(doc.ref);
+  // Mevcut verileri çek
+  const existingSnapshot = await getDocs(medicinesRef);
+  const existingDocs = new Map(existingSnapshot.docs.map(d => [d.id, d]));
+  const newIds = new Set(medicines.map(m => m.id));
+
+  const operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }> =
+    [];
+
+  // Silinmiş ilaçları bul ve silme operasyonu ekle
+  existingDocs.forEach((docSnapshot, id) => {
+    if (!newIds.has(id)) {
+      operations.push({ type: 'delete', ref: docSnapshot.ref });
+    }
   });
 
-  // Yeni ilaçları ekle
+  // Ekle/Güncelle operasyonları
   medicines.forEach(medicine => {
     const docRef = doc(medicinesRef, medicine.id);
-    batch.set(docRef, {
-      ...sanitizeForFirestore(medicine as unknown as Record<string, unknown>),
-      updatedAt: Timestamp.now(),
-    });
+    const existing = existingDocs.get(medicine.id);
+
+    // Sadece değişmişse veya yeni ise güncelle
+    if (!existing || JSON.stringify(existing.data()) !== JSON.stringify(medicine)) {
+      operations.push({
+        type: 'set',
+        ref: docRef,
+        data: {
+          ...sanitizeForFirestore(medicine as unknown as Record<string, unknown>),
+          updatedAt: Timestamp.now(),
+        },
+      });
+    }
   });
 
-  await batch.commit();
+  if (operations.length > 0) {
+    await executeBatches(operations);
+    log.debug(`${operations.length} ilaç senkronize edildi`);
+  } else {
+    log.debug('Değişiklik yok, senkronizasyon atlandı');
+  }
 }
 
 // Tek bir ilaç kaydet
@@ -126,27 +181,48 @@ export async function getMedicinesFromCloud(userId: string): Promise<Medicine[]>
 
 // ============ HATIRLATMA ZAMANLARI ============
 
-// Tüm hatırlatma zamanlarını kaydet
+/**
+ * Hatırlatma zamanlarını buluta senkronize et
+ * STRATEJI: Artımlı güncelleme (incremental sync)
+ */
 export async function syncReminderTimesToCloud(
   userId: string,
   reminderTimes: ReminderTime[]
 ): Promise<void> {
-  const batch = writeBatch(db);
   const timesRef = getReminderTimesRef(userId);
 
-  // Mevcut tüm zamanları sil
-  const existingDocs = await getDocs(timesRef);
-  existingDocs.forEach(doc => {
-    batch.delete(doc.ref);
+  // Mevcut verileri çek
+  const existingSnapshot = await getDocs(timesRef);
+  const existingDocs = new Map(existingSnapshot.docs.map(d => [d.id, d]));
+  const newIds = new Set(reminderTimes.map(t => t.id));
+
+  const operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }> =
+    [];
+
+  // Silinmiş zamanları bul
+  existingDocs.forEach((docSnapshot, id) => {
+    if (!newIds.has(id)) {
+      operations.push({ type: 'delete', ref: docSnapshot.ref });
+    }
   });
 
-  // Yeni zamanları ekle
+  // Ekle/Güncelle
   reminderTimes.forEach(time => {
     const docRef = doc(timesRef, time.id);
-    batch.set(docRef, sanitizeForFirestore(time as unknown as Record<string, unknown>));
+    const existing = existingDocs.get(time.id);
+
+    if (!existing || JSON.stringify(existing.data()) !== JSON.stringify(time)) {
+      operations.push({
+        type: 'set',
+        ref: docRef,
+        data: sanitizeForFirestore(time as unknown as Record<string, unknown>),
+      });
+    }
   });
 
-  await batch.commit();
+  if (operations.length > 0) {
+    await executeBatches(operations);
+  }
 }
 
 // Tüm hatırlatma zamanlarını getir
@@ -162,30 +238,50 @@ export async function getReminderTimesFromCloud(userId: string): Promise<Reminde
 
 // ============ İLAÇ LOGLARI ============
 
-// Tüm logları kaydet
+/**
+ * İlaç loglarını buluta senkronize et
+ * STRATEJI: Son 30 gün + sadece değişenler
+ */
 export async function syncMedicineLogsToCloud(userId: string, logs: MedicineLog[]): Promise<void> {
-  const batch = writeBatch(db);
   const logsRef = getMedicineLogsRef(userId);
 
-  // Son 30 günlük logları kaydet (eski logları temizle)
+  // Son 30 günlük logları filtrele
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
   const recentLogs = logs.filter(log => new Date(log.scheduledTime) >= thirtyDaysAgo);
 
-  // Mevcut logları sil
-  const existingDocs = await getDocs(logsRef);
-  existingDocs.forEach(doc => {
-    batch.delete(doc.ref);
+  // Mevcut verileri çek
+  const existingSnapshot = await getDocs(logsRef);
+  const existingDocs = new Map(existingSnapshot.docs.map(d => [d.id, d]));
+  const newIds = new Set(recentLogs.map(l => l.id));
+
+  const operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }> =
+    [];
+
+  // Silinmiş logları bul
+  existingDocs.forEach((docSnapshot, id) => {
+    if (!newIds.has(id)) {
+      operations.push({ type: 'delete', ref: docSnapshot.ref });
+    }
   });
 
-  // Yeni logları ekle
+  // Ekle/Güncelle
   recentLogs.forEach(log => {
     const docRef = doc(logsRef, log.id);
-    batch.set(docRef, sanitizeForFirestore(log as unknown as Record<string, unknown>));
+    const existing = existingDocs.get(log.id);
+
+    if (!existing || JSON.stringify(existing.data()) !== JSON.stringify(log)) {
+      operations.push({
+        type: 'set',
+        ref: docRef,
+        data: sanitizeForFirestore(log as unknown as Record<string, unknown>),
+      });
+    }
   });
 
-  await batch.commit();
+  if (operations.length > 0) {
+    await executeBatches(operations);
+  }
 }
 
 // Tek bir log kaydet
@@ -233,6 +329,7 @@ export async function getSettingsFromCloud(userId: string): Promise<UserSettings
       alarmSound: data.alarmSound ?? 'alarm',
       alarmVolume: data.alarmVolume ?? 80,
       snoozeDuration: data.snoozeDuration ?? 5,
+      maxSnoozeCount: data.maxSnoozeCount ?? 3,
       quietHoursEnabled: data.quietHoursEnabled ?? false,
       quietHoursStart: data.quietHoursStart ?? '23:00',
       quietHoursEnd: data.quietHoursEnd ?? '07:00',
@@ -253,15 +350,60 @@ export interface SyncData {
   settings: UserSettings;
 }
 
-// Timeout wrapper fonksiyonu
+// Varsayılan ayarlar (merkezi tanım)
+const DEFAULT_SETTINGS: UserSettings = {
+  wakeUpTime: '08:00',
+  sleepTime: '23:00',
+  notificationSound: 'default',
+  vibrationEnabled: true,
+  fullScreenAlarmEnabled: true,
+  language: 'tr',
+  alarmSound: 'alarm',
+  alarmVolume: 80,
+  snoozeDuration: 5,
+  maxSnoozeCount: 3,
+  quietHoursEnabled: false,
+  quietHoursStart: '23:00',
+  quietHoursEnd: '07:00',
+  alarmModeEnabled: true,
+  conflictIntervalMinutes: 10,
+  // Güvenlik ayarları
+  securityEnabled: false,
+  securityType: 'none',
+  biometricsEnabled: false,
+  lockTimeout: 0,
+  // TTS ayarları
+  ttsEnabled: true,
+  ttsVolume: 80,
+  ttsRepeatCount: 1,
+  ttsSpeakMedicineName: true,
+  ttsSpeakDosage: true,
+  ttsSpeakInstructions: true,
+  // Kalıcı bildirim ayarları
+  persistentNotificationEnabled: true,
+  persistentNotificationDuration: 60,
+};
+
+/**
+ * Timeout wrapper fonksiyonu - memory leak'i önler
+ */
 const withTimeout = <T>(
   promise: Promise<T>,
   timeoutMs: number,
   errorMessage: string
 ): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
   return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(errorMessage)), timeoutMs)),
+    promise.finally(() => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    }),
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+    }),
   ]);
 };
 
@@ -321,22 +463,7 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
       medicines,
       reminderTimes,
       medicineLogs,
-      settings: settings || {
-        wakeUpTime: '08:00',
-        sleepTime: '23:00',
-        notificationSound: 'default',
-        vibrationEnabled: true,
-        fullScreenAlarmEnabled: true,
-        language: 'tr',
-        alarmSound: 'alarm',
-        alarmVolume: 80,
-        snoozeDuration: 5,
-        quietHoursEnabled: false,
-        quietHoursStart: '23:00',
-        quietHoursEnd: '07:00',
-        alarmModeEnabled: true,
-        conflictIntervalMinutes: 10,
-      },
+      settings: settings || DEFAULT_SETTINGS,
     };
   } catch (error: unknown) {
     log.error('Buluttan veri indirme hatası', error);
@@ -349,24 +476,40 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
   }
 }
 
-// Kullanıcı verilerini tamamen sil
+/**
+ * Kullanıcı verilerini tamamen sil
+ * 500'lük batch limitine dikkat ederek
+ */
 export async function deleteAllUserData(userId: string): Promise<void> {
-  const batch = writeBatch(db);
-
   // İlaçları sil
   const medicines = await getDocs(getMedicinesRef(userId));
-  medicines.forEach(doc => batch.delete(doc.ref));
+  await deleteDocumentsInBatches(medicines.docs);
 
   // Zamanları sil
   const times = await getDocs(getReminderTimesRef(userId));
-  times.forEach(doc => batch.delete(doc.ref));
+  await deleteDocumentsInBatches(times.docs);
 
   // Logları sil
   const logs = await getDocs(getMedicineLogsRef(userId));
-  logs.forEach(doc => batch.delete(doc.ref));
+  await deleteDocumentsInBatches(logs.docs);
 
   // Ayarları sil
-  batch.delete(getSettingsDocRef(userId));
+  await deleteDoc(getSettingsDocRef(userId));
+}
 
-  await batch.commit();
+/**
+ * Dokümanları batch limitine göre gruplar halinde sil
+ */
+async function deleteDocumentsInBatches(docs: QueryDocumentSnapshot[]): Promise<void> {
+  for (let i = 0; i < docs.length; i += FIRESTORE_BATCH_LIMIT) {
+    const batch = writeBatch(db);
+    const chunk = docs.slice(i, i + FIRESTORE_BATCH_LIMIT);
+
+    chunk.forEach(docSnapshot => {
+      batch.delete(docSnapshot.ref);
+    });
+
+    await batch.commit();
+    log.debug(`${chunk.length} doküman silindi`);
+  }
 }

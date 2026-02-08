@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   Modal,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -24,6 +26,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { InlineAdBanner } from '../components/AdBanner';
 import { scheduleSnoozeNotification } from '../utils/notifications';
+import {
+  checkAndShowPersistentNotifications,
+  dismissAllPersistentNotifications,
+} from '../utils/persistentNotification';
+import { createScopedLogger } from '../utils/logger';
+
+const log = createScopedLogger('HomeScreen');
 import { useAlert } from '../contexts/AlertContext';
 import { CircularProgress } from '../components/CircularProgress';
 
@@ -255,6 +264,8 @@ interface TimelineItemProps {
   language: string;
   onTakeNow: () => void;
   isFirst: boolean;
+  hasActiveSnooze: boolean;
+  snoozeTriggerTime: string | null; // Snooze tetiklenme zamanı (ISO string)
 }
 
 const TimelineItem: React.FC<TimelineItemProps> = ({
@@ -263,6 +274,8 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
   language,
   onTakeNow,
   isFirst,
+  hasActiveSnooze,
+  snoozeTriggerTime,
 }) => {
   const { log } = reminder;
   const { isDark } = useTheme();
@@ -271,16 +284,35 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
   const { isPast, minutesDiff } = getRelativeTimeText(reminder.reminderTime.time, language, log);
   const isMissed = isPast && !isTaken && !isSkipped;
 
-  // Aktif snooze kontrolü
-  const snoozes = useMedicineStore(state => state.snoozes);
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const hasActiveSnooze = snoozes.some(
-    s =>
-      s.medicineId === reminder.medicine.id &&
-      s.reminderTimeId === reminder.reminderTime.id &&
-      s.isActive &&
-      s.originalScheduledTime.startsWith(today)
-  );
+  // Snooze geri sayım
+  const [snoozeCountdown, setSnoozeCountdown] = useState('');
+
+  useEffect(() => {
+    if (!hasActiveSnooze || !snoozeTriggerTime) {
+      setSnoozeCountdown('');
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const target = new Date(snoozeTriggerTime).getTime();
+      const diffMs = target - now;
+
+      if (diffMs <= 0) {
+        setSnoozeCountdown('');
+        return;
+      }
+
+      const totalSeconds = Math.ceil(diffMs / 1000);
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = totalSeconds % 60;
+      setSnoozeCountdown(`${mins}:${secs.toString().padStart(2, '0')}`);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [hasActiveSnooze, snoozeTriggerTime]);
 
   const getStatusBadge = () => {
     if (isTaken) {
@@ -301,8 +333,15 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
     }
     // Ertelendi durumu - aktif snooze varsa
     if (hasActiveSnooze) {
+      const countdownText = snoozeCountdown
+        ? language === 'tr'
+          ? `Ertelendi ${snoozeCountdown}`
+          : `Snoozed ${snoozeCountdown}`
+        : language === 'tr'
+          ? 'Ertelendi'
+          : 'Snoozed';
       return {
-        text: language === 'tr' ? 'Ertelendi' : 'Snoozed',
+        text: countdownText,
         color: isDark ? '#F59E0B' : '#F59E0B', // Warning sarı
         bg: isDark ? 'rgba(245, 158, 11, 0.25)' : '#FEF3C7',
         icon: 'alarm' as const,
@@ -421,9 +460,10 @@ export default function HomeScreen() {
   const createSnooze = useMedicineStore(state => state.createSnooze);
   const getMedicineById = useMedicineStore(state => state.getMedicineById);
   const getLowStockMedicines = useMedicineStore(state => state.getLowStockMedicines);
+  const snoozes = useMedicineStore(state => state.snoozes);
 
-  // Stok uyarısı
-  const lowStockMedicines = getLowStockMedicines();
+  // Stok uyarısı - memoize edildi
+  const lowStockMedicines = useMemo(() => getLowStockMedicines(), [medicines]);
 
   // Son kullanma tarihi uyarısı kontrolü
   useEffect(() => {
@@ -455,6 +495,41 @@ export default function HomeScreen() {
     return () => clearTimeout(timer);
   }, [medicines, expiryWarningShown]);
 
+  // Kalıcı bildirim kontrolü - ilaç alınana kadar bildirim göster
+  // SADECE uygulama arka plandayken göster, ön plandayken kaldır
+  useEffect(() => {
+    if (!settings.persistentNotificationEnabled) {
+      dismissAllPersistentNotifications();
+      return;
+    }
+
+    const checkPendingMedicines = async () => {
+      try {
+        await checkAndShowPersistentNotifications(medicines, reminderTimes, medicineLogs);
+      } catch (error) {
+        log.warn('Kalıcı bildirim kontrolü hatası', error);
+      }
+    };
+
+    // Uygulama ön plandayken kalıcı bildirimi kaldır
+    // Arka plana geçtiğinde tekrar göster
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        // Uygulama açık — kalıcı bildirimi kaldır
+        dismissAllPersistentNotifications();
+      } else if (nextAppState === 'background') {
+        // Uygulama arka plana geçti — bekleyen ilaç varsa bildirim göster
+        checkPendingMedicines();
+      }
+    };
+
+    // İlk açılışta kalıcı bildirimi kaldır (uygulama zaten açık)
+    dismissAllPersistentNotifications();
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [medicines, reminderTimes, medicineLogs, settings.persistentNotificationEnabled]);
+
   const handleAddMedicine = () => {
     const { allowed, reason } = canAddMedicine(medicines.length);
 
@@ -477,31 +552,45 @@ export default function HomeScreen() {
     navigation.navigate('AddMedicine', {});
   };
 
-  // useMemo ile todayReminders'ı hesapla - state değiştiğinde yeniden hesaplanmayı garanti eder
+  // useMemo ile hesaplamaları optimize et
+  // NOT: getTodayReminders dependency'den çıkarıldı çünkü zaten medicines, reminderTimes, medicineLogs var
   const todayReminders = useMemo(() => {
     return getTodayReminders();
-  }, [medicines, reminderTimes, medicineLogs, getTodayReminders]);
-  const adherenceRate = getAdherenceRate(7);
-  const currentStreak = getCurrentStreak();
+  }, [medicines, reminderTimes, medicineLogs]);
+
+  // adherenceRate ve currentStreak de memoize edildi - performans için
+  const adherenceRate = useMemo(
+    () => getAdherenceRate(7),
+    [medicines, reminderTimes, medicineLogs, getAdherenceRate]
+  );
+
+  const currentStreak = useMemo(
+    () => getCurrentStreak(),
+    [medicines, reminderTimes, medicineLogs, getCurrentStreak]
+  );
 
   const today = format(new Date(), 'dd MMMM yyyy, EEEE', { locale: dateLocale });
   const currentTime = format(new Date(), 'HH:mm');
 
-  const currentReminder =
-    todayReminders.find(r => {
-      if (r.log?.status === 'taken' || r.log?.status === 'skipped') return false;
-      const { isPast, isNow, minutesDiff } = getRelativeTimeText(
-        r.reminderTime.time,
-        language,
-        r.log
-      );
-      return isNow || (isPast && Math.abs(minutesDiff) <= 30) || (!isPast && minutesDiff <= 60);
-    }) ||
-    todayReminders.find(r => {
-      if (r.log?.status === 'taken' || r.log?.status === 'skipped') return false;
-      return r.reminderTime.time > currentTime;
-    }) ||
-    todayReminders.find(r => !r.log);
+  // currentReminder'ı memoize et - performans için
+  const currentReminder = useMemo(() => {
+    return (
+      todayReminders.find(r => {
+        if (r.log?.status === 'taken' || r.log?.status === 'skipped') return false;
+        const { isPast, isNow, minutesDiff } = getRelativeTimeText(
+          r.reminderTime.time,
+          language,
+          r.log
+        );
+        return isNow || (isPast && Math.abs(minutesDiff) <= 30) || (!isPast && minutesDiff <= 60);
+      }) ||
+      todayReminders.find(r => {
+        if (r.log?.status === 'taken' || r.log?.status === 'skipped') return false;
+        return r.reminderTime.time > currentTime;
+      }) ||
+      todayReminders.find(r => !r.log)
+    );
+  }, [todayReminders, language, currentTime]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -539,15 +628,15 @@ export default function HomeScreen() {
       const triggerTime = new Date(Date.now() + minutes * 60 * 1000);
       const notificationId = `snooze-${reminder.medicine.id}-${Date.now()}`;
 
-      const snooze = createSnooze(
-        reminder.medicine.id,
-        reminder.reminderTime.id,
-        originalScheduledTime,
-        triggerTime,
-        notificationId
-      );
-
       try {
+        const snooze = createSnooze(
+          reminder.medicine.id,
+          reminder.reminderTime.id,
+          originalScheduledTime,
+          triggerTime,
+          notificationId
+        );
+
         await scheduleSnoozeNotification({
           medicine: reminder.medicine,
           reminderTime: reminder.reminderTime,
@@ -573,12 +662,17 @@ export default function HomeScreen() {
     [createSnooze, language, showSuccess, showError]
   );
 
-  const completedCount = todayReminders.filter(r => r.log?.status === 'taken').length;
-
-  const totalCount = todayReminders.length;
-  const remainingCount =
-    totalCount -
-    todayReminders.filter(r => r.log?.status === 'taken' || r.log?.status === 'skipped').length;
+  // İstatistikleri memoize et - her render'da yeniden hesaplamayı önle
+  const { completedCount, totalCount, remainingCount } = useMemo(() => {
+    const total = todayReminders.length;
+    const completed = todayReminders.filter(r => r.log?.status === 'taken').length;
+    const skipped = todayReminders.filter(r => r.log?.status === 'skipped').length;
+    return {
+      totalCount: total,
+      completedCount: completed,
+      remainingCount: total - completed - skipped,
+    };
+  }, [todayReminders]);
 
   const firstName = user?.displayName?.split(' ')[0] || '';
 
@@ -833,16 +927,30 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={styles.medicineList}>
-              {todayReminders.map((reminder, index) => (
-                <TimelineItem
-                  key={reminder.reminderTime.id}
-                  reminder={reminder}
-                  colors={colors}
-                  language={language}
-                  onTakeNow={() => handleTake(reminder.reminderTime.id)}
-                  isFirst={index === 0}
-                />
-              ))}
+              {todayReminders.map((reminder, index) => {
+                // Snooze durumunu parent'ta hesapla - performans için
+                const today = format(new Date(), 'yyyy-MM-dd');
+                const activeSnooze = snoozes.find(
+                  s =>
+                    s.medicineId === reminder.medicine.id &&
+                    s.reminderTimeId === reminder.reminderTime.id &&
+                    s.isActive &&
+                    s.originalScheduledTime.startsWith(today)
+                );
+
+                return (
+                  <TimelineItem
+                    key={reminder.reminderTime.id}
+                    reminder={reminder}
+                    colors={colors}
+                    language={language}
+                    onTakeNow={() => handleTake(reminder.reminderTime.id)}
+                    isFirst={index === 0}
+                    hasActiveSnooze={!!activeSnooze}
+                    snoozeTriggerTime={activeSnooze?.triggerTime ?? null}
+                  />
+                );
+              })}
             </View>
           )}
         </View>

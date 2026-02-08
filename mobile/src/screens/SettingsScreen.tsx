@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ScrollView, Platform, UIManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   PremiumCard,
   DailyScheduleSection,
@@ -49,8 +50,10 @@ export default function SettingsScreen() {
     handleTestFullScreenAlarm,
     handleScheduleTestAlarm,
     handleAddTestMedicine,
+    handleAddTestMedicine10s,
     handleDeleteTestMedicines,
     handleShowScheduledNotifications,
+    handleClearAllData,
     handleSync,
     handleLogout,
     formatLastSync,
@@ -64,6 +67,15 @@ export default function SettingsScreen() {
   const [isDevMode, setIsDevMode] = useState(false);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
+
+  // Dev mode durumunu AsyncStorage'dan oku (kalıcı)
+  useEffect(() => {
+    AsyncStorage.getItem('dev-mode')
+      .then(val => {
+        if (val === 'true') setIsDevMode(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleVersionPress = useCallback(() => {
     const now = Date.now();
@@ -79,6 +91,7 @@ export default function SettingsScreen() {
       tapCountRef.current = 0;
       const newDevMode = !isDevMode;
       setIsDevMode(newDevMode);
+      AsyncStorage.setItem('dev-mode', newDevMode ? 'true' : 'false').catch(() => {});
 
       showInfo(
         newDevMode
@@ -143,10 +156,12 @@ export default function SettingsScreen() {
         <NotificationSection
           settings={settings}
           showSnoozePicker={pickerState.showSnoozePicker}
+          showSnoozeCountPicker={pickerState.showSnoozeCountPicker}
           showVolumePicker={pickerState.showVolumePicker}
           showConflictIntervalPicker={pickerState.showConflictIntervalPicker}
           onSettingChange={updateSettings}
           onSnoozePress={() => togglePicker('showSnoozePicker')}
+          onSnoozeCountPress={() => togglePicker('showSnoozeCountPicker')}
           onVolumePress={() => togglePicker('showVolumePicker')}
           onConflictIntervalPress={() => togglePicker('showConflictIntervalPicker')}
           onTestNotification={handleTestNotification}
@@ -158,8 +173,10 @@ export default function SettingsScreen() {
           <DevTestSection
             onScheduleAlarm={handleScheduleTestAlarm}
             onAddTestMedicine={handleAddTestMedicine}
+            onAddTestMedicine10s={handleAddTestMedicine10s}
             onDeleteTestMedicines={handleDeleteTestMedicines}
             onShowScheduledNotifications={handleShowScheduledNotifications}
+            onClearAllData={handleClearAllData}
           />
         )}
 
@@ -178,6 +195,9 @@ export default function SettingsScreen() {
 
         <AdditionalFeaturesSection
           onInteractionsPress={() => navigation.navigate('Interactions')}
+          onSecurityPress={() => navigation.navigate('Security')}
+          onTtsPress={() => navigation.navigate('TtsSettings')}
+          ttsEnabled={settings.ttsEnabled}
         />
 
         <AccountSection

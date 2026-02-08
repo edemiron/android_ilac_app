@@ -62,11 +62,22 @@ export const SettingRow: React.FC<SettingRowProps> = ({
 
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.7}
+        accessibilityLabel={label}
+        accessibilityHint={description || `${label} ayarını değiştirmek için dokunun`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: chevronDirection === 'down' }}
+      >
         {content}
       </TouchableOpacity>
     );
   }
 
-  return content;
+  return (
+    <View accessibilityLabel={label} accessibilityRole="text">
+      {content}
+    </View>
+  );
 };

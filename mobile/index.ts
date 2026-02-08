@@ -1,13 +1,5 @@
 import { AppRegistry } from 'react-native';
-import notifee, {
-  EventType,
-  Event,
-  AndroidCategory,
-  AndroidImportance,
-  AndroidVisibility,
-  TriggerType,
-  AlarmType,
-} from '@notifee/react-native';
+import notifee, { EventType, Event, TriggerType, AlarmType } from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import App from './App';
@@ -15,167 +7,346 @@ import { registerBootTask } from './src/utils/bootHandler';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { stopAlarmSound } from './src/utils/alarmSoundManager';
 import { stopSpeaking } from './src/utils/speech';
-// Android MainActivity expects "main" as the component name
+
 const appName = 'main';
 
 registerBootTask();
 
-async function getSnoozeDurationFromSettings(): Promise<number> {
+// ============================================================
+// HANDLED ALARMS SET
+// Background'da aksiyon alınan alarm ID'leri burada tutulur.
+// Uygulama açılınca foreground handler bu set'i kontrol eder.
+// AsyncStorage'a da yazılır (uygulama cold start için).
+// ============================================================
+const HANDLED_ALARMS_KEY = 'handled-alarms';
+const handledAlarmsMemory = new Set<string>();
+
+async function markAlarmHandled(alarmKey: string): Promise<void> {
+  handledAlarmsMemory.add(alarmKey);
+  try {
+    const raw = await AsyncStorage.getItem(HANDLED_ALARMS_KEY);
+    const arr: { key: string; ts: number }[] = raw ? JSON.parse(raw) : [];
+    arr.push({ key: alarmKey, ts: Date.now() });
+    // Son 20 kaydı tut
+    const trimmed = arr.slice(-20);
+    await AsyncStorage.setItem(HANDLED_ALARMS_KEY, JSON.stringify(trimmed));
+  } catch (_e) {
+    /* ignore */
+  }
+}
+
+export async function isAlarmHandled(alarmKey: string): Promise<boolean> {
+  // Önce memory'den kontrol (hızlı)
+  if (handledAlarmsMemory.has(alarmKey)) return true;
+  // Sonra AsyncStorage (cold start)
+  try {
+    const raw = await AsyncStorage.getItem(HANDLED_ALARMS_KEY);
+    if (!raw) return false;
+    const arr: { key: string; ts: number }[] = JSON.parse(raw);
+    // 5 dakika içinde handle edildiyse geçerli
+    const found = arr.find(a => a.key === alarmKey && Date.now() - a.ts < 5 * 60 * 1000);
+    if (found) {
+      handledAlarmsMemory.add(alarmKey);
+      return true;
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+  return false;
+}
+
+export async function clearHandledAlarms(): Promise<void> {
+  handledAlarmsMemory.clear();
+  try {
+    await AsyncStorage.removeItem(HANDLED_ALARMS_KEY);
+  } catch (_e) {
+    /* ignore */
+  }
+}
+
+// ============================================================
+// HELPER: Snooze ayarlarını AsyncStorage'dan oku
+// ============================================================
+async function getSnoozeSettings(): Promise<{ snoozeDuration: number; maxSnoozeCount: number }> {
   try {
     const stored = await AsyncStorage.getItem('medicine-storage');
     if (stored) {
       const parsed = JSON.parse(stored);
-      const snoozeDuration = parsed?.state?.settings?.snoozeDuration;
-      if (typeof snoozeDuration === 'number' && snoozeDuration > 0) {
-        console.log('[Background] Snooze duration from settings:', snoozeDuration, 'minutes');
-        return snoozeDuration;
-      }
+      const sd = parsed?.state?.settings?.snoozeDuration;
+      const mc = parsed?.state?.settings?.maxSnoozeCount;
+      return {
+        snoozeDuration: typeof sd === 'number' && sd > 0 ? sd : 5,
+        maxSnoozeCount: typeof mc === 'number' && mc > 0 ? mc : 3,
+      };
     }
-  } catch (e) {
-    console.error('[Background] Failed to read settings:', e);
+  } catch (_e) {
+    /* ignore */
   }
-  console.log('[Background] Using default snooze duration: 5 minutes');
-  return 5;
+  return { snoozeDuration: 5, maxSnoozeCount: 3 };
 }
 
+// ============================================================
+// HELPER: Alarm key oluştur (medicineId-reminderTimeId-tarih)
+// ============================================================
+function getAlarmKey(data: any): string {
+  const medId = data?.medicineId || 'unknown';
+  const remId = data?.reminderTimeId || 'unknown';
+  const today = new Date().toISOString().split('T')[0];
+  return `${medId}-${remId}-${today}`;
+}
+
+// ============================================================
+// HELPER: Bildirimi iptal et
+// ============================================================
+async function cancelAlarmCompletely(notification: any): Promise<void> {
+  if (notification?.id) {
+    try {
+      await notifee.cancelNotification(notification.id);
+    } catch (_e) {
+      /* */
+    }
+    try {
+      await notifee.cancelDisplayedNotification(notification.id);
+    } catch (_e) {
+      /* */
+    }
+  }
+  const medId = notification?.data?.medicineId as string;
+  const remId = notification?.data?.reminderTimeId as string;
+  if (medId && remId) {
+    const alarmId = `alarm-${medId}-${remId}`;
+    try {
+      await notifee.cancelNotification(alarmId);
+    } catch (_e) {
+      /* */
+    }
+    try {
+      await notifee.cancelDisplayedNotification(alarmId);
+    } catch (_e) {
+      /* */
+    }
+  }
+}
+
+// ============================================================
+// BACKGROUND EVENT HANDLER
+// Uygulama kapalıyken/arka plandayken çalışır.
+// ============================================================
 notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
   const { notification, pressAction } = detail;
 
-  console.log('[Background] Event type:', type, 'Notification:', notification?.id);
+  console.log('[BG] Event:', EventType[type], notification?.id, pressAction?.id);
 
-  switch (type) {
-    case EventType.DELIVERED:
-      console.log('[Background] Notification delivered:', notification?.id);
-      console.log('[Background] Full screen alarm:', notification?.data?.fullScreenAlarm);
-      break;
-
-    case EventType.PRESS:
-      console.log('[Background] Notification pressed:', notification?.data);
-      break;
-
-    case EventType.ACTION_PRESS:
-      console.log('[Background] Action pressed:', pressAction?.id);
-
-      await stopAlarmSound();
-      await stopSpeaking();
-      console.log('[Background] Alarm sound and TTS stopped');
-
-      if (notification?.id) {
-        await notifee.cancelNotification(notification.id);
-        console.log('[Background] Notification cancelled:', notification.id);
-      }
-
-      if (pressAction?.id === 'take' && notification?.data) {
-        console.log('[Background] Take action - logging medicine taken');
-        try {
-          const { logMedicineTaken } = useMedicineStore.getState();
-          const reminderTimeId = notification.data.reminderTimeId as string;
-          const scheduledTime =
-            (notification.data.scheduledTime as string) || new Date().toISOString();
-          const medicineId = notification.data.medicineId as string;
-          logMedicineTaken(reminderTimeId, scheduledTime, medicineId);
-          console.log('[Background] Medicine logged as taken:', medicineId);
-        } catch (e) {
-          console.error('[Background] Failed to log medicine taken:', e);
+  // DELIVERED — Bildirim teslim edildi
+  if (type === EventType.DELIVERED) {
+    console.log(
+      '[BG] DELIVERED:',
+      notification?.id,
+      'fullScreen:',
+      notification?.data?.fullScreenAlarm
+    );
+    if (notification?.data?.fullScreenAlarm === 'true') {
+      const key = getAlarmKey(notification.data);
+      const handled = await isAlarmHandled(key);
+      if (handled) {
+        console.log('[BG] SKIP: Alarm already handled:', key);
+        if (notification.id) {
+          try {
+            await notifee.cancelDisplayedNotification(notification.id);
+          } catch (_e) {
+            /* */
+          }
         }
+        return;
       }
-
-      if (pressAction?.id === 'skip' && notification?.data) {
-        console.log('[Background] Skip action - logging medicine skipped');
-        try {
-          const { logMedicineSkipped } = useMedicineStore.getState();
-          const reminderTimeId = notification.data.reminderTimeId as string;
-          const scheduledTime =
-            (notification.data.scheduledTime as string) || new Date().toISOString();
-          const medicineId = notification.data.medicineId as string;
-          logMedicineSkipped(reminderTimeId, scheduledTime, medicineId);
-          console.log('[Background] Medicine logged as skipped:', medicineId);
-        } catch (e) {
-          console.error('[Background] Failed to log medicine skipped:', e);
+      // pending-alarm AsyncStorage'a yaz
+      try {
+        const pendingData = {
+          medicineId: notification.data?.medicineId as string,
+          reminderTimeId: notification.data?.reminderTimeId as string,
+          scheduledTime: (notification.data?.scheduledTime as string) || new Date().toISOString(),
+          originalScheduledTime: notification.data?.originalScheduledTime as string | undefined,
+          isSnooze: notification.data?.isSnooze as string | undefined,
+          snoozeId: notification.data?.snoozeId as string | undefined,
+          snoozeCount: notification.data?.snoozeCount as string | undefined,
+          ts: Date.now(),
+        };
+        await AsyncStorage.setItem('pending-alarm', JSON.stringify(pendingData));
+        console.log(
+          '[BG] pending-alarm SAVED:',
+          pendingData.medicineId,
+          'snoozeCount:',
+          pendingData.snoozeCount
+        );
+      } catch (_e) {
+        console.log('[BG] pending-alarm SAVE FAILED');
+      }
+      // Native modül ile ekranı aç
+      try {
+        const { NativeModules } = require('react-native');
+        const { AlarmModule } = NativeModules;
+        if (AlarmModule) {
+          await AlarmModule.wakeAndOpenApp();
+          console.log('[BG] wakeAndOpenApp OK');
+        } else {
+          const { Linking } = require('react-native');
+          await Linking.openURL('ilachatirlatici://alarm');
+          console.log('[BG] deeplink fallback OK');
         }
+      } catch (_e) {
+        console.log('[BG] wake FAILED, relying on fullScreenAction');
       }
+    }
+    return;
+  }
 
-      if (pressAction?.id === 'snooze' && notification?.data) {
-        const snoozeDurationMinutes = await getSnoozeDurationFromSettings();
-        const snoozeTime = new Date(Date.now() + snoozeDurationMinutes * 60 * 1000);
-        const timeStr = snoozeTime.toLocaleTimeString('tr-TR', {
+  // PRESS — Kullanıcı bildirime tıkladı, uygulama açılacak
+  if (type === EventType.PRESS) {
+    return;
+  }
+
+  // DISMISSED — Kullanıcı bildirimi kaydırarak kapattı
+  if (type === EventType.DISMISSED && notification) {
+    const key = getAlarmKey(notification.data);
+    await markAlarmHandled(key);
+    await cancelAlarmCompletely(notification);
+    return;
+  }
+
+  // ACTION_PRESS — Bildirim butonuna basıldı
+  if (type === EventType.ACTION_PRESS && pressAction && notification) {
+    const actionId = pressAction.id;
+    const data = notification.data;
+    const medicineId = data?.medicineId as string;
+    const reminderTimeId = data?.reminderTimeId as string;
+    const key = getAlarmKey(data);
+
+    console.log('[BG] ACTION:', actionId, 'med:', medicineId, 'rem:', reminderTimeId, 'key:', key);
+
+    // 1. Flag set et — foreground'da tekrar tetiklenmesin
+    await markAlarmHandled(key);
+
+    // 2. Bildirimi tamamen iptal et
+    await cancelAlarmCompletely(notification);
+
+    // 3. Ses/titreşim durdur
+    try {
+      stopAlarmSound();
+    } catch (_e) {
+      /* */
+    }
+    try {
+      stopSpeaking();
+    } catch (_e) {
+      /* */
+    }
+
+    // 4. Aksiyonu işle
+    if (actionId === 'take' || actionId === 'taken') {
+      console.log('[BG] İlaç alındı:', medicineId);
+      try {
+        useMedicineStore
+          .getState()
+          .logMedicineTaken(
+            reminderTimeId,
+            (data?.scheduledTime as string) || new Date().toISOString(),
+            medicineId
+          );
+      } catch (_e) {
+        /* ignore */
+      }
+    } else if (actionId === 'snooze') {
+      console.log('[BG] Erteleniyor:', medicineId);
+      try {
+        const { snoozeDuration, maxSnoozeCount } = await getSnoozeSettings();
+        const snoozeCount = parseInt((data?.snoozeCount as string) || '0', 10) + 1;
+
+        // Erteleme limiti kontrolü — son hakta ilaç atlanmış sayılır
+        if (snoozeCount >= maxSnoozeCount) {
+          console.log('[BG] Erteleme limiti doldu, ilaç atlanıyor:', medicineId);
+          try {
+            useMedicineStore
+              .getState()
+              .logMedicineSkipped(
+                reminderTimeId,
+                (data?.scheduledTime as string) || new Date().toISOString(),
+                medicineId
+              );
+          } catch (_e) {
+            /* ignore */
+          }
+          return;
+        }
+
+        const triggerTime = new Date(Date.now() + snoozeDuration * 60 * 1000);
+        const snoozeId = `bg-${Date.now()}`;
+        const notifId = `snooze-${snoozeId}`;
+        const timeStr = triggerTime.toLocaleTimeString('tr-TR', {
           hour: '2-digit',
           minute: '2-digit',
         });
+        const medicineName =
+          notification.title
+            ?.replace('💊 ', '')
+            .replace(/\(Ertelendi.*\)/, '')
+            .trim() || 'İlaç';
 
-        const originalTitle = notification.title || '💊 Ilac';
-        const currentSnoozeCount = parseInt((notification.data.snoozeCount as string) || '0', 10);
-        const newSnoozeCount = currentSnoozeCount + 1;
-        const snoozeTitle = `🔔 ${originalTitle.replace('💊 ', '').replace(/ \(Ertelendi.*\)/, '')} (Ertelendi${newSnoozeCount > 1 ? ` x${newSnoozeCount}` : ''})`;
-
-        const bgSnoozeId = `bg-${Date.now()}`;
-        const snoozeNotificationId = `snooze-${bgSnoozeId}`;
-
-        try {
-          await notifee.createTriggerNotification(
-            {
-              id: snoozeNotificationId,
-              title: snoozeTitle,
-              subtitle: timeStr,
-              body: `${notification.body?.split('\n')[0] || 'Ilac almanin zamani!'}\n⏰ ${timeStr}`,
-              android: {
-                channelId: 'medicine-alarms-v3',
-                importance: AndroidImportance.HIGH,
-                visibility: AndroidVisibility.PUBLIC,
-                category: AndroidCategory.ALARM,
-                ongoing: true,
-                autoCancel: false,
-                loopSound: true,
-                sound: 'alarm',
-                smallIcon: 'ic_launcher',
-                color: '#FF6B6B',
-                colorized: true,
-                fullScreenAction: {
-                  id: 'default',
-                  launchActivity: 'com.ilachatirlatici.MainActivity',
-                },
-                pressAction: { id: 'default', launchActivity: 'com.ilachatirlatici.MainActivity' },
-                vibrationPattern: [500, 200, 500, 200, 500, 200],
-                actions: [
-                  { title: '😴 Ertele', pressAction: { id: 'snooze' } },
-                  { title: '⬛ Kapat', pressAction: { id: 'stop' } },
-                ],
-              },
-              data: {
-                ...notification.data,
-                scheduledTime: snoozeTime.toISOString(),
-                isSnooze: 'true',
-                snoozeId: bgSnoozeId,
-                snoozeCount: String(newSnoozeCount),
-                backgroundSnooze: 'true',
-              },
+        await notifee.createTriggerNotification(
+          {
+            id: notifId,
+            title: `🔔 ${medicineName} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
+            subtitle: timeStr,
+            body: `${notification.body?.split('\n')[0] || 'İlacınızı almayı unutmayın!'}\n⏰ ${timeStr}`,
+            android: {
+              ...(notification.android || {}),
+              channelId: 'medicine-alarms-v4',
             },
-            {
-              type: TriggerType.TIMESTAMP,
-              timestamp: snoozeTime.getTime(),
-              alarmManager: {
-                allowWhileIdle: true,
-                type: AlarmType.SET_ALARM_CLOCK,
-              },
-            }
-          );
-          console.log(
-            '[Background] Snooze scheduled:',
-            snoozeNotificationId,
-            'for:',
-            snoozeTime.toISOString()
-          );
-        } catch (e) {
-          console.error('[Background] Snooze error:', e);
-        }
-      }
-      break;
+            data: {
+              medicineId,
+              reminderTimeId,
+              scheduledTime: triggerTime.toISOString(),
+              originalScheduledTime:
+                (data?.originalScheduledTime as string) ||
+                (data?.scheduledTime as string) ||
+                new Date().toISOString(),
+              isSnooze: 'true',
+              snoozeId,
+              snoozeCount: String(snoozeCount),
+              fullScreenAlarm: 'true',
+            },
+          },
+          {
+            type: TriggerType.TIMESTAMP,
+            timestamp: triggerTime.getTime(),
+            alarmManager: { allowWhileIdle: true, type: AlarmType.SET_ALARM_CLOCK },
+          }
+        );
 
-    case EventType.DISMISSED:
-      console.log('[Background] Notification dismissed:', notification?.id);
-      break;
+        // Store'a kaydet
+        try {
+          useMedicineStore
+            .getState()
+            .createSnooze(
+              medicineId,
+              reminderTimeId,
+              (data?.originalScheduledTime as string) ||
+                (data?.scheduledTime as string) ||
+                new Date().toISOString(),
+              triggerTime,
+              notifId
+            );
+        } catch (_e) {
+          /* ignore */
+        }
+
+        console.log('[BG] Snooze planlandı:', notifId, triggerTime.toISOString());
+      } catch (e) {
+        console.error('[BG] Snooze hatası:', e);
+      }
+    }
+    // 'stop' veya diğer aksiyonlar — zaten cancelAlarmCompletely ile iptal edildi
   }
 });
 
-// Register the app
+// ============================================================
 AppRegistry.registerComponent(appName, () => App);

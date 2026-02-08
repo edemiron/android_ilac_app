@@ -8,10 +8,9 @@ import notifee, {
   AndroidNotificationSetting,
   TriggerType,
   TimestampTrigger,
-  RepeatFrequency,
   AlarmType,
 } from '@notifee/react-native';
-import { Platform, Vibration, Linking } from 'react-native';
+import { Platform, Vibration, Linking, NativeModules } from 'react-native';
 
 // PowerManagerInfo type (notifee'den dogrudan export edilmiyor)
 interface PowerManagerInfo {
@@ -21,18 +20,19 @@ interface PowerManagerInfo {
 import { Medicine, ReminderTime, UserSettings } from '../types';
 import { addMinutes } from 'date-fns';
 import { createScopedLogger } from './logger';
+import { isMIUIDevice, getMIUIInstructions, openMIUIAutoStartSettings } from './miuiHelper';
 
 const log = createScopedLogger('Notifications');
 
 // Kanal ID'leri - Versiyon değişince yeni kanal oluşur (ses ayarı için gerekli)
-const CHANNEL_VERSION = 'v3';
+const CHANNEL_VERSION = 'v4';
 const ALARM_CHANNEL_ID = `medicine-alarms-${CHANNEL_VERSION}`;
 const REMINDER_CHANNEL_ID = `medicine-reminders-${CHANNEL_VERSION}`;
 
 // Shared notification config
 const ALARM_ACTIONS = [
   { title: '😴 Ertele', pressAction: { id: 'snooze' } },
-  { title: '⬛ Kapat', pressAction: { id: 'stop' } },
+  { title: '✅ Aldım', pressAction: { id: 'take' } },
 ];
 
 const FULL_SCREEN_ACTION = {
@@ -131,6 +131,7 @@ export async function checkAllPermissions(): Promise<{
   fullScreenIntent: boolean;
   powerManagerRestricted: boolean;
   manufacturer: string | null;
+  isMIUI: boolean;
 }> {
   const settings = await notifee.getNotificationSettings();
 
@@ -178,10 +179,11 @@ export async function checkAllPermissions(): Promise<{
         ? !androidSettingsWithBattery.batteryOptimizationStatus ||
           androidSettingsWithBattery.batteryOptimizationStatus === 1
         : true,
-    dnd: true, // Notifee kanal ayarlarıyla bypass ediliyor
+    dnd: true,
     fullScreenIntent: fullScreenIntentEnabled,
     powerManagerRestricted,
     manufacturer,
+    isMIUI: isMIUIDevice(),
   };
 }
 
@@ -272,49 +274,85 @@ export async function openNotificationSettings(): Promise<void> {
 }
 
 /**
- * Tam ekran alarm bildirimi göster (Anlık)
+ * UCES: MIUI için AGRESİF hassas alarm zamanlama
+ * 30 saniye gecikme sorununu çözmek için triple-backup + pre-wake
  */
-export async function displayFullScreenAlarm(
+async function scheduleExactAlarmWithBackup(
   medicine: Medicine,
   reminderTime: ReminderTime,
-  scheduledTime: string
-): Promise<string> {
-  const timeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  triggerDate: Date,
+  fullScreenAlarm: boolean
+): Promise<string | null> {
+  const mainId = `alarm-${medicine.id}-${reminderTime.id}`;
 
-  const notificationId = await notifee.displayNotification({
-    id: `alarm-${medicine.id}-${reminderTime.id}`,
-    title: `💊 ${medicine.name}`,
-    subtitle: timeStr,
-    body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
-    android: {
-      channelId: ALARM_CHANNEL_ID,
-      category: AndroidCategory.ALARM,
-      importance: AndroidImportance.HIGH,
-      visibility: AndroidVisibility.PUBLIC,
-      ongoing: true,
-      autoCancel: false,
-      onlyAlertOnce: false,
-      loopSound: true,
-      fullScreenAction: FULL_SCREEN_ACTION,
-      pressAction: PRESS_ACTION,
-      smallIcon: 'ic_launcher',
-      color: '#2196F3',
-      colorized: true,
-      sound: 'alarm',
-      vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
-      lights: ['#2196F3', 500, 500] as [string, number, number],
-      actions: ALARM_ACTIONS,
-    },
-    data: {
-      medicineId: medicine.id,
-      reminderTimeId: reminderTime.id,
-      scheduledTime: scheduledTime,
-      fullScreenAlarm: 'true',
-    },
-  });
+  const baseTime = triggerDate.getTime();
 
-  log.debug('Tam ekran alarm gosterildi', { notificationId });
-  return notificationId;
+  // 1. Ana alarm (exact time) - SET_ALARM_CLOCK en güçlü alarm tipi
+  const mainTrigger: TimestampTrigger = {
+    type: TriggerType.TIMESTAMP,
+    timestamp: baseTime,
+    alarmManager: {
+      allowWhileIdle: true,
+      type: AlarmType.SET_ALARM_CLOCK,
+    },
+  };
+
+  try {
+    // Eski alarmı iptal et
+    await notifee.cancelNotification(mainId);
+
+    const timeStr = triggerDate.toLocaleTimeString('tr-TR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    // Ana alarmı kur - onlyAlertOnce: false olmalı ki fullScreenAction tetiklensin
+    const notificationId = await notifee.createTriggerNotification(
+      {
+        id: mainId,
+        title: `💊 ${medicine.name}`,
+        subtitle: timeStr,
+        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
+        android: {
+          channelId: ALARM_CHANNEL_ID,
+          category: AndroidCategory.ALARM,
+          importance: AndroidImportance.HIGH,
+          visibility: AndroidVisibility.PUBLIC,
+          ongoing: true,
+          autoCancel: false,
+          onlyAlertOnce: false,
+          loopSound: true,
+          fullScreenAction: fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
+          pressAction: PRESS_ACTION,
+          smallIcon: 'ic_launcher',
+          color: '#2196F3',
+          colorized: true,
+          sound: 'alarm',
+          vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
+          lights: ['#2196F3', 500, 500] as [string, number, number],
+          actions: ALARM_ACTIONS,
+        },
+        data: {
+          medicineId: medicine.id,
+          reminderTimeId: reminderTime.id,
+          scheduledTime: triggerDate.toISOString(),
+          fullScreenAlarm: fullScreenAlarm ? 'true' : 'false',
+          isMainAlarm: 'true',
+        },
+      },
+      mainTrigger
+    );
+
+    log.debug('MIUI alarm scheduled (single, no backups)', {
+      mainId,
+      baseTime: new Date(baseTime).toISOString(),
+    });
+
+    return notificationId;
+  } catch (error) {
+    log.error('Exact alarm scheduling failed', error);
+    return null;
+  }
 }
 
 /**
@@ -349,23 +387,25 @@ export async function scheduleMedicineNotification(
     triggerDate.setHours(hours, minutes, 0, 0);
 
     // KRİTİK: Eğer zaman geçtiyse yarın için planla
-    // bypassBuffer=true ise sadece geçmiş zamanları kontrol et (test ilaçları için)
+    // bypassBuffer=true ise sadece geçmiş zamanları kontrol et (kullanıcı bilinçli ayarladı)
     if (bypassBuffer) {
-      // Sadece zaman geçmişse yarına al
-      if (triggerDate <= now) {
+      // Sadece zaman kesin geçmişse yarına al (1 dakika tolerans)
+      const pastThreshold = new Date(now.getTime() - 60 * 1000);
+      if (triggerDate <= pastThreshold) {
         triggerDate.setDate(triggerDate.getDate() + 1);
-        log.debug('Alarm yarina planlandi (zaman gecti)', {
+        log.debug('Alarm yarina planlandi (zaman gecti, bypassBuffer)', {
           triggerDate: triggerDate.toISOString(),
         });
       }
     } else {
-      // Normal ilaçlar için 10 dakikalık buffer uygula
-      // Bu, alarm çaldıktan sonra hemen yeniden planlamada bugün için tekrar tetiklenmesini önler
-      const bufferMinutes = 10;
-      const bufferTime = new Date(now.getTime() + bufferMinutes * 60 * 1000);
-      if (triggerDate <= bufferTime) {
+      // Normal akış (app_startup, boot recovery vb.):
+      // Alarm zamanı geçmişse VEYA son 2 dakika içindeyse yarına planla
+      // Bu, "Kapat" sonrası uygulamayı açınca alarmın tekrar çalmasını engeller
+      // Çünkü reRegisterAllAlarms alarm'ı tekrar planlar ve geçmiş zaman hemen tetiklenir
+      const bufferMs = 2 * 60 * 1000; // 2 dakika buffer
+      if (triggerDate.getTime() <= now.getTime() + bufferMs) {
         triggerDate.setDate(triggerDate.getDate() + 1);
-        log.debug('Alarm yarina planlandi (buffer kontrolu)', {
+        log.debug('Alarm yarina planlandi (zaman gecti veya buffer icinde)', {
           triggerDate: triggerDate.toISOString(),
         });
       }
@@ -375,19 +415,30 @@ export async function scheduleMedicineNotification(
       name: medicine.name,
       time: reminderTime.time,
       targetDate: triggerDate.toISOString(),
+      isMIUI: isMIUIDevice(),
     });
 
+    // UCES: MIUI için hassas zamanlama + backup alarm
+    if (isMIUIDevice() && fullScreenAlarm) {
+      log.debug('MIUI cihaz - exact alarm with backup kullaniliyor');
+      return await scheduleExactAlarmWithBackup(
+        medicine,
+        reminderTime,
+        triggerDate,
+        fullScreenAlarm
+      );
+    }
+
+    // Normal cihazlar için standart alarm
     const trigger: TimestampTrigger = {
       type: TriggerType.TIMESTAMP,
       timestamp: triggerDate.getTime(),
-      repeatFrequency: RepeatFrequency.DAILY,
       alarmManager: {
         allowWhileIdle: true,
         type: AlarmType.SET_ALARM_CLOCK,
       },
     };
 
-    // Saat formatı
     const timeStr = triggerDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
     const notificationId = await notifee.createTriggerNotification(
@@ -427,7 +478,6 @@ export async function scheduleMedicineNotification(
 
     log.debug('Bildirim planlandi', { time: reminderTime.time, notificationId });
 
-    // Doğrulama
     const triggers = await notifee.getTriggerNotificationIds();
     log.debug('Aktif trigger sayisi', { count: triggers.length });
 
@@ -795,18 +845,6 @@ export function isInQuietHours(settings: UserSettings): boolean {
 }
 
 /**
- * Titreşim başlat
- */
-export function startAlarmVibration(): void {
-  const VIBRATION_PATTERN = [0, 500, 500, 500, 500, 500];
-  if (Platform.OS === 'android') {
-    Vibration.vibrate(VIBRATION_PATTERN, true);
-  } else {
-    Vibration.vibrate(VIBRATION_PATTERN);
-  }
-}
-
-/**
  * Titreşimi durdur
  */
 export function stopAlarmVibration(): void {
@@ -830,8 +868,10 @@ export interface AlarmPressData {
   medicineId: string;
   reminderTimeId: string;
   scheduledTime: string;
+  originalScheduledTime?: string;
   isSnooze?: string;
   snoozeId?: string;
+  snoozeCount?: string;
 }
 
 export function setupNotificationListeners(
@@ -843,24 +883,57 @@ export function setupNotificationListeners(
 
     log.debug('Foreground event', { type, notificationId: notification?.id });
 
+    // ─── DELIVERED ───
     if (type === EventType.DELIVERED) {
-      log.debug('Notification delivered', { notificationId: notification?.id });
       if (notification?.data?.fullScreenAlarm === 'true' && notification?.id) {
-        log.debug('Full screen alarm - opening alarm screen');
+        const medId = notification.data.medicineId as string;
+        const remId = notification.data.reminderTimeId as string;
+        const today = new Date().toISOString().split('T')[0];
+        const alarmKey = `${medId}-${remId}-${today}`;
 
+        // KRİTİK: Bu alarm zaten handle edildi mi kontrol et (AsyncStorage + memory)
+        let handled = false;
+        try {
+          const AsyncStorageModule = require('@react-native-async-storage/async-storage').default;
+          const raw = await AsyncStorageModule.getItem('handled-alarms');
+          if (raw) {
+            const arr: { key: string; ts: number }[] = JSON.parse(raw);
+            handled = arr.some(a => a.key === alarmKey && Date.now() - a.ts < 5 * 60 * 1000);
+          }
+        } catch (_e) {
+          /* ignore */
+        }
+
+        if (handled) {
+          log.debug('Alarm already handled, skipping', { alarmKey });
+          await notifee.cancelDisplayedNotification(notification.id);
+          return;
+        }
+
+        log.debug('Full screen alarm - opening alarm screen');
         await notifee.cancelDisplayedNotification(notification.id);
-        log.debug('Bildirim iptal edildi (DELIVERED)', { notificationId: notification.id });
+
+        // pending-alarm'ı temizle — checkInitialNotification ile çakışmayı engelle
+        try {
+          const AsyncStorageModule = require('@react-native-async-storage/async-storage').default;
+          await AsyncStorageModule.removeItem('pending-alarm');
+        } catch (_e) {
+          /* ignore */
+        }
 
         onAlarmPress({
-          medicineId: notification.data.medicineId as string,
-          reminderTimeId: notification.data.reminderTimeId as string,
+          medicineId: medId,
+          reminderTimeId: remId,
           scheduledTime: notification.data.scheduledTime as string,
+          originalScheduledTime: notification.data.originalScheduledTime as string | undefined,
           isSnooze: notification.data.isSnooze as string | undefined,
           snoozeId: notification.data.snoozeId as string | undefined,
+          snoozeCount: notification.data.snoozeCount as string | undefined,
         });
       }
     }
 
+    // ─── PRESS ───
     if (type === EventType.PRESS) {
       if (notification?.id) {
         await notifee.cancelDisplayedNotification(notification.id);
@@ -870,55 +943,16 @@ export function setupNotificationListeners(
           medicineId: notification.data.medicineId as string,
           reminderTimeId: notification.data.reminderTimeId as string,
           scheduledTime: notification.data.scheduledTime as string,
+          originalScheduledTime: notification.data.originalScheduledTime as string | undefined,
           isSnooze: notification.data.isSnooze as string | undefined,
           snoozeId: notification.data.snoozeId as string | undefined,
+          snoozeCount: notification.data.snoozeCount as string | undefined,
         });
-      }
-    } else if (type === EventType.ACTION_PRESS && pressAction) {
-      onAction(pressAction.id, notification?.data);
-    }
-  });
-}
-
-/**
- * Background event handler (App.tsx'te çağrılacak)
- */
-export function registerBackgroundHandler(
-  onAlarmPress: (data: {
-    medicineId: string;
-    reminderTimeId: string;
-    scheduledTime: string;
-  }) => void,
-  onAction: (actionId: string, data: NotificationData | undefined) => void
-): void {
-  notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
-    const { notification, pressAction } = detail;
-
-    log.debug('Background event', { type, notificationId: notification?.id });
-
-    // DELIVERED - Bildirim geldi, uygulamayı açmayı dene (MIUI için)
-    if (type === EventType.DELIVERED) {
-      log.debug('Background: Notification delivered', { notificationId: notification?.id });
-      if (notification?.data?.fullScreenAlarm === 'true') {
-        log.debug('Background: Full screen alarm - trying to open app');
-        // Deep link ile uygulamayı açmayı dene
-        try {
-          await Linking.openURL('ilachatirlatici://alarm');
-        } catch (e) {
-          log.debug('Could not open app via deep link');
-        }
       }
     }
 
-    if (type === EventType.PRESS) {
-      if (notification?.data) {
-        onAlarmPress({
-          medicineId: notification.data.medicineId as string,
-          reminderTimeId: notification.data.reminderTimeId as string,
-          scheduledTime: notification.data.scheduledTime as string,
-        });
-      }
-    } else if (type === EventType.ACTION_PRESS && pressAction) {
+    // ─── ACTION_PRESS ───
+    if (type === EventType.ACTION_PRESS && pressAction) {
       onAction(pressAction.id, notification?.data);
     }
   });
@@ -1020,3 +1054,23 @@ export async function cancelExpiryReminder(medicineId: string): Promise<void> {
 
 // Expo-notifications ile uyumluluk için eski fonksiyon adları
 export { requestNotificationPermissions as setupNotificationCategories };
+
+// MIUI Helper re-exports
+export { isMIUIDevice, getMIUIInstructions, openMIUIAutoStartSettings };
+
+// MIUI Alarm Service helpers
+export async function wakeAndOpenApp(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+
+  try {
+    const { AlarmModule } = NativeModules;
+    if (AlarmModule) {
+      await AlarmModule.wakeAndOpenApp();
+      log.debug('AlarmModule: Screen woken + app opened');
+      return true;
+    }
+  } catch (error) {
+    log.error('AlarmModule: wakeAndOpenApp failed', error);
+  }
+  return false;
+}

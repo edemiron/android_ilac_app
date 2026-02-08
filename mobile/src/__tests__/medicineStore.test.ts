@@ -10,6 +10,12 @@ import { SyncQueue } from '../utils/syncQueue';
 import { markMissedReminders } from '../utils/missedReminders';
 import { validateSyncData, SyncDataValidationError } from '../utils/syncDataValidator';
 import { MedicineLog, Medicine, ReminderTime } from '../types';
+import {
+  createMedicine,
+  createReminderTime,
+  createMedicineLog,
+  resetCounter,
+} from './helpers/factories';
 
 describe('ID Generator', () => {
   describe('generateId', () => {
@@ -213,32 +219,23 @@ describe('SyncQueue', () => {
 
 // Helper function for delays
 function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 describe('markMissedReminders', () => {
+  beforeEach(() => resetCounter());
+
   it('should mark reminders as missed if scheduled time has passed', () => {
     const now = new Date('2024-01-15T14:00:00');
-    const medicines = [
-      {
-        id: 'med-1',
-        name: 'Test Medicine',
-        isActive: true,
-      },
-    ];
+    const medicines = [createMedicine({ id: 'med-1', name: 'Test Medicine', isActive: true })];
     const reminderTimes = [
-      { id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: true },
-      { id: 'rt-2', medicineId: 'med-1', time: '12:00', isEnabled: true },
-      { id: 'rt-3', medicineId: 'med-1', time: '18:00', isEnabled: true }, // Future
+      createReminderTime({ id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: true }),
+      createReminderTime({ id: 'rt-2', medicineId: 'med-1', time: '12:00', isEnabled: true }),
+      createReminderTime({ id: 'rt-3', medicineId: 'med-1', time: '18:00', isEnabled: true }), // Future
     ];
-    const existingLogs = [] as MedicineLog[];
+    const existingLogs: MedicineLog[] = [];
 
-    const result = markMissedReminders(
-      medicines as any,
-      reminderTimes as any,
-      existingLogs,
-      now
-    );
+    const result = markMissedReminders(medicines, reminderTimes, existingLogs, now);
 
     // Should create missed logs for 08:00 and 12:00 (past times)
     expect(result.length).toBe(2);
@@ -250,28 +247,21 @@ describe('markMissedReminders', () => {
 
   it('should not mark reminders that already have logs', () => {
     const now = new Date('2024-01-15T14:00:00');
-    const medicines = [
-      { id: 'med-1', name: 'Test Medicine', isActive: true },
-    ];
+    const medicines = [createMedicine({ id: 'med-1', name: 'Test Medicine', isActive: true })];
     const reminderTimes = [
-      { id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: true },
-      { id: 'rt-2', medicineId: 'med-1', time: '12:00', isEnabled: true },
+      createReminderTime({ id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: true }),
+      createReminderTime({ id: 'rt-2', medicineId: 'med-1', time: '12:00', isEnabled: true }),
     ];
     const existingLogs = [
-      {
+      createMedicineLog({
         id: 'log-1',
         reminderTimeId: 'rt-1',
         scheduledTime: '2024-01-15T08:00:00',
         status: 'taken',
-      },
+      }),
     ];
 
-    const result = markMissedReminders(
-      medicines as any,
-      reminderTimes as any,
-      existingLogs as any,
-      now
-    );
+    const result = markMissedReminders(medicines, reminderTimes, existingLogs, now);
 
     // Should only create missed log for rt-2 (rt-1 already has a log)
     expect(result.length).toBe(1);
@@ -280,20 +270,13 @@ describe('markMissedReminders', () => {
 
   it('should skip inactive medicines', () => {
     const now = new Date('2024-01-15T14:00:00');
-    const medicines = [
-      { id: 'med-1', name: 'Inactive Medicine', isActive: false },
-    ];
+    const medicines = [createMedicine({ id: 'med-1', name: 'Inactive Medicine', isActive: false })];
     const reminderTimes = [
-      { id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: true },
+      createReminderTime({ id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: true }),
     ];
-    const existingLogs = [] as MedicineLog[];
+    const existingLogs: MedicineLog[] = [];
 
-    const result = markMissedReminders(
-      medicines as any,
-      reminderTimes as any,
-      existingLogs,
-      now
-    );
+    const result = markMissedReminders(medicines, reminderTimes, existingLogs, now);
 
     // Should not create any logs for inactive medicines
     expect(result.length).toBe(0);
@@ -301,20 +284,13 @@ describe('markMissedReminders', () => {
 
   it('should skip disabled reminder times', () => {
     const now = new Date('2024-01-15T14:00:00');
-    const medicines = [
-      { id: 'med-1', name: 'Test Medicine', isActive: true },
-    ];
+    const medicines = [createMedicine({ id: 'med-1', name: 'Test Medicine', isActive: true })];
     const reminderTimes = [
-      { id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: false },
+      createReminderTime({ id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: false }),
     ];
-    const existingLogs = [] as MedicineLog[];
+    const existingLogs: MedicineLog[] = [];
 
-    const result = markMissedReminders(
-      medicines as any,
-      reminderTimes as any,
-      existingLogs,
-      now
-    );
+    const result = markMissedReminders(medicines, reminderTimes, existingLogs, now);
 
     // Should not create logs for disabled reminders
     expect(result.length).toBe(0);
@@ -324,17 +300,15 @@ describe('markMissedReminders', () => {
     // If scheduled at 12:00 and current time is 12:10, should not be marked missed yet
     // Grace period is typically 30-60 minutes
     const now = new Date('2024-01-15T12:10:00');
-    const medicines = [
-      { id: 'med-1', name: 'Test Medicine', isActive: true },
-    ];
+    const medicines = [createMedicine({ id: 'med-1', name: 'Test Medicine', isActive: true })];
     const reminderTimes = [
-      { id: 'rt-1', medicineId: 'med-1', time: '12:00', isEnabled: true },
+      createReminderTime({ id: 'rt-1', medicineId: 'med-1', time: '12:00', isEnabled: true }),
     ];
-    const existingLogs = [] as MedicineLog[];
+    const existingLogs: MedicineLog[] = [];
 
     const result = markMissedReminders(
-      medicines as any,
-      reminderTimes as any,
+      medicines,
+      reminderTimes,
       existingLogs,
       now,
       30 // 30 minute grace period
@@ -347,17 +321,15 @@ describe('markMissedReminders', () => {
   it('should mark as missed after grace period expires', () => {
     // If scheduled at 12:00 and current time is 12:45, should be marked missed
     const now = new Date('2024-01-15T12:45:00');
-    const medicines = [
-      { id: 'med-1', name: 'Test Medicine', isActive: true },
-    ];
+    const medicines = [createMedicine({ id: 'med-1', name: 'Test Medicine', isActive: true })];
     const reminderTimes = [
-      { id: 'rt-1', medicineId: 'med-1', time: '12:00', isEnabled: true },
+      createReminderTime({ id: 'rt-1', medicineId: 'med-1', time: '12:00', isEnabled: true }),
     ];
-    const existingLogs = [] as MedicineLog[];
+    const existingLogs: MedicineLog[] = [];
 
     const result = markMissedReminders(
-      medicines as any,
-      reminderTimes as any,
+      medicines,
+      reminderTimes,
       existingLogs,
       now,
       30 // 30 minute grace period
@@ -508,8 +480,8 @@ describe('validateSyncData', () => {
   });
 
   it('should reject null or undefined input', () => {
-    expect(validateSyncData(null as any).success).toBe(false);
-    expect(validateSyncData(undefined as any).success).toBe(false);
+    expect(validateSyncData(null as unknown).success).toBe(false);
+    expect(validateSyncData(undefined as unknown).success).toBe(false);
   });
 
   it('should handle empty arrays gracefully', () => {

@@ -59,9 +59,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (newUserId) {
         // Kullanıcı giriş yaptı
         if (previousUserId !== null && previousUserId !== newUserId) {
-          // Farklı bir kullanıcı giriş yaptı - önce store'u temizle
+          // Farklı bir kullanıcı giriş yaptı - önce store'u temizle (async)
           log.debug('Farklı kullanıcı, store temizleniyor');
-          useMedicineStore.getState().clearAllData();
+          useMedicineStore
+            .getState()
+            .clearAllData()
+            .catch((error: Error) => {
+              log.error('Store temizleme hatasi', error);
+            });
         }
 
         // userId'yi set et
@@ -139,7 +144,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setError(null);
       // Önce local store'u temizle (KRİTİK: başka kullanıcının verileri görünmesin)
-      useMedicineStore.getState().clearAllData();
+      await useMedicineStore.getState().clearAllData();
       // Google oturumunu kapat
       await signOutFromGoogle();
       // Sonra Firebase'den çıkış yap

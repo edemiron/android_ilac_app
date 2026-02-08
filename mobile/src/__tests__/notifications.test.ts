@@ -12,6 +12,7 @@ describe('isInQuietHours', () => {
     alarmSound: 'alarm',
     alarmVolume: 80,
     snoozeDuration: 5,
+    maxSnoozeCount: 3,
     quietHoursEnabled: true,
     quietHoursStart: '23:00',
     quietHoursEnd: '07:00',

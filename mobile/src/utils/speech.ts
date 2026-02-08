@@ -1,4 +1,7 @@
 import Tts from 'react-native-tts';
+import { createScopedLogger } from './logger';
+
+const log = createScopedLogger('Speech');
 
 // TTS başlatma
 let isInitialized = false;
@@ -12,7 +15,7 @@ async function initTts(): Promise<void> {
     await Tts.setDefaultPitch(1.0);
     isInitialized = true;
   } catch (error) {
-    console.warn('[Speech] TTS initialization failed:', error);
+    log.warn('TTS initialization failed', error);
   }
 }
 

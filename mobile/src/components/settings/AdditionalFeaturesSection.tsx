@@ -5,10 +5,16 @@ import { useLanguage } from '../../contexts/LanguageContext';
 
 interface AdditionalFeaturesSectionProps {
   onInteractionsPress: () => void;
+  onSecurityPress: () => void;
+  onTtsPress: () => void;
+  ttsEnabled: boolean;
 }
 
 export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps> = ({
   onInteractionsPress,
+  onSecurityPress,
+  onTtsPress,
+  ttsEnabled,
 }) => {
   const { language, t } = useLanguage();
 
@@ -26,6 +32,32 @@ export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps>
             : 'Interactions between your medicines'
         }
         onPress={onInteractionsPress}
+        showChevron
+      />
+      <SettingRow
+        icon={{ name: 'lock-closed-outline', color: '#4ECDC4' }}
+        label={language === 'tr' ? '🔒 Güvenlik' : '🔒 Security'}
+        description={
+          language === 'tr'
+            ? 'PIN ve biyometrik kimlik doğrulama'
+            : 'PIN and biometric authentication'
+        }
+        onPress={onSecurityPress}
+        showChevron
+      />
+      <SettingRow
+        icon={{ name: 'volume-high-outline', color: '#96CEB4' }}
+        label={language === 'tr' ? '🔊 Sesli Bildirimler' : '🔊 Voice Notifications'}
+        description={
+          ttsEnabled
+            ? language === 'tr'
+              ? 'Sesli okuma aktif'
+              : 'Voice reading enabled'
+            : language === 'tr'
+              ? 'Sesli okuma kapalı'
+              : 'Voice reading disabled'
+        }
+        onPress={onTtsPress}
         showChevron
       />
     </SettingsSection>

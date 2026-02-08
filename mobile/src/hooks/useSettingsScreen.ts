@@ -92,6 +92,7 @@ export function useSettingsScreen() {
     showThemePicker: false,
     showLanguagePicker: false,
     showSnoozePicker: false,
+    showSnoozeCountPicker: false,
     showVolumePicker: false,
     showQuietStartPicker: false,
     showQuietEndPicker: false,
@@ -500,6 +501,100 @@ export function useSettingsScreen() {
     }
   }, [addMedicine, language, medicines, reminderTimes, showSuccess, showAlert]);
 
+  // Test ilacı ekle (10 saniye sonraya alarm) - hızlı test, çakışma kontrolü yok
+  const handleAddTestMedicine10s = useCallback(async () => {
+    const randomName = TEST_MEDICINE_NAMES[Math.floor(Math.random() * TEST_MEDICINE_NAMES.length)];
+    const randomDose = TEST_MEDICINE_DOSES[Math.floor(Math.random() * TEST_MEDICINE_DOSES.length)];
+    const randomInstruction =
+      TEST_INSTRUCTIONS[Math.floor(Math.random() * TEST_INSTRUCTIONS.length)];
+    const randomColor = `#${Math.floor(Math.random() * 16777215)
+      .toString(16)
+      .padStart(6, '0')}`;
+
+    const alarmTime = new Date(Date.now() + 10 * 1000);
+    const timeStr = format(alarmTime, 'HH:mm');
+    const testMedicineName = `TEST-${randomName}`;
+
+    const medicineId = addMedicine({
+      name: testMedicineName,
+      dosage: randomDose,
+      frequency: 1,
+      instructions: randomInstruction,
+      color: randomColor,
+      customTimes: [timeStr],
+      startDate: new Date().toISOString(),
+    });
+
+    const hasPermission = await requestNotificationPermissions();
+    if (hasPermission) {
+      const newReminderTimes = useMedicineStore.getState().reminderTimes;
+      const reminderTime = newReminderTimes.find(rt => rt.medicineId === medicineId);
+      const medicine = useMedicineStore.getState().getMedicineById(medicineId);
+
+      if (reminderTime && medicine) {
+        // 10 saniye sonraya gerçek ilaç ID'si ile alarm planla
+        const triggerTime = new Date(Date.now() + 10 * 1000);
+        const notifTimeStr = triggerTime.toLocaleTimeString('tr-TR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const notifId = `alarm-${medicine.id}-${reminderTime.id}`;
+
+        await notifee.cancelNotification(notifId);
+        await notifee.createTriggerNotification(
+          {
+            id: notifId,
+            title: `💊 ${medicine.name}`,
+            subtitle: notifTimeStr,
+            body: `${medicine.dosage} almanin zamani!\n⏰ ${notifTimeStr}`,
+            android: {
+              channelId: 'medicine-alarms-v4',
+              category: 'alarm' as any,
+              importance: 4, // HIGH
+              visibility: 1, // PUBLIC
+              ongoing: true,
+              autoCancel: false,
+              onlyAlertOnce: false,
+              loopSound: true,
+              fullScreenAction: {
+                id: 'default',
+                launchActivity: 'com.ilachatirlatici.MainActivity',
+              },
+              pressAction: { id: 'default', launchActivity: 'com.ilachatirlatici.MainActivity' },
+              smallIcon: 'ic_launcher',
+              color: '#2196F3',
+              colorized: true,
+              sound: 'alarm',
+              vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
+              actions: [
+                { title: '😴 Ertele', pressAction: { id: 'snooze' } },
+                { title: '✅ Aldım', pressAction: { id: 'take' } },
+              ],
+            },
+            data: {
+              medicineId: medicine.id,
+              reminderTimeId: reminderTime.id,
+              scheduledTime: triggerTime.toISOString(),
+              fullScreenAlarm: 'true',
+            },
+          },
+          {
+            type: 1, // TIMESTAMP
+            timestamp: triggerTime.getTime(),
+            alarmManager: { allowWhileIdle: true, type: 2 }, // SET_ALARM_CLOCK
+          }
+        );
+      }
+    }
+
+    showSuccess(
+      language === 'tr' ? 'Test İlacı Eklendi (10sn)' : 'Test Medicine Added (10s)',
+      language === 'tr'
+        ? `${randomName} (${randomDose}) eklendi.\n\nAlarm: 10 saniye sonra`
+        : `${randomName} (${randomDose}) added.\n\nAlarm: in 10 seconds`
+    );
+  }, [addMedicine, language, showSuccess]);
+
   // Test ilaçlarını sil (TEST- prefix'li olanlar)
   const handleDeleteTestMedicines = useCallback(() => {
     const testMedicines = medicines.filter(m => m.name.startsWith('TEST-'));
@@ -564,6 +659,16 @@ export function useSettingsScreen() {
       showError('Error', String(error));
     }
   }, [medicines, reminderTimes, language, showInfo, showError]);
+
+  // Tüm verileri temizle (Firebase ve local)
+  const handleClearAllData = useCallback(() => {
+    showInfo(
+      language === 'tr' ? 'ℹ️ Bilgi' : 'ℹ️ Info',
+      language === 'tr'
+        ? 'Bu özellik yakında aktif olacak. Lütfen Firebase Console üzerinden manuel temizlik yapın.'
+        : 'This feature will be available soon. Please clean manually via Firebase Console.'
+    );
+  }, [showInfo, language]);
 
   const handleLogout = useCallback(() => {
     showConfirm(
@@ -643,8 +748,10 @@ export function useSettingsScreen() {
     handleTestFullScreenAlarm,
     handleScheduleTestAlarm,
     handleAddTestMedicine,
+    handleAddTestMedicine10s,
     handleDeleteTestMedicines,
     handleShowScheduledNotifications,
+    handleClearAllData,
     handleSync,
     handleLogout,
     formatLastSync,

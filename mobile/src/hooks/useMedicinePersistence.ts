@@ -266,13 +266,35 @@ export function useMedicinePersistence({
           expiryReminderDays: formState.expiryDate ? formState.expiryReminderDays : undefined,
         };
 
+        // Önce navigation'ı yap - async işlemler uzun sürerse kullanıcı beklemez
+        navigation.goBack();
+
         if (isEditing && medicineId) {
+          log.debug('Düzenleme modu - medicineData', {
+            medicineId,
+            customTimes: medicineData.customTimes,
+            useCustomTimes: formState.useCustomTimes,
+            frequency: medicineData.frequency,
+          });
+
           updateMedicine(medicineId, medicineData);
+
+          // State güncellenmesini bekle
+          await new Promise(resolve => setTimeout(resolve, 50));
+
           const freshState = useMedicineStore.getState();
           const times = freshState.getReminderTimesForMedicine(medicineId);
           const medicine = freshState.getMedicineById(medicineId);
+
+          log.debug('Düzenleme sonrası state', {
+            timesCount: times.length,
+            times: times.map(t => t.time),
+            medicineCustomTimes: medicine?.customTimes,
+          });
+
           if (medicine) {
             for (const time of times) {
+              log.debug('Bildirim planlanıyor', { time: time.time });
               // Düzenleme modunda bypassBuffer=true - kullanıcı saati bilinçli değiştirdi
               await scheduleMedicineNotification(
                 medicine,
@@ -311,15 +333,29 @@ export function useMedicinePersistence({
           });
 
           if (medicine && times.length > 0) {
+            const now = new Date();
+            log.debug('ALARM PLANLAMA BASLIYOR', {
+              currentTime: now.toISOString(),
+              currentHours: now.getHours(),
+              currentMinutes: now.getMinutes(),
+              timesToSchedule: times.map(t => t.time),
+            });
+
             for (const time of times) {
-              // Yeni ilaç eklenirken bypassBuffer=true - kullanıcı bugün için alarm istiyor
-              await scheduleMedicineNotification(
+              log.debug('Tekli alarm planlaniyor', { time: time.time });
+
+              const result = await scheduleMedicineNotification(
                 medicine,
                 time,
                 settings.fullScreenAlarmEnabled,
-                true
+                true // bypassBuffer=true - kullanıcı bilinçli ekledi
               );
-              log.debug('Bildirim planlandı', { time: time.time });
+
+              log.debug('Alarm planlama sonucu', {
+                time: time.time,
+                result: result ? 'basarili' : 'basarisiz/null',
+                resultId: result,
+              });
             }
             // Son kullanma tarihi bildirimi planla
             if (formState.expiryDate && formState.expiryReminderDays) {
@@ -338,11 +374,10 @@ export function useMedicinePersistence({
           }
         }
 
-        navigation.goBack();
         return true;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('Medicine save error:', error);
+        log.error('Medicine save error', error);
         showError(t('error'), `${t('error_unknown')}\n\n${errorMessage}`);
         return false;
       }
