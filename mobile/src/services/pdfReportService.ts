@@ -198,19 +198,19 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
       font-family: 'Helvetica Neue', Arial, sans-serif;
       font-size: 12px;
       color: #333;
-      padding: 0;
+      padding: 20px;
       background: #fff;
     }
     .header {
       text-align: center;
-      padding-bottom: 20px;
+      padding-bottom: 24px;
       border-bottom: 2px solid #4ECDC4;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
     }
     .header h1 {
       color: #4ECDC4;
       font-size: 24px;
-      margin-bottom: 5px;
+      margin-bottom: 8px;
     }
     .header h2 {
       color: #666;
@@ -220,20 +220,20 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     .date-range {
       text-align: center;
       color: #888;
-      margin-bottom: 20px;
+      margin-bottom: 28px;
     }
     .summary-grid {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 32px;
     }
     .summary-card {
       display: inline-block;
       background: #f8f9fa;
-      border-radius: 8px;
-      padding: 15px 20px;
+      border-radius: 10px;
+      padding: 16px 22px;
       text-align: center;
-      min-width: 120px;
-      margin: 5px;
+      min-width: 100px;
+      margin: 6px;
       vertical-align: top;
     }
     .summary-card .value {
@@ -250,14 +250,14 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     .summary-card.orange .value { color: #FF9800; }
     .summary-card.red .value { color: #F44336; }
     .section {
-      margin-bottom: 25px;
+      margin-bottom: 28px;
     }
     .section-title {
       font-size: 16px;
       color: #333;
       border-bottom: 1px solid #eee;
-      padding-bottom: 8px;
-      margin-bottom: 15px;
+      padding-bottom: 10px;
+      margin-bottom: 16px;
     }
     table {
       width: 100%;
@@ -267,11 +267,11 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     th {
       background: #4ECDC4;
       color: white;
-      padding: 10px 8px;
+      padding: 12px 10px;
       text-align: left;
     }
     td {
-      padding: 8px;
+      padding: 10px;
       border-bottom: 1px solid #eee;
     }
     tr:nth-child(even) {
@@ -286,8 +286,8 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
       font-weight: bold;
     }
     .footer {
-      margin-top: 30px;
-      padding-top: 15px;
+      margin-top: 36px;
+      padding-top: 18px;
       border-top: 1px solid #eee;
       text-align: center;
       color: #888;
@@ -295,15 +295,15 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     }
     .medicine-card {
       background: #f8f9fa;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 10px;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
       border-left: 4px solid #4ECDC4;
     }
     .medicine-name {
       font-weight: bold;
       font-size: 14px;
-      margin-bottom: 5px;
+      margin-bottom: 6px;
     }
     .medicine-details {
       color: #666;
