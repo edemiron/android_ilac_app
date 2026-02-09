@@ -190,10 +190,10 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     calendarDays.push({ date: day, dateStr: dayStr, taken: dayTaken, total: dayTotal });
   }
 
-  // SVG Donut Chart — uyum oranı
+  // SVG Donut Chart — uyum oranı (kompakt)
   const adherencePercent = data.adherenceRate;
-  const donutRadius = 54;
-  const donutStroke = 12;
+  const donutRadius = 40;
+  const donutStroke = 9;
   const donutCircumference = 2 * Math.PI * donutRadius;
   const donutFilled = (adherencePercent / 100) * donutCircumference;
   const donutEmpty = donutCircumference - donutFilled;
@@ -201,44 +201,44 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     adherencePercent >= 80 ? '#4CAF50' : adherencePercent >= 50 ? '#FF9800' : '#F44336';
 
   const donutSVG = `
-    <svg width="160" height="160" viewBox="0 0 140 140">
-      <circle cx="70" cy="70" r="${donutRadius}" fill="none" stroke="#f0f0f0" stroke-width="${donutStroke}"/>
-      <circle cx="70" cy="70" r="${donutRadius}" fill="none" stroke="${donutColor}" stroke-width="${donutStroke}"
+    <svg width="100" height="100" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="${donutRadius}" fill="none" stroke="#f0f0f0" stroke-width="${donutStroke}"/>
+      <circle cx="50" cy="50" r="${donutRadius}" fill="none" stroke="${donutColor}" stroke-width="${donutStroke}"
         stroke-dasharray="${donutFilled} ${donutEmpty}" stroke-dashoffset="${donutCircumference * 0.25}"
         stroke-linecap="round"/>
-      <text x="70" y="65" text-anchor="middle" font-size="28" font-weight="bold" fill="${donutColor}">%${adherencePercent}</text>
-      <text x="70" y="85" text-anchor="middle" font-size="11" fill="#888">${t.adherenceRate}</text>
+      <text x="50" y="47" text-anchor="middle" font-size="20" font-weight="bold" fill="${donutColor}">%${adherencePercent}</text>
+      <text x="50" y="62" text-anchor="middle" font-size="8" fill="#888">${t.adherenceRate}</text>
     </svg>`;
 
-  // SVG Bar Chart — ilaç bazlı uyum
-  const barHeight = 28;
-  const barGap = 14;
-  const barMaxWidth = 280;
-  const barChartHeight = medicineAdherence.length * (barHeight + barGap) + 10;
+  // SVG Bar Chart — ilaç bazlı uyum (kompakt)
+  const barHeight = 20;
+  const barGap = 8;
+  const barMaxWidth = 260;
+  const barChartHeight = medicineAdherence.length * (barHeight + barGap) + 6;
 
   const barsSVG =
     medicineAdherence.length > 0
       ? `<svg width="100%" height="${barChartHeight}" viewBox="0 0 440 ${barChartHeight}">
       ${medicineAdherence
         .map((item, i) => {
-          const y = i * (barHeight + barGap) + 5;
+          const y = i * (barHeight + barGap) + 3;
           const barW = Math.max((item.rate / 100) * barMaxWidth, 2);
           const barColor = item.rate >= 80 ? '#4CAF50' : item.rate >= 50 ? '#FF9800' : '#F44336';
           const name = fixTurkishCharacters(item.medicine.name);
           const truncName = name.length > 18 ? name.substring(0, 18) + '...' : name;
           return `
-          <text x="0" y="${y + barHeight / 2 + 4}" font-size="11" fill="#444">${truncName}</text>
-          <rect x="150" y="${y}" width="${barW}" height="${barHeight}" rx="4" fill="${barColor}" opacity="0.85"/>
-          <rect x="150" y="${y}" width="${barMaxWidth}" height="${barHeight}" rx="4" fill="none" stroke="#e8e8e8" stroke-width="1"/>
-          <text x="${150 + barW + 8}" y="${y + barHeight / 2 + 4}" font-size="11" font-weight="bold" fill="${barColor}">%${item.rate}</text>`;
+          <text x="0" y="${y + barHeight / 2 + 4}" font-size="10" fill="#444">${truncName}</text>
+          <rect x="150" y="${y}" width="${barW}" height="${barHeight}" rx="3" fill="${barColor}" opacity="0.85"/>
+          <rect x="150" y="${y}" width="${barMaxWidth}" height="${barHeight}" rx="3" fill="none" stroke="#e8e8e8" stroke-width="1"/>
+          <text x="${150 + barW + 6}" y="${y + barHeight / 2 + 4}" font-size="10" font-weight="bold" fill="${barColor}">%${item.rate}</text>`;
         })
         .join('')}
     </svg>`
       : '';
 
   // Heatmap takvim
-  const cellSize = dayCount <= 7 ? 32 : dayCount <= 30 ? 18 : 11;
-  const cellGap = dayCount <= 7 ? 6 : dayCount <= 30 ? 3 : 2;
+  const cellSize = dayCount <= 7 ? 26 : dayCount <= 30 ? 15 : 10;
+  const cellGap = dayCount <= 7 ? 4 : dayCount <= 30 ? 2 : 1;
   const cols = dayCount <= 7 ? 7 : 7;
   const calendarHTML = calendarDays
     .map((day, i) => {
@@ -261,38 +261,40 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
   <meta charset="UTF-8">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333; padding: 28px; background: #fff; }
-    .header { text-align: center; padding-bottom: 20px; margin-bottom: 24px; border-bottom: 3px solid #4ECDC4; }
-    .header h1 { color: #2C3E50; font-size: 22px; margin-bottom: 4px; letter-spacing: 0.5px; }
-    .header h2 { color: #888; font-size: 12px; font-weight: normal; }
-    .date-range { text-align: center; color: #666; margin-bottom: 28px; font-size: 12px; background: #f8fafb; padding: 8px 16px; border-radius: 6px; display: inline-block; }
-    .date-range-wrap { text-align: center; margin-bottom: 24px; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; color: #333; padding: 16px 20px; background: #fff; }
+    .header { text-align: center; padding-bottom: 10px; margin-bottom: 12px; border-bottom: 2px solid #4ECDC4; }
+    .header h1 { color: #2C3E50; font-size: 18px; margin-bottom: 2px; letter-spacing: 0.5px; }
+    .header h2 { color: #888; font-size: 10px; font-weight: normal; }
+    .date-range { color: #666; font-size: 10px; background: #f8fafb; padding: 4px 12px; border-radius: 4px; display: inline-block; }
+    .date-range-wrap { text-align: center; margin-bottom: 12px; }
 
-    .top-section { text-align: center; margin-bottom: 30px; }
-    .summary-row { text-align: center; margin-top: 16px; }
-    .summary-item { display: inline-block; text-align: center; margin: 0 16px; vertical-align: top; }
-    .summary-value { font-size: 22px; font-weight: bold; }
-    .summary-label { font-size: 10px; color: #888; margin-top: 2px; }
+    .top-section { margin-bottom: 14px; }
+    .top-row { display: inline-block; width: 100%; }
+    .donut-col { display: inline-block; width: 110px; vertical-align: middle; }
+    .stats-col { display: inline-block; vertical-align: middle; margin-left: 16px; }
+    .stat-item { margin-bottom: 6px; }
+    .stat-value { font-size: 18px; font-weight: bold; display: inline-block; width: 40px; }
+    .stat-label { font-size: 9px; color: #888; }
 
-    .section { margin-bottom: 28px; }
-    .section-title { font-size: 14px; font-weight: 600; color: #2C3E50; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; margin-bottom: 16px; }
+    .section { margin-bottom: 14px; }
+    .section-title { font-size: 12px; font-weight: 600; color: #2C3E50; border-bottom: 1px solid #e8e8e8; padding-bottom: 4px; margin-bottom: 8px; }
 
-    .medicine-card { background: #f8fafb; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; border-left: 4px solid #4ECDC4; }
-    .medicine-name { font-weight: bold; font-size: 13px; margin-bottom: 4px; color: #2C3E50; }
-    .medicine-details { color: #666; font-size: 11px; }
+    .medicine-card { background: #f8fafb; border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; border-left: 3px solid #4ECDC4; }
+    .medicine-name { font-weight: bold; font-size: 11px; margin-bottom: 2px; color: #2C3E50; }
+    .medicine-details { color: #666; font-size: 9px; }
 
-    .calendar-wrap { text-align: center; margin-bottom: 8px; }
-    .calendar-legend { text-align: center; margin-top: 8px; font-size: 10px; color: #888; }
-    .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 3px 0 10px; vertical-align: middle; }
+    .calendar-wrap { text-align: center; margin-bottom: 4px; }
+    .calendar-legend { text-align: center; margin-top: 4px; font-size: 9px; color: #888; }
+    .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin: 0 2px 0 8px; vertical-align: middle; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
-    th { background: #2C3E50; color: white; padding: 10px 8px; text-align: left; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-    td { padding: 9px 8px; border-bottom: 1px solid #f0f0f0; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 4px; }
+    th { background: #2C3E50; color: white; padding: 6px; text-align: left; font-weight: 600; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; }
+    td { padding: 5px 6px; border-bottom: 1px solid #f0f0f0; }
     tr:nth-child(even) { background: #fafbfc; }
     .status-taken { color: #4CAF50; font-weight: 600; }
     .status-not-taken { color: #F44336; font-weight: 600; }
 
-    .footer { margin-top: 32px; padding-top: 16px; border-top: 2px solid #f0f0f0; text-align: center; color: #aaa; font-size: 9px; }
+    .footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #e8e8e8; text-align: center; color: #aaa; font-size: 8px; }
   </style>
 </head>
 <body>
@@ -306,23 +308,13 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
   </div>
 
   <div class="top-section">
-    ${donutSVG}
-    <div class="summary-row">
-      <div class="summary-item">
-        <div class="summary-value" style="color:#4ECDC4">${data.currentStreak}</div>
-        <div class="summary-label">${t.currentStreak} (${t.days})</div>
-      </div>
-      <div class="summary-item">
-        <div class="summary-value" style="color:#4CAF50">${takenCount}</div>
-        <div class="summary-label">${t.taken}</div>
-      </div>
-      <div class="summary-item">
-        <div class="summary-value" style="color:#F44336">${notTakenCount}</div>
-        <div class="summary-label">${t.notTaken}</div>
-      </div>
-      <div class="summary-item">
-        <div class="summary-value" style="color:#2C3E50">${totalDoses}</div>
-        <div class="summary-label">${t.totalDoses}</div>
+    <div class="top-row">
+      <div class="donut-col">${donutSVG}</div>
+      <div class="stats-col">
+        <div class="stat-item"><span class="stat-value" style="color:#4ECDC4">${data.currentStreak}</span><span class="stat-label">${t.currentStreak} (${t.days})</span></div>
+        <div class="stat-item"><span class="stat-value" style="color:#4CAF50">${takenCount}</span><span class="stat-label">${t.taken}</span></div>
+        <div class="stat-item"><span class="stat-value" style="color:#F44336">${notTakenCount}</span><span class="stat-label">${t.notTaken}</span></div>
+        <div class="stat-item"><span class="stat-value" style="color:#2C3E50">${totalDoses}</span><span class="stat-label">${t.totalDoses}</span></div>
       </div>
     </div>
   </div>
@@ -403,7 +395,7 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
   }
 
   <div class="footer">
-    ${t.generatedAt}: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale })} · İlaç Hatırlatıcı v1.1.0
+    ${t.generatedAt}: ${format(new Date(), 'dd MMMM yyyy HH:mm', { locale })} · İlaç Hatırlatıcı
   </div>
 </body>
 </html>`;
