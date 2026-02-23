@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" width="390" height="844">
+  <defs>
+    <linearGradient id="premiumGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#D97706"/>
+      <stop offset="100%" style="stop-color:#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="tabGrad4" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0D9488"/>
+      <stop offset="100%" style="stop-color:#0891B2"/>
+    </linearGradient>
+    <filter id="shadow4" x="-2%" y="-2%" width="104%" height="108%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0F172A" flood-opacity="0.06"/>
+    </filter>
+  </defs>
+
+  <!-- Arka Plan -->
+  <rect width="390" height="844" rx="40" fill="#F8FAFC"/>
+
+  <!-- Status Bar -->
+  <text x="32" y="32" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">6:15</text>
+
+  <!-- Sayfa Başlığı -->
+  <text x="24" y="76" font-family="system-ui" font-size="24" font-weight="700" fill="#0F172A">Ayarlar</text>
+
+  <!-- Premium Kartı -->
+  <g filter="url(#shadow4)">
+    <rect x="16" y="92" width="358" height="64" rx="16" fill="url(#premiumGrad)"/>
+    <text x="44" y="118" font-family="system-ui" font-size="18" text-anchor="middle">👑</text>
+    <text x="60" y="118" font-family="system-ui" font-size="15" font-weight="700" fill="#FFFFFF">Premium Üyelik!</text>
+    <text x="60" y="138" font-family="system-ui" font-size="11" fill="rgba(255,255,255,0.85)">Reklamsız deneyim, sınırsız ilaç</text>
+    <text x="350" y="122" font-family="system-ui" font-size="16" fill="#FFFFFF" text-anchor="middle">→</text>
+  </g>
+
+  <!-- GENEL Bölümü -->
+  <g filter="url(#shadow4)">
+    <rect x="16" y="172" width="358" height="220" rx="16" fill="#FFFFFF"/>
+    <text x="32" y="196" font-family="system-ui" font-size="12" font-weight="700" fill="#94A3B8" letter-spacing="1">GENEL</text>
+
+    <!-- Uyuma Saati -->
+    <g>
+      <text x="32" y="224" font-family="system-ui" font-size="16">🌙</text>
+      <text x="56" y="224" font-family="system-ui" font-size="14" fill="#0F172A">Uyuma Saati</text>
+      <text x="340" y="224" font-family="system-ui" font-size="13" fill="#0D9488" text-anchor="end">23:00</text>
+    </g>
+    <line x1="32" y1="238" x2="358" y2="238" stroke="#F1F5F9" stroke-width="1"/>
+
+    <!-- Uyanma Saati -->
+    <g>
+      <text x="32" y="262" font-family="system-ui" font-size="16">☀️</text>
+      <text x="56" y="262" font-family="system-ui" font-size="14" fill="#0F172A">Uyanma Saati</text>
+      <text x="340" y="262" font-family="system-ui" font-size="13" fill="#0D9488" text-anchor="end">07:00</text>
+    </g>
+    <line x1="32" y1="276" x2="358" y2="276" stroke="#F1F5F9" stroke-width="1"/>
+
+    <!-- Tema -->
+    <g>
+      <text x="32" y="300" font-family="system-ui" font-size="16">🎨</text>
+      <text x="56" y="300" font-family="system-ui" font-size="14" fill="#0F172A">Tema</text>
+      <text x="340" y="300" font-family="system-ui" font-size="13" fill="#475569" text-anchor="end">Sistem</text>
+    </g>
+    <line x1="32" y1="314" x2="358" y2="314" stroke="#F1F5F9" stroke-width="1"/>
+
+    <!-- Dil -->
+    <g>
+      <text x="32" y="338" font-family="system-ui" font-size="16">🌐</text>
+      <text x="56" y="338" font-family="system-ui" font-size="14" fill="#0F172A">Dil</text>
+      <text x="340" y="338" font-family="system-ui" font-size="13" fill="#475569" text-anchor="end">Türkçe</text>
+    </g>
+    <line x1="32" y1="352" x2="358" y2="352" stroke="#F1F5F9" stroke-width="1"/>
+
+    <!-- Sessiz Saatler -->
+    <g>
+      <text x="32" y="376" font-family="system-ui" font-size="16">🔕</text>
+      <text x="56" y="376" font-family="system-ui" font-size="14" fill="#0F172A">Sessiz Saatler</text>
+      <text x="340" y="376" font-family="system-ui" font-size="13" fill="#475569" text-anchor="end">Kapalı</text>
+    </g>
+  </g>
+
+  <!-- BİLDİRİM AYARLARI Bölümü -->
+  <g filter="url(#shadow4)">
+    <rect x="16" y="408" width="358" height="260" rx="16" fill="#FFFFFF"/>
+    <text x="32" y="432" font-family="system-ui" font-size="12" font-weight="700" fill="#94A3B8" letter-spacing="1">BİLDİRİM AYARLARI</text>
+
+    <!-- Tam Ekran Alarm -->
+    <g>
+      <text x="32" y="460" font-family="system-ui" font-size="16">📱</text>
+      <text x="56" y="460" font-family="system-ui" font-size="14" fill="#0F172A">Tam Ekran Alarm</text>
+      <!-- Toggle ON -->
+      <rect x="316" y="448" width="40" height="22" rx="11" fill="#0D9488"/>
+      <circle cx="344" cy="459" r="9" fill="#FFFFFF"/>
+    </g>
+    <line x1="32" y1="474" x2="358" y2="474" stroke="#F1F5F9" stroke-width="1"/>
+
+    <!-- Alarm Modu -->
+    <g>
+      <text x="32" y="498" font-family="system-ui" font-size="16">🔔</text>
+      <text x="56" y="498" font-family="system-ui" font-size="14" fill="#0F172A">Alarm Modu</text>
+      <text x="340" y="498" font-family="system-ui" font-size="13" fill="#475569" text-anchor="end">Alarm</text>
+    </g>
+    <line x1="32" y1="512" x2="358" y2="512" stroke="#F1F5F9" stroke-width="1"/>
+
+    <!-- Erteleme Süresi -->
+    <g>
+      <text x="32" y="536" font-family="system-ui" font-size="16">⏰</text>
+      <text x="56" y="536" font-family="system-ui" font-size="14" fill="#0F172A">Erteleme Süresi</text>
+      <text x="340" y="536" font-family="system-ui" font-size="13" fill="#475569" text-anchor="end">5 dk</text>
+    </g>
+    <line x1="32" y1="550" x2="358" y2="550" stroke="#F1F5F9" stroke-width="1"/>
+
+    <!-- Titreşim -->
+    <g>
+      <text x="32" y="574" font-family="system-ui" font-size="16">📳</text>
+      <text x="56" y="574" font-family="system-ui" font-size="14" fill="#0F172A">Titreşim Deseni</text>
+      <text x="340" y="574" font-family="system-ui" font-size="13" fill="#475569" text-anchor="end">Varsayılan</text>
+    </g>
+    <line x1="32" y1="588" x2="358" y2="588" stroke="#F1F5F9" stroke-width="1"/>
+
+    <!-- İlaç Aralığı -->
+    <g>
+      <text x="32" y="612" font-family="system-ui" font-size="16">⏱️</text>
+      <text x="56" y="612" font-family="system-ui" font-size="14" fill="#0F172A">İlaç Aralığı</text>
+      <text x="340" y="612" font-family="system-ui" font-size="13" fill="#475569" text-anchor="end">30 dk</text>
+    </g>
+    <line x1="32" y1="626" x2="358" y2="626" stroke="#F1F5F9" stroke-width="1"/>
+
+    <!-- Sesli Hatırlatma -->
+    <g>
+      <text x="32" y="650" font-family="system-ui" font-size="16">🔊</text>
+      <text x="56" y="650" font-family="system-ui" font-size="14" fill="#0F172A">Sesli Hatırlatma</text>
+      <rect x="316" y="638" width="40" height="22" rx="11" fill="#E2E8F0"/>
+      <circle cx="328" cy="649" r="9" fill="#FFFFFF"/>
+    </g>
+  </g>
+
+  <!-- HESAP Bölümü -->
+  <g filter="url(#shadow4)">
+    <rect x="16" y="684" width="358" height="80" rx="16" fill="#FFFFFF"/>
+    <text x="32" y="708" font-family="system-ui" font-size="12" font-weight="700" fill="#94A3B8" letter-spacing="1">HESAP</text>
+
+    <g>
+      <text x="32" y="736" font-family="system-ui" font-size="16">👤</text>
+      <text x="56" y="736" font-family="system-ui" font-size="14" fill="#0F172A">Hesap</text>
+      <text x="340" y="736" font-family="system-ui" font-size="13" fill="#475569" text-anchor="end">user@email.com</text>
+    </g>
+    <line x1="32" y1="750" x2="358" y2="750" stroke="#F1F5F9" stroke-width="1"/>
+  </g>
+
+  <!-- Bottom Tab Bar -->
+  <rect x="0" y="776" width="390" height="68" fill="#FFFFFF" filter="url(#shadow4)"/>
+  <line x1="0" y1="776" x2="390" y2="776" stroke="#E2E8F0" stroke-width="1"/>
+
+  <text x="50" y="806" font-family="system-ui" font-size="18" fill="#94A3B8" text-anchor="middle">🏠</text>
+  <text x="50" y="822" font-family="system-ui" font-size="10" fill="#94A3B8" text-anchor="middle">Ana Sayfa</text>
+
+  <text x="130" y="806" font-family="system-ui" font-size="18" fill="#94A3B8" text-anchor="middle">💊</text>
+  <text x="130" y="822" font-family="system-ui" font-size="10" fill="#94A3B8" text-anchor="middle">İlaçlarım</text>
+
+  <circle cx="195" cy="776" r="28" fill="url(#tabGrad4)"/>
+  <text x="195" y="782" font-family="system-ui" font-size="24" fill="#FFFFFF" text-anchor="middle">+</text>
+
+  <text x="260" y="806" font-family="system-ui" font-size="18" fill="#94A3B8" text-anchor="middle">📊</text>
+  <text x="260" y="822" font-family="system-ui" font-size="10" fill="#94A3B8" text-anchor="middle">İstatistikler</text>
+
+  <!-- Ayarlar (Aktif) -->
+  <rect x="310" y="786" width="60" height="4" rx="2" fill="#0D9488"/>
+  <text x="340" y="806" font-family="system-ui" font-size="18" fill="#0D9488" text-anchor="middle">⚙️</text>
+  <text x="340" y="822" font-family="system-ui" font-size="10" font-weight="600" fill="#0D9488" text-anchor="middle">Ayarlar</text>
+</svg>

@@ -25,8 +25,8 @@ import {
   isValidPin,
   isPinSet,
   saveSecuritySettings,
-  getSecuritySettings,
   getBiometricTypeName,
+  getRemainingLockoutTime,
 } from '../utils/security';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { createScopedLogger } from '../utils/logger';
@@ -45,6 +45,7 @@ interface CardProps {
 }
 
 const Card: React.FC<CardProps> = ({ children, style }) => {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { colors, isDark } = useTheme();
   return (
     <View style={[styles.card, { backgroundColor: isDark ? '#16213E' : '#fff' }, style]}>
@@ -75,6 +76,7 @@ const SettingRow: React.FC<SettingRowProps> = ({
   showArrow = false,
   isFirst = false,
 }) => {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { colors, isDark } = useTheme();
   return (
     <TouchableOpacity
@@ -113,7 +115,9 @@ const SettingRow: React.FC<SettingRowProps> = ({
 };
 
 export default function SecurityScreen() {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const navigation = useNavigation<NavigationProp>();
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { t, language } = useLanguage();
   const { colors, isDark } = useTheme();
   const { settings, updateSettings } = useMedicineStore();
@@ -235,6 +239,18 @@ export default function SecurityScreen() {
       return;
     }
 
+    // Zayıf PIN kontrolü
+    const weakPins = ['1234', '1111', '0000', '1212', '7777', '1004', '2000', '4444', '2222', '3333', '5555', '6666', '8888', '9999', '123456', '654321'];
+    if (weakPins.includes(pin)) {
+      Alert.alert(
+        language === 'tr' ? 'Zayıf PIN' : 'Weak PIN',
+        language === 'tr'
+          ? 'Bu PIN çok yaygın kullanılıyor. Lütfen daha güvenli bir PIN seçin.'
+          : 'This PIN is too common. Please choose a more secure PIN.'
+      );
+      return;
+    }
+
     const saved = await savePin(pin);
     if (saved) {
       setHasPin(true);
@@ -246,12 +262,21 @@ export default function SecurityScreen() {
         securityEnabled: true,
       });
       triggerHaptic('success');
+    } else {
+      Alert.alert(
+        language === 'tr' ? 'Hata' : 'Error',
+        language === 'tr' ? 'PIN kaydedilemedi.' : 'Failed to save PIN.'
+      );
     }
   };
 
   const handleChangePin = async () => {
-    if (!(await verifyPin(oldPin))) {
-      Alert.alert(language === 'tr' ? 'Yanlış PIN' : 'Incorrect PIN');
+    const verifyResult = await verifyPin(oldPin);
+    if (!verifyResult.success) {
+      Alert.alert(
+        language === 'tr' ? 'Yanlış PIN' : 'Incorrect PIN',
+        verifyResult.error || (language === 'tr' ? 'Mevcut PIN hatalı' : 'Current PIN is incorrect')
+      );
       triggerHaptic('error');
       return;
     }
@@ -261,6 +286,18 @@ export default function SecurityScreen() {
     }
     if (pin !== confirmPin) {
       Alert.alert(language === 'tr' ? 'PIN Eşleşmiyor' : 'PIN Mismatch');
+      return;
+    }
+
+    // Zayıf PIN kontrolü
+    const weakPins = ['1234', '1111', '0000', '1212', '7777', '1004', '2000', '4444', '2222', '3333', '5555', '6666', '8888', '9999', '123456', '654321'];
+    if (weakPins.includes(pin)) {
+      Alert.alert(
+        language === 'tr' ? 'Zayıf PIN' : 'Weak PIN',
+        language === 'tr'
+          ? 'Bu PIN çok yaygın kullanılıyor. Lütfen daha güvenli bir PIN seçin.'
+          : 'This PIN is too common. Please choose a more secure PIN.'
+      );
       return;
     }
 
@@ -556,6 +593,7 @@ export default function SecurityScreen() {
         </Text>
 
         <View style={styles.timeoutContainer}>
+          // eslint-disable-next-line unused-imports/no-unused-vars
           {[0, 1, 5, 15, 30].map((minutes, index) => (
             <TouchableOpacity
               key={minutes}

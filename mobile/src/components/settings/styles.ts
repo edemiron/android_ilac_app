@@ -30,6 +30,10 @@ export const createSettingsStyles = (colors: ThemeColors, isDark: boolean) =>
       paddingBottom: 4,
       gap: 8,
     },
+    sectionIcon: {
+      fontSize: 16,
+      lineHeight: 20,
+    },
     sectionTitle: {
       fontSize: 13,
       fontWeight: '700',

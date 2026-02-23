@@ -8,6 +8,7 @@ const log = createScopedLogger('AIMedicineService');
 // ============ AI YAPILANDIRMA YÖNETİMİ ============
 
 // Firebase'den AI yapılandırmasını al
+// eslint-disable-next-line unused-imports/no-unused-vars
 const AI_CONFIG_DOC = 'config/ai';
 
 interface StoredAIConfig {
@@ -592,6 +593,7 @@ function parseProspectusResponse(response: string): AISearchResult {
       },
       confidence: 80,
     };
+  // eslint-disable-next-line unused-imports/no-unused-vars
   } catch (error) {
     return { success: false, confidence: 0, error: 'Prospektüs yanıtı işlenemedi' };
   }

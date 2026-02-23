@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { SubscriptionTier, UserSubscription, SubscriptionPlan } from '../types';
 import { createScopedLogger } from '../utils/logger';

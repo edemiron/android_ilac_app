@@ -9,9 +9,11 @@ import {
   Modal,
   AppState,
   AppStateStatus,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -202,20 +204,34 @@ const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionBtn, styles.snoozeBtn, { borderColor: colors.border }]}
+            style={[
+              styles.actionBtn,
+              styles.snoozeBtn,
+              {
+                borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FDE68A',
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB'
+              }
+            ]}
             onPress={() => setShowSnoozeOptions(true)}
           >
-            <Ionicons name="time-outline" size={18} color={colors.textMuted} />
-            <Text style={[styles.snoozeBtnText, { color: colors.textMuted }]}>
+            <Ionicons name="time-outline" size={18} color={isDark ? '#F59E0B' : '#D97706'} />
+            <Text style={[styles.snoozeBtnText, { color: isDark ? '#F59E0B' : '#D97706' }]}>
               {language === 'tr' ? 'Ertele' : 'Snooze'}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionBtn, styles.skipBtn, { borderColor: colors.border }]}
+            style={[
+              styles.actionBtn,
+              styles.skipBtn,
+              {
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FECACA',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2'
+              }
+            ]}
             onPress={onSkip}
           >
-            <Ionicons name="close" size={18} color={colors.textMuted} />
+            <Ionicons name="close-circle-outline" size={18} color={isDark ? '#EF4444' : '#DC2626'} />
           </TouchableOpacity>
         </View>
       </View>
@@ -374,66 +390,142 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
 
   const status = getStatusBadge();
   const isCompleted = isTaken || isSkipped;
-  // İlaç rengi - her zaman canlı tut
+  // İlaç rengi
   const medicineColor = reminder.medicine.color || colors.primary;
-  // Dark mode'da ikon arka planını daha belirgin yap
-  const iconBgOpacity = isDark ? '60' : '25';
+  // Kontrast artırıldı: Light modda '45', dark modda '70'
+  const iconBgOpacity = isDark ? '70' : '45';
+
+  // İlaç form ikonu (MedicinesScreen ile aynı mantık)
+  const getHomeFormIcon = () => {
+    const med = reminder.medicine;
+    if (med.form) {
+      const map: Record<string, { lib: 'mci' | 'ion'; name: string }> = {
+        tablet: { lib: 'mci', name: 'pill' },
+        capsule: { lib: 'mci', name: 'pill-multiple' },
+        syrup: { lib: 'mci', name: 'bottle-tonic-outline' },
+        drops: { lib: 'mci', name: 'water-outline' },
+        injection: { lib: 'mci', name: 'needle' },
+        cream: { lib: 'mci', name: 'hand-back-right-outline' },
+        spray: { lib: 'mci', name: 'spray' },
+        other: { lib: 'mci', name: 'medical-bag' },
+      };
+      if (map[med.form]) return map[med.form];
+    }
+    const text = `${med.dosage || ''} ${med.stockUnit || ''}`.toLowerCase();
+    if (text.includes('tablet')) return { lib: 'mci' as const, name: 'pill' };
+    if (text.includes('kaps')) return { lib: 'mci' as const, name: 'pill-multiple' };
+    if (text.includes('ml') || text.includes('şurup')) return { lib: 'mci' as const, name: 'bottle-tonic-outline' };
+    if (text.includes('damla')) return { lib: 'mci' as const, name: 'water-outline' };
+    if (text.includes('iğne') || text.includes('enjeksiyon')) return { lib: 'mci' as const, name: 'needle' };
+    return { lib: 'ion' as const, name: 'medical' };
+  };
+
+  const decodeDosage = (raw: string) =>
+    raw?.replace(/u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))) ?? raw;
+
+  const formIcon = getHomeFormIcon();
 
   return (
     <View
       style={[
-        styles.medicineCard,
+        styles.timelineItem,
         {
           backgroundColor: colors.card,
-          borderLeftColor: isCompleted ? colors.textMuted : medicineColor,
-          opacity: isCompleted ? 0.7 : 1,
+          borderLeftColor: isCompleted ? colors.border : medicineColor,
+          // Alındı/Atlandı kartları: daha küçük ve soluk
+          opacity: isCompleted ? 0.55 : 1,
+          paddingVertical: isCompleted ? 8 : 12,
           borderWidth: isDark ? 1 : 0,
           borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
         },
       ]}
     >
-      {/* Sol: İlaç İkonu */}
-      <View style={[styles.medicineIconBox, { backgroundColor: medicineColor + iconBgOpacity }]}>
-        <Ionicons name="medical" size={20} color={medicineColor} />
+      {/* Sol: İlaç İkonu / Fotoğrafı */}
+      <View style={[styles.medicineIconBox, { backgroundColor: medicineColor + iconBgOpacity, overflow: 'hidden' }]}>
+        {reminder.medicine.imageUri ? (
+          <Image source={{ uri: reminder.medicine.imageUri }} style={{ width: 40, height: 40 }} />
+        ) : (
+          formIcon.lib === 'mci'
+            ? <MaterialCommunityIcons name={formIcon.name} size={isCompleted ? 16 : 20} color={medicineColor} />
+            : <Ionicons name={formIcon.name as any} size={isCompleted ? 16 : 20} color={medicineColor} />
+        )}
       </View>
 
       {/* Orta: İlaç Bilgisi */}
       <View style={styles.medicineInfo}>
         <Text
-          style={[styles.medicineName, { color: colors.text }, isCompleted && styles.completedText]}
+          style={[
+            styles.medicineName,
+            { color: isCompleted ? colors.textMuted : colors.text },
+            isCompleted && { fontSize: 13 },
+          ]}
           numberOfLines={1}
         >
           {reminder.medicine.name}
         </Text>
         <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
-          {formatTimeDisplay(reminder.reminderTime.time)} • {reminder.medicine.dosage}
+          {formatTimeDisplay(reminder.reminderTime.time)} • {decodeDosage(reminder.medicine.dosage)}
         </Text>
       </View>
 
       {/* Sağ: Durum Badge + Al Butonu */}
       <View style={styles.medicineStatus}>
         {isMissed ? (
+          // Geçmiş saat — "Bugün Al" butonu
           <TouchableOpacity
             style={[styles.takeNowBtn, { backgroundColor: colors.primary }]}
             onPress={onTakeNow}
           >
-            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-            <Text style={styles.takeNowBtnText}>{language === 'tr' ? 'Al' : 'Take'}</Text>
+            <Ionicons name="checkmark" size={16} color="#fff" />
+            <Text style={styles.takeNowText}>
+              {language === 'tr' ? 'Bugün Al' : 'Take Now'}
+            </Text>
           </TouchableOpacity>
-        ) : (
-          <View style={[styles.statusDot, { backgroundColor: status.bg }]}>
-            <View style={[styles.dot, { backgroundColor: status.color }]} />
-            <Text style={[styles.statusDotText, { color: status.color }]}>{status.text}</Text>
+        ) : isCompleted ? (
+          // Alındı veya Atlandı — sadece badge
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: isTaken ? '#10B98115' : status.bg },
+            ]}
+          >
+            <Ionicons
+              name={isTaken ? 'checkmark-circle' : status.icon}
+              size={14}
+              color={isTaken ? '#10B981' : status.color}
+            />
+            <Text style={[styles.statusText, { color: isTaken ? '#10B981' : status.color }]}>
+              {status.text}
+            </Text>
           </View>
+        ) : hasActiveSnooze ? (
+          // Ertelendi — badge
+          <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+            <Ionicons name={status.icon} size={14} color={status.color} />
+            <Text style={[styles.statusText, { color: status.color }]}>{status.text}</Text>
+          </View>
+        ) : (
+          // Bekliyor (gelecek saat) — kompakt yuvarlak "Aldım" ikonu
+          <TouchableOpacity
+            style={[styles.quickTakeBtn, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}
+            onPress={onTakeNow}
+          >
+            <Ionicons name="checkmark" size={18} color={colors.primary} />
+          </TouchableOpacity>
         )}
       </View>
     </View>
   );
 };
 
+type FilterTab = 'all' | 'pending' | 'taken' | 'missed';
+
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
+
+  // Tab State
+  const [activeTab, setActiveTab] = useState<FilterTab>('pending');
   const { t, language } = useLanguage();
   const { user } = useAuth();
   const { canAddMedicine } = useSubscription();
@@ -696,6 +788,96 @@ export default function HomeScreen() {
   // İlerleme yüzdesi
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+  // Filter timeline based on active tab + deduplicate "Şu An" card (item 3)
+  const filteredTimeline = useMemo(() => {
+    return todayReminders.filter(reminder => {
+      // Eğer "Şu An" kartında gösteriliyorsa listeden gizle (tekrarsızlık)
+      if (currentReminder && reminder.reminderTime.id === currentReminder.reminderTime.id) {
+        return false;
+      }
+
+      if (activeTab === 'all') return true;
+
+      const logStatus = reminder.log?.status;
+      const isTaken = logStatus === 'taken';
+      const isSkipped = logStatus === 'skipped';
+      const isCompleted = isTaken || isSkipped; // İkisi de "bekleyen" olmaktan çıkarır
+
+      const reminderDate = new Date();
+      reminderDate.setHours(
+        parseInt(reminder.reminderTime.time.split(':')[0], 10),
+        parseInt(reminder.reminderTime.time.split(':')[1], 10),
+        0,
+        0
+      );
+      const isPastDue = new Date() > reminderDate;
+
+      // status = taken ise "alınanlar"
+      // durumu alınmamış ve zamanı geçmiş veya atlanmışsa "Atlananlar/Kaçırılanlar" (missed)
+      // durumu alınmamış, atlanmamış ve zamanı geçmemişse "Bekleyenler"
+
+      if (activeTab === 'taken') return isTaken;
+      if (activeTab === 'missed') return isSkipped || (!isCompleted && isPastDue);
+      if (activeTab === 'pending') return !isCompleted && !isPastDue;
+      return true;
+    });
+  }, [todayReminders, activeTab, currentReminder]);
+
+  // Zaman dilimlerine göre gruplandır (item 1)
+  type TimeSlot = { key: string; emoji: string; label: string; items: TodayReminder[] };
+  const groupedTimeline = useMemo((): TimeSlot[] => {
+    const slots: TimeSlot[] = [
+      { key: 'morning', emoji: '🌅', label: language === 'tr' ? 'Sabah' : 'Morning', items: [] },
+      { key: 'noon', emoji: '☀️', label: language === 'tr' ? 'Öğle' : 'Noon', items: [] },
+      { key: 'evening', emoji: '🌆', label: language === 'tr' ? 'Akşam' : 'Evening', items: [] },
+      { key: 'night', emoji: '🌙', label: language === 'tr' ? 'Gece' : 'Night', items: [] },
+    ];
+
+    filteredTimeline.forEach(reminder => {
+      const hour = parseInt(reminder.reminderTime.time.split(':')[0], 10);
+      if (hour < 12) slots[0].items.push(reminder);
+      else if (hour < 17) slots[1].items.push(reminder);
+      else if (hour < 21) slots[2].items.push(reminder);
+      else slots[3].items.push(reminder);
+    });
+
+    return slots.filter(s => s.items.length > 0);
+  }, [filteredTimeline, language]);
+
+  // Collapsible zaman dilimi state'i — hangi slotlar açık
+  const [expandedSlots, setExpandedSlots] = useState<Record<string, boolean>>({});
+
+  // Aktif zaman dilimini bul (şu anki saate göre)
+  const activeSlotKey = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'noon';
+    if (hour < 21) return 'evening';
+    return 'night';
+  }, []);
+
+  // Sonraki bekleyen zaman dilimini bul
+  const nextPendingSlotKey = useMemo(() => {
+    const slotOrder = ['morning', 'noon', 'evening', 'night'];
+    const activeIdx = slotOrder.indexOf(activeSlotKey);
+    for (let i = activeIdx + 1; i < slotOrder.length; i++) {
+      const slot = groupedTimeline.find(s => s.key === slotOrder[i]);
+      if (slot && slot.items.some(r => !r.log)) return slotOrder[i];
+    }
+    return null;
+  }, [groupedTimeline, activeSlotKey]);
+
+  // Slot açık mı kontrolü: aktif slot + sonraki bekleyen slot varsayılan açık
+  const isSlotExpanded = useCallback((slotKey: string) => {
+    if (expandedSlots[slotKey] !== undefined) return expandedSlots[slotKey];
+    // Varsayılan: aktif zaman dilimi ve sonraki bekleyen açık, geri kalan kapalı
+    return slotKey === activeSlotKey || slotKey === nextPendingSlotKey;
+  }, [expandedSlots, activeSlotKey, nextPendingSlotKey]);
+
+  const toggleSlot = useCallback((slotKey: string) => {
+    setExpandedSlots(prev => ({ ...prev, [slotKey]: !isSlotExpanded(slotKey) }));
+  }, [isSlotExpanded]);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -904,55 +1086,134 @@ export default function HomeScreen() {
         <InlineAdBanner />
 
         <View style={styles.sectionContainer}>
+          {/* Bugünün Planı & Filtreler */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>📋</Text>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              {language === 'tr' ? 'BUGÜNÜN PLANI' : "TODAY'S PLAN"}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="calendar-outline" size={18} color={isDark ? '#F59E0B' : '#D97706'} />
+              <Text style={[styles.sectionTitle, { color: isDark ? '#F59E0B' : '#D97706' }]}>
+                {language === 'tr' ? 'BUGÜNÜN PLANI' : "TODAY'S PLAN"}
+              </Text>
+            </View>
           </View>
 
-          {todayReminders.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
-              <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                {t('home_no_reminders')}
-              </Text>
+          {/* Filtre Tabları */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterTabsContainer}
+          >
+            {[
+              { id: 'all', label: language === 'tr' ? 'Tümü' : 'All' },
+              { id: 'pending', label: language === 'tr' ? 'Bekleyenler' : 'Pending' },
+              { id: 'taken', label: language === 'tr' ? 'Alınanlar' : 'Taken' },
+              { id: 'missed', label: language === 'tr' ? 'Atlananlar' : 'Missed' },
+            ].map(tab => (
               <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: colors.primary }]}
-                onPress={handleAddMedicine}
+                key={tab.id}
+                style={[
+                  styles.filterTab,
+                  activeTab === tab.id && { backgroundColor: colors.primary },
+                  activeTab !== tab.id && { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F3F4F6' }
+                ]}
+                onPress={() => setActiveTab(tab.id as FilterTab)}
               >
-                <Ionicons name="add" size={20} color="#FFFFFF" />
-                <Text style={styles.addButtonText}>{t('home_add_medicine')}</Text>
+                <Text style={[
+                  styles.filterTabText,
+                  activeTab === tab.id ? { color: '#fff' } : { color: colors.textMuted }
+                ]}>
+                  {tab.label}
+                </Text>
               </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.medicineList}>
-              {todayReminders.map((reminder, index) => {
-                // Snooze durumunu parent'ta hesapla - performans için
-                const today = format(new Date(), 'yyyy-MM-dd');
-                const activeSnooze = snoozes.find(
-                  s =>
-                    s.medicineId === reminder.medicine.id &&
-                    s.reminderTimeId === reminder.reminderTime.id &&
-                    s.isActive &&
-                    s.originalScheduledTime.startsWith(today)
-                );
+            ))}
+          </ScrollView>
 
+          {/* İlaç Listesi — Zaman Dilimine Göre Gruplandırılmış */}
+          <View style={[styles.medicineList, { paddingHorizontal: 16 }]}>
+            {filteredTimeline.length === 0 ? (
+              <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Ionicons
+                  name={
+                    activeTab === 'taken' ? 'checkmark-circle-outline' :
+                      activeTab === 'missed' ? 'happy-outline' :
+                        'calendar-clear-outline'
+                  }
+                  size={48}
+                  color={colors.textMuted}
+                />
+                <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+                  {activeTab === 'taken' ? (language === 'tr' ? 'Henüz ilaç almadınız' : 'No medicines taken yet') :
+                    activeTab === 'missed' ? (language === 'tr' ? 'Harika! Atlanan ilaç yok' : 'Great! No missed medicines') :
+                      activeTab === 'pending' ? (language === 'tr' ? 'Bekleyen ilaç yok' : 'No pending medicines') :
+                        (language === 'tr' ? 'Bugün için planlanmış ilaç yok' : 'No medicines scheduled for today')}
+                </Text>
+                {activeTab === 'all' && (
+                  <Text style={[styles.emptyStateDesc, { color: colors.textMuted }]}>
+                    {language === 'tr'
+                      ? "İlaç eklemek için alttaki '+' butonunu kullanabilirsiniz."
+                      : "Use the '+' button below to add a medicine."}
+                  </Text>
+                )}
+              </View>
+            ) : (
+              groupedTimeline.map(slot => {
+                const slotTaken = slot.items.filter(r => r.log?.status === 'taken').length;
+                const slotTotal = slot.items.length;
+                const slotDone = slotTaken === slotTotal;
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const expanded = isSlotExpanded(slot.key);
                 return (
-                  <TimelineItem
-                    key={reminder.reminderTime.id}
-                    reminder={reminder}
-                    colors={colors}
-                    language={language}
-                    onTakeNow={() => handleTake(reminder.reminderTime.id)}
-                    isFirst={index === 0}
-                    hasActiveSnooze={!!activeSnooze}
-                    snoozeTriggerTime={activeSnooze?.triggerTime ?? null}
-                  />
+                  <View key={slot.key} style={styles.timeSlotGroup}>
+                    {/* Zaman Dilimi Başlığı — Tıklanabilir */}
+                    <TouchableOpacity
+                      style={[styles.timeSlotHeader, { borderBottomColor: colors.border }]}
+                      onPress={() => toggleSlot(slot.key)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.timeSlotLeft}>
+                        <Text style={styles.timeSlotEmoji}>{slot.emoji}</Text>
+                        <Text style={[styles.timeSlotLabel, { color: colors.textSecondary }]}>{slot.label}</Text>
+                        <Ionicons
+                          name={expanded ? 'chevron-up' : 'chevron-down'}
+                          size={16}
+                          color={colors.textMuted}
+                        />
+                      </View>
+                      <View style={[
+                        styles.timeSlotProgress,
+                        { backgroundColor: slotDone ? '#10B98115' : colors.primary + '15' }
+                      ]}>
+                        <Text style={[styles.timeSlotProgressText, { color: slotDone ? '#10B981' : colors.primary }]}>
+                          {slotTaken}/{slotTotal} {slotDone ? '✓' : ''}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                    {/* Slot Öğeleri — Collapsible */}
+                    {expanded && slot.items.map((reminder, index) => {
+                      const activeSnooze = snoozes.find(
+                        s =>
+                          s.medicineId === reminder.medicine.id &&
+                          s.reminderTimeId === reminder.reminderTime.id &&
+                          s.isActive &&
+                          s.originalScheduledTime.startsWith(todayStr)
+                      );
+                      return (
+                        <TimelineItem
+                          key={reminder.reminderTime.id}
+                          reminder={reminder}
+                          colors={colors}
+                          language={language}
+                          onTakeNow={() => handleTake(reminder.reminderTime.id)}
+                          isFirst={index === 0}
+                          hasActiveSnooze={!!activeSnooze}
+                          snoozeTriggerTime={activeSnooze?.triggerTime ?? null}
+                        />
+                      );
+                    })}
+                  </View>
                 );
-              })}
-            </View>
-          )}
+              })
+            )}
+          </View>
         </View>
 
         <View style={{ height: 100 }} />
@@ -1306,6 +1567,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
+  emptyState: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    marginTop: 8,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptyStateDesc: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  emptyStateIcon: {
+    flex: 2,
+  },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1366,22 +1651,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  // Filter Tabs
+  filterTabsContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  filterTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
   // Medicine Card Styles - Ayrı kartlar
   medicineList: {
-    gap: 12,
+    gap: 10,
   },
-  medicineCard: {
+  timelineItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    padding: 14,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
     borderRadius: 14,
-    borderLeftWidth: 4,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderWidth: 1,
   },
   medicineIconBox: {
     width: 44,
@@ -1410,41 +1715,74 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     opacity: 0.6,
   },
-  statusDot: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
+    gap: 4,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusDotText: {
-    fontSize: 12,
+  statusText: {
+    fontSize: 11,
     fontWeight: '600',
   },
   takeNowBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
   },
-  takeNowBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+  takeNowText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: '600',
   },
-  emptyState: {
-    borderRadius: 16,
+  quickTakeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
     alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  // Zaman dilimi gruplandırma stilleri
+  timeSlotGroup: {
+    marginBottom: 8,
+  },
+  timeSlotHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    marginBottom: 6,
+    borderBottomWidth: 1,
+  },
+  timeSlotLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timeSlotEmoji: {
+    fontSize: 15,
+  },
+  timeSlotLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  timeSlotProgress: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  timeSlotProgressText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   emptyIcon: {
     fontSize: 48,

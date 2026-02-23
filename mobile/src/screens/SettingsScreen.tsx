@@ -30,6 +30,7 @@ export default function SettingsScreen() {
     navigation,
     colors,
     isDark,
+    // eslint-disable-next-line unused-imports/no-unused-vars
     theme,
     setTheme,
     language,
@@ -62,6 +63,7 @@ export default function SettingsScreen() {
     getLanguageLabel,
   } = useSettingsScreen();
 
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { t } = useLanguage();
   const { showInfo } = useAlert();
   const [isDevMode, setIsDevMode] = useState(false);
@@ -197,6 +199,7 @@ export default function SettingsScreen() {
           onInteractionsPress={() => navigation.navigate('Interactions')}
           onSecurityPress={() => navigation.navigate('Security')}
           onTtsPress={() => navigation.navigate('TtsSettings')}
+          onCaregiverPress={() => navigation.navigate('Caregiver')}
           ttsEnabled={settings.ttsEnabled}
         />
 

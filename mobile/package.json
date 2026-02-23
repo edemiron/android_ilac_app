@@ -1,6 +1,6 @@
 {
   "name": "mobile",
-  "version": "1.1.0",
+  "version": "1.3.2",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -17,7 +17,8 @@
     "prepare": "cd .. && husky mobile/.husky",
     "bundle": "npx react-native bundle --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res",
     "build:release": "npm run bundle && cd android && ./gradlew assembleRelease",
-    "build:device": "npm run build:release && adb install -r android/app/build/outputs/apk/release/app-release.apk && adb shell am start -n com.ilachatirlatici/.MainActivity"
+    "build:device": "npm run build:release && adb install -r android/app/build/outputs/apk/release/app-release.apk && adb shell am start -n com.ilachatirlatici/.MainActivity",
+    "sync-version": "node scripts/sync-version.js"
   },
   "dependencies": {
     "@expo/metro-config": "^54.0.14",
@@ -25,6 +26,8 @@
     "@notifee/react-native": "^9.1.8",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
+    "@react-native-firebase/app": "^23.8.6",
+    "@react-native-firebase/crashlytics": "^23.8.6",
     "@react-native-google-signin/google-signin": "^16.1.1",
     "@react-navigation/bottom-tabs": "^7.10.1",
     "@react-navigation/native": "^7.1.28",
@@ -34,9 +37,10 @@
     "expo": "^54.0.32",
     "expo-build-properties": "^1.0.10",
     "expo-camera": "^17.0.10",
-    "expo-localization": "^17.0.8",
-    "expo-local-authentication": "^14.0.1",
     "expo-crypto": "^14.0.2",
+    "expo-image-picker": "~17.0.10",
+    "expo-local-authentication": "^14.0.1",
+    "expo-localization": "^17.0.8",
     "expo-notifications": "^0.32.16",
     "firebase": "^12.8.0",
     "react": "19.1.0",
@@ -50,6 +54,7 @@
     "react-native-inappbrowser-reborn": "^3.7.0",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-localize": "^3.6.1",
+    "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "^5.6.2",
     "react-native-screens": "~4.16.0",
     "react-native-share": "^12.2.4",
@@ -77,6 +82,7 @@
     "eslint": "^9.20.0",
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "husky": "^9.1.7",
     "jest": "^30.0.0",
     "lint-staged": "^16.0.0",

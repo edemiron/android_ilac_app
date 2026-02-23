@@ -46,6 +46,21 @@ const PRESS_ACTION = {
   launchActivity: 'com.ilachatirlatici.MainActivity',
 };
 
+function getVibrationPattern(pattern?: 'default' | 'heartbeat' | 'urgent' | 'soft') {
+  switch (pattern) {
+    case 'heartbeat':
+      return [300, 150, 300, 1000, 300, 150, 300, 1000];
+    case 'urgent':
+      return [150, 150, 150, 150, 150, 500, 150, 150, 150, 150];
+    case 'soft':
+      return [1000, 2000, 1000, 2000];
+    case 'default':
+    default:
+      return [500, 1000, 500, 1000, 500, 1000];
+  }
+}
+
+
 /**
  * Bildirim kanallarını oluştur
  */
@@ -164,6 +179,7 @@ export async function checkAllPermissions(): Promise<{
         hasActivity: !!powerInfo.activity,
         activity: powerInfo.activity,
       });
+      // eslint-disable-next-line unused-imports/no-unused-vars
     } catch (e) {
       log.debug('Power Manager bilgisi alinamadi');
     }
@@ -178,7 +194,7 @@ export async function checkAllPermissions(): Promise<{
     batteryOptimization:
       Platform.OS === 'android'
         ? !androidSettingsWithBattery.batteryOptimizationStatus ||
-          androidSettingsWithBattery.batteryOptimizationStatus === 1
+        androidSettingsWithBattery.batteryOptimizationStatus === 1
         : true,
     dnd: true,
     fullScreenIntent: fullScreenIntentEnabled,
@@ -195,6 +211,7 @@ export async function openFullScreenIntentSettings(): Promise<void> {
   if (Platform.OS === 'android' && Platform.Version >= 34) {
     try {
       await Linking.sendIntent('android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT');
+      // eslint-disable-next-line unused-imports/no-unused-vars
     } catch (error) {
       // Fallback: Uygulama ayarlarını aç
       await notifee.openNotificationSettings();
@@ -260,6 +277,7 @@ export async function openDndSettings(): Promise<void> {
   if (Platform.OS === 'android') {
     try {
       await Linking.sendIntent('android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS');
+      // eslint-disable-next-line unused-imports/no-unused-vars
     } catch (error) {
       // Fallback: Genel ayarları aç
       await Linking.openSettings();
@@ -329,7 +347,7 @@ async function scheduleExactAlarmWithBackup(
           color: '#2196F3',
           colorized: true,
           sound: 'alarm',
-          vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
+          vibrationPattern: getVibrationPattern(medicine.vibrationPattern),
           lights: ['#2196F3', 500, 500] as [string, number, number],
           actions: ALARM_ACTIONS,
         },
@@ -463,7 +481,7 @@ export async function scheduleMedicineNotification(
           color: '#2196F3',
           colorized: true,
           sound: 'alarm',
-          vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
+          vibrationPattern: getVibrationPattern(medicine.vibrationPattern),
           lights: ['#2196F3', 500, 500] as [string, number, number],
           actions: ALARM_ACTIONS,
         },
@@ -901,6 +919,7 @@ export function setupNotificationListeners(
             const arr: { key: string; ts: number }[] = JSON.parse(raw);
             handled = arr.some(a => a.key === alarmKey && Date.now() - a.ts < 5 * 60 * 1000);
           }
+          // eslint-disable-next-line unused-imports/no-unused-vars
         } catch (_e) {
           /* ignore */
         }
@@ -918,6 +937,7 @@ export function setupNotificationListeners(
         try {
           const AsyncStorageModule = require('@react-native-async-storage/async-storage').default;
           await AsyncStorageModule.removeItem(STORAGE_KEYS.PENDING_ALARM);
+          // eslint-disable-next-line unused-imports/no-unused-vars
         } catch (_e) {
           /* ignore */
         }

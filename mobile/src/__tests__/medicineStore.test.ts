@@ -2,14 +2,14 @@
  * Medicine Store Tests
  * Tests for ID generation, sync operations, and data integrity
  */
-import { v7 as uuidv7, validate as uuidValidate, version as uuidVersion } from 'uuid';
+import { validate as uuidValidate, version as uuidVersion } from 'uuid';
 
 // Import the utility functions
 import { generateId, isValidUUID } from '../utils/idGenerator';
 import { SyncQueue } from '../utils/syncQueue';
 import { markMissedReminders } from '../utils/missedReminders';
-import { validateSyncData, SyncDataValidationError } from '../utils/syncDataValidator';
-import { MedicineLog, Medicine, ReminderTime } from '../types';
+import { validateSyncData } from '../utils/syncDataValidator';
+import { MedicineLog } from '../types';
 import {
   createMedicine,
   createReminderTime,

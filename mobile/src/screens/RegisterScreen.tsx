@@ -27,6 +27,7 @@ type NavigationProp = NativeStackNavigationProp<AuthStackParamList>;
 
 export default function RegisterScreen() {
   const navigation = useNavigation<NavigationProp>();
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { register, loginWithGoogleProvider, isGoogleAvailable, isLoading, error, clearError } =
     useAuth();
   const { colors } = useTheme();

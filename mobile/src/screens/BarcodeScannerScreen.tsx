@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Linking } from 'react-native';
 import {
   Camera,
@@ -7,7 +7,7 @@ import {
   useCodeScanner,
   Code,
 } from 'react-native-vision-camera';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused, useRoute } from '@react-navigation/native';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
@@ -25,11 +25,13 @@ interface BarcodeScannerScreenProps {
 
 export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenProps) {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const mode = route.params?.mode;
   const { t } = useLanguage();
   const { showAlert } = useAlert();
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
-  const [isActive, setIsActive] = useState(true);
+  const isFocused = useIsFocused();
 
   const {
     scanned,
@@ -47,28 +49,13 @@ export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenPro
     handleEditMedicine,
     resetScanner,
     closeResultModal,
-  } = useBarcodeScanner({ onScan });
+  } = useBarcodeScanner({ onScan, mode });
 
   useEffect(() => {
     if (!hasPermission) {
       requestPermission();
     }
   }, [hasPermission, requestPermission]);
-
-  // Screen focus/blur durumunda kamerayı kontrol et
-  useEffect(() => {
-    const unsubscribeFocus = navigation.addListener('focus', () => {
-      setIsActive(true);
-    });
-    const unsubscribeBlur = navigation.addListener('blur', () => {
-      setIsActive(false);
-    });
-
-    return () => {
-      unsubscribeFocus();
-      unsubscribeBlur();
-    };
-  }, [navigation]);
 
   const onCodeScanned = useCallback(
     (codes: Code[]) => {
@@ -132,14 +119,14 @@ export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenPro
     );
   }
 
-  // Kamera cihazı bulunamadı
-  if (!device) {
+  const fallbackDevice = useMemo(() => Camera.getAvailableCameraDevices().find(d => d.position === 'back'), []);
+  const activeDevice = device || fallbackDevice;
+
+  // Kamera henüz cihazda bulunamadı (yükleniyor)
+  if (!activeDevice) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Kamera bulunamadı</Text>
-        <TouchableOpacity style={styles.backButtonAlt} onPress={handleGoBack}>
-          <Text style={styles.backButtonText}>{t('back')}</Text>
-        </TouchableOpacity>
+        <Text style={styles.errorText}>Kamera başlatılıyor...</Text>
       </View>
     );
   }
@@ -148,12 +135,14 @@ export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenPro
 
   return (
     <View style={scannerStyles.container}>
-      <Camera
-        style={StyleSheet.absoluteFill}
-        device={device}
-        isActive={isActive && !scanned}
-        codeScanner={codeScanner}
-      />
+      {isFocused && (
+        <Camera
+          style={StyleSheet.absoluteFill}
+          device={activeDevice!}
+          isActive={isFocused && !scanned}
+          codeScanner={codeScanner}
+        />
+      )}
 
       <ScanOverlay
         searchStatus={searchStatus}
@@ -196,7 +185,16 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#fff',
     fontSize: 18,
+    marginBottom: 12,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  errorSubText: {
+    color: '#aaa',
+    fontSize: 14,
     marginBottom: 20,
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
   backButtonAlt: {
     backgroundColor: '#333',

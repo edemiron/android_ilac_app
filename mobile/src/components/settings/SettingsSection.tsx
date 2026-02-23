@@ -1,9 +1,20 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SettingsSectionProps } from './types';
 import { useTheme } from '../../contexts/ThemeContext';
 import { createSettingsStyles } from './styles';
+
+// Icon name to emoji map for section headers
+const SECTION_ICONS: Record<string, string> = {
+  'time-outline': '⏰',
+  'notifications-outline': '🔔',
+  'notifications': '🔔',
+  'color-palette-outline': '🎨',
+  'information-circle-outline': 'ℹ️',
+  'person-outline': '👤',
+  'flash-outline': '⚡',
+  'moon-outline': '🌙',
+};
 
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
   icon,
@@ -15,10 +26,12 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   const { colors, isDark } = useTheme();
   const styles = createSettingsStyles(colors, isDark);
 
+  const iconEmoji = SECTION_ICONS[icon] || '•';
+
   return (
     <View style={[styles.section, borderStyle]}>
       <View style={styles.sectionHeader}>
-        <Ionicons name={icon} size={18} color={colors.primary} />
+        <Text style={styles.sectionIcon}>{iconEmoji}</Text>
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
       {description && <Text style={styles.sectionDescription}>{description}</Text>}

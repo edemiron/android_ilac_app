@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" width="390" height="844">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0D9488"/>
+      <stop offset="100%" style="stop-color:#0891B2"/>
+    </linearGradient>
+    <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0D9488"/>
+      <stop offset="100%" style="stop-color:#14B8A6"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-2%" y="-2%" width="104%" height="108%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0F172A" flood-opacity="0.06"/>
+    </filter>
+    <clipPath id="screenClip">
+      <rect width="390" height="844" rx="40"/>
+    </clipPath>
+  </defs>
+
+  <!-- Telefon Çerçevesi -->
+  <rect width="390" height="844" rx="40" fill="#F8FAFC" clip-path="url(#screenClip)"/>
+
+  <!-- Status Bar -->
+  <rect x="0" y="0" width="390" height="48" fill="#F8FAFC"/>
+  <text x="32" y="32" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">6:15</text>
+  <circle cx="330" cy="26" r="4" fill="#0F172A"/>
+  <rect x="340" y="22" width="20" height="8" rx="2" fill="#0F172A"/>
+  <circle cx="316" cy="26" r="4" fill="#0F172A"/>
+
+  <!-- Header: Karşılama + Circular Progress -->
+  <rect x="0" y="48" width="390" height="100" fill="url(#headerGrad)" rx="0"/>
+  <rect x="0" y="120" width="390" height="32" rx="16" fill="#F8FAFC"/>
+
+  <!-- Karşılama Metni -->
+  <text x="24" y="82" font-family="system-ui" font-size="22" font-weight="700" fill="#FFFFFF">Merhaba, Nihul 👋</text>
+  <text x="24" y="104" font-family="system-ui" font-size="13" fill="rgba(255,255,255,0.8)">25 Şubat 2026, Çarşamba</text>
+
+  <!-- Circular Progress -->
+  <circle cx="340" cy="88" r="28" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="5"/>
+  <circle cx="340" cy="88" r="28" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-dasharray="160" stroke-dashoffset="16" stroke-linecap="round" transform="rotate(-90 340 88)"/>
+  <text x="340" y="84" font-family="system-ui" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">%96</text>
+  <text x="340" y="98" font-family="system-ui" font-size="9" fill="rgba(255,255,255,0.8)" text-anchor="middle">uyum</text>
+
+  <!-- Mini İstatistik Kartları -->
+  <g filter="url(#cardShadow)">
+    <rect x="16" y="140" width="110" height="56" rx="12" fill="#FFFFFF"/>
+    <text x="42" y="162" font-family="system-ui" font-size="18" font-weight="700" fill="#059669">19</text>
+    <text x="42" y="180" font-family="system-ui" font-size="11" fill="#475569">Alındı</text>
+    <circle cx="30" cy="168" r="6" fill="#D1FAE5"/>
+    <text x="30" y="172" font-family="system-ui" font-size="10" fill="#059669" text-anchor="middle">✓</text>
+  </g>
+  <g filter="url(#cardShadow)">
+    <rect x="140" y="140" width="110" height="56" rx="12" fill="#FFFFFF"/>
+    <text x="166" y="162" font-family="system-ui" font-size="18" font-weight="700" fill="#D97706">2</text>
+    <text x="166" y="180" font-family="system-ui" font-size="11" fill="#475569">Atlandı</text>
+    <circle cx="154" cy="168" r="6" fill="#FEF3C7"/>
+    <text x="154" y="172" font-family="system-ui" font-size="10" fill="#D97706" text-anchor="middle">–</text>
+  </g>
+  <g filter="url(#cardShadow)">
+    <rect x="264" y="140" width="110" height="56" rx="12" fill="#FFFFFF"/>
+    <text x="290" y="162" font-family="system-ui" font-size="18" font-weight="700" fill="#DC2626">0</text>
+    <text x="290" y="180" font-family="system-ui" font-size="11" fill="#475569">Kaçırıldı</text>
+    <circle cx="278" cy="168" r="6" fill="#FEE2E2"/>
+    <text x="278" y="172" font-family="system-ui" font-size="10" fill="#DC2626" text-anchor="middle">!</text>
+  </g>
+
+  <!-- Günün Saati Bölümü -->
+  <rect x="16" y="212" width="358" height="36" rx="18" fill="#F0FDFA"/>
+  <text x="36" y="234" font-family="system-ui" font-size="13" font-weight="600" fill="#0D9488">🕐 1 Gün Serisi</text>
+  <text x="330" y="234" font-family="system-ui" font-size="12" fill="#475569">Süper!</text>
+
+  <!-- Şimdiki Doz Kartı (Aktif) -->
+  <g filter="url(#cardShadow)">
+    <rect x="16" y="264" width="358" height="130" rx="16" fill="#FFFFFF" stroke="#0D9488" stroke-width="2"/>
+    <rect x="16" y="264" width="358" height="40" rx="16" fill="#0D9488"/>
+    <rect x="16" y="284" width="358" height="20" fill="#0D9488"/>
+    <text x="32" y="290" font-family="system-ui" font-size="13" font-weight="600" fill="#FFFFFF">ŞİMDİ — 08:00</text>
+    <circle cx="350" cy="282" r="8" fill="rgba(255,255,255,0.2)"/>
+    <text x="350" y="286" font-family="system-ui" font-size="10" fill="#FFFFFF" text-anchor="middle">⏰</text>
+
+    <!-- İlaç Bilgisi -->
+    <circle cx="40" cy="328" r="16" fill="#FF6B6B"/>
+    <text x="40" y="332" font-family="system-ui" font-size="12" fill="#FFFFFF" text-anchor="middle">💊</text>
+    <text x="64" y="322" font-family="system-ui" font-size="15" font-weight="600" fill="#0F172A">Test Roza</text>
+    <text x="64" y="340" font-family="system-ui" font-size="12" fill="#475569">6 tablet · günde 3 kez</text>
+
+    <!-- Aksiyon Butonları -->
+    <rect x="32" y="356" width="100" height="30" rx="8" fill="#0D9488"/>
+    <text x="82" y="376" font-family="system-ui" font-size="12" font-weight="600" fill="#FFFFFF" text-anchor="middle">✓ Aldım</text>
+    <rect x="144" y="356" width="100" height="30" rx="8" fill="none" stroke="#D97706" stroke-width="1.5"/>
+    <text x="194" y="376" font-family="system-ui" font-size="12" font-weight="600" fill="#D97706" text-anchor="middle">⏰ Ertele</text>
+    <rect x="256" y="356" width="100" height="30" rx="8" fill="none" stroke="#94A3B8" stroke-width="1.5"/>
+    <text x="306" y="376" font-family="system-ui" font-size="12" font-weight="600" fill="#94A3B8" text-anchor="middle">✕ Atla</text>
+  </g>
+
+  <!-- Filtre Sekmeleri -->
+  <g>
+    <rect x="16" y="410" width="70" height="30" rx="15" fill="#0D9488"/>
+    <text x="51" y="430" font-family="system-ui" font-size="12" font-weight="600" fill="#FFFFFF" text-anchor="middle">Tümü</text>
+    <rect x="94" y="410" width="80" height="30" rx="15" fill="#F1F5F9"/>
+    <text x="134" y="430" font-family="system-ui" font-size="12" fill="#475569" text-anchor="middle">Bekleyen</text>
+    <rect x="182" y="410" width="70" height="30" rx="15" fill="#F1F5F9"/>
+    <text x="217" y="430" font-family="system-ui" font-size="12" fill="#475569" text-anchor="middle">Alınan</text>
+    <rect x="260" y="410" width="80" height="30" rx="15" fill="#F1F5F9"/>
+    <text x="300" y="430" font-family="system-ui" font-size="12" fill="#475569" text-anchor="middle">Kaçırılan</text>
+  </g>
+
+  <!-- Zaman Çizelgesi Listesi -->
+  <!-- İlaç Satırı 1 - Alındı -->
+  <g filter="url(#cardShadow)">
+    <rect x="16" y="456" width="358" height="64" rx="12" fill="#FFFFFF"/>
+    <rect x="16" y="456" width="4" height="64" rx="2" fill="#059669"/>
+    <circle cx="44" cy="488" r="14" fill="#4ECDC4"/>
+    <text x="44" y="492" font-family="system-ui" font-size="10" fill="#FFFFFF" text-anchor="middle">💊</text>
+    <text x="68" y="480" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Gripin</text>
+    <text x="68" y="498" font-family="system-ui" font-size="11" fill="#475569">250mg · 1 tablet</text>
+    <text x="310" y="480" font-family="system-ui" font-size="12" fill="#94A3B8">08:00</text>
+    <circle cx="330" cy="494" r="10" fill="#D1FAE5"/>
+    <text x="330" y="498" font-family="system-ui" font-size="10" fill="#059669" text-anchor="middle">✓</text>
+  </g>
+
+  <!-- İlaç Satırı 2 - Alındı -->
+  <g filter="url(#cardShadow)">
+    <rect x="16" y="530" width="358" height="64" rx="12" fill="#FFFFFF"/>
+    <rect x="16" y="530" width="4" height="64" rx="2" fill="#059669"/>
+    <circle cx="44" cy="562" r="14" fill="#45B7D1"/>
+    <text x="44" y="566" font-family="system-ui" font-size="10" fill="#FFFFFF" text-anchor="middle">💊</text>
+    <text x="68" y="554" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Dikloron</text>
+    <text x="68" y="572" font-family="system-ui" font-size="11" fill="#475569">500mg · günde 1 kez</text>
+    <text x="310" y="554" font-family="system-ui" font-size="12" fill="#94A3B8">08:30</text>
+    <circle cx="330" cy="568" r="10" fill="#D1FAE5"/>
+    <text x="330" y="572" font-family="system-ui" font-size="10" fill="#059669" text-anchor="middle">✓</text>
+  </g>
+
+  <!-- İlaç Satırı 3 - Bekleyen -->
+  <g filter="url(#cardShadow)">
+    <rect x="16" y="604" width="358" height="64" rx="12" fill="#FFFFFF"/>
+    <rect x="16" y="604" width="4" height="64" rx="2" fill="#0D9488"/>
+    <circle cx="44" cy="636" r="14" fill="#96CEB4"/>
+    <text x="44" y="640" font-family="system-ui" font-size="10" fill="#FFFFFF" text-anchor="middle">💊</text>
+    <text x="68" y="628" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Apranax Plus</text>
+    <text x="68" y="646" font-family="system-ui" font-size="11" fill="#475569">3 tablet · günde 6 kez</text>
+    <text x="300" y="628" font-family="system-ui" font-size="12" fill="#0D9488" font-weight="600">14:00</text>
+    <circle cx="330" cy="642" r="10" fill="#F0FDFA"/>
+    <text x="330" y="646" font-family="system-ui" font-size="10" fill="#0D9488" text-anchor="middle">⏳</text>
+  </g>
+
+  <!-- İlaç Satırı 4 - Kaçırılan -->
+  <g filter="url(#cardShadow)">
+    <rect x="16" y="678" width="358" height="64" rx="12" fill="#FEF2F2"/>
+    <rect x="16" y="678" width="4" height="64" rx="2" fill="#DC2626"/>
+    <circle cx="44" cy="710" r="14" fill="#FFD93D"/>
+    <text x="44" y="714" font-family="system-ui" font-size="10" fill="#FFFFFF" text-anchor="middle">💊</text>
+    <text x="68" y="702" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Vermidon</text>
+    <text x="68" y="720" font-family="system-ui" font-size="11" fill="#475569">1 kapsül · yemekten önce</text>
+    <text x="300" y="702" font-family="system-ui" font-size="12" fill="#DC2626" font-weight="600">07:00</text>
+    <circle cx="330" cy="716" r="10" fill="#FEE2E2"/>
+    <text x="330" y="720" font-family="system-ui" font-size="10" fill="#DC2626" text-anchor="middle">✕</text>
+  </g>
+
+  <!-- Bottom Tab Bar -->
+  <rect x="0" y="776" width="390" height="68" fill="#FFFFFF" filter="url(#cardShadow)"/>
+  <line x1="0" y1="776" x2="390" y2="776" stroke="#E2E8F0" stroke-width="1"/>
+
+  <!-- Tab: Ana Sayfa (Aktif) -->
+  <g>
+    <rect x="20" y="786" width="60" height="4" rx="2" fill="#0D9488"/>
+    <text x="50" y="806" font-family="system-ui" font-size="18" fill="#0D9488" text-anchor="middle">🏠</text>
+    <text x="50" y="822" font-family="system-ui" font-size="10" font-weight="600" fill="#0D9488" text-anchor="middle">Ana Sayfa</text>
+  </g>
+
+  <!-- Tab: İlaçlarım -->
+  <g>
+    <text x="130" y="806" font-family="system-ui" font-size="18" fill="#94A3B8" text-anchor="middle">💊</text>
+    <text x="130" y="822" font-family="system-ui" font-size="10" fill="#94A3B8" text-anchor="middle">İlaçlarım</text>
+  </g>
+
+  <!-- FAB: İlaç Ekle -->
+  <circle cx="195" cy="776" r="28" fill="#0D9488"/>
+  <circle cx="195" cy="776" r="26" fill="url(#headerGrad)"/>
+  <text x="195" y="782" font-family="system-ui" font-size="24" fill="#FFFFFF" text-anchor="middle">+</text>
+
+  <!-- Tab: İstatistikler -->
+  <g>
+    <text x="260" y="806" font-family="system-ui" font-size="18" fill="#94A3B8" text-anchor="middle">📊</text>
+    <text x="260" y="822" font-family="system-ui" font-size="10" fill="#94A3B8" text-anchor="middle">İstatistikler</text>
+  </g>
+
+  <!-- Tab: Ayarlar -->
+  <g>
+    <text x="340" y="806" font-family="system-ui" font-size="18" fill="#94A3B8" text-anchor="middle">⚙️</text>
+    <text x="340" y="822" font-family="system-ui" font-size="10" fill="#94A3B8" text-anchor="middle">Ayarlar</text>
+  </g>
+</svg>

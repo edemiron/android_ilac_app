@@ -4,7 +4,6 @@
  * Covers: addMedicine, updateMedicine, deleteMedicine, sync operations
  */
 
-import { act } from '@testing-library/react-native';
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -49,7 +48,7 @@ jest.mock('date-fns', () => ({
 
 // Import after mocks
 import { useMedicineStore, MEDICINE_COLORS } from '../../stores/medicineStore';
-import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../../types';
+import { Medicine, ReminderTime } from '../../types';
 
 describe('MedicineStore', () => {
   // Reset store state before each test
@@ -493,6 +492,7 @@ describe('MedicineStore', () => {
       });
 
       const { reminderTimes: beforeTimes } = useMedicineStore.getState();
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const beforeFirstTime = beforeTimes[0]?.time;
 
       store.updateSettings({ wakeUpTime: '06:00' });

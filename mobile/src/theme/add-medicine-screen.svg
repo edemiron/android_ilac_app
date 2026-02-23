@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 1100" width="390" height="1100">
+  <defs>
+    <filter id="shadow5" x="-2%" y="-1%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0F172A" flood-opacity="0.06"/>
+    </filter>
+  </defs>
+
+  <!-- Arka Plan -->
+  <rect width="390" height="1100" fill="#F8FAFC"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="390" height="56" fill="#FFFFFF"/>
+  <line x1="0" y1="56" x2="390" y2="56" stroke="#E2E8F0" stroke-width="1"/>
+  <text x="24" y="36" font-family="system-ui" font-size="18" fill="#0D9488">←</text>
+  <text x="56" y="36" font-family="system-ui" font-size="18" font-weight="700" fill="#0F172A">Yeni İlaç Ekle</text>
+
+  <!-- KART 1: Temel Bilgiler -->
+  <g filter="url(#shadow5)">
+    <rect x="16" y="72" width="358" height="200" rx="16" fill="#FFFFFF"/>
+
+    <!-- İlaç Adı -->
+    <text x="32" y="100" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">İlaç Adı *</text>
+    <rect x="32" y="108" width="310" height="44" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="48" y="134" font-family="system-ui" font-size="13" fill="#94A3B8">Örn: Aspirin</text>
+    <!-- Barkod ikonu -->
+    <rect x="310" y="108" width="44" height="44" rx="12" fill="#F0FDFA" stroke="#0D9488" stroke-width="1"/>
+    <text x="332" y="136" font-family="system-ui" font-size="18" text-anchor="middle" fill="#0D9488">📷</text>
+
+    <!-- Doz -->
+    <text x="32" y="176" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Doz *</text>
+    <!-- Miktar -->
+    <rect x="32" y="184" width="80" height="44" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="72" y="212" font-family="system-ui" font-size="16" font-weight="600" fill="#0F172A" text-anchor="middle">1</text>
+
+    <!-- Form seçenekleri -->
+    <rect x="124" y="184" width="64" height="32" rx="8" fill="#0D9488"/>
+    <text x="156" y="204" font-family="system-ui" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">Tablet</text>
+    <rect x="196" y="184" width="64" height="32" rx="8" fill="#F1F5F9"/>
+    <text x="228" y="204" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Kapsül</text>
+    <rect x="268" y="184" width="56" height="32" rx="8" fill="#F1F5F9"/>
+    <text x="296" y="204" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Şurup</text>
+
+    <!-- İkinci satır form -->
+    <rect x="124" y="222" width="56" height="32" rx="8" fill="#F1F5F9"/>
+    <text x="152" y="242" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Damla</text>
+    <rect x="188" y="222" width="48" height="32" rx="8" fill="#F1F5F9"/>
+    <text x="212" y="242" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">İğne</text>
+    <rect x="244" y="222" width="56" height="32" rx="8" fill="#F1F5F9"/>
+    <text x="272" y="242" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Diğer</text>
+  </g>
+
+  <!-- KART 2: Kullanım Planı -->
+  <g filter="url(#shadow5)">
+    <rect x="16" y="288" width="358" height="280" rx="16" fill="#FFFFFF"/>
+
+    <!-- Günlük Kullanım -->
+    <text x="32" y="316" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Günlük Kullanım</text>
+    <g>
+      <rect x="32" y="326" width="40" height="36" rx="10" fill="#F1F5F9"/>
+      <text x="52" y="348" font-family="system-ui" font-size="13" fill="#475569" text-anchor="middle">1x</text>
+      <rect x="80" y="326" width="40" height="36" rx="10" fill="#F1F5F9"/>
+      <text x="100" y="348" font-family="system-ui" font-size="13" fill="#475569" text-anchor="middle">2x</text>
+      <rect x="128" y="326" width="40" height="36" rx="10" fill="#0D9488"/>
+      <text x="148" y="348" font-family="system-ui" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">3x</text>
+      <rect x="176" y="326" width="40" height="36" rx="10" fill="#F1F5F9"/>
+      <text x="196" y="348" font-family="system-ui" font-size="13" fill="#475569" text-anchor="middle">4x</text>
+      <rect x="224" y="326" width="40" height="36" rx="10" fill="#F1F5F9"/>
+      <text x="244" y="348" font-family="system-ui" font-size="13" fill="#475569" text-anchor="middle">5x</text>
+      <rect x="272" y="326" width="40" height="36" rx="10" fill="#F1F5F9"/>
+      <text x="292" y="348" font-family="system-ui" font-size="13" fill="#475569" text-anchor="middle">6x</text>
+    </g>
+    <rect x="320" y="326" width="40" height="36" rx="10" fill="#F1F5F9"/>
+    <text x="340" y="348" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Özel</text>
+
+    <!-- Kullanım Talimatı -->
+    <text x="32" y="390" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Kullanım Talimatı</text>
+    <g>
+      <rect x="32" y="400" width="120" height="32" rx="8" fill="#0D9488"/>
+      <text x="92" y="420" font-family="system-ui" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">Herhangi bir zaman</text>
+      <rect x="160" y="400" width="110" height="32" rx="8" fill="#F1F5F9"/>
+      <text x="215" y="420" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Yemekten önce</text>
+      <rect x="278" y="400" width="80" height="32" rx="8" fill="#F1F5F9"/>
+      <text x="318" y="420" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Yemekten sonra</text>
+    </g>
+    <g>
+      <rect x="32" y="440" width="110" height="32" rx="8" fill="#F1F5F9"/>
+      <text x="87" y="460" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Yemekle birlikte</text>
+      <rect x="150" y="440" width="90" height="32" rx="8" fill="#F1F5F9"/>
+      <text x="195" y="460" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Aç karnına</text>
+      <rect x="248" y="440" width="110" height="32" rx="8" fill="#F1F5F9"/>
+      <text x="303" y="460" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Yatmadan önce</text>
+    </g>
+
+    <!-- Hatırlatma Zamanları -->
+    <text x="32" y="500" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Hatırlatma Zamanları</text>
+    <g>
+      <rect x="32" y="510" width="80" height="32" rx="8" fill="#F0FDFA" stroke="#0D9488" stroke-width="1"/>
+      <text x="62" y="530" font-family="system-ui" font-size="12" fill="#0D9488">08:00</text>
+      <text x="104" y="530" font-family="system-ui" font-size="12" fill="#DC2626">✕</text>
+
+      <rect x="124" y="510" width="80" height="32" rx="8" fill="#F0FDFA" stroke="#0D9488" stroke-width="1"/>
+      <text x="154" y="530" font-family="system-ui" font-size="12" fill="#0D9488">14:00</text>
+      <text x="196" y="530" font-family="system-ui" font-size="12" fill="#DC2626">✕</text>
+
+      <rect x="216" y="510" width="80" height="32" rx="8" fill="#F0FDFA" stroke="#0D9488" stroke-width="1"/>
+      <text x="246" y="530" font-family="system-ui" font-size="12" fill="#0D9488">21:00</text>
+      <text x="288" y="530" font-family="system-ui" font-size="12" fill="#DC2626">✕</text>
+
+      <!-- Ekle butonu -->
+      <rect x="308" y="510" width="50" height="32" rx="8" fill="#0D9488"/>
+      <text x="333" y="530" font-family="system-ui" font-size="12" font-weight="600" fill="#FFFFFF" text-anchor="middle">+ Ekle</text>
+    </g>
+  </g>
+
+  <!-- KART 3: Görünüm -->
+  <g filter="url(#shadow5)">
+    <rect x="16" y="584" width="358" height="140" rx="16" fill="#FFFFFF"/>
+
+    <!-- İlaç Fotoğrafı -->
+    <text x="32" y="612" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">İlaç Fotoğrafı</text>
+    <rect x="32" y="622" width="150" height="40" rx="10" fill="#F0FDFA" stroke="#0D9488" stroke-width="1"/>
+    <text x="107" y="646" font-family="system-ui" font-size="12" fill="#0D9488" text-anchor="middle">📷 Fotoğraf Çek</text>
+    <rect x="194" y="622" width="150" height="40" rx="10" fill="#F0FDFA" stroke="#0D9488" stroke-width="1"/>
+    <text x="269" y="646" font-family="system-ui" font-size="12" fill="#0D9488" text-anchor="middle">🖼️ Galeriden Seç</text>
+
+    <!-- Tema Rengi -->
+    <text x="32" y="686" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Tema Rengi</text>
+    <circle cx="44" cy="706" r="14" fill="#FF6B6B" stroke="#0F172A" stroke-width="2.5"/>
+    <text x="44" y="710" font-family="system-ui" font-size="10" fill="#FFFFFF" text-anchor="middle">✓</text>
+    <circle cx="80" cy="706" r="14" fill="#4ECDC4"/>
+    <circle cx="116" cy="706" r="14" fill="#45B7D1"/>
+    <circle cx="152" cy="706" r="14" fill="#96CEB4"/>
+    <circle cx="188" cy="706" r="14" fill="#FFD93D"/>
+    <circle cx="224" cy="706" r="14" fill="#C9A0DC"/>
+    <circle cx="260" cy="706" r="14" fill="#FF8C69"/>
+    <circle cx="296" cy="706" r="14" fill="#98D8C8"/>
+  </g>
+
+  <!-- KART 4: Gelişmiş Alarm Ayarları -->
+  <g filter="url(#shadow5)">
+    <rect x="16" y="740" width="358" height="160" rx="16" fill="#FFFFFF"/>
+    <text x="32" y="768" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Gelişmiş Alarm Ayarları</text>
+
+    <!-- Barkod Sor -->
+    <g>
+      <rect x="32" y="782" width="40" height="40" rx="10" fill="#F0FDFA"/>
+      <text x="52" y="808" font-family="system-ui" font-size="18" text-anchor="middle">📷</text>
+      <text x="82" y="798" font-family="system-ui" font-size="13" fill="#0F172A">Kapatmak için Barkod Sor</text>
+      <text x="82" y="814" font-family="system-ui" font-size="10" fill="#94A3B8">Alarmı kapatmak için barkodu okutun</text>
+      <rect x="316" y="792" width="40" height="22" rx="11" fill="#E2E8F0"/>
+      <circle cx="328" cy="803" r="9" fill="#FFFFFF"/>
+    </g>
+
+    <!-- Titreşim Deseni -->
+    <g>
+      <rect x="32" y="832" width="40" height="40" rx="10" fill="#F0FDFA"/>
+      <text x="52" y="858" font-family="system-ui" font-size="18" text-anchor="middle">📳</text>
+      <text x="82" y="852" font-family="system-ui" font-size="13" fill="#0F172A">Özel Titreşim Deseni</text>
+      <!-- Titreşim seçenekleri -->
+      <rect x="82" y="862" width="72" height="26" rx="6" fill="#0D9488"/>
+      <text x="118" y="880" font-family="system-ui" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">Varsayılan</text>
+      <rect x="162" y="862" width="64" height="26" rx="6" fill="#F1F5F9"/>
+      <text x="194" y="880" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Yumuşak</text>
+      <rect x="234" y="862" width="64" height="26" rx="6" fill="#F1F5F9"/>
+      <text x="266" y="880" font-family="system-ui" font-size="11" fill="#475569" text-anchor="middle">Kalp Atışı</text>
+    </g>
+  </g>
+
+  <!-- KART 5: Stok & Son Kullanma -->
+  <g filter="url(#shadow5)">
+    <rect x="16" y="916" width="358" height="110" rx="16" fill="#FFFFFF"/>
+
+    <!-- Stok Takibi -->
+    <g>
+      <text x="32" y="948" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Stok Takibi</text>
+      <rect x="316" y="936" width="40" height="22" rx="11" fill="#0D9488"/>
+      <circle cx="344" cy="947" r="9" fill="#FFFFFF"/>
+    </g>
+
+    <!-- Son Kullanma Tarihi -->
+    <g>
+      <text x="32" y="988" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">Son Kullanma Tarihi</text>
+      <text x="200" y="988" font-family="system-ui" font-size="11" fill="#94A3B8" font-style="italic">Opsiyonel</text>
+      <rect x="32" y="998" width="200" height="20" rx="6" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+      <text x="44" y="1012" font-family="system-ui" font-size="11" fill="#94A3B8">Tarih seçin</text>
+      <text x="220" y="1012" font-family="system-ui" font-size="14" fill="#475569">📅</text>
+    </g>
+  </g>
+
+  <!-- Alt Butonlar (Sticky) -->
+  <rect x="0" y="1040" width="390" height="60" fill="#FFFFFF"/>
+  <line x1="0" y1="1040" x2="390" y2="1040" stroke="#E2E8F0" stroke-width="1"/>
+  <rect x="16" y="1050" width="170" height="40" rx="12" fill="none" stroke="#94A3B8" stroke-width="1.5"/>
+  <text x="101" y="1074" font-family="system-ui" font-size="14" font-weight="600" fill="#475569" text-anchor="middle">İptal</text>
+  <rect x="204" y="1050" width="170" height="40" rx="12" fill="#0D9488"/>
+  <text x="289" y="1074" font-family="system-ui" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Kaydet</text>
+</svg>

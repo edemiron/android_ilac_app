@@ -8,3 +8,5 @@ export { FormButtons } from './FormButtons';
 export { BarcodeSection } from './BarcodeSection';
 export { StockSection } from './StockSection';
 export { ExpirySection } from './ExpirySection';
+export { ImagePickerSection } from './ImagePickerSection';
+export { AdvancedSettingsSection } from './AdvancedSettingsSection';

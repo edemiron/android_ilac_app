@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" width="390" height="844">
+  <defs>
+    <linearGradient id="headerGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0D9488"/>
+      <stop offset="100%" style="stop-color:#0891B2"/>
+    </linearGradient>
+    <filter id="shadow2" x="-2%" y="-2%" width="104%" height="108%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0F172A" flood-opacity="0.06"/>
+    </filter>
+  </defs>
+
+  <!-- Arka Plan -->
+  <rect width="390" height="844" rx="40" fill="#F8FAFC"/>
+
+  <!-- Status Bar -->
+  <text x="32" y="32" font-family="system-ui" font-size="14" font-weight="600" fill="#0F172A">6:15</text>
+
+  <!-- Sayfa Başlığı -->
+  <text x="24" y="76" font-family="system-ui" font-size="24" font-weight="700" fill="#0F172A">İlaçlarım</text>
+
+  <!-- Arama Çubuğu -->
+  <rect x="16" y="92" width="358" height="44" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+  <text x="48" y="118" font-family="system-ui" font-size="14" fill="#94A3B8">🔍 İlaç ara...</text>
+
+  <!-- Aktif İlaçlar Başlığı -->
+  <circle cx="28" cy="160" r="8" fill="#D1FAE5"/>
+  <text x="28" y="164" font-family="system-ui" font-size="10" fill="#059669" text-anchor="middle">●</text>
+  <text x="44" y="164" font-family="system-ui" font-size="14" font-weight="700" fill="#0F172A">AKTİF İLAÇLAR</text>
+  <rect x="160" y="152" width="28" height="20" rx="10" fill="#0D9488"/>
+  <text x="174" y="166" font-family="system-ui" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">13</text>
+
+  <!-- İlaç Kartı 1: Gripin -->
+  <g filter="url(#shadow2)">
+    <rect x="16" y="184" width="358" height="88" rx="14" fill="#FFFFFF"/>
+    <!-- Sol renk şeridi -->
+    <rect x="16" y="184" width="5" height="88" rx="2" fill="#45B7D1"/>
+    <!-- İlaç ikonu -->
+    <rect x="32" y="200" width="48" height="48" rx="12" fill="#EFF6FF"/>
+    <text x="56" y="230" font-family="system-ui" font-size="22" text-anchor="middle">⭐</text>
+    <!-- İlaç bilgileri -->
+    <text x="92" y="212" font-family="system-ui" font-size="15" font-weight="700" fill="#0F172A">TEST-Gripin</text>
+    <text x="92" y="230" font-family="system-ui" font-size="12" fill="#475569">250mg · günde 1 kez · Herhangi bir zaman</text>
+    <!-- Sonraki hatırlatma -->
+    <rect x="92" y="240" width="80" height="22" rx="6" fill="#FEF2F2"/>
+    <text x="100" y="256" font-family="system-ui" font-size="11" fill="#DC2626">⏰ 03:08</text>
+    <!-- Üç nokta menü -->
+    <text x="356" y="228" font-family="system-ui" font-size="16" fill="#94A3B8" text-anchor="middle">⋮</text>
+  </g>
+
+  <!-- İlaç Kartı 2: Dikloron -->
+  <g filter="url(#shadow2)">
+    <rect x="16" y="284" width="358" height="88" rx="14" fill="#FFFFFF"/>
+    <rect x="16" y="284" width="5" height="88" rx="2" fill="#4ECDC4"/>
+    <rect x="32" y="300" width="48" height="48" rx="12" fill="#F0FDFA"/>
+    <text x="56" y="330" font-family="system-ui" font-size="22" text-anchor="middle">💊</text>
+    <text x="92" y="312" font-family="system-ui" font-size="15" font-weight="700" fill="#0F172A">TEST-Dikloron</text>
+    <text x="92" y="330" font-family="system-ui" font-size="12" fill="#475569">500mg · günde 1 kez · Yatmadan önce</text>
+    <rect x="92" y="340" width="80" height="22" rx="6" fill="#FEF2F2"/>
+    <text x="100" y="356" font-family="system-ui" font-size="11" fill="#DC2626">⏰ 03:09</text>
+    <text x="356" y="328" font-family="system-ui" font-size="16" fill="#94A3B8" text-anchor="middle">⋮</text>
+  </g>
+
+  <!-- İlaç Kartı 3: Vermidon -->
+  <g filter="url(#shadow2)">
+    <rect x="16" y="384" width="358" height="88" rx="14" fill="#FFFFFF"/>
+    <rect x="16" y="384" width="5" height="88" rx="2" fill="#FF6B6B"/>
+    <rect x="32" y="400" width="48" height="48" rx="12" fill="#FEF2F2"/>
+    <text x="56" y="430" font-family="system-ui" font-size="22" text-anchor="middle">💊</text>
+    <text x="92" y="412" font-family="system-ui" font-size="15" font-weight="700" fill="#0F172A">TEST-Vermidon</text>
+    <text x="92" y="430" font-family="system-ui" font-size="12" fill="#475569">1 kapsül · günde 1 kez · Yemekten önce</text>
+    <rect x="92" y="440" width="80" height="22" rx="6" fill="#FEF2F2"/>
+    <text x="100" y="456" font-family="system-ui" font-size="11" fill="#DC2626">⏰ 03:10</text>
+    <text x="356" y="428" font-family="system-ui" font-size="16" fill="#94A3B8" text-anchor="middle">⋮</text>
+  </g>
+
+  <!-- İlaç Kartı 4: Arveles -->
+  <g filter="url(#shadow2)">
+    <rect x="16" y="484" width="358" height="88" rx="14" fill="#FFFFFF"/>
+    <rect x="16" y="484" width="5" height="88" rx="2" fill="#C9A0DC"/>
+    <rect x="32" y="500" width="48" height="48" rx="12" fill="#F5F3FF"/>
+    <text x="56" y="530" font-family="system-ui" font-size="22" text-anchor="middle">💊</text>
+    <text x="92" y="512" font-family="system-ui" font-size="15" font-weight="700" fill="#0F172A">TEST-Arveles</text>
+    <text x="92" y="530" font-family="system-ui" font-size="12" fill="#475569">2 tablet · günde 1 kez · Aç karnına</text>
+    <rect x="92" y="540" width="80" height="22" rx="6" fill="#FEF2F2"/>
+    <text x="100" y="556" font-family="system-ui" font-size="11" fill="#DC2626">⏰ 03:11</text>
+    <text x="356" y="528" font-family="system-ui" font-size="16" fill="#94A3B8" text-anchor="middle">⋮</text>
+  </g>
+
+  <!-- İlaç Kartı 5: Apranax -->
+  <g filter="url(#shadow2)">
+    <rect x="16" y="584" width="358" height="88" rx="14" fill="#FFFFFF"/>
+    <rect x="16" y="584" width="5" height="88" rx="2" fill="#FFD93D"/>
+    <rect x="32" y="600" width="48" height="48" rx="12" fill="#FFFBEB"/>
+    <text x="56" y="630" font-family="system-ui" font-size="22" text-anchor="middle">💊</text>
+    <text x="92" y="612" font-family="system-ui" font-size="15" font-weight="700" fill="#0F172A">APRANAX PLUS 20</text>
+    <text x="92" y="630" font-family="system-ui" font-size="12" fill="#475569">3 tablet · günde 6 kez · Herhangi bir zaman</text>
+    <rect x="92" y="640" width="80" height="22" rx="6" fill="#FEF2F2"/>
+    <text x="100" y="656" font-family="system-ui" font-size="11" fill="#DC2626">⏰ 08:00</text>
+    <!-- Ek hatırlatma sayısı -->
+    <rect x="178" y="640" width="28" height="22" rx="6" fill="#F0FDFA"/>
+    <text x="192" y="656" font-family="system-ui" font-size="11" fill="#0D9488" text-anchor="middle">+5</text>
+    <text x="356" y="628" font-family="system-ui" font-size="16" fill="#94A3B8" text-anchor="middle">⋮</text>
+  </g>
+
+  <!-- Bottom Tab Bar -->
+  <rect x="0" y="776" width="390" height="68" fill="#FFFFFF" filter="url(#shadow2)"/>
+  <line x1="0" y1="776" x2="390" y2="776" stroke="#E2E8F0" stroke-width="1"/>
+
+  <!-- Tab: Ana Sayfa -->
+  <text x="50" y="806" font-family="system-ui" font-size="18" fill="#94A3B8" text-anchor="middle">🏠</text>
+  <text x="50" y="822" font-family="system-ui" font-size="10" fill="#94A3B8" text-anchor="middle">Ana Sayfa</text>
+
+  <!-- Tab: İlaçlarım (Aktif) -->
+  <rect x="100" y="786" width="60" height="4" rx="2" fill="#0D9488"/>
+  <text x="130" y="806" font-family="system-ui" font-size="18" fill="#0D9488" text-anchor="middle">💊</text>
+  <text x="130" y="822" font-family="system-ui" font-size="10" font-weight="600" fill="#0D9488" text-anchor="middle">İlaçlarım</text>
+
+  <!-- FAB -->
+  <circle cx="195" cy="776" r="28" fill="url(#headerGrad2)"/>
+  <text x="195" y="782" font-family="system-ui" font-size="24" fill="#FFFFFF" text-anchor="middle">+</text>
+
+  <!-- Tab: İstatistikler -->
+  <text x="260" y="806" font-family="system-ui" font-size="18" fill="#94A3B8" text-anchor="middle">📊</text>
+  <text x="260" y="822" font-family="system-ui" font-size="10" fill="#94A3B8" text-anchor="middle">İstatistikler</text>
+
+  <!-- Tab: Ayarlar -->
+  <text x="340" y="806" font-family="system-ui" font-size="18" fill="#94A3B8" text-anchor="middle">⚙️</text>
+  <text x="340" y="822" font-family="system-ui" font-size="10" fill="#94A3B8" text-anchor="middle">Ayarlar</text>
+</svg>

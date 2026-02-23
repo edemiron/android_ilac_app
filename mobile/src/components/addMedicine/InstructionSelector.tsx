@@ -60,22 +60,23 @@ const createStyles = (colors: ThemeColors) =>
     },
     instructionButton: {
       backgroundColor: colors.card,
-      borderRadius: 20,
+      borderRadius: 16,
       paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingVertical: 12,
       borderWidth: 1,
-      borderColor: colors.inputBorder,
+      borderColor: colors.border,
     },
     instructionButtonActive: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.primary + '15',
       borderColor: colors.primary,
+      borderWidth: 1.5,
     },
     instructionText: {
       fontSize: 13,
       color: colors.textSecondary,
     },
     instructionTextActive: {
-      color: '#FFFFFF',
-      fontWeight: '500',
+      color: colors.primary,
+      fontWeight: '600',
     },
   });

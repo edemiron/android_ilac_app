@@ -186,8 +186,8 @@ const createStyles = (colors: ThemeColors) =>
     unitBtn: {
       flex: 1,
       paddingVertical: 14,
-      borderRadius: 12,
-      borderWidth: 2,
+      borderRadius: 16,
+      borderWidth: 1,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -214,7 +214,7 @@ const createStyles = (colors: ThemeColors) =>
       fontWeight: '700',
     },
     countBox: {
-      borderWidth: 2,
+      borderWidth: 1,
       borderRadius: 14,
       paddingHorizontal: 16,
       paddingVertical: 8,
@@ -234,7 +234,7 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       paddingVertical: 12,
       paddingHorizontal: 14,
-      borderRadius: 12,
+      borderRadius: 16,
       borderWidth: 1,
       gap: 10,
     },

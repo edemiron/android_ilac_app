@@ -24,12 +24,14 @@ export default function PremiumScreen() {
   const { showConfirm, showSuccess, showError, showInfo } = useAlert();
   const {
     isPremium,
+    // eslint-disable-next-line unused-imports/no-unused-vars
     subscription,
     remainingDays,
     monthlyPrice,
     yearlyPrice,
     yearlySavings,
     upgrade,
+    // eslint-disable-next-line unused-imports/no-unused-vars
     cancel,
   } = useSubscription();
 

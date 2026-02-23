@@ -1,0 +1,6 @@
+--------- beginning of main
+02-21 23:12:59.683 26559 24422 I ReactNativeJS: Running "main"
+02-21 23:12:59.688 26559 24422 W ReactNativeJS: The app is running using the Legacy Architecture. The Legacy Architecture is deprecated and will be removed in a future version of React Native. Please consider migrating to the New Architecture. For more information, please see https://reactnative.dev/blog/2024/10/23/the-new-architecture-is-here
+02-21 23:15:00.096 26559 24422 I ReactNativeJS: '🔴 navigateToAlarm:', '019c7ee6-4b32-70ab-97f0-ef5fc45a8b64', '019c7ee6-4b32-70ab-97f0-ef5fc45a8b64_3'
+02-21 23:21:21.567 24734 30651 I ReactNativeJS: Running "main"
+02-21 23:21:21.570 24734 30651 W ReactNativeJS: The app is running using the Legacy Architecture. The Legacy Architecture is deprecated and will be removed in a future version of React Native. Please consider migrating to the New Architecture. For more information, please see https://reactnative.dev/blog/2024/10/23/the-new-architecture-is-here

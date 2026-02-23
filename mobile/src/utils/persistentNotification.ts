@@ -11,13 +11,14 @@ import notifee, {
   AndroidGroupAlertBehavior,
 } from '@notifee/react-native';
 import { Platform } from 'react-native';
-import { Medicine, ReminderTime } from '../types';
+import { Medicine, ReminderTime, MedicineLog } from '../types';
 import { createScopedLogger } from './logger';
 import { CHANNELS } from '../constants';
 
 const log = createScopedLogger('PersistentNotification');
 
 const PERSISTENT_CHANNEL_ID = CHANNELS.PERSISTENT;
+// eslint-disable-next-line unused-imports/no-unused-vars
 const PERSISTENT_NOTIFICATION_TAG = 'medicine-pending';
 
 /**
@@ -256,7 +257,7 @@ export async function dismissAllPersistentNotifications(): Promise<void> {
 export async function checkAndShowPersistentNotifications(
   medicines: Medicine[],
   reminderTimes: ReminderTime[],
-  logs: Array<{ medicineId: string; scheduledTime: string; status: 'taken' | 'skipped' }>
+  logs: MedicineLog[]
 ): Promise<void> {
   try {
     const now = new Date();

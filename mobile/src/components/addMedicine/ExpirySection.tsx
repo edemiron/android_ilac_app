@@ -239,8 +239,8 @@ const createStyles = (colors: ThemeColors) =>
       justifyContent: 'space-between',
       paddingVertical: 14,
       paddingHorizontal: 16,
-      borderRadius: 12,
-      borderWidth: 2,
+      borderRadius: 16,
+      borderWidth: 1,
     },
     dateText: {
       fontSize: 16,
@@ -258,7 +258,7 @@ const createStyles = (colors: ThemeColors) =>
     },
     reminderSection: {
       backgroundColor: colors.background,
-      borderRadius: 12,
+      borderRadius: 16,
       padding: 14,
       borderWidth: 1,
       borderColor: colors.border,
@@ -281,8 +281,8 @@ const createStyles = (colors: ThemeColors) =>
     reminderOption: {
       paddingVertical: 10,
       paddingHorizontal: 16,
-      borderRadius: 10,
-      borderWidth: 2,
+      borderRadius: 16,
+      borderWidth: 1,
     },
     reminderOptionText: {
       fontSize: 14,

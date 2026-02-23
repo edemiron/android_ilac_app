@@ -13,7 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { GlobalMedicine, MedicineAutocompleteResult, MedicineSearchQuery } from '../types';
+import { GlobalMedicine, MedicineAutocompleteResult } from '../types';
 import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('GlobalMedicineService');

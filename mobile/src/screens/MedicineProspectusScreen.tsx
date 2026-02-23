@@ -13,7 +13,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { RootStackParamList, MedicineProspectus, AISearchResult } from '../types';
+import { RootStackParamList, MedicineProspectus } from '../types';
 import { getMedicineInfoAI } from '../services/aiMedicineService';
 import { getMedicineById } from '../services/globalMedicineService';
 
@@ -21,11 +21,13 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'MedicineProspectus'>;
 
 export default function MedicineProspectusScreen() {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const { medicineId, medicineName, dosage } = route.params;
   
   const { colors, isDark } = useTheme();
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { t, language } = useLanguage();
 
   const [isLoading, setIsLoading] = useState(true);

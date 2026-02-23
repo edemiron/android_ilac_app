@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,13 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useCodeScanner,
+  Code,
+} from 'react-native-vision-camera';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import notifee, { EventType } from '@notifee/react-native';
@@ -15,7 +22,6 @@ import { playAlarmSound, stopAlarmSound } from '../utils/alarmSoundManager';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, ReminderTime } from '../types';
-import { formatTimeDisplay, getInstructionText } from '../utils/timeCalculator';
 import { stopAdvancedSpeaking, speakAlarmNotification } from '../utils/advancedSpeech';
 import {
   scheduleSnoozeNotification,
@@ -35,6 +41,8 @@ const log = createScopedLogger('AlarmScreen');
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'Alarm'>;
 
+// eslint-disable-next-line unused-imports/no-unused-vars
+// eslint-disable-next-line unused-imports/no-unused-vars
 const { width, height } = Dimensions.get('window');
 
 export default function AlarmScreen() {
@@ -78,6 +86,8 @@ export default function AlarmScreen() {
       isActive: true,
       createdAt: '2024-01-01T00:00:00.000Z', // Sabit değer
       updatedAt: '2024-01-01T00:00:00.000Z', // Sabit değer
+      requireBarcodeOnTake: false,
+      barcode: '',
     }),
     []
   ); // Boş dependency - sadece bir kez oluşur
@@ -125,6 +135,40 @@ export default function AlarmScreen() {
   const ttsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isStoppedRef = useRef<boolean>(false); // Alarm durduruldu mu?
   const isSnoozingRef = useRef<boolean>(false); // Snooze işlemi devam ediyor mu?
+
+  // Barkod Doğrulama State
+  const [showScanner, setShowScanner] = useState(false);
+  const [scannedMessage, setScannedMessage] = useState('');
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
+
+  const onCodeScanned = useCallback(
+    (codes: Code[]) => {
+      if (codes.length > 0 && showScanner) {
+        const scannedCode = codes[0].value;
+        if (scannedCode === medicine?.barcode) {
+          setScannedMessage(language === 'tr' ? 'Barkod doğrulandı!' : 'Barcode verified!');
+          // Biraz bekletip işlemi tamamla
+          setTimeout(() => {
+            setShowScanner(false);
+            processTake();
+          }, 1500);
+        } else {
+          setScannedMessage(
+            language === 'tr'
+              ? 'Yanlış barkod! Beklenen ilacı okutun.'
+              : 'Wrong barcode! Scan correct medicine.'
+          );
+        }
+      }
+    },
+    [showScanner, medicine, language]
+  );
+
+  const codeScanner = useCodeScanner({
+    codeTypes: ['ean-13', 'ean-8', 'upc-a', 'upc-e', 'code-128', 'code-39'],
+    onCodeScanned,
+  });
 
   // Pulse animasyonu
   useEffect(() => {
@@ -355,8 +399,7 @@ export default function AlarmScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicine, isTestMode, medicineId, settings.vibrationEnabled, language]);
 
-  const handleTake = async () => {
-    await stopAlarm();
+  const processTake = async () => {
     // KRİTİK: scheduledTime'ı HomeScreen ile aynı formatta oluştur
     // getTodayReminders `l.scheduledTime.startsWith(today)` ile eşleştirir
     // toISOString() UTC verir, gece saatlerinde tarih uyuşmaz
@@ -387,6 +430,26 @@ export default function AlarmScreen() {
 
     dismissAlarm();
     navigation.goBack();
+  };
+
+  const handleTake = async () => {
+    await stopAlarm();
+
+    if (medicine?.requireBarcodeOnTake && medicine?.barcode && !isTestMode) {
+      log.debug('Barkod dogrulamasi gerekli');
+      if (!hasPermission) {
+        const granted = await requestPermission();
+        if (!granted) {
+          // İzin verilmezse işlemi doğrudan tamamla
+          await processTake();
+          return;
+        }
+      }
+      setShowScanner(true);
+      return;
+    }
+
+    await processTake();
   };
 
   const handleSkip = async () => {
@@ -537,7 +600,7 @@ export default function AlarmScreen() {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.navigate('Main');
+      navigation.navigate('Main', { screen: 'Home' });
     }
 
     log.debug('handleSnooze bitti');
@@ -588,6 +651,33 @@ export default function AlarmScreen() {
 
   const currentTime = format(new Date(), 'HH:mm');
   const currentDate = format(new Date(), 'dd MMMM yyyy', { locale: dateLocale });
+
+  if (showScanner && device) {
+    return (
+      <View style={[styles.container, { backgroundColor: '#000' }]}>
+        <Camera
+          style={StyleSheet.absoluteFill}
+          device={device}
+          isActive={showScanner}
+          codeScanner={codeScanner}
+        />
+        <View style={styles.scannerOverlay}>
+          <Text style={styles.scannerTitle}>
+            {language === 'tr' ? 'İlacın Barkodunu Okutun' : 'Scan Medicine Barcode'}
+          </Text>
+          {scannedMessage ? (
+            <Text style={styles.scannerMessage}>{scannedMessage}</Text>
+          ) : null}
+          <TouchableOpacity
+            style={styles.cancelScanButton}
+            onPress={() => setShowScanner(false)}
+          >
+            <Text style={styles.cancelScanText}>{language === 'tr' ? 'İptal' : 'Cancel'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   // Talimat metni
   const getInstructionDisplay = () => {
@@ -779,5 +869,42 @@ const styles = StyleSheet.create({
   },
   snoozeButtonTextDisabled: {
     color: 'rgba(255,255,255,0.5)',
+  },
+  scannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  scannerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFF',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  scannerMessage: {
+    fontSize: 18,
+    color: '#4ECDC4',
+    marginBottom: 30,
+    textAlign: 'center',
+    fontWeight: '600',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  cancelScanButton: {
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 15,
+    paddingHorizontal: 40,
+    borderRadius: 30,
+    marginTop: 40,
+  },
+  cancelScanText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });

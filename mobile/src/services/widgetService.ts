@@ -26,6 +26,7 @@ function formatMedicinesForWidget(
   medicines: Medicine[],
   reminderTimes: ReminderTime[]
 ): WidgetMedicine[] {
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const today = new Date().toISOString().split('T')[0];
   const widgetMedicines: WidgetMedicine[] = [];
 

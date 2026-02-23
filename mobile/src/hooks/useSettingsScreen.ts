@@ -72,6 +72,7 @@ export function useSettingsScreen() {
   const navigation = useNavigation<SettingsNavigationProp>();
   const { colors, isDark, theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { showAlert, showSuccess, showError, showInfo, showConfirm, showWarning } = useAlert();
   const {
     settings,

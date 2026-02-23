@@ -9,6 +9,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import Ionicons from 'react-native-vector-icons/Ionicons';
 // Note: useTheme kaldırıldı - ErrorBoundary ThemeProvider dışında da çalışmalı
 import { createScopedLogger } from '../../utils/logger';
+import { crashlyticsService } from '../../utils/crashlytics';
 
 const log = createScopedLogger('ErrorBoundary');
 
@@ -47,8 +48,8 @@ export class ErrorBoundary extends Component<Props, State> {
     // Call optional error handler
     this.props.onError?.(error, errorInfo);
 
-    // TODO: Send to crash reporting service (Crashlytics, Sentry, etc.)
-    // Example: crashlytics().recordError(error);
+    // Send to crash reporting service
+    crashlyticsService.recordError(error, this.props.componentName);
   }
 
   handleReset = () => {

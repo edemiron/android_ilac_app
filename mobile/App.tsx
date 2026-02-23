@@ -12,8 +12,11 @@ import {
   TouchableOpacity,
   Text,
   AppState,
+  PanResponder,
+  Dimensions,
+  Animated,
 } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -37,6 +40,8 @@ import {
   PermissionsScreen,
   SecurityScreen,
   TtsSettingsScreen,
+  CaregiverScreen,
+  CaregiverInviteScreen,
 } from './src/screens';
 
 // Lazy load BarcodeScannerScreen - vision-camera is HEAVY and slows startup by ~5s
@@ -138,7 +143,7 @@ const getTabColors = (isDark: boolean) => ({
   settings: { active: isDark ? '#F59E0B' : '#D97706', inactive: isDark ? '#6B8AAA' : '#94A3B8' }, // Warning - Amber
 });
 
-// Custom Tab Bar with Center FAB
+// Custom Tab Bar with Center FAB and swipe navigation
 interface CustomTabBarProps {
   state: any;
   descriptors: any;
@@ -285,56 +290,108 @@ const tabBarStyles = StyleSheet.create({
 
 // Tab Navigator with Theme Support
 function MainTabs() {
-  const { colors, isDark } = useTheme();
-  const { t, language } = useLanguage();
+  const { colors } = useTheme();
+  const { t } = useLanguage();
+
+  const TAB_ROUTES = ['Home', 'Medicines', 'Statistics', 'Settings'];
+  const tabNavRef = React.useRef<any>(null);
+  const tabIndexRef = React.useRef<number>(0);
+  const EDGE_ZONE = 36;
+  const SCREEN_WIDTH = Dimensions.get('window').width;
+  const SLIDE_DURATION = 220;
+
+  // Animasyon degeri
+  const translateX = React.useRef(new Animated.Value(0)).current;
+  const isSwiping = React.useRef(false);
+
+  const panResponder = React.useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: (evt) => {
+          const x = evt.nativeEvent.pageX;
+          return x < EDGE_ZONE || x > SCREEN_WIDTH - EDGE_ZONE;
+        },
+        onMoveShouldSetPanResponder: (_e, gs) =>
+          Math.abs(gs.dx) > 8 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.2,
+        onPanResponderGrant: () => {
+          isSwiping.current = true;
+          translateX.stopAnimation();
+        },
+        onPanResponderMove: (_e, gs) => {
+          // Parmakla birlikte kaydir (damped - %35)
+          translateX.setValue(gs.dx * 0.35);
+        },
+        onPanResponderRelease: (_e, gs) => {
+          isSwiping.current = false;
+          const nav = tabNavRef.current;
+          const idx = tabIndexRef.current;
+
+          const isSignificant = Math.abs(gs.dx) > 50 || Math.abs(gs.vx) > 0.3;
+          const nextIdx = gs.dx < 0
+            ? Math.min(idx + 1, TAB_ROUTES.length - 1)
+            : Math.max(idx - 1, 0);
+
+          if (!isSignificant || nextIdx === idx || !nav) {
+            // Snap back
+            Animated.spring(translateX, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 120,
+              friction: 9,
+            }).start();
+            return;
+          }
+
+          // 1) Ekrani dis tarafa kaydir
+          const outDir = gs.dx < 0 ? -SCREEN_WIDTH : SCREEN_WIDTH;
+          Animated.timing(translateX, {
+            toValue: outDir * 0.4,
+            duration: SLIDE_DURATION,
+            useNativeDriver: true,
+          }).start(() => {
+            // 2) Tab'i degistir
+            nav.navigate(TAB_ROUTES[nextIdx]);
+            // 3) Karsı taraftan giris pozisyonuna al (ani)
+            translateX.setValue(-outDir * 0.3);
+            // 4) Merkeze slide-in
+            Animated.timing(translateX, {
+              toValue: 0,
+              duration: SLIDE_DURATION,
+              useNativeDriver: true,
+            }).start();
+          });
+        },
+        onPanResponderTerminate: () => {
+          isSwiping.current = false;
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   return (
-    <Tab.Navigator
-      tabBar={props => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.header,
-        },
-        headerShadowVisible: false,
-        headerTitleStyle: {
-          fontWeight: '600',
-          color: colors.headerText,
-        },
-      }}
-    >
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{
-          title: t('tab_home'),
-          headerTitle: t('app_name'),
-        }}
-      />
-      <Tab.Screen
-        name="Medicines"
-        component={MedicinesScreen}
-        options={{
-          title: t('tab_medicines'),
-          headerTitle: t('tab_medicines'),
-        }}
-      />
-      <Tab.Screen
-        name="Statistics"
-        component={StatisticsScreen}
-        options={{
-          title: t('tab_statistics'),
-          headerTitle: t('tab_statistics'),
-        }}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          title: t('tab_settings'),
-          headerTitle: t('tab_settings'),
-        }}
-      />
-    </Tab.Navigator>
+    <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+      <Animated.View style={{ flex: 1, transform: [{ translateX }] }}>
+        <Tab.Navigator
+          tabBar={(props) => {
+            tabNavRef.current = props.navigation;
+            tabIndexRef.current = props.state.index;
+            return <CustomTabBar {...props} />;
+          }}
+          screenOptions={{
+            headerStyle: { backgroundColor: colors.header },
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: '600', color: colors.headerText },
+          }}
+        >
+          <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false, title: t('tab_home') }} />
+          <Tab.Screen name="Medicines" component={MedicinesScreen} options={{ title: t('tab_medicines'), headerTitle: t('tab_medicines') }} />
+          <Tab.Screen name="Statistics" component={StatisticsScreen} options={{ title: t('tab_statistics'), headerTitle: t('tab_statistics') }} />
+          <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: t('tab_settings'), headerTitle: t('tab_settings') }} />
+        </Tab.Navigator>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -477,8 +534,8 @@ function AppContent() {
       return;
     }
 
-    const isValid = await verifyPin(pinInput);
-    if (isValid) {
+    const result = await verifyPin(pinInput);
+    if (result.success) {
       setPinInput('');
       setShowPinEntry(false);
       await updateLastActiveTime();
@@ -486,9 +543,11 @@ function AppContent() {
     } else {
       Alert.alert(
         language === 'tr' ? 'Yanlış PIN' : 'Incorrect PIN',
-        language === 'tr' ? 'Girdiğiniz PIN doğru değil.' : 'The PIN you entered is incorrect.'
+        result.error || (language === 'tr' ? 'Girdiğiniz PIN doğru değil.' : 'The PIN you entered is incorrect.')
       );
-      setPinInput('');
+      if (!result.success) {
+        setPinInput('');
+      }
     }
   };
 
@@ -1108,6 +1167,22 @@ function AppContent() {
           component={TtsSettingsScreen}
           options={{
             title: language === 'tr' ? 'Sesli Bildirimler' : 'Voice Notifications',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="Caregiver"
+          component={CaregiverScreen}
+          options={{
+            title: language === 'tr' ? 'Bakıcı Yönetimi' : 'Caregiver Management',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="CaregiverInvite"
+          component={CaregiverInviteScreen}
+          options={{
+            title: language === 'tr' ? 'Daveti Kabul Et' : 'Accept Invite',
             presentation: 'card',
           }}
         />

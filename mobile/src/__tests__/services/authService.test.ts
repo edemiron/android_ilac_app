@@ -11,7 +11,6 @@ import {
   deleteAccount,
   getCurrentUser,
   subscribeToAuthChanges,
-  loginWithGoogle,
 } from '../../services/authService';
 
 // Mock Firebase Auth

@@ -18,12 +18,13 @@ const log = createScopedLogger('BarcodeScanner');
 
 interface UseBarcodeHookOptions {
   onScan?: (medicine: { name: string; dosage: string; barcode: string }) => void;
+  mode?: 'assign' | undefined;
 }
 
 type BarcodeScannerNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarcodeScanner {
-  const { onScan } = options;
+  const { onScan, mode } = options;
   const navigation = useNavigation<BarcodeScannerNavigationProp>();
   const { incrementBarcodeScanCount, isPremium } = useSubscription();
   const { medicines } = useMedicineStore();
@@ -86,6 +87,16 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
       setCurrentSearchStep(0);
 
       log.debug('Barkod tarandı', { barcode: result.data });
+
+      if (mode === 'assign') {
+        // Arama yapmadan sadece barkodu geri döndür
+        navigation.navigate({
+          name: 'AddMedicine',
+          params: { barcode: result.data },
+          merge: true,
+        });
+        return;
+      }
 
       setSearchStatus('searching');
       setStatusMessage('Arama başlatılıyor...');
@@ -156,13 +167,17 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
       });
       navigation.goBack();
     } else {
-      navigation.navigate('AddMedicine', {
-        barcode: scannedBarcode,
-        prefillName: foundMedicine?.name,
-        prefillDosage: foundMedicine?.dosage,
-        prefillManufacturer: foundMedicine?.manufacturer,
-        prefillGenericName: foundMedicine?.genericName,
-        prefillForm: foundMedicine?.form,
+      navigation.navigate({
+        name: 'AddMedicine',
+        params: {
+          barcode: scannedBarcode,
+          prefillName: foundMedicine?.name,
+          prefillDosage: foundMedicine?.dosage,
+          prefillManufacturer: foundMedicine?.manufacturer,
+          prefillGenericName: foundMedicine?.genericName,
+          prefillForm: foundMedicine?.form,
+        },
+        merge: true,
       });
     }
   }, [foundMedicine, scannedBarcode, onScan, navigation, isPremium, incrementBarcodeScanCount]);
@@ -216,12 +231,16 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
 
   const handleEditMedicine = useCallback(() => {
     setShowResultModal(false);
-    navigation.navigate('AddMedicine', {
-      barcode: scannedBarcode,
-      prefillName: foundMedicine?.name,
-      prefillDosage: foundMedicine?.dosage,
-      prefillManufacturer: foundMedicine?.manufacturer,
-      prefillGenericName: foundMedicine?.genericName,
+    navigation.navigate({
+      name: 'AddMedicine',
+      params: {
+        barcode: scannedBarcode,
+        prefillName: foundMedicine?.name,
+        prefillDosage: foundMedicine?.dosage,
+        prefillManufacturer: foundMedicine?.manufacturer,
+        prefillGenericName: foundMedicine?.genericName,
+      },
+      merge: true,
     });
   }, [navigation, scannedBarcode, foundMedicine]);
 

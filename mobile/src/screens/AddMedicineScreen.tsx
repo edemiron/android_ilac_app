@@ -13,12 +13,16 @@ import {
   ColorPicker,
   ReminderTimes,
   FormButtons,
-  BarcodeSection,
   StockSection,
   ExpirySection,
+  ImagePickerSection,
+  AdvancedSettingsSection,
 } from '../components/addMedicine';
 
+import { useNavigation } from '@react-navigation/native';
+
 export default function AddMedicineScreen() {
+  const navigation = useNavigation<any>();
   const {
     routeParams,
     isEditing,
@@ -43,6 +47,9 @@ export default function AddMedicineScreen() {
     handleScanBarcode,
     handleSave,
     handleCancel,
+    handleDosageAmountChange,
+    handleMedicineFormChange,
+    handleAutoTimes,
   } = useAddMedicine();
 
   const INSTRUCTION_OPTIONS: { value: MedicineInstruction; label: string }[] = [
@@ -65,102 +72,136 @@ export default function AddMedicineScreen() {
       >
         <ScrollView
           style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <BarcodeSection
-            barcode={routeParams.barcode}
-            onScanPress={handleScanBarcode}
-            isEditing={isEditing}
-            scanButtonText={t('medicine_scan_barcode')}
-            colors={colors}
-          />
+          {/* KART 1: Temel Bilgiler */}
+          <View style={styles.card}>
+            <MedicineNameInput
+              value={formState.name}
+              onChangeText={text => updateFormField('name', text)}
+              onFocus={() => setNameInputFocused(true)}
+              onBlur={() => setNameInputFocused(false)}
+              autocompleteState={autocompleteState}
+              onSelectAutocomplete={handleSelectAutocomplete}
+              label={t('medicine_name')}
+              placeholder={t('medicine_name_placeholder')}
+              colors={colors}
+              showBarcodeIcon={!isEditing}
+              onScanPress={handleScanBarcode}
+              barcodeScanned={!!routeParams.barcode}
+            />
 
-          <MedicineNameInput
-            value={formState.name}
-            onChangeText={text => updateFormField('name', text)}
-            onFocus={() => setNameInputFocused(true)}
-            onBlur={() => setNameInputFocused(false)}
-            autocompleteState={autocompleteState}
-            onSelectAutocomplete={handleSelectAutocomplete}
-            label={t('medicine_name')}
-            placeholder={t('medicine_name_placeholder')}
-            colors={colors}
-          />
+            <DosageInput
+              dosageAmount={formState.dosageAmount}
+              medicineForm={formState.medicineForm}
+              onAmountChange={handleDosageAmountChange}
+              onFormChange={handleMedicineFormChange}
+              label={t('medicine_dosage')}
+              colors={colors}
+              language={language}
+            />
+          </View>
 
-          <DosageInput
-            value={formState.dosage}
-            onChangeText={text => updateFormField('dosage', text)}
-            label={t('medicine_dosage')}
-            placeholder={t('medicine_dosage_placeholder')}
-            colors={colors}
-          />
+          {/* KART 2: Kullanım Planı */}
+          <View style={styles.card}>
+            <FrequencySelector
+              value={formState.frequency}
+              onSelect={freq => updateFormField('frequency', freq)}
+              onAutoTimes={handleAutoTimes}
+              label={t('medicine_frequency')}
+              colors={colors}
+            />
 
-          <FrequencySelector
-            value={formState.frequency}
-            onSelect={freq => updateFormField('frequency', freq)}
-            label={t('medicine_frequency')}
-            colors={colors}
-          />
+            <InstructionSelector
+              value={formState.instruction}
+              onSelect={inst => updateFormField('instruction', inst)}
+              options={INSTRUCTION_OPTIONS}
+              label={t('medicine_instruction')}
+              colors={colors}
+            />
 
-          <InstructionSelector
-            value={formState.instruction}
-            onSelect={inst => updateFormField('instruction', inst)}
-            options={INSTRUCTION_OPTIONS}
-            label={t('medicine_instruction')}
-            colors={colors}
-          />
+            <ReminderTimes
+              previewTimes={previewTimes}
+              customTimes={formState.customTimes}
+              useCustomTimes={formState.useCustomTimes}
+              selectedColor={formState.selectedColor}
+              wakeUpTime={settings.wakeUpTime}
+              sleepTime={settings.sleepTime}
+              timePickerState={timePickerState}
+              onEditTime={handleEditTime}
+              onDeleteTime={handleDeleteTime}
+              onAddTime={handleAddTime}
+              onTimeChange={handleTimeChange}
+              onConfirmTime={handleConfirmTime}
+              onCloseTimePicker={closeTimePicker}
+              onSwitchToManual={switchToManualTimes}
+              label={t('medicine_reminder_times')}
+              colors={colors}
+              language={language}
+            />
+          </View>
 
-          <ColorPicker
-            value={formState.selectedColor}
-            onSelect={color => updateFormField('selectedColor', color)}
-            label={t('medicine_color')}
-            colors={colors}
-          />
+          {/* KART 3: Görünüm ve Ekstralar */}
+          <View style={styles.card}>
+            <ImagePickerSection
+              imageUri={formState.imageUri}
+              onImageChange={(uri) => updateFormField('imageUri', uri)}
+              label={language === 'tr' ? 'İlaç Fotoğrafı' : 'Medicine Photo'}
+              colors={colors}
+              language={language}
+            />
 
-          <ReminderTimes
-            previewTimes={previewTimes}
-            customTimes={formState.customTimes}
-            useCustomTimes={formState.useCustomTimes}
-            selectedColor={formState.selectedColor}
-            wakeUpTime={settings.wakeUpTime}
-            sleepTime={settings.sleepTime}
-            timePickerState={timePickerState}
-            onEditTime={handleEditTime}
-            onDeleteTime={handleDeleteTime}
-            onAddTime={handleAddTime}
-            onTimeChange={handleTimeChange}
-            onConfirmTime={handleConfirmTime}
-            onCloseTimePicker={closeTimePicker}
-            onSwitchToManual={switchToManualTimes}
-            label={t('medicine_reminder_times')}
-            colors={colors}
-            language={language}
-          />
+            <ColorPicker
+              value={formState.selectedColor}
+              onSelect={color => updateFormField('selectedColor', color)}
+              category={formState.category}
+              onCategorySelect={cat => updateFormField('category', cat)}
+              label={language === 'tr' ? 'Tema Rengi' : 'Theme Color'}
+              colors={colors}
+            />
+          </View>
 
-          <StockSection
-            enabled={formState.stockEnabled}
-            count={formState.stockCount}
-            threshold={formState.stockThreshold}
-            unit={formState.stockUnit}
-            onEnabledChange={enabled => updateFormField('stockEnabled', enabled)}
-            onCountChange={count => updateFormField('stockCount', count)}
-            onThresholdChange={threshold => updateFormField('stockThreshold', threshold)}
-            onUnitChange={unit => updateFormField('stockUnit', unit)}
-            label={language === 'tr' ? 'Stok Takibi' : 'Stock Tracking'}
-            colors={colors}
-            language={language}
-          />
+          {/* KART 4: Gelişmiş Alarmlar */}
+          <View style={styles.card}>
+            <AdvancedSettingsSection
+              formState={formState}
+              onRequireBarcodeChange={(val: boolean) => updateFormField('requireBarcodeOnTake', val)}
+              onVibrationPatternChange={(pattern: 'default' | 'heartbeat' | 'urgent' | 'soft') => updateFormField('vibrationPattern', pattern)}
+              onScanBarcode={() => navigation.navigate('BarcodeScanner', { mode: 'assign' })}
+              label={language === 'tr' ? 'Gelişmiş Alarm Ayarları' : 'Advanced Alarm Settings'}
+              colors={colors}
+              language={language}
+            />
+          </View>
 
-          <ExpirySection
-            expiryDate={formState.expiryDate}
-            expiryReminderDays={formState.expiryReminderDays}
-            onExpiryDateChange={date => updateFormField('expiryDate', date)}
-            onReminderDaysChange={days => updateFormField('expiryReminderDays', days)}
-            label={t('expiry_title')}
-            colors={colors}
-            language={language}
-          />
+          {/* KART 5: Stok ve SKT */}
+          <View style={styles.card}>
+            <StockSection
+              enabled={formState.stockEnabled}
+              count={formState.stockCount}
+              threshold={formState.stockThreshold}
+              unit={formState.stockUnit}
+              onEnabledChange={enabled => updateFormField('stockEnabled', enabled)}
+              onCountChange={count => updateFormField('stockCount', count)}
+              onThresholdChange={threshold => updateFormField('stockThreshold', threshold)}
+              onUnitChange={unit => updateFormField('stockUnit', unit)}
+              label={language === 'tr' ? 'Stok Takibi' : 'Stock Tracking'}
+              colors={colors}
+              language={language}
+            />
+
+            <ExpirySection
+              expiryDate={formState.expiryDate}
+              expiryReminderDays={formState.expiryReminderDays}
+              onExpiryDateChange={date => updateFormField('expiryDate', date)}
+              onReminderDaysChange={days => updateFormField('expiryReminderDays', days)}
+              label={t('expiry_title')}
+              colors={colors}
+              language={language}
+            />
+          </View>
 
           <View style={{ height: 20 }} />
         </ScrollView>
@@ -190,6 +231,24 @@ const createStyles = (colors: ThemeColors) =>
     },
     scrollView: {
       flex: 1,
-      paddingHorizontal: 20,
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 40,
+    },
+    card: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      paddingTop: 0,
+      marginBottom: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
   });

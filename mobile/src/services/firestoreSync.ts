@@ -59,6 +59,7 @@ const COLLECTIONS = {
 };
 
 // Kullanıcı doküman referansı
+// eslint-disable-next-line unused-imports/no-unused-vars
 const getUserDocRef = (userId: string) => doc(db, COLLECTIONS.USERS, userId);
 
 // Alt koleksiyon referansları

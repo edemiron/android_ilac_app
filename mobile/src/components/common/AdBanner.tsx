@@ -50,6 +50,7 @@ try {
   const GoogleMobileAds = require('react-native-google-mobile-ads') as GoogleMobileAdsModule;
   BannerAd = GoogleMobileAds.BannerAd;
   BannerAdSize = GoogleMobileAds.BannerAdSize;
+  // eslint-disable-next-line unused-imports/no-unused-vars
   useForeground = GoogleMobileAds.useForeground;
 } catch {
   // SDK yüklenemedi - sessiz devam et
@@ -67,6 +68,7 @@ export default function AdBanner({ style }: AdBannerProps) {
   const { language } = useLanguage();
   const navigation = useNavigation<AdBannerNavigationProp>();
   const [adError, setAdError] = useState(false);
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const [adLoaded, setAdLoaded] = useState(false);
 
   // Premium kullanıcılara reklam gösterme
@@ -148,6 +150,7 @@ export function BottomAdBanner() {
 // Inline banner (liste aralarında kullanım için)
 export function InlineAdBanner() {
   const { shouldShowAds, isPremium } = useSubscription();
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { colors } = useTheme();
 
   if (isPremium || !shouldShowAds()) {

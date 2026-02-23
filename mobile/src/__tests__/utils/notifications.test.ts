@@ -5,9 +5,6 @@
 
 import notifee, {
   AndroidImportance,
-  AndroidVisibility,
-  TimestampTrigger,
-  TriggerType,
 } from '@notifee/react-native';
 import {
   scheduleMedicineNotification,

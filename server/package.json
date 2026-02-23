@@ -2,10 +2,10 @@
   "name": "ilac-hatirlatici-server",
   "version": "1.0.0",
   "description": "Backend for Ilac Hatirlatici with Composio integration",
-  "main": "server.js",
+  "main": "src/server.ts",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "ts-node src/server.ts",
+    "dev": "nodemon --exec ts-node src/server.ts"
   },
   "dependencies": {
     "composio-core": "^0.3.0",
@@ -14,6 +14,11 @@
     "express": "^4.18.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.3.0",
+    "nodemon": "^3.0.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

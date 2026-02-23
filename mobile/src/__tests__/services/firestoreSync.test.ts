@@ -79,6 +79,7 @@ describe('Firestore Sync Service', () => {
       // No existing docs in cloud
       mockGetDocs.mockResolvedValueOnce({
         docs: [],
+        // eslint-disable-next-line unused-imports/no-unused-vars
         forEach: (cb: Function) => {},
       });
 

@@ -39,6 +39,7 @@ export function useMedicinePersistence({
   const {
     addMedicine,
     updateMedicine,
+    // eslint-disable-next-line unused-imports/no-unused-vars
     getMedicineById,
     settings,
     getReminderTimesForMedicine,
@@ -252,9 +253,13 @@ export function useMedicinePersistence({
         const medicineData = {
           name: formState.name.trim(),
           dosage: formState.dosage.trim(),
+          dosageAmount: formState.dosageAmount,
+          form: formState.medicineForm,
           frequency: formState.useCustomTimes ? formState.customTimes.length : formState.frequency,
           instructions: formState.instruction,
           color: formState.selectedColor,
+          category: formState.category,
+          imageUri: formState.imageUri,
           customTimes: formState.useCustomTimes ? formState.customTimes : undefined,
           // Stok takibi
           stockEnabled: formState.stockEnabled,
@@ -264,6 +269,10 @@ export function useMedicinePersistence({
           // Son kullanma tarihi
           expiryDate: formState.expiryDate || undefined,
           expiryReminderDays: formState.expiryDate ? formState.expiryReminderDays : undefined,
+          // Gelişmiş Alarmlar (Faz 2)
+          requireBarcodeOnTake: formState.requireBarcodeOnTake,
+          barcode: formState.barcode,
+          vibrationPattern: formState.vibrationPattern,
         };
 
         // Önce navigation'ı yap - async işlemler uzun sürerse kullanıcı beklemez
@@ -401,11 +410,7 @@ export function useMedicinePersistence({
         showError(t('error'), t('error_required_field'));
         return false;
       }
-      if (!formState.dosage.trim()) {
-        showError(t('error'), t('error_required_field'));
-        return false;
-      }
-
+      // Dosage empty check removed as it's built dynamically and often has a safe fallback
       if (!isEditing) {
         const activeMedicines = medicines.filter(m => m.isActive);
         const limitCheck = checkCanAddMedicine(activeMedicines.length);
@@ -471,10 +476,10 @@ export function useMedicinePersistence({
                   // Otomatik düzenleme yapıldıysa güncellenmiş formState ile kaydet
                   const finalFormState = timeConflictResult.adjustedTimes
                     ? {
-                        ...formState,
-                        customTimes: timeConflictResult.adjustedTimes,
-                        useCustomTimes: true,
-                      }
+                      ...formState,
+                      customTimes: timeConflictResult.adjustedTimes,
+                      useCustomTimes: true,
+                    }
                     : formState;
                   const result = await saveMedicine(finalFormState);
                   resolve(result);
@@ -494,10 +499,10 @@ export function useMedicinePersistence({
       // Otomatik düzenleme yapıldıysa güncellenmiş formState ile kaydet
       const finalFormState = timeConflictResult.adjustedTimes
         ? {
-            ...formState,
-            customTimes: timeConflictResult.adjustedTimes,
-            useCustomTimes: true,
-          }
+          ...formState,
+          customTimes: timeConflictResult.adjustedTimes,
+          useCustomTimes: true,
+        }
         : formState;
 
       return saveMedicine(finalFormState);

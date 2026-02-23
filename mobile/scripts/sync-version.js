@@ -1,82 +1,125 @@
 /**
- * UCES: Version Sync Script
- * Build.gradle versionName/versionCode → app.json
- * Run: node scripts/sync-version.js
+ * Versiyon Senkronizasyon Script'i
+ *
+ * Bu script src/config/version.ts dosyasındaki versiyon bilgisini
+ * app.json ve package.json dosyalarına senkronize eder.
+ *
+ * Kullanım:
+ *   node scripts/sync-version.js
+ *   npm run sync-version
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const ANDROID_DIR = path.join(__dirname, '..', 'android');
-const APP_JSON_PATH = path.join(__dirname, '..', 'app.json');
+// Dosya yolları
+const rootDir = path.join(__dirname, '..');
+const versionConfigPath = path.join(rootDir, 'src/config/version.ts');
+const appJsonPath = path.join(rootDir, 'app.json');
+const packageJsonPath = path.join(rootDir, 'package.json');
 
-function readBuildGradleVersion() {
-  const buildGradlePath = path.join(ANDROID_DIR, 'app', 'build.gradle');
-  
-  if (!fs.existsSync(buildGradlePath)) {
-    console.warn('⚠️ build.gradle not found, skipping sync');
-    return null;
+/**
+ * version.ts dosyasından versiyon bilgisini okur
+ */
+function readVersionFromConfig() {
+  if (!fs.existsSync(versionConfigPath)) {
+    throw new Error('version.ts dosyası bulunamadı!');
   }
-  
-  const content = fs.readFileSync(buildGradlePath, 'utf8');
-  
-  const versionNameMatch = content.match(/versionName\s+"([^"]+)"/);
-  const versionCodeMatch = content.match(/versionCode\s+(\d+)/);
-  
-  if (versionNameMatch && versionCodeMatch) {
-    return {
-      versionName: versionNameMatch[1],
-      versionCode: parseInt(versionCodeMatch[1], 10),
-    };
+
+  const content = fs.readFileSync(versionConfigPath, 'utf-8');
+
+  // Regex ile versiyon bilgilerini çıkar
+  const appVersionMatch = content.match(/export const APP_VERSION = '([^']+)'/);
+  const androidCodeMatch = content.match(/export const ANDROID_VERSION_CODE = (\d+)/);
+  const iosBuildMatch = content.match(/export const IOS_BUILD_NUMBER = '([^']+)'/);
+
+  if (!appVersionMatch) {
+    throw new Error('APP_VERSION bulunamadı!');
   }
-  
-  return null;
+
+  return {
+    version: appVersionMatch[1],
+    androidCode: androidCodeMatch ? parseInt(androidCodeMatch[1], 10) : 1,
+    iosBuild: iosBuildMatch ? iosBuildMatch[1] : '1',
+  };
 }
 
-function updateAppJson(version) {
-  if (!fs.existsSync(APP_JSON_PATH)) {
-    console.error('❌ app.json not found!');
-    return false;
+/**
+ * app.json dosyasını günceller
+ */
+function updateAppJson(versionInfo) {
+  if (!fs.existsSync(appJsonPath)) {
+    throw new Error('app.json bulunamadı!');
   }
-  
-  const appJson = JSON.parse(fs.readFileSync(APP_JSON_PATH, 'utf8'));
-  
-  // Update version
-  appJson.version = version.versionName;
-  
-  // Update Android versionCode
-  if (!appJson.android) appJson.android = {};
-  appJson.android.versionCode = version.versionCode;
-  
-  // Update iOS buildNumber
-  if (!appJson.ios) appJson.ios = {};
-  appJson.ios.buildNumber = String(version.versionCode);
-  
-  fs.writeFileSync(APP_JSON_PATH, JSON.stringify(appJson, null, 2));
-  
-  console.log(`✅ Version synced: ${version.versionName} (${version.versionCode})`);
-  return true;
+
+  const content = fs.readFileSync(appJsonPath, 'utf-8');
+  const appJson = JSON.parse(content);
+
+  // Expo version
+  appJson.expo.version = versionInfo.version;
+
+  // Android versionCode
+  if (!appJson.android) {
+    appJson.android = {};
+  }
+  appJson.android.versionCode = versionInfo.androidCode;
+
+  // iOS buildNumber
+  if (!appJson.ios) {
+    appJson.ios = {};
+  }
+  appJson.ios.buildNumber = versionInfo.iosBuild;
+
+  // Root version (bazı tool'lar bunu kullanır)
+  appJson.version = versionInfo.version;
+
+  fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + '\n');
+  console.log(`✅ app.json güncellendi: ${versionInfo.version}`);
 }
 
+/**
+ * package.json dosyasını günceller
+ */
+function updatePackageJson(versionInfo) {
+  if (!fs.existsSync(packageJsonPath)) {
+    console.warn('⚠️ package.json bulunamadı, atlanıyor...');
+    return;
+  }
+
+  const content = fs.readFileSync(packageJsonPath, 'utf-8');
+  const packageJson = JSON.parse(content);
+
+  packageJson.version = versionInfo.version;
+
+  fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+  console.log(`✅ package.json güncellendi: ${versionInfo.version}`);
+}
+
+/**
+ * Ana fonksiyon
+ */
 function main() {
-  console.log('🔄 Syncing version from build.gradle to app.json...\n');
-  
-  const version = readBuildGradleVersion();
-  
-  if (!version) {
-    console.error('❌ Could not read version from build.gradle');
-    process.exit(1);
-  }
-  
-  console.log(`📱 Android version: ${version.versionName} (${version.versionCode})`);
-  
-  if (updateAppJson(version)) {
-    console.log('\n✨ Sync complete!');
+  try {
+    console.log('🔄 Versiyon senkronizasyonu başlıyor...\n');
+
+    const versionInfo = readVersionFromConfig();
+    console.log(`📦 Versiyon: ${versionInfo.version}`);
+    console.log(`🤖 Android Code: ${versionInfo.androidCode}`);
+    console.log(`🍎 iOS Build: ${versionInfo.iosBuild}\n`);
+
+    updateAppJson(versionInfo);
+    updatePackageJson(versionInfo);
+
+    console.log('\n✨ Tüm versiyon bilgileri senkronize edildi!');
+    console.log('💡 İpucu: Versiyon değiştirmek için src/config/version.ts dosyasını düzenleyin.\n');
+
     process.exit(0);
-  } else {
-    console.error('\n❌ Sync failed!');
+
+  } catch (error) {
+    console.error('❌ Hata:', error.message);
     process.exit(1);
   }
 }
 
+// Çalıştır
 main();

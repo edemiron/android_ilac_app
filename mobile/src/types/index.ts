@@ -4,17 +4,21 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 export interface Medicine {
   id: string;
   name: string;
-  dosage: string; // örn: "500mg", "1 tablet"
+  dosage: string; // örn: "500mg", "1 tablet" (birleştirilmiş string - geriye dönüşlü uyumluluk)
+  dosageAmount?: string; // Sadece rakam kısmı, örn: "2"
+  form?: MedicineForm; // İlacın fiziksel formu ('tablet' | 'capsule' | ...)
   frequency: number; // günde kaç kez
   instructions?: MedicineInstruction;
   color: string; // UI için renk kodu
+  category?: MedicineCategory; // İlaç kategorisi (opsiyonel - geriye dönük uyumlu)
   icon?: string;
   startDate: string; // ISO date string
   endDate?: string; // Opsiyonel bitiş tarihi
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  customTimes?: string[]; // Manuel eklenen saatler ["08:30", "14:00", "21:00"]
+  // İlaç Resmi (Faz 1)
+  imageUri?: string; // Optimizasyonlu lokal fotoğraf yolu
 
   // Stok takibi
   stockEnabled?: boolean; // Stok takibi aktif mi?
@@ -25,6 +29,12 @@ export interface Medicine {
   // Son kullanma tarihi
   expiryDate?: string; // ISO date string (YYYY-MM-DD)
   expiryReminderDays?: number; // Kaç gün önce hatırlat (7, 14, 30, 90)
+
+  // Gelişmiş Alarmlar (Faz 2)
+  requireBarcodeOnTake?: boolean; // İlacı aldım demek için barkod okutmak zorunlu mu?
+  barcode?: string; // İlacın barkodu
+  vibrationPattern?: 'default' | 'heartbeat' | 'urgent' | 'soft'; // Özel titreşim deseni
+  customTimes?: string[]; // Özel saatler
 }
 
 // İlaç kullanım talimatları
@@ -35,6 +45,18 @@ export type MedicineInstruction =
   | 'empty_stomach' // Aç karnına
   | 'before_sleep' // Yatmadan önce
   | 'any_time'; // Herhangi bir zaman
+// İlaç kategorileri
+export type MedicineCategory =
+  | 'painkiller'      // Ağrı Kesici
+  | 'vitamin'         // Vitamin/Takviye
+  | 'heart'           // Kalp/Tansiyon
+  | 'nervous'         // Sinir Sistemi
+  | 'antibiotic'      // Antibiyotik
+  | 'respiratory'     // Solunum
+  | 'digestive'       // Sindirim
+  | 'diabetes'        // Diyabet
+  | 'bone'            // Kemik/Eklem
+  | 'other';          // Diğer
 
 // Hatırlatma zamanı
 export interface ReminderTime {
@@ -140,6 +162,66 @@ export interface AlarmState {
   scheduledTime?: string;
 }
 
+// ===== CAREGIVER (BAKICI) MODU =====
+// Bakıcı ilişkisi durumu
+export type CaregiverStatus = 'pending' | 'active' | 'paused' | 'removed';
+
+// Bakıcı davet durumu
+export type InviteStatus = 'pending' | 'accepted' | 'expired' | 'declined';
+
+// Bakıcı ilişkisi
+export interface CaregiverRelationship {
+  id: string; // İlişki ID'si
+  patientId: string; // Hasta (kullanıcı) ID'si
+  caregiverId: string; // Bakıcı ID'si
+  caregiverEmail?: string; // Bakıcı e-postası (opsiyonel)
+  caregiverName?: string; // Bakıcı adı
+  patientName?: string; // Hasta adı
+  status: CaregiverStatus;
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+  // Yetkiler
+  canViewSchedule: boolean; // Takvimi görüntüleyebilir
+  canViewHistory: boolean; // Geçmişi görüntüleyebilir
+  canReceiveAlerts: boolean; // Bildirim alabilir
+  // FCM token for push notifications
+  caregiverFcmToken?: string;
+}
+
+// Bakıcı daveti
+export interface CaregiverInvite {
+  id: string; // Davet ID'si (6 haneli kod)
+  patientId: string; // Hasta ID'si
+  patientName: string; // Hasta adı
+  patientEmail?: string; // Hasta e-postası
+  caregiverEmail: string; // Davet edilen e-posta
+  status: InviteStatus;
+  expiresAt: string; // ISO date string
+  createdAt: string; // ISO date string
+  // Yetkiler
+  permissions: {
+    canViewSchedule: boolean;
+    canViewHistory: boolean;
+    canReceiveAlerts: boolean;
+  };
+}
+
+// Bakıcı için hasta bilgisi (salt okunur)
+export interface PatientInfo {
+  id: string; // Hasta ID'si
+  name: string; // Hasta adı
+  email?: string; // Hasta e-postası
+  relationshipId: string; // CaregiverRelationship ID'si
+  status: CaregiverStatus;
+  // İstatistikler (günlük)
+  todaySummary?: {
+    totalReminders: number;
+    takenCount: number;
+    missedCount: number;
+    adherenceRate: number;
+  };
+}
+
 // Navigation tipleri
 
 // Tab Navigator parametreleri (önce tanımlanmalı - RootStackParamList'te kullanılıyor)
@@ -176,10 +258,12 @@ export type RootStackParamList = {
   Settings: undefined;
   History: undefined;
   Interactions: undefined;
-  BarcodeScanner: undefined;
+  BarcodeScanner: { returnScreen?: string; mode?: 'assign' } | undefined;
   Premium: undefined;
   Security: undefined;
   TtsSettings: undefined;
+  Caregiver: undefined;
+  CaregiverInvite: { inviteCode?: string };
 };
 
 // Auth Stack Navigation

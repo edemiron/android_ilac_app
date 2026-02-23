@@ -22,34 +22,34 @@ export default function InteractionsScreen() {
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
   const { medicines } = useMedicineStore();
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [result, setResult] = useState<InteractionCheckResult | null>(null);
-  
-  const activeMedicines = useMemo(() => 
+
+  const activeMedicines = useMemo(() =>
     medicines.filter(m => m.isActive),
     [medicines]
   );
-  
+
   useEffect(() => {
     checkInteractions();
   }, [activeMedicines]);
-  
+
   const checkInteractions = async () => {
     setIsLoading(true);
-    
+
     // Küçük bir gecikme ile UX iyileştirmesi
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     const drugNames = activeMedicines.map(m => m.name);
-    const checkResult = checkMultipleInteractions(drugNames);
-    
+    const checkResult = await checkMultipleInteractions(drugNames);
+
     setResult(checkResult);
     setIsLoading(false);
   };
-  
+
   const styles = createStyles(colors, isDark);
-  
+
   const getSeverityText = (severity: DrugInteraction['severity']) => {
     switch (severity) {
       case 'high':
@@ -70,7 +70,7 @@ export default function InteractionsScreen() {
           {activeMedicines.length} aktif ilaç kontrol ediliyor
         </Text>
       </View>
-      
+
       {/* İlaç Listesi */}
       <View style={styles.medicineList}>
         <Text style={styles.sectionTitle}>Aktif İlaçlar</Text>
@@ -91,7 +91,7 @@ export default function InteractionsScreen() {
           )}
         </View>
       </View>
-      
+
       {/* Sonuçlar */}
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -120,16 +120,16 @@ export default function InteractionsScreen() {
               { color: result.hasInteractions ? colors.error : colors.success }
             ]}>
               {result.hasInteractions
-                ? t('interaction_found', { count: result.interactions.length })
+                ? t('interaction_found', { count: result.interactions?.length || 0 })
                 : t('interaction_none')}
             </Text>
           </View>
-          
+
           {/* Etkileşim Listesi */}
-          {result.interactions.length > 0 && (
+          {result.interactions && result.interactions.length > 0 && (
             <View style={styles.interactionsList}>
               <Text style={styles.sectionTitle}>Bulunan Etkileşimler</Text>
-              
+
               {result.interactions.map((interaction) => (
                 <View
                   key={interaction.id}
@@ -164,12 +164,12 @@ export default function InteractionsScreen() {
                       </Text>
                     </View>
                   </View>
-                  
+
                   {/* Açıklama */}
                   <Text style={styles.interactionDescription}>
                     {interaction.description}
                   </Text>
-                  
+
                   {/* Öneri */}
                   <View style={styles.recommendationContainer}>
                     <Text style={styles.recommendationLabel}>Öneri:</Text>
@@ -179,7 +179,7 @@ export default function InteractionsScreen() {
                   </View>
                 </View>
               ))}
-              
+
               {/* Uyarı */}
               <View style={styles.warningBox}>
                 <Text style={styles.warningIcon}>👨‍⚕️</Text>
@@ -191,7 +191,7 @@ export default function InteractionsScreen() {
           )}
         </View>
       ) : null}
-      
+
       {/* Yeniden Kontrol Et */}
       <TouchableOpacity
         style={[styles.refreshButton, { backgroundColor: colors.primary }]}
@@ -202,16 +202,16 @@ export default function InteractionsScreen() {
           🔄 Yeniden Kontrol Et
         </Text>
       </TouchableOpacity>
-      
+
       {/* Bilgi Notu */}
       <View style={styles.infoBox}>
         <Text style={styles.infoIcon}>ℹ️</Text>
         <Text style={styles.infoText}>
-          Bu bilgiler genel amaçlıdır ve tıbbi tavsiye yerine geçmez. 
+          Bu bilgiler genel amaçlıdır ve tıbbi tavsiye yerine geçmez.
           İlaç etkileşimleri hakkında her zaman doktorunuza veya eczacınıza danışın.
         </Text>
       </View>
-      
+
       <View style={{ height: 40 }} />
     </ScrollView>
   );

@@ -1,5 +1,8 @@
 export * from './drugInteraction';
 export * from './turkishMedicineService';
+export * from './caregiverService';
+export * from './qrCodeService';
+export * from './caregiverNotificationService';
 
 // globalMedicineService ve medicineSearchOrchestrator'da searchByBarcode çakışması var
 // Orchestrator versiyonunu ana export olarak kullan (hibrit arama)

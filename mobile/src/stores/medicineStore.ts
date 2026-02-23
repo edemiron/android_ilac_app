@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { Platform } from 'react-native';
 import { STORAGE_KEYS } from '../constants';
-import { Medicine, ReminderTime, UserSettings, MedicineLog, AlarmState, Snooze } from '../types';
+import { Medicine, ReminderTime, UserSettings, MedicineLog, AlarmState, Snooze, MedicineCategory } from '../types';
 import { calculateMedicineTimes } from '../utils/timeCalculator';
 import { generateId } from '../utils/idGenerator';
 import { getSyncQueue } from '../utils/syncQueue';
@@ -20,13 +20,32 @@ import { updateWidgetData } from '../services/widgetService';
 import {
   uploadAllDataToCloud,
   downloadAllDataFromCloud,
-  saveMedicineToCloud,
-  deleteMedicineFromCloud,
   saveMedicineLogToCloud,
   syncSettingsToCloud,
   deleteAllUserData,
   SyncData,
 } from '../services/firestoreSync';
+
+// Kategori bazlı renk ve etiket tanımları
+export interface MedicineCategoryInfo {
+  key: MedicineCategory;
+  color: string;
+  emoji: string;
+  label: string;
+}
+
+export const MEDICINE_CATEGORIES: MedicineCategoryInfo[] = [
+  { key: 'painkiller', color: '#FF6B6B', emoji: '💊', label: 'Ağrı Kesici' },
+  { key: 'vitamin', color: '#FFD93D', emoji: '💛', label: 'Vitamin/Takviye' },
+  { key: 'heart', color: '#E74C3C', emoji: '❤️', label: 'Kalp/Tansiyon' },
+  { key: 'nervous', color: '#C9A0DC', emoji: '🧠', label: 'Sinir Sistemi' },
+  { key: 'antibiotic', color: '#FF8C69', emoji: '🦠', label: 'Antibiyotik' },
+  { key: 'respiratory', color: '#45B7D1', emoji: '🫁', label: 'Solunum' },
+  { key: 'digestive', color: '#96CEB4', emoji: '🍽️', label: 'Sindirim' },
+  { key: 'diabetes', color: '#4ECDC4', emoji: '💉', label: 'Diyabet' },
+  { key: 'bone', color: '#98D8C8', emoji: '🦴', label: 'Kemik/Eklem' },
+  { key: 'other', color: '#94A3B8', emoji: '📋', label: 'Diğer' },
+];
 
 const log = createScopedLogger('MedicineStore');
 
@@ -614,7 +633,7 @@ export const useMedicineStore = create<MedicineState>()(
       logMedicineTaken: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
         log.debug('logMedicineTaken called', { reminderTimeId, scheduledTime });
 
-        const { userId } = get();
+        const { userId, medicines } = get();
         const medicineLog = get()._createMedicineLog(
           'taken',
           reminderTimeId,
@@ -624,6 +643,20 @@ export const useMedicineStore = create<MedicineState>()(
         );
 
         if (!medicineLog) return;
+
+        const medicine = medicines.find(m => m.id === medicineLog.medicineId);
+
+        // Bakıcı bildirimi gönder
+        if (userId && medicine) {
+          import('../services/caregiverNotificationService').then(({ notifyCaregiversAboutMedicineStatus }) => {
+            notifyCaregiversAboutMedicineStatus(
+              userId,
+              medicine.name,
+              scheduledTime,
+              'taken'
+            ).catch(err => log.error('Bakıcı bildirimi hatası', err));
+          });
+        }
 
         const { notificationId, activeSnoozes } = get()._cleanupNotifications(
           medicineLog.medicineId,
@@ -655,7 +688,7 @@ export const useMedicineStore = create<MedicineState>()(
       logMedicineSkipped: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
         log.debug('logMedicineSkipped called', { reminderTimeId, scheduledTime });
 
-        const { userId } = get();
+        const { userId, medicines } = get();
         const medicineLog = get()._createMedicineLog(
           'skipped',
           reminderTimeId,
@@ -665,6 +698,20 @@ export const useMedicineStore = create<MedicineState>()(
         );
 
         if (!medicineLog) return;
+
+        const medicine = medicines.find(m => m.id === medicineLog.medicineId);
+
+        // Bakıcı bildirimi gönder
+        if (userId && medicine) {
+          import('../services/caregiverNotificationService').then(({ notifyCaregiversAboutMedicineStatus }) => {
+            notifyCaregiversAboutMedicineStatus(
+              userId,
+              medicine.name,
+              scheduledTime,
+              'skipped'
+            ).catch(err => log.error('Bakıcı bildirimi hatası', err));
+          });
+        }
 
         const { notificationId, activeSnoozes } = get()._cleanupNotifications(
           medicineLog.medicineId,
@@ -920,6 +967,7 @@ export const useMedicineStore = create<MedicineState>()(
       getAdherenceRate: (days = 7) => {
         const { medicineLogs, medicines, reminderTimes } = get();
         const now = new Date();
+        // eslint-disable-next-line unused-imports/no-unused-vars
         const today = format(now, 'yyyy-MM-dd');
         const currentTime = format(now, 'HH:mm');
         const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);

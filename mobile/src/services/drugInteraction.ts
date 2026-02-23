@@ -136,38 +136,136 @@ const KNOWN_INTERACTIONS: Omit<DrugInteraction, 'id'>[] = [
     description: 'NSAID\'ler Metotreksat toksisitesini artırabilir.',
     recommendation: 'Doktorunuza danışmadan birlikte kullanmayın.',
   },
+  {
+    drug1: 'paracetamol',
+    drug2: 'dexketoprofen',
+    severity: 'moderate',
+    description: 'Aynı anda birden fazla ağrı kesici kullanmak mide, karaciğer ve böbrekler üzerinde ekstra yük oluşturabilir.',
+    recommendation: 'Gerekmedikçe birlikte kullanmayın veya dönüşümlü/aralıklı kullanmayı doktorunuza sıklığını danışarak tercih edin.',
+  },
 ];
 
-// İlaç adını normalize et
+// ==========================================
+// 1. TÜRKÇE -> EVRENSEL ETKEN MADDE SÖZLÜĞÜ
+// ==========================================
+// RxNav API sadece etken maddeleri veya ABD ticari isimlerini tanır.
+// Bu sözlük, Türkiye'deki yaygın ticari araçları evrensel isimlerine veya
+// doğrudan RxNorm Concept Unique Identifier (RxCUI) kodlarına eşler.
+const TURKISH_TO_RXNORM_MAP: Record<string, string> = {
+  // Analjezikler & NSAID'ler
+  'parol': 'paracetamol',
+  'minoset': 'paracetamol',
+  'vermidon': 'paracetamol',
+  'calpol': 'paracetamol',
+  'arveles': 'dexketoprofen',
+  'majezik': 'flurbiprofen',
+  'apranax': 'naproxen',
+  'dikloron': 'diclofenac',
+  'coraspin': 'aspirin',
+  'ecopirin': 'aspirin',
+  'novalgin': 'metamizole', // RxNav'da metamizole (dipyrone) kısıtlı olabilir
+  'ibufen': 'ibuprofen',
+  'brufen': 'ibuprofen',
+  'dolven': 'ibuprofen',
+
+  // Antibiyotikler
+  'augmentin': 'amoxicillin',
+  'klamoks': 'amoxicillin',
+  'croxilex': 'amoxicillin',
+  'cipro': 'ciprofloxacin',
+  'monurol': 'fosfomycin',
+  'zinnat': 'cefuroxime',
+  'azitro': 'azithromycin',
+  'macrol': 'clarithromycin',
+
+  // Mide Koruyucular & Sindirim
+  'pantpas': 'pantoprazole',
+  'panto': 'pantoprazole',
+  'nexium': 'esomeprazole',
+  'lansor': 'lansoprazole',
+  'rennie': 'calcium carbonate', // Basitleştirilmiş
+  'gaviscon': 'alginic acid',
+
+  // Antidepresan & Nöroloji
+  'cipralex': 'escitalopram',
+  'selectra': 'sertraline',
+  'lustral': 'sertraline',
+  'prozac': 'fluoxetine',
+  'paxera': 'paroxetine',
+  'symra': 'pregabalin',
+  'lyrica': 'pregabalin',
+
+  // Tansiyon & Kardiyoloji
+  'beloc': 'metoprolol',
+  'sanisoc': 'metoprolol',
+  'vasoxen': 'nebivolol',
+  'delix': 'ramipril',
+  'coversyl': 'perindopril',
+  'karvezide': 'irbesartan',
+  'atacand': 'candesartan',
+
+  // Diyabet
+  'matofin': 'metformin',
+  'glucophage': 'metformin',
+  'diaformin': 'metformin',
+  'forziga': 'dapagliflozin',
+  'jardiance': 'empagliflozin',
+
+  // Kan Sulandırıcılar
+  'plavix': 'clopidogrel',
+  'karum': 'clopidogrel',
+  'xarelto': 'rivaroxaban',
+  'eliquis': 'apixaban',
+
+  // Antihistaminik & Soğuk Algınlığı (Genel)
+  'zyrtec': 'cetirizine',
+  'allerset': 'cetirizine',
+  'aerius': 'desloratadine',
+  'crebros': 'levocetirizine',
+  'aferin': 'paracetamol', // Çoklu etken madde ama en kritiği
+  'nurofen': 'ibuprofen', // Veya Nurofen Plus
+  'katarin': 'paracetamol',
+};
+
+// İlaç adını normalize et ve etken maddeye çevir
 function normalizeDrugName(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
+  if (!name) return '';
+  const lowerName = name.toLowerCase().trim();
+
+  // Önce map'te tam eşleşme ara
+  for (const [tradeName, genericName] of Object.entries(TURKISH_TO_RXNORM_MAP)) {
+    if (lowerName.includes(tradeName)) {
+      return genericName;
+    }
+  }
+
+  // Eşleşme yoksa standart temizleme yapıp bırak (belki kendisi etken maddedir)
+  return lowerName
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Türkçe karakterleri kaldır
-    .replace(/[^a-z0-9]/g, ''); // Sadece harf ve rakam
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
 }
 
 // İlaç adının eşleşip eşleşmediğini kontrol et
 function drugMatches(drugName: string, interactionDrug: string): boolean {
   const normalizedName = normalizeDrugName(drugName);
   const normalizedInteraction = normalizeDrugName(interactionDrug);
-  
+
   // Tam eşleşme veya içerme kontrolü
-  return normalizedName.includes(normalizedInteraction) || 
-         normalizedInteraction.includes(normalizedName) ||
-         normalizedName === normalizedInteraction;
+  return normalizedName.includes(normalizedInteraction) ||
+    normalizedInteraction.includes(normalizedName) ||
+    normalizedName === normalizedInteraction;
 }
 
-// İki ilaç arasındaki etkileşimi kontrol et
-export function checkInteraction(drug1: string, drug2: string): DrugInteraction | null {
+// İki ilaç arasındaki yerel etkileşimi kontrol et (Fallback)
+export function checkInteractionLocal(drug1: string, drug2: string): DrugInteraction | null {
   for (const interaction of KNOWN_INTERACTIONS) {
     if (
       (drugMatches(drug1, interaction.drug1) && drugMatches(drug2, interaction.drug2)) ||
       (drugMatches(drug1, interaction.drug2) && drugMatches(drug2, interaction.drug1))
     ) {
       return {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `loc-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
         ...interaction,
         drug1,
         drug2,
@@ -177,20 +275,87 @@ export function checkInteraction(drug1: string, drug2: string): DrugInteraction 
   return null;
 }
 
-// Birden fazla ilaç için etkileşim kontrolü
-export function checkMultipleInteractions(drugNames: string[]): InteractionCheckResult {
+// Birden fazla ilaç için gerçek RxNav API veya yerel kontrol (HIBRIT)
+export async function checkMultipleInteractions(drugNames: string[]): Promise<InteractionCheckResult> {
   const interactions: DrugInteraction[] = [];
-  
-  // Her ilaç çiftini kontrol et
-  for (let i = 0; i < drugNames.length; i++) {
-    for (let j = i + 1; j < drugNames.length; j++) {
-      const interaction = checkInteraction(drugNames[i], drugNames[j]);
-      if (interaction) {
-        interactions.push(interaction);
+
+  try {
+    // 1. Her ilacın RxCUI kodunu bulmaya çalış ve duplicate (aynı etken madde) kontrolü yap
+    const rxcuis: string[] = [];
+    const validFoundDrugs: string[] = [];
+    const cuiToDrugMap: Record<string, string[]> = {}; // { '161': ['Parol', 'Minoset'] }
+
+    for (const name of drugNames) {
+      const genericName = normalizeDrugName(name); // Ticari ismi etken maddeye çevir
+      const cui = await getRxCuiForDrug(genericName);
+      if (cui) {
+        if (!rxcuis.includes(cui)) {
+          rxcuis.push(cui);
+          validFoundDrugs.push(name);
+        }
+
+        // Duplicate Therapy (Aynı Etken Madde) Takibi
+        if (!cuiToDrugMap[cui]) cuiToDrugMap[cui] = [];
+        cuiToDrugMap[cui].push(name);
       }
     }
+
+    // Duplicate Therapy Kontrolünü Sonuçlara Ekle
+    for (const [cui, duplicates] of Object.entries(cuiToDrugMap)) {
+      if (duplicates.length > 1) {
+        // İkiden fazla aynı etken madde bulundu
+        for (let i = 0; i < duplicates.length; i++) {
+          for (let j = i + 1; j < duplicates.length; j++) {
+            interactions.push({
+              id: `dup-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+              drug1: duplicates[i],
+              drug2: duplicates[j],
+              severity: 'high',
+              description: 'Dikkat! Bu iki ilaç KESİNLİKLE aynı etken maddeyi içermektedir (Çifte Doz / Duplicate Therapy).',
+              recommendation: 'Aşırı doz ve toksisite (zehirlenme) riskine karşı lütfen bu ilaçları aynı anda kullanmayın. Hangisini kullanmanız gerektiğini doktorunuza danışın.',
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Eğer bulunabilen en az 2 RxCUI varsa Gerçek API'ye sor
+    let apiSuccess = false;
+    if (rxcuis.length >= 2) {
+      log.info('RxNav API ye istek atiliyor...', { rxcuis });
+      const apiResult = await checkInteractionsFromAPI(rxcuis, validFoundDrugs);
+
+      if (apiResult.interactions.length > 0) {
+        interactions.push(...apiResult.interactions);
+      }
+      apiSuccess = true; // API başarılı çalıştı (sonuç boş dönse bile)
+    }
+
+    // 3. API bulamadı veya etken maddeye çeviremediğimiz ilaçlar varsa
+    // Local (Çevrimdışı) Fallback sistemine düş
+    if (!apiSuccess || rxcuis.length < drugNames.length) {
+      log.info('Bazi ilaclar RxNav da bulunamadi, Yerel veritabani kontrolu de yapiliyor...');
+      for (let i = 0; i < drugNames.length; i++) {
+        for (let j = i + 1; j < drugNames.length; j++) {
+          const locInt = checkInteractionLocal(drugNames[i], drugNames[j]);
+          if (locInt) {
+            // Aynı etkileşim zaten API'den geldiyse ekleme (duplicate önlemek için)
+            const exists = interactions.some(apiInt =>
+              (drugMatches(apiInt.drug1, locInt.drug1) && drugMatches(apiInt.drug2, locInt.drug2)) ||
+              (drugMatches(apiInt.drug1, locInt.drug2) && drugMatches(apiInt.drug2, locInt.drug1))
+            );
+            if (!exists) {
+              interactions.push(locInt);
+            }
+          }
+        }
+      }
+    }
+
+  } catch (error) {
+    log.error('Etkileşim kontrolü genel hata', error);
   }
-  
+
   return {
     hasInteractions: interactions.length > 0,
     interactions,
@@ -226,35 +391,64 @@ export function getSeverityIcon(severity: DrugInteraction['severity']): string {
   }
 }
 
-// RxNav API entegrasyonu (opsiyonel, gerçek API için)
-export async function checkInteractionsFromAPI(rxcuis: string[]): Promise<InteractionCheckResult> {
+// ==========================================
+// 2. RXNAV API BAĞLANTILARI
+// ==========================================
+
+// İlacın adından RxNorm Concept Unique Identifier (RxCUI) kodunu bulur
+export async function getRxCuiForDrug(drugName: string): Promise<string | null> {
   try {
-    // RxNav Interaction API
-    // https://rxnav.nlm.nih.gov/InteractionAPIs.html
-    const url = `https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis=${rxcuis.join('+')}`;
-    
+    const url = `https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(drugName)}`;
     const response = await fetch(url);
     const data = await response.json();
-    
+
+    if (data.idGroup && data.idGroup.rxnormId && data.idGroup.rxnormId.length > 0) {
+      return data.idGroup.rxnormId[0];
+    }
+    return null;
+  } catch (error) {
+    log.error(`RxCUI alinamadi for ${drugName}`, error);
+    return null;
+  }
+}
+
+// RxNav Interaction API üzerinden RxCUI'leri kullanarak etkileşimleri çeker
+export async function checkInteractionsFromAPI(rxcuis: string[], originalDrugNames: string[]): Promise<InteractionCheckResult> {
+  try {
+    // https://rxnav.nlm.nih.gov/InteractionAPIs.html
+    const url = `https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis=${rxcuis.join('+')}`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
     const interactions: DrugInteraction[] = [];
-    
+
     if (data.fullInteractionTypeGroup) {
       for (const group of data.fullInteractionTypeGroup) {
         for (const type of group.fullInteractionType || []) {
           for (const pair of type.interactionPair || []) {
+
+            // Amerikan kaynaklı orjinal isimler
+            const apiDrug1 = pair.interactionConcept[0]?.minConceptItem?.name || 'Bilinmeyen';
+            const apiDrug2 = pair.interactionConcept[1]?.minConceptItem?.name || 'Bilinmeyen';
+
+            // Kullanıcının yazdığı isimlerle (originalDrugNames) RxNav isimlerini eşleştir (kullanıcıya türkçe adı yansıtmak için)
+            const trDrug1 = originalDrugNames.find(n => drugMatches(n, apiDrug1) || drugMatches(apiDrug1, n)) || apiDrug1;
+            const trDrug2 = originalDrugNames.find(n => drugMatches(n, apiDrug2) || drugMatches(apiDrug2, n)) || apiDrug2;
+
             interactions.push({
-              id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              drug1: pair.interactionConcept[0]?.minConceptItem?.name || 'Bilinmeyen',
-              drug2: pair.interactionConcept[1]?.minConceptItem?.name || 'Bilinmeyen',
+              id: `api-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+              drug1: trDrug1,
+              drug2: trDrug2,
               severity: mapSeverity(pair.severity),
-              description: pair.description || '',
-              recommendation: 'Doktorunuza danışın.',
+              description: translateApiDescription(pair.description || ''),
+              recommendation: 'Lütfen bunu kullanmadan önce doktorunuza veya eczacınıza danışın (RxNav Uyarısı).',
             });
           }
         }
       }
     }
-    
+
     return {
       hasInteractions: interactions.length > 0,
       interactions,
@@ -281,4 +475,31 @@ function mapSeverity(apiSeverity: string): DrugInteraction['severity'] {
     return 'moderate';
   }
   return 'low';
+}
+
+// RxNav'den gelen İngilizce teknik uyarıları basitleştirilmiş Türkçe'ye çevirir (Otonom Çevirmen)
+function translateApiDescription(desc: string): string {
+  if (!desc) return '';
+  let text = desc;
+
+  // Sık karşılaşılan teknik kelimenin Regex ile değişimi
+  const dictionary: Record<string, string> = {
+    'The risk or severity of': 'Riski veya şiddeti artabilir:',
+    'The serum concentration of': 'Kandaki yoğunluğu artabilir/azalabilir:',
+    'can be increased when it is combined with': 'ile birlikte kullanıldığında etkileşime girebilir.',
+    'can be decreased when combined with': 'ile birlikte kullanıldığında etkisi azalabilir.',
+    'may increase the': 'artırabilir:',
+    'activities': 'etkisini',
+    'adverse effects': 'yan etkilerini',
+    'can cause': 'neden olabilir',
+    'bleeding': 'kanama',
+    'toxicity': 'zehirlenme/toksisite',
+    'serotonin syndrome': 'serotonin sendromu',
+  };
+
+  for (const [eng, tr] of Object.entries(dictionary)) {
+    text = text.replace(new RegExp(eng, 'gi'), tr);
+  }
+
+  return text;
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { ThemeColors } from '../../contexts/ThemeContext';
 
 interface Props {
@@ -20,7 +21,7 @@ export function BarcodeSection({ barcode, onScanPress, isEditing, scanButtonText
   return (
     <>
       <TouchableOpacity style={styles.barcodeButton} onPress={onScanPress}>
-        <Text style={styles.barcodeIcon}>-</Text>
+        <Ionicons name="barcode-outline" style={styles.barcodeIcon} />
         <Text style={styles.barcodeText}>{scanButtonText}</Text>
       </TouchableOpacity>
 
@@ -40,17 +41,15 @@ const createStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      paddingVertical: 16,
+      backgroundColor: colors.primary + '15',
+      borderRadius: 16,
+      paddingVertical: 14,
       marginTop: 20,
-      borderWidth: 2,
-      borderColor: colors.primary,
-      borderStyle: 'dashed',
     },
     barcodeIcon: {
-      fontSize: 24,
-      marginRight: 10,
+      fontSize: 22,
+      color: colors.primary,
+      marginRight: 8,
     },
     barcodeText: {
       fontSize: 16,

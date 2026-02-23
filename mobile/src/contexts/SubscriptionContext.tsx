@@ -5,7 +5,6 @@ import { useAuth } from './AuthContext';
 import {
   getUserSubscription,
   upgradeToPremium,
-  downgradeToFree,
   cancelSubscription,
   canAddMedicine,
   canUseAISearch,

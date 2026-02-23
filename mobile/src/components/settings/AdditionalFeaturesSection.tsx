@@ -7,6 +7,7 @@ interface AdditionalFeaturesSectionProps {
   onInteractionsPress: () => void;
   onSecurityPress: () => void;
   onTtsPress: () => void;
+  onCaregiverPress?: () => void;
   ttsEnabled: boolean;
 }
 
@@ -14,6 +15,7 @@ export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps>
   onInteractionsPress,
   onSecurityPress,
   onTtsPress,
+  onCaregiverPress,
   ttsEnabled,
 }) => {
   const { language, t } = useLanguage();
@@ -34,9 +36,22 @@ export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps>
         onPress={onInteractionsPress}
         showChevron
       />
+      {onCaregiverPress && (
+        <SettingRow
+          icon={{ name: 'people-outline', color: '#8B5CF6' }}
+          label={language === 'tr' ? 'Bakıcı Yönetimi' : 'Caregiver'}
+          description={
+            language === 'tr'
+              ? 'Sevdikleriniz ilaç takipinizi görsün'
+              : 'Share your medication schedule'
+          }
+          onPress={onCaregiverPress}
+          showChevron
+        />
+      )}
       <SettingRow
         icon={{ name: 'lock-closed-outline', color: '#4ECDC4' }}
-        label={language === 'tr' ? '🔒 Güvenlik' : '🔒 Security'}
+        label={language === 'tr' ? 'Güvenlik' : 'Security'}
         description={
           language === 'tr'
             ? 'PIN ve biyometrik kimlik doğrulama'
@@ -47,7 +62,7 @@ export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps>
       />
       <SettingRow
         icon={{ name: 'volume-high-outline', color: '#96CEB4' }}
-        label={language === 'tr' ? '🔊 Sesli Bildirimler' : '🔊 Voice Notifications'}
+        label={language === 'tr' ? 'Sesli Bildirimler' : 'Voice Notifications'}
         description={
           ttsEnabled
             ? language === 'tr'

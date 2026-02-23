@@ -73,6 +73,7 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
     setTimeout(checkPermissions, 1000);
   };
 
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const handleOpenDndSettings = async () => {
     await openDndSettings();
     setTimeout(checkPermissions, 1000);

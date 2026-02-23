@@ -75,18 +75,18 @@ export function ReminderTimes({
           {displayTimes.map((time, index) => (
             <TouchableOpacity
               key={index}
-              style={[styles.timeChip, { backgroundColor: selectedColor }]}
+              style={[styles.timeChip, { backgroundColor: selectedColor + '20' }]}
               onPress={() => useCustomTimes && onEditTime(index, time)}
               onLongPress={() => useCustomTimes && onDeleteTime(index)}
             >
-              <Text style={styles.timeChipText}>{formatTimeDisplay(time)}</Text>
+              <Text style={[styles.timeChipText, { color: selectedColor }]}>{formatTimeDisplay(time)}</Text>
               {useCustomTimes && (
                 <TouchableOpacity
-                  style={styles.timeChipDelete}
+                  style={[styles.timeChipDelete, { backgroundColor: selectedColor + '30' }]}
                   onPress={() => onDeleteTime(index)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Text style={styles.timeChipDeleteText}>x</Text>
+                  <Text style={[styles.timeChipDeleteText, { color: selectedColor }]}>x</Text>
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
@@ -98,16 +98,6 @@ export function ReminderTimes({
             </TouchableOpacity>
           )}
         </View>
-
-        <Text style={styles.previewNote}>
-          {useCustomTimes
-            ? language === 'tr'
-              ? '* Saate dokun: duzenle | Uzun bas: sil'
-              : '* Tap time: edit | Long press: delete'
-            : language === 'tr'
-            ? '* Saatleri duzenlemek icin "Duzenle" butonuna basin'
-            : '* Press "Edit" to customize times'}
-        </Text>
       </View>
 
       {timePickerState.showTimePicker &&
@@ -125,8 +115,8 @@ export function ReminderTimes({
                     ? 'Saati Duzenle'
                     : 'Edit Time'
                   : language === 'tr'
-                  ? 'Saat Ekle'
-                  : 'Add Time'}
+                    ? 'Saat Ekle'
+                    : 'Add Time'}
               </Text>
               <TouchableOpacity onPress={onConfirmTime}>
                 <Text style={styles.timePickerConfirm}>
@@ -179,11 +169,8 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.primary,
     },
     previewContainer: {
-      backgroundColor: colors.card,
       borderRadius: 12,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: colors.inputBorder,
+      paddingTop: 8,
     },
     previewInfo: {
       fontSize: 12,
@@ -204,7 +191,6 @@ const createStyles = (colors: ThemeColors) =>
       borderRadius: 20,
     },
     timeChipText: {
-      color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '600',
     },

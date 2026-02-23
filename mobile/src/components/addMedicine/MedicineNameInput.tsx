@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { MedicineAutocompleteResult } from '../../types';
 import { AutocompleteState } from '../../types/addMedicine.types';
 import { ThemeColors } from '../../contexts/ThemeContext';
@@ -22,6 +23,12 @@ interface Props {
   label: string;
   placeholder: string;
   colors: ThemeColors;
+  /** Barkod ikonu input sağında gösterilsin mi (sadece Ekle modunda) */
+  showBarcodeIcon?: boolean;
+  /** Barkod ikonu tıklanınca çağrılır */
+  onScanPress?: () => void;
+  /** Barkod zaten tarandı mı (ikon yeşile döner) */
+  barcodeScanned?: boolean;
 }
 
 export function MedicineNameInput({
@@ -34,6 +41,9 @@ export function MedicineNameInput({
   label,
   placeholder,
   colors,
+  showBarcodeIcon,
+  onScanPress,
+  barcodeScanned,
 }: Props) {
   const styles = createStyles(colors);
 
@@ -69,15 +79,33 @@ export function MedicineNameInput({
     <View style={styles.inputGroup}>
       <Text style={styles.label}>{label} *</Text>
       <View style={styles.autocompleteContainer}>
-        <TextInput
-          style={styles.input}
-          value={value}
-          onChangeText={handleChangeText}
-          onFocus={onFocus}
-          onBlur={handleBlur}
-          placeholder={placeholder}
-          placeholderTextColor={colors.placeholder}
-        />
+        <View style={styles.inputRow}>
+          <TextInput
+            style={[styles.input, showBarcodeIcon && styles.inputWithIcon]}
+            value={value}
+            onChangeText={handleChangeText}
+            onFocus={onFocus}
+            onBlur={handleBlur}
+            placeholder={placeholder}
+            placeholderTextColor={colors.placeholder}
+          />
+          {showBarcodeIcon && onScanPress && (
+            <TouchableOpacity
+              style={[
+                styles.barcodeIconBtn,
+                { backgroundColor: barcodeScanned ? '#10B981' + '20' : colors.primary + '15' },
+              ]}
+              onPress={onScanPress}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={barcodeScanned ? 'checkmark-circle' : 'barcode-outline'}
+                size={22}
+                color={barcodeScanned ? '#10B981' : colors.primary}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {autocompleteState.isLoading && (
           <View style={styles.autocompleteLoading}>
@@ -114,15 +142,33 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.text,
       marginBottom: 8,
     },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
     input: {
+      flex: 1,
       backgroundColor: colors.card,
-      borderRadius: 12,
+      borderRadius: 16,
       paddingHorizontal: 16,
       paddingVertical: 14,
       fontSize: 16,
       color: colors.text,
       borderWidth: 1,
-      borderColor: colors.inputBorder,
+      borderColor: colors.border,
+    },
+    inputWithIcon: {
+      // extra right padding when icon present — handled via Row gap
+    },
+    barcodeIconBtn: {
+      width: 50,
+      height: 50,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     autocompleteContainer: {
       position: 'relative',

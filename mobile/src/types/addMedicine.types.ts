@@ -5,10 +5,14 @@ import { MedicineInstruction, MedicineAutocompleteResult } from './index';
  */
 export interface AddMedicineFormState {
   name: string;
-  dosage: string;
+  dosage: string; // Birleştirilmiş doz (geriye dönüşlü): "2 tablet"
+  dosageAmount: string; // Sadece miktar: "2"
+  medicineForm: import('./index').MedicineForm; // İlacın formu
   frequency: number;
   instruction: MedicineInstruction;
   selectedColor: string;
+  category?: import('./index').MedicineCategory;
+  imageUri?: string;
   customTimes: string[];
   useCustomTimes: boolean;
 
@@ -21,6 +25,10 @@ export interface AddMedicineFormState {
   // Son kullanma tarihi
   expiryDate: string | null; // ISO date string veya null (opsiyonel)
   expiryReminderDays: number; // Varsayılan: 30
+  // Gelişmiş Alarmlar (Faz 2)
+  requireBarcodeOnTake: boolean;
+  barcode?: string;
+  vibrationPattern: 'default' | 'heartbeat' | 'urgent' | 'soft';
 }
 
 /**

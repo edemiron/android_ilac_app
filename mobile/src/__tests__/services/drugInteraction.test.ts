@@ -11,7 +11,6 @@ import {
   getSeverityIcon,
   checkInteractionsFromAPI,
   DrugInteraction,
-  InteractionCheckResult,
 } from '../../services/drugInteraction';
 
 // Mock the logger
@@ -169,6 +168,7 @@ describe('DrugInteraction Service', () => {
       it('should handle empty drug names gracefully', () => {
         // Empty strings get normalized and may match due to substring matching
         // This is expected behavior - the function handles this edge case
+        // eslint-disable-next-line unused-imports/no-unused-vars
         const result = checkInteraction('', '');
 
         // The result depends on the normalization logic

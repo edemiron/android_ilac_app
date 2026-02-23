@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMedicineStore } from '../stores/medicineStore';
@@ -43,6 +44,49 @@ function getExpiryStatus(expiryDate: string | undefined, reminderDays?: number):
   } catch {
     return null;
   }
+}
+
+// Encoding hatasını düzeltен yardımcı: "kapsu00fcl" → "ü"
+function decodeDosage(raw: string): string {
+  if (!raw) return raw;
+  try {
+    return raw.replace(/u([0-9a-fA-F]{4})/g, (_, hex) =>
+      String.fromCharCode(parseInt(hex, 16))
+    );
+  } catch {
+    return raw;
+  }
+}
+
+// İlac form ikonları (MaterialCommunityIcons)
+type MedicinIconInfo = { lib: 'mci'; name: string } | { lib: 'ion'; name: string };
+
+function getMedicineFormIcon(medicine: Medicine): MedicinIconInfo {
+  // 1. medicine.form alanı varsa doğrudan eşle
+  if (medicine.form) {
+    const formMap: Record<string, MedicinIconInfo> = {
+      tablet: { lib: 'mci', name: 'pill' },
+      capsule: { lib: 'mci', name: 'pill-multiple' },
+      syrup: { lib: 'mci', name: 'bottle-tonic-outline' },
+      drops: { lib: 'mci', name: 'water-outline' },
+      injection: { lib: 'mci', name: 'needle' },
+      cream: { lib: 'mci', name: 'hand-back-right-outline' },
+      spray: { lib: 'mci', name: 'spray' },
+      patch: { lib: 'mci', name: 'bandage' },
+      suppository: { lib: 'mci', name: 'medical-bag' },
+      powder: { lib: 'mci', name: 'powder' },
+      other: { lib: 'mci', name: 'medical-bag' },
+    };
+    if (formMap[medicine.form]) return formMap[medicine.form];
+  }
+  // 2. Eski kayıtlar için dosage metninden çıkarım
+  const text = `${medicine.dosage || ''} ${medicine.stockUnit || ''}`.toLowerCase();
+  if (text.includes('tablet')) return { lib: 'mci', name: 'pill' };
+  if (text.includes('kaps') || text.includes('capsule')) return { lib: 'mci', name: 'pill-multiple' };
+  if (text.includes('ml') || text.includes('şurup') || text.includes('syrup')) return { lib: 'mci', name: 'bottle-tonic-outline' };
+  if (text.includes('damla') || text.includes('drop')) return { lib: 'mci', name: 'water-outline' };
+  if (text.includes('enjeksiyon') || text.includes('injection') || text.includes('iğne')) return { lib: 'mci', name: 'needle' };
+  return { lib: 'ion', name: 'medical' };
 }
 
 interface SectionProps {
@@ -225,8 +269,16 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
             {isSelected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
           </View>
         )}
-        <View style={[styles.iconContainer, { backgroundColor: medicine.color + '20' }]}>
-          <Ionicons name="medical" size={18} color={medicine.color} />
+        <View style={[styles.iconContainer, { backgroundColor: medicine.color + '20', overflow: 'hidden' }]}>
+          {medicine.imageUri ? (
+            <Image source={{ uri: medicine.imageUri }} style={{ width: 44, height: 44 }} />
+          ) : (() => {
+            const iconInfo = getMedicineFormIcon(medicine);
+            if (iconInfo.lib === 'mci') {
+              return <MaterialCommunityIcons name={iconInfo.name} size={18} color={medicine.color} />;
+            }
+            return <Ionicons name={iconInfo.name as any} size={18} color={medicine.color} />;
+          })()}
         </View>
         <View style={styles.medicineInfo}>
           <View style={styles.medicineHeader}>
@@ -250,35 +302,46 @@ const MedicineRow: React.FC<MedicineRowProps> = ({
             {getExpiryBadge()}
           </View>
           <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
-            {medicine.dosage} • {t('medicines_times_per_day', { count: medicine.frequency })}
+            {decodeDosage(medicine.dosage)} • {t('medicines_times_per_day', { count: medicine.frequency })}
             {medicine.instructions && ` • ${getInstructionText(medicine.instructions, language)}`}
           </Text>
-          <View style={styles.timesContainer}>
-            {times.map((time, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.timeChip,
-                  {
-                    backgroundColor: medicine.isActive
-                      ? medicine.color + '15'
-                      : colors.inputBackground,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.timeChipText,
-                    { color: medicine.isActive ? medicine.color : colors.textMuted },
-                  ]}
+          {/* Sıradaki doz + kalan sayısı */}
+          {times.length > 0 && (() => {
+            const now = new Date();
+            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            // Sıradaki saati bul (en yakın gelecek saat, yoksa ilk saat)
+            const sorted = [...times].sort();
+            const nextTime = sorted.find(t => t > currentTime) || sorted[0];
+            const otherCount = times.length - 1;
+            return (
+              <View style={styles.timesContainer}>
+                <View
+                  style={[styles.timeChip, {
+                    backgroundColor: medicine.isActive ? medicine.color + '15' : colors.inputBackground,
+                  }]}
                 >
-                  {formatTimeDisplay(time)}
-                </Text>
+                  <Ionicons name="time-outline" size={11}
+                    color={medicine.isActive ? medicine.color : colors.textMuted} />
+                  <Text style={[styles.timeChipText,
+                  { color: medicine.isActive ? medicine.color : colors.textMuted }]}>
+                    {formatTimeDisplay(nextTime)}
+                  </Text>
+                </View>
+                {otherCount > 0 && (
+                  <Text style={[styles.moreTimesText, { color: colors.textMuted }]}>
+                    +{otherCount}
+                  </Text>
+                )}
               </View>
-            ))}
-          </View>
+            );
+          })()}
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        <TouchableOpacity
+          onPress={() => onShowActionMenu(medicine, onToggleActive, onDelete)}
+          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+        >
+          <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -640,24 +703,7 @@ export default function MedicinesScreen() {
               </View>
             )}
 
-            {!tipDismissed && (
-              <View style={[styles.tipCard, { backgroundColor: colors.primary + '15' }]}>
-                <View style={styles.tipContent}>
-                  <Ionicons name="bulb" size={18} color={colors.primary} />
-                  <Text style={[styles.tipText, { color: colors.text }]}>
-                    {language === 'tr'
-                      ? 'Düzenlemek için dokunun, silmek için basılı tutun'
-                      : 'Tap to edit, long press to delete'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={dismissTip}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Ionicons name="close" size={18} color={colors.textMuted} />
-                </TouchableOpacity>
-              </View>
-            )}
+
           </>
         )}
 
@@ -1054,11 +1100,14 @@ const styles = StyleSheet.create({
   },
   timesContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 6,
     marginTop: 8,
   },
   timeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,
@@ -1066,6 +1115,10 @@ const styles = StyleSheet.create({
   timeChipText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  moreTimesText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   emptyStateContainer: {
     flex: 1,

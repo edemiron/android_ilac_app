@@ -1,4 +1,3 @@
-import React from 'react';
 
 import { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 

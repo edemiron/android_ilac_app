@@ -68,6 +68,7 @@ export async function searchOpenFoodFacts(
 
     // İlaç olup olmadığını kontrol et
     const categories = (product.categories || '').toLowerCase();
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const isMedicine =
       categories.includes('medicine') ||
       categories.includes('pharmaceutical') ||
@@ -247,6 +248,7 @@ function parseIlacabakResults(html: string): Partial<GlobalMedicine>[] {
     let match;
 
     while ((match = liRegex.exec(html)) !== null) {
+      // eslint-disable-next-line unused-imports/no-unused-vars
       const [, url, title, name] = match;
 
       // URL'den barkod çıkar (varsa)

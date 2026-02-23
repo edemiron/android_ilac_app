@@ -16,17 +16,33 @@ import { useLanguage } from '../../contexts/LanguageContext';
 interface Props {
   value: number;
   onSelect: (frequency: number) => void;
+  /** Otomatik saat önerisi - sıklık seçilince tetiklenir */
+  onAutoTimes?: (times: string[]) => void;
   label: string;
   colors: ThemeColors;
 }
 
-export function FrequencySelector({ value, onSelect, label, colors }: Props) {
+export function FrequencySelector({ value, onSelect, onAutoTimes, label, colors }: Props) {
   const { t } = useLanguage();
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customValue, setCustomValue] = useState('');
   const [customError, setCustomError] = useState('');
 
   const styles = createStyles(colors);
+
+  // 08:00 - 21:00 arasına frekansa göre eşit aralıklı saatler üret
+  const getAutoTimes = (count: number): string[] => {
+    if (count <= 0) return [];
+    const startMinutes = 8 * 60;   // 08:00
+    const endMinutes = 21 * 60;  // 21:00
+    const step = count === 1 ? 0 : (endMinutes - startMinutes) / (count - 1);
+    return Array.from({ length: count }, (_, i) => {
+      const totalMins = Math.round(startMinutes + step * i);
+      const h = Math.floor(totalMins / 60).toString().padStart(2, '0');
+      const m = (totalMins % 60).toString().padStart(2, '0');
+      return `${h}:${m}`;
+    });
+  };
 
   const isCustomValue = value > 6;
 
@@ -45,6 +61,7 @@ export function FrequencySelector({ value, onSelect, label, colors }: Props) {
     }
 
     onSelect(numValue);
+    if (onAutoTimes) onAutoTimes(getAutoTimes(numValue));
     setShowCustomModal(false);
     setCustomValue('');
     setCustomError('');
@@ -71,7 +88,10 @@ export function FrequencySelector({ value, onSelect, label, colors }: Props) {
           <TouchableOpacity
             key={f}
             style={[styles.frequencyButton, value === f && styles.frequencyButtonActive]}
-            onPress={() => onSelect(f)}
+            onPress={() => {
+              onSelect(f);
+              if (onAutoTimes) onAutoTimes(getAutoTimes(f));
+            }}
             testID={`frequency-button-${f}`}
           >
             <Text style={[styles.frequencyText, value === f && styles.frequencyTextActive]}>
@@ -173,20 +193,21 @@ const createStyles = (colors: ThemeColors) =>
     frequencyButton: {
       minWidth: 48,
       backgroundColor: colors.card,
-      borderRadius: 12,
-      paddingVertical: 14,
+      borderRadius: 16,
+      paddingVertical: 12,
       paddingHorizontal: 12,
       alignItems: 'center',
       borderWidth: 1,
-      borderColor: colors.inputBorder,
+      borderColor: colors.border,
     },
     customButton: {
       flex: 1,
       minWidth: 60,
     },
     frequencyButtonActive: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.primary + '15',
       borderColor: colors.primary,
+      borderWidth: 1.5,
     },
     frequencyText: {
       fontSize: 14,
@@ -194,7 +215,7 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
     frequencyTextActive: {
-      color: '#FFFFFF',
+      color: colors.primary,
     },
     modalOverlay: {
       flex: 1,
