@@ -142,6 +142,24 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
       />
 
       <SettingRow
+        icon={{ name: 'notifications-circle-outline', color: '#F59E0B' }}
+        label={language === 'tr' ? 'Kalıcı Bildirim' : 'Persistent Notification'}
+        description={
+          language === 'tr'
+            ? 'İlaç alınana kadar bildirim ekranda kalır'
+            : 'Notification stays until medicine is taken'
+        }
+        rightElement={
+          <Switch
+            value={settings.persistentNotificationEnabled ?? true}
+            onValueChange={value => onSettingChange({ persistentNotificationEnabled: value })}
+            trackColor={{ false: colors.border, true: '#F59E0B' }}
+            thumbColor="#FFFFFF"
+          />
+        }
+      />
+
+      <SettingRow
         icon={{ name: 'expand-outline', color: '#EC4899' }}
         label={t('settings_fullscreen_alarm')}
         description={language === 'tr' ? 'Kilit ekranında göster' : 'Show on lock screen'}
