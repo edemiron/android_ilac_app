@@ -1,46 +1,78 @@
-import { AIConfig, AIProvider, AISearchResult, GlobalMedicine, MedicineForm, MedicineProspectus } from '../types';
+import { AISearchResult, GlobalMedicine, MedicineForm, MedicineProspectus } from '../types';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('AIMedicineService');
 
-// ============ AI YAPILANDIRMA YÖNETİMİ ============
+// ============ FIREBASE FUNCTIONS CONFIG ============
 
-// Firebase'den AI yapılandırmasını al
-// eslint-disable-next-line unused-imports/no-unused-vars
-const AI_CONFIG_DOC = 'config/ai';
+// Firebase Functions kullanarak API çağrıları
+// API key'ler sunucu tarafında kalır, client'a gitmez
 
-interface StoredAIConfig {
-  provider: AIProvider;
+let functions: ReturnType<typeof getFunctions> | null = null;
+
+function getFunctionsInstance() {
+  if (!functions) {
+    functions = getFunctions();
+  }
+  return functions;
+}
+
+// ============ FALLBACK: Direct API (API key gerekli) ============
+
+interface FallbackAIConfig {
   geminiApiKey: string;
-  openaiApiKey: string;
-  geminiModel: string;
-  openaiModel: string;
+  model: string;
 }
 
 /**
- * Firebase'den AI yapılandırmasını getir
+ * Fallback: Firebase'den AI config al (direct API için)
  */
-export async function getAIConfig(): Promise<AIConfig | null> {
+async function getAIConfigDirect(): Promise<FallbackAIConfig | null> {
   try {
     const configRef = doc(db, 'config', 'ai');
     const snapshot = await getDoc(configRef);
 
     if (!snapshot.exists()) {
-      log.debug('AI yapilandirmasi bulunamadi');
       return null;
     }
 
-    const data = snapshot.data() as StoredAIConfig;
+    const data = snapshot.data();
     return {
-      provider: data.provider || 'gemini',
-      geminiApiKey: data.geminiApiKey,
-      openaiApiKey: data.openaiApiKey,
-      model: data.provider === 'gemini' ? data.geminiModel : data.openaiModel,
+      geminiApiKey: data.geminiApiKey || '',
+      model: data.geminiModel || 'gemini-2.5-flash',
     };
   } catch (error) {
-    log.error('AI yapilandirma getirme hatasi', error);
+    log.error('AI config getirme hatasi', error);
+    return null;
+  }
+}
+
+async function getAIConfig(): Promise<{
+  provider: string;
+  geminiApiKey: string;
+  openaiApiKey: string;
+  model: string;
+} | null> {
+  try {
+    const configRef = doc(db, 'config', 'ai');
+    const snapshot = await getDoc(configRef);
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    const data = snapshot.data();
+    return {
+      provider: data.provider || 'gemini',
+      geminiApiKey: data.geminiApiKey || '',
+      openaiApiKey: data.openaiApiKey || '',
+      model: data.geminiModel || 'gemini-2.5-flash',
+    };
+  } catch (error) {
+    log.error('AI config getirme hatasi', error);
     return null;
   }
 }
@@ -49,30 +81,39 @@ export async function getAIConfig(): Promise<AIConfig | null> {
 
 /**
  * Barkod ile web'te arama yapıp AI ile ilaç bilgilerini çıkar
+ * Firebase Functions kullanarak - API key'ler sunucu tarafında kalır
  */
 export async function searchMedicineByBarcodeAI(barcode: string): Promise<AISearchResult> {
   try {
-    const config = await getAIConfig();
-    
-    if (!config) {
-      return {
-        success: false,
-        confidence: 0,
-        error: 'AI yapılandırması bulunamadı. Admin panelinden API key girilmeli.',
-      };
+    // Firebase Functions kullanarak sunucu tarafında AI çağrısı yap
+    // API key'ler client'a gitmez
+    const fn = getFunctionsInstance();
+
+    try {
+      const geminiSearch = httpsCallable(fn, 'geminiSearch');
+      const result = await geminiSearch({ barcode });
+
+      if (result.data?.success) {
+        return parseAIResponse(result.data.result, barcode, 'Gemini (Function)');
+      }
+
+      // Function başarısız olursa fallback olarak direct API dene
+      log.warn('Firebase Function başarısız, fallback denenecek', result.data);
+    } catch (fnError) {
+      log.warn('Firebase Function hatası, fallback denenecek', fnError);
     }
 
-    // Provider'a göre arama yap
-    if (config.provider === 'gemini' && config.geminiApiKey) {
+    // Fallback: Direct API (eski yöntem - API key gerekli)
+    const config = await getAIConfigDirect();
+
+    if (config?.geminiApiKey) {
       return await searchWithGemini(barcode, config.geminiApiKey, config.model);
-    } else if (config.provider === 'openai' && config.openaiApiKey) {
-      return await searchWithOpenAI(barcode, config.openaiApiKey, config.model);
     }
 
     return {
       success: false,
       confidence: 0,
-      error: 'Geçerli bir AI API key bulunamadı.',
+      error: 'AI servisi şu anda kullanılamıyor.',
     };
   } catch (error: unknown) {
     log.error('AI arama hatasi', error);
@@ -165,7 +206,8 @@ async function searchWithOpenAI(
         messages: [
           {
             role: 'system',
-            content: 'Sen bir ilaç veritabanı asistanısın. Barkod numaralarına göre ilaç bilgilerini JSON formatında döndürürsün.',
+            content:
+              'Sen bir ilaç veritabanı asistanısın. Barkod numaralarına göre ilaç bilgilerini JSON formatında döndürürsün.',
           },
           {
             role: 'user',
@@ -213,7 +255,7 @@ async function searchWithOpenAI(
 export async function searchMedicineByNameAI(name: string): Promise<AISearchResult> {
   try {
     const config = await getAIConfig();
-    
+
     if (!config) {
       return {
         success: false,
@@ -288,7 +330,11 @@ async function searchNameWithOpenAI(
       body: JSON.stringify({
         model,
         messages: [
-          { role: 'system', content: 'Sen bir ilaç bilgi asistanısın. İlaç adlarına göre doğru bilgileri sağlarsın.' },
+          {
+            role: 'system',
+            content:
+              'Sen bir ilaç bilgi asistanısın. İlaç adlarına göre doğru bilgileri sağlarsın.',
+          },
           { role: 'user', content: prompt },
         ],
         temperature: 0.1,
@@ -377,7 +423,7 @@ export async function getMedicineInfoAI(
 ): Promise<AISearchResult> {
   try {
     const config = await getAIConfig();
-    
+
     if (!config) {
       return {
         success: false,
@@ -451,7 +497,10 @@ async function getInfoWithOpenAI(
       body: JSON.stringify({
         model,
         messages: [
-          { role: 'system', content: 'Sen bir ilaç bilgi asistanısın. Detaylı ve doğru ilaç bilgileri sağlarsın.' },
+          {
+            role: 'system',
+            content: 'Sen bir ilaç bilgi asistanısın. Detaylı ve doğru ilaç bilgileri sağlarsın.',
+          },
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
@@ -593,7 +642,7 @@ function parseProspectusResponse(response: string): AISearchResult {
       },
       confidence: 80,
     };
-  // eslint-disable-next-line unused-imports/no-unused-vars
+    // eslint-disable-next-line unused-imports/no-unused-vars
   } catch (error) {
     return { success: false, confidence: 0, error: 'Prospektüs yanıtı işlenemedi' };
   }
