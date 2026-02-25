@@ -60,7 +60,6 @@ function getVibrationPattern(pattern?: 'default' | 'heartbeat' | 'urgent' | 'sof
   }
 }
 
-
 /**
  * Bildirim kanallarını oluştur
  */
@@ -194,7 +193,7 @@ export async function checkAllPermissions(): Promise<{
     batteryOptimization:
       Platform.OS === 'android'
         ? !androidSettingsWithBattery.batteryOptimizationStatus ||
-        androidSettingsWithBattery.batteryOptimizationStatus === 1
+          androidSettingsWithBattery.batteryOptimizationStatus === 1
         : true,
     dnd: true,
     fullScreenIntent: fullScreenIntentEnabled,
@@ -1092,6 +1091,25 @@ export async function wakeAndOpenApp(): Promise<boolean> {
     }
   } catch (error) {
     log.error('AlarmModule: wakeAndOpenApp failed', error);
+  }
+  return false;
+}
+
+/**
+ * Sadece ekranı aç (FullScreenIntent izni olmayan cihazlar için fallback)
+ */
+export async function wakeScreenOnly(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+
+  try {
+    const { AlarmModule } = NativeModules;
+    if (AlarmModule) {
+      await AlarmModule.wakeScreenOnly();
+      log.debug('AlarmModule: Screen woken only');
+      return true;
+    }
+  } catch (error) {
+    log.error('AlarmModule: wakeScreenOnly failed', error);
   }
   return false;
 }
