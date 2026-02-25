@@ -152,11 +152,9 @@ async function hashPinWithSalt(pin: string, salt: string): Promise<string> {
     // key-stretching ile multi-round hash kullanıyoruz
     let hash = pin + salt;
     for (let i = 0; i < PBKDF2_ITERATIONS / 1000; i++) {
-      hash = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        hash,
-        { encoding: Crypto.CryptoEncoding.HEX }
-      );
+      hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, hash, {
+        encoding: Crypto.CryptoEncoding.HEX,
+      });
     }
     return hash;
   } catch (error) {
@@ -254,16 +252,19 @@ export async function getRemainingLockoutTime(): Promise<number> {
 /**
  * PIN doğrula - Brute-force korumalı
  */
-export async function verifyPin(enteredPin: string): Promise<{ success: boolean; error?: string; remainingAttempts?: number }> {
+export async function verifyPin(
+  enteredPin: string
+): Promise<{ success: boolean; error?: string; remainingAttempts?: number }> {
   // Kilitleme kontrolü
   const locked = await isLockedOut();
   if (locked) {
     const remainingMinutes = await getRemainingLockoutTime();
     return {
       success: false,
-      error: remainingMinutes > 0
-        ? `Çok fazla başarısız deneme. ${remainingMinutes} dakika bekleyin.`
-        : 'Çok fazla başarısız deneme. Lütfen bekleyin.',
+      error:
+        remainingMinutes > 0
+          ? `Çok fazla başarısız deneme. ${remainingMinutes} dakika bekleyin.`
+          : 'Çok fazla başarısız deneme. Lütfen bekleyin.',
     };
   }
 
@@ -310,7 +311,24 @@ export async function savePin(pin: string): Promise<boolean> {
     }
 
     // Zayıf PIN kontrolü (yaygın PIN'leri engelle)
-    const weakPins = ['1234', '1111', '0000', '1212', '7777', '1004', '2000', '4444', '2222', '3333', '5555', '6666', '8888', '9999', '123456', '654321'];
+    const weakPins = [
+      '1234',
+      '1111',
+      '0000',
+      '1212',
+      '7777',
+      '1004',
+      '2000',
+      '4444',
+      '2222',
+      '3333',
+      '5555',
+      '6666',
+      '8888',
+      '9999',
+      '123456',
+      '654321',
+    ];
     if (weakPins.includes(pin)) {
       log.warn('Zayıf PIN reddedildi');
       return false;
@@ -344,11 +362,59 @@ export async function clearPin(): Promise<boolean> {
 }
 
 /**
- * PIN formatı geçerli mi?
+ * PIN formatı geçerli mi? (Güçlendirilmiş)
+ * - 4-6 hane
+ * - Ardışık rakam yok (123, 234, 345, 456)
+ * - Tekrarlanan rakam yok (111, 222)
+ * - Tarih değil (yılın son 2 hanesi)
  */
 export function isValidPin(pin: string): boolean {
-  // 4-6 haneli, sadece rakam
-  return /^\d{4,6}$/.test(pin);
+  // Temel format kontrolü (4-6 hane, sadece rakam)
+  if (!/^\d{4,6}$/.test(pin)) {
+    return false;
+  }
+
+  // Ardışık rakam kontrolü (123, 234, 345, 456, 567, 678, 789)
+  const consecutivePatterns = [
+    '012',
+    '123',
+    '234',
+    '345',
+    '456',
+    '567',
+    '678',
+    '789',
+    '890',
+    '321',
+    '432',
+    '543',
+    '654',
+    '765',
+    '876',
+    '987',
+  ];
+  for (const pattern of consecutivePatterns) {
+    if (pin.includes(pattern)) {
+      log.debug('Ardışık rakam tespit edildi', { pin: pin.substring(0, 2) + '**' });
+      return false;
+    }
+  }
+
+  // Tekrarlanan rakam kontrolü (111, 222, 333, 444, 555, 666, 777, 888, 999)
+  if (/(.)\1{2,}/.test(pin)) {
+    log.debug('Tekrarlanan rakam tespit edildi', { pin: pin.substring(0, 2) + '**' });
+    return false;
+  }
+
+  // Tarih kontrolü (yılın son 2 hanesi - gün doğum tarihi vb.)
+  const currentYear = new Date().getFullYear() % 100;
+  const lastYear = (currentYear - 1) % 100;
+  if (pin.endsWith(String(currentYear)) || pin.endsWith(String(lastYear))) {
+    log.debug('Tarih içeren PIN tespit edildi', { pin: pin.substring(0, 2) + '**' });
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -401,7 +467,9 @@ export async function getLastActiveTime(): Promise<string | null> {
 /**
  * Karmaşık güvenlik doğrulama (PIN + Biyometrik)
  */
-export async function authenticateWithPin(pin: string): Promise<SecurityCheckResult & { remainingAttempts?: number }> {
+export async function authenticateWithPin(
+  pin: string
+): Promise<SecurityCheckResult & { remainingAttempts?: number }> {
   const result = await verifyPin(pin);
 
   if (result.success) {
