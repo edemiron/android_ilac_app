@@ -4,6 +4,8 @@ node_modules/
 # Temp files
 .temp_ag_kit/
 antigravity-doc
+.worktrees/
+worktrees/
 
 # Environment files (sensitive)
 .env
