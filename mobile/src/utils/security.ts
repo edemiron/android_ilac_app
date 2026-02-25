@@ -6,12 +6,14 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { createScopedLogger } from './logger';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 
 const log = createScopedLogger('Security');
 
 const SECURITY_STORAGE_KEY = '@security_settings';
 const PIN_HASH_KEY = '@security_pin_hash';
+const SALT_STORAGE_KEY = '@security_pin_salt';
 
 export interface SecurityCheckResult {
   success: boolean;
@@ -127,7 +129,6 @@ export async function authenticateWithBiometrics(
  * PIN hash'le (PBKDF2 ile güvenli saklama için)
  * Salt ve PBKDF2 kullanarak brute-force saldırılarına karşı koruma sağlar
  */
-const SALT_STORAGE_KEY = '@security_pin_salt';
 const PBKDF2_ITERATIONS = 100000; // OWASP önerisi: 2024 için 100k+ iteration
 const FAILED_ATTEMPTS_KEY = '@security_failed_attempts';
 const LOCKOUT_TIME_KEY = '@security_lockout_until';
@@ -269,8 +270,9 @@ export async function verifyPin(
   }
 
   try {
-    const storedHash = await AsyncStorage.getItem(PIN_HASH_KEY);
-    const storedSalt = await AsyncStorage.getItem(SALT_STORAGE_KEY);
+    // SecureStore kullan (device keychain - daha güvenli)
+    const storedHash = await SecureStore.getItemAsync(PIN_HASH_KEY);
+    const storedSalt = await SecureStore.getItemAsync(SALT_STORAGE_KEY);
 
     if (!storedHash || !storedSalt) {
       log.warn('Kaydedilmiş PIN bulunamadı');
@@ -335,9 +337,10 @@ export async function savePin(pin: string): Promise<boolean> {
     }
 
     const { hash, salt } = await hashPin(pin);
-    await AsyncStorage.setItem(PIN_HASH_KEY, hash);
-    await AsyncStorage.setItem(SALT_STORAGE_KEY, salt);
-    log.debug('PIN güvenli şekilde kaydedildi');
+    // SecureStore kullan (device keychain - daha güvenli)
+    await SecureStore.setItemAsync(PIN_HASH_KEY, hash);
+    await SecureStore.setItemAsync(SALT_STORAGE_KEY, salt);
+    log.debug('PIN güvenli şekilde kaydedildi (SecureStore)');
     return true;
   } catch (error) {
     log.error('PIN kaydetme hatası', error);
@@ -350,10 +353,11 @@ export async function savePin(pin: string): Promise<boolean> {
  */
 export async function clearPin(): Promise<boolean> {
   try {
-    await AsyncStorage.removeItem(PIN_HASH_KEY);
-    await AsyncStorage.removeItem(SALT_STORAGE_KEY);
+    // SecureStore kullan
+    await SecureStore.deleteItemAsync(PIN_HASH_KEY);
+    await SecureStore.deleteItemAsync(SALT_STORAGE_KEY);
     await resetFailedAttempts(); // Failed attempts'ı da temizle
-    log.debug('PIN ve salt silindi');
+    log.debug('PIN ve salt silindi (SecureStore)');
     return true;
   } catch (error) {
     log.error('PIN silme hatası', error);
@@ -527,7 +531,8 @@ export async function getSecuritySettings(): Promise<SecuritySettings | null> {
  */
 export async function isPinSet(): Promise<boolean> {
   try {
-    const storedHash = await AsyncStorage.getItem(PIN_HASH_KEY);
+    // SecureStore kullan
+    const storedHash = await SecureStore.getItemAsync(PIN_HASH_KEY);
     return storedHash !== null;
   } catch (error) {
     log.error('PIN durum kontrolü hatası', error);
