@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ import {
 import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('HomeScreen');
+import { refreshWidget } from '../services/widgetService';
 import { useAlert } from '../contexts/AlertContext';
 import { CircularProgress } from '../components/common/CircularProgress';
 
@@ -209,8 +210,8 @@ const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
               styles.snoozeBtn,
               {
                 borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FDE68A',
-                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB'
-              }
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB',
+              },
             ]}
             onPress={() => setShowSnoozeOptions(true)}
           >
@@ -226,12 +227,16 @@ const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
               styles.skipBtn,
               {
                 borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FECACA',
-                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2'
-              }
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
+              },
             ]}
             onPress={onSkip}
           >
-            <Ionicons name="close-circle-outline" size={18} color={isDark ? '#EF4444' : '#DC2626'} />
+            <Ionicons
+              name="close-circle-outline"
+              size={18}
+              color={isDark ? '#EF4444' : '#DC2626'}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -414,9 +419,11 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
     const text = `${med.dosage || ''} ${med.stockUnit || ''}`.toLowerCase();
     if (text.includes('tablet')) return { lib: 'mci' as const, name: 'pill' };
     if (text.includes('kaps')) return { lib: 'mci' as const, name: 'pill-multiple' };
-    if (text.includes('ml') || text.includes('şurup')) return { lib: 'mci' as const, name: 'bottle-tonic-outline' };
+    if (text.includes('ml') || text.includes('şurup'))
+      return { lib: 'mci' as const, name: 'bottle-tonic-outline' };
     if (text.includes('damla')) return { lib: 'mci' as const, name: 'water-outline' };
-    if (text.includes('iğne') || text.includes('enjeksiyon')) return { lib: 'mci' as const, name: 'needle' };
+    if (text.includes('iğne') || text.includes('enjeksiyon'))
+      return { lib: 'mci' as const, name: 'needle' };
     return { lib: 'ion' as const, name: 'medical' };
   };
 
@@ -441,13 +448,26 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
       ]}
     >
       {/* Sol: İlaç İkonu / Fotoğrafı */}
-      <View style={[styles.medicineIconBox, { backgroundColor: medicineColor + iconBgOpacity, overflow: 'hidden' }]}>
+      <View
+        style={[
+          styles.medicineIconBox,
+          { backgroundColor: medicineColor + iconBgOpacity, overflow: 'hidden' },
+        ]}
+      >
         {reminder.medicine.imageUri ? (
           <Image source={{ uri: reminder.medicine.imageUri }} style={{ width: 40, height: 40 }} />
+        ) : formIcon.lib === 'mci' ? (
+          <MaterialCommunityIcons
+            name={formIcon.name}
+            size={isCompleted ? 16 : 20}
+            color={medicineColor}
+          />
         ) : (
-          formIcon.lib === 'mci'
-            ? <MaterialCommunityIcons name={formIcon.name} size={isCompleted ? 16 : 20} color={medicineColor} />
-            : <Ionicons name={formIcon.name as any} size={isCompleted ? 16 : 20} color={medicineColor} />
+          <Ionicons
+            name={formIcon.name as any}
+            size={isCompleted ? 16 : 20}
+            color={medicineColor}
+          />
         )}
       </View>
 
@@ -477,17 +497,12 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
             onPress={onTakeNow}
           >
             <Ionicons name="checkmark" size={16} color="#fff" />
-            <Text style={styles.takeNowText}>
-              {language === 'tr' ? 'Bugün Al' : 'Take Now'}
-            </Text>
+            <Text style={styles.takeNowText}>{language === 'tr' ? 'Bugün Al' : 'Take Now'}</Text>
           </TouchableOpacity>
         ) : isCompleted ? (
           // Alındı veya Atlandı — sadece badge
           <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: isTaken ? '#10B98115' : status.bg },
-            ]}
+            style={[styles.statusBadge, { backgroundColor: isTaken ? '#10B98115' : status.bg }]}
           >
             <Ionicons
               name={isTaken ? 'checkmark-circle' : status.icon}
@@ -507,7 +522,10 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
         ) : (
           // Bekliyor (gelecek saat) — kompakt yuvarlak "Aldım" ikonu
           <TouchableOpacity
-            style={[styles.quickTakeBtn, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}
+            style={[
+              styles.quickTakeBtn,
+              { backgroundColor: colors.primary + '18', borderColor: colors.primary },
+            ]}
             onPress={onTakeNow}
           >
             <Ionicons name="checkmark" size={18} color={colors.primary} />
@@ -609,6 +627,8 @@ export default function HomeScreen() {
       if (nextAppState === 'active') {
         // Uygulama açık — kalıcı bildirimi kaldır
         dismissAllPersistentNotifications();
+        // Widget'ı yenile
+        refreshWidget();
       } else if (nextAppState === 'background') {
         // Uygulama arka plana geçti — bekleyen ilaç varsa bildirim göster
         checkPendingMedicines();
@@ -868,15 +888,21 @@ export default function HomeScreen() {
   }, [groupedTimeline, activeSlotKey]);
 
   // Slot açık mı kontrolü: aktif slot + sonraki bekleyen slot varsayılan açık
-  const isSlotExpanded = useCallback((slotKey: string) => {
-    if (expandedSlots[slotKey] !== undefined) return expandedSlots[slotKey];
-    // Varsayılan: aktif zaman dilimi ve sonraki bekleyen açık, geri kalan kapalı
-    return slotKey === activeSlotKey || slotKey === nextPendingSlotKey;
-  }, [expandedSlots, activeSlotKey, nextPendingSlotKey]);
+  const isSlotExpanded = useCallback(
+    (slotKey: string) => {
+      if (expandedSlots[slotKey] !== undefined) return expandedSlots[slotKey];
+      // Varsayılan: aktif zaman dilimi ve sonraki bekleyen açık, geri kalan kapalı
+      return slotKey === activeSlotKey || slotKey === nextPendingSlotKey;
+    },
+    [expandedSlots, activeSlotKey, nextPendingSlotKey]
+  );
 
-  const toggleSlot = useCallback((slotKey: string) => {
-    setExpandedSlots(prev => ({ ...prev, [slotKey]: !isSlotExpanded(slotKey) }));
-  }, [isSlotExpanded]);
+  const toggleSlot = useCallback(
+    (slotKey: string) => {
+      setExpandedSlots(prev => ({ ...prev, [slotKey]: !isSlotExpanded(slotKey) }));
+    },
+    [isSlotExpanded]
+  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -1113,14 +1139,18 @@ export default function HomeScreen() {
                 style={[
                   styles.filterTab,
                   activeTab === tab.id && { backgroundColor: colors.primary },
-                  activeTab !== tab.id && { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F3F4F6' }
+                  activeTab !== tab.id && {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F3F4F6',
+                  },
                 ]}
                 onPress={() => setActiveTab(tab.id as FilterTab)}
               >
-                <Text style={[
-                  styles.filterTabText,
-                  activeTab === tab.id ? { color: '#fff' } : { color: colors.textMuted }
-                ]}>
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    activeTab === tab.id ? { color: '#fff' } : { color: colors.textMuted },
+                  ]}
+                >
                   {tab.label}
                 </Text>
               </TouchableOpacity>
@@ -1130,21 +1160,39 @@ export default function HomeScreen() {
           {/* İlaç Listesi — Zaman Dilimine Göre Gruplandırılmış */}
           <View style={[styles.medicineList, { paddingHorizontal: 16 }]}>
             {filteredTimeline.length === 0 ? (
-              <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View
+                style={[
+                  styles.emptyState,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
                 <Ionicons
                   name={
-                    activeTab === 'taken' ? 'checkmark-circle-outline' :
-                      activeTab === 'missed' ? 'happy-outline' :
-                        'calendar-clear-outline'
+                    activeTab === 'taken'
+                      ? 'checkmark-circle-outline'
+                      : activeTab === 'missed'
+                        ? 'happy-outline'
+                        : 'calendar-clear-outline'
                   }
                   size={48}
                   color={colors.textMuted}
                 />
                 <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
-                  {activeTab === 'taken' ? (language === 'tr' ? 'Henüz ilaç almadınız' : 'No medicines taken yet') :
-                    activeTab === 'missed' ? (language === 'tr' ? 'Harika! Atlanan ilaç yok' : 'Great! No missed medicines') :
-                      activeTab === 'pending' ? (language === 'tr' ? 'Bekleyen ilaç yok' : 'No pending medicines') :
-                        (language === 'tr' ? 'Bugün için planlanmış ilaç yok' : 'No medicines scheduled for today')}
+                  {activeTab === 'taken'
+                    ? language === 'tr'
+                      ? 'Henüz ilaç almadınız'
+                      : 'No medicines taken yet'
+                    : activeTab === 'missed'
+                      ? language === 'tr'
+                        ? 'Harika! Atlanan ilaç yok'
+                        : 'Great! No missed medicines'
+                      : activeTab === 'pending'
+                        ? language === 'tr'
+                          ? 'Bekleyen ilaç yok'
+                          : 'No pending medicines'
+                        : language === 'tr'
+                          ? 'Bugün için planlanmış ilaç yok'
+                          : 'No medicines scheduled for today'}
                 </Text>
                 {activeTab === 'all' && (
                   <Text style={[styles.emptyStateDesc, { color: colors.textMuted }]}>
@@ -1171,44 +1219,54 @@ export default function HomeScreen() {
                     >
                       <View style={styles.timeSlotLeft}>
                         <Text style={styles.timeSlotEmoji}>{slot.emoji}</Text>
-                        <Text style={[styles.timeSlotLabel, { color: colors.textSecondary }]}>{slot.label}</Text>
+                        <Text style={[styles.timeSlotLabel, { color: colors.textSecondary }]}>
+                          {slot.label}
+                        </Text>
                         <Ionicons
                           name={expanded ? 'chevron-up' : 'chevron-down'}
                           size={16}
                           color={colors.textMuted}
                         />
                       </View>
-                      <View style={[
-                        styles.timeSlotProgress,
-                        { backgroundColor: slotDone ? '#10B98115' : colors.primary + '15' }
-                      ]}>
-                        <Text style={[styles.timeSlotProgressText, { color: slotDone ? '#10B981' : colors.primary }]}>
+                      <View
+                        style={[
+                          styles.timeSlotProgress,
+                          { backgroundColor: slotDone ? '#10B98115' : colors.primary + '15' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.timeSlotProgressText,
+                            { color: slotDone ? '#10B981' : colors.primary },
+                          ]}
+                        >
                           {slotTaken}/{slotTotal} {slotDone ? '✓' : ''}
                         </Text>
                       </View>
                     </TouchableOpacity>
                     {/* Slot Öğeleri — Collapsible */}
-                    {expanded && slot.items.map((reminder, index) => {
-                      const activeSnooze = snoozes.find(
-                        s =>
-                          s.medicineId === reminder.medicine.id &&
-                          s.reminderTimeId === reminder.reminderTime.id &&
-                          s.isActive &&
-                          s.originalScheduledTime.startsWith(todayStr)
-                      );
-                      return (
-                        <TimelineItem
-                          key={reminder.reminderTime.id}
-                          reminder={reminder}
-                          colors={colors}
-                          language={language}
-                          onTakeNow={() => handleTake(reminder.reminderTime.id)}
-                          isFirst={index === 0}
-                          hasActiveSnooze={!!activeSnooze}
-                          snoozeTriggerTime={activeSnooze?.triggerTime ?? null}
-                        />
-                      );
-                    })}
+                    {expanded &&
+                      slot.items.map((reminder, index) => {
+                        const activeSnooze = snoozes.find(
+                          s =>
+                            s.medicineId === reminder.medicine.id &&
+                            s.reminderTimeId === reminder.reminderTime.id &&
+                            s.isActive &&
+                            s.originalScheduledTime.startsWith(todayStr)
+                        );
+                        return (
+                          <TimelineItem
+                            key={reminder.reminderTime.id}
+                            reminder={reminder}
+                            colors={colors}
+                            language={language}
+                            onTakeNow={() => handleTake(reminder.reminderTime.id)}
+                            isFirst={index === 0}
+                            hasActiveSnooze={!!activeSnooze}
+                            snoozeTriggerTime={activeSnooze?.triggerTime ?? null}
+                          />
+                        );
+                      })}
                   </View>
                 );
               })

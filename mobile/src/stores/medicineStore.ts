@@ -4,7 +4,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { Platform } from 'react-native';
 import { STORAGE_KEYS } from '../constants';
-import { Medicine, ReminderTime, UserSettings, MedicineLog, AlarmState, Snooze, MedicineCategory } from '../types';
+import {
+  Medicine,
+  ReminderTime,
+  UserSettings,
+  MedicineLog,
+  AlarmState,
+  Snooze,
+  MedicineCategory,
+} from '../types';
 import { calculateMedicineTimes } from '../utils/timeCalculator';
 import { generateId } from '../utils/idGenerator';
 import { getSyncQueue } from '../utils/syncQueue';
@@ -421,7 +429,10 @@ export const useMedicineStore = create<MedicineState>()(
             try {
               const currentMedicines = get().medicines;
               const currentReminderTimes = get().reminderTimes;
-              updateWidgetData(currentMedicines, currentReminderTimes).catch(() => {});
+              const currentMedicineLogs = get().medicineLogs;
+              updateWidgetData(currentMedicines, currentReminderTimes, currentMedicineLogs).catch(
+                () => {}
+              );
             } catch (e) {
               log.debug('Widget hatası (addMedicine)', e);
             }
@@ -463,8 +474,8 @@ export const useMedicineStore = create<MedicineState>()(
         if (Platform.OS === 'android') {
           setTimeout(() => {
             try {
-              const { medicines, reminderTimes } = get();
-              updateWidgetData(medicines, reminderTimes).catch(() => {});
+              const { medicines, reminderTimes, medicineLogs } = get();
+              updateWidgetData(medicines, reminderTimes, medicineLogs).catch(() => {});
             } catch (e) {
               log.debug('Widget hatası (updateMedicine)', e);
             }
@@ -498,7 +509,10 @@ export const useMedicineStore = create<MedicineState>()(
             setTimeout(() => {
               const currentMedicines = get().medicines;
               const currentReminderTimes = get().reminderTimes;
-              updateWidgetData(currentMedicines, currentReminderTimes).catch(() => {});
+              const currentMedicineLogs = get().medicineLogs;
+              updateWidgetData(currentMedicines, currentReminderTimes, currentMedicineLogs).catch(
+                () => {}
+              );
             }, 500);
           }
         } catch (e) {
@@ -519,8 +533,8 @@ export const useMedicineStore = create<MedicineState>()(
         }
 
         // Widget'ı güncelle
-        const { medicines, reminderTimes } = get();
-        updateWidgetData(medicines, reminderTimes);
+        const { medicines, reminderTimes, medicineLogs } = get();
+        updateWidgetData(medicines, reminderTimes, medicineLogs);
       },
 
       // Hatırlatma zamanı güncelleme
@@ -648,14 +662,16 @@ export const useMedicineStore = create<MedicineState>()(
 
         // Bakıcı bildirimi gönder
         if (userId && medicine) {
-          import('../services/caregiverNotificationService').then(({ notifyCaregiversAboutMedicineStatus }) => {
-            notifyCaregiversAboutMedicineStatus(
-              userId,
-              medicine.name,
-              scheduledTime,
-              'taken'
-            ).catch(err => log.error('Bakıcı bildirimi hatası', err));
-          });
+          import('../services/caregiverNotificationService').then(
+            ({ notifyCaregiversAboutMedicineStatus }) => {
+              notifyCaregiversAboutMedicineStatus(
+                userId,
+                medicine.name,
+                scheduledTime,
+                'taken'
+              ).catch(err => log.error('Bakıcı bildirimi hatası', err));
+            }
+          );
         }
 
         const { notificationId, activeSnoozes } = get()._cleanupNotifications(
@@ -683,6 +699,18 @@ export const useMedicineStore = create<MedicineState>()(
             log.error('Failed to save log to cloud', err)
           );
         }
+
+        // Widget'ı güncelle (ilaç alındı)
+        if (Platform.OS === 'android') {
+          setTimeout(() => {
+            try {
+              const { medicines, reminderTimes, medicineLogs } = get();
+              updateWidgetData(medicines, reminderTimes, medicineLogs).catch(() => {});
+            } catch (e) {
+              log.debug('Widget hatası (logMedicineTaken)', e);
+            }
+          }, 500);
+        }
       },
 
       logMedicineSkipped: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
@@ -703,14 +731,16 @@ export const useMedicineStore = create<MedicineState>()(
 
         // Bakıcı bildirimi gönder
         if (userId && medicine) {
-          import('../services/caregiverNotificationService').then(({ notifyCaregiversAboutMedicineStatus }) => {
-            notifyCaregiversAboutMedicineStatus(
-              userId,
-              medicine.name,
-              scheduledTime,
-              'skipped'
-            ).catch(err => log.error('Bakıcı bildirimi hatası', err));
-          });
+          import('../services/caregiverNotificationService').then(
+            ({ notifyCaregiversAboutMedicineStatus }) => {
+              notifyCaregiversAboutMedicineStatus(
+                userId,
+                medicine.name,
+                scheduledTime,
+                'skipped'
+              ).catch(err => log.error('Bakıcı bildirimi hatası', err));
+            }
+          );
         }
 
         const { notificationId, activeSnoozes } = get()._cleanupNotifications(
@@ -734,6 +764,18 @@ export const useMedicineStore = create<MedicineState>()(
           saveMedicineLogToCloud(userId, medicineLog).catch(err =>
             log.error('Failed to save log to cloud', err)
           );
+        }
+
+        // Widget'ı güncelle (ilaç atlandı)
+        if (Platform.OS === 'android') {
+          setTimeout(() => {
+            try {
+              const { medicines, reminderTimes, medicineLogs } = get();
+              updateWidgetData(medicines, reminderTimes, medicineLogs).catch(() => {});
+            } catch (e) {
+              log.debug('Widget hatası (logMedicineSkipped)', e);
+            }
+          }, 500);
         }
       },
 
