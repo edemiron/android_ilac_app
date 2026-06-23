@@ -18,17 +18,22 @@ interface PowerManagerInfo {
   manufacturer?: string;
   activity?: string | null;
 }
-import { Medicine, ReminderTime, UserSettings } from '../types';
+import { Medicine, ReminderTime, Snooze, UserSettings } from '../types';
 import { addMinutes } from 'date-fns';
 import { createScopedLogger } from './logger';
 import { isMIUIDevice, getMIUIInstructions, openMIUIAutoStartSettings } from './miuiHelper';
+import { createDefaultUserSettings } from './defaultSettings';
+import { recordDiagnosticEvent } from './diagnosticTelemetry';
+import { getAlarmKey } from './alarmNavigation';
 
 const log = createScopedLogger('Notifications');
 
 // Kanal ID'leri - Versiyon değişince yeni kanal oluşur (ses ayarı için gerekli)
 const CHANNEL_VERSION = 'v4';
 const ALARM_CHANNEL_ID = `medicine-alarms-${CHANNEL_VERSION}`;
+const ALARM_NO_VIBRATION_CHANNEL_ID = `medicine-alarms-no-vibration-${CHANNEL_VERSION}`;
 const REMINDER_CHANNEL_ID = `medicine-reminders-${CHANNEL_VERSION}`;
+const REMINDER_NO_VIBRATION_CHANNEL_ID = `medicine-reminders-no-vibration-${CHANNEL_VERSION}`;
 
 // Shared notification config
 const ALARM_ACTIONS = [
@@ -46,6 +51,562 @@ const PRESS_ACTION = {
   launchActivity: 'com.ilachatirlatici.MainActivity',
 };
 
+// Official Notifee docs note a 50 active timestamp-trigger ceiling on Android.
+// MIUI exact/full-screen alarm flows can also under-report scheduled triggers
+// when we introspect them back through Notifee, so diagnostics should avoid
+// turning that platform limitation into a hard "missing trigger" failure.
+const ANDROID_TRIGGER_INTROSPECTION_LIMIT = 50;
+
+export function buildSnoozeNotificationId(
+  medicineId: string,
+  reminderTimeId: string,
+  snoozeId: string
+): string {
+  return `snooze-${medicineId}-${reminderTimeId}-${snoozeId}`;
+}
+
+function isAlarmNotificationId(notificationId?: string): boolean {
+  return !!notificationId?.startsWith('alarm-');
+}
+
+function isSnoozeNotificationId(notificationId?: string): boolean {
+  return !!notificationId?.startsWith('snooze-');
+}
+
+function belongsToMedicine(notificationId: string | undefined, medicineId: string): boolean {
+  return (
+    !!notificationId &&
+    (notificationId.startsWith(`alarm-${medicineId}-`) ||
+      notificationId.startsWith(`snooze-${medicineId}-`))
+  );
+}
+
+function extractDisplayedMedicineId(
+  notification: { notification?: { data?: Record<string, unknown> } } | undefined
+): string | undefined {
+  const medicineId = notification?.notification?.data?.medicineId;
+  return typeof medicineId === 'string' ? medicineId : undefined;
+}
+
+type NotificationSettingsInput = UserSettings | boolean | undefined;
+
+interface ResolvedNotificationBehavior {
+  settings: UserSettings;
+  channelId: string;
+  fullScreenAlarm: boolean;
+  vibrationEnabled: boolean;
+  useAlarmChannel: boolean;
+  quietHoursActive: boolean;
+  sound: 'alarm' | 'default';
+  vibrationPattern?: number[];
+}
+
+export interface NotificationStateSnapshot {
+  medicines: Medicine[];
+  reminderTimes: ReminderTime[];
+  snoozes: Snooze[];
+  settings: UserSettings;
+}
+
+export interface ExpectedNotificationSnapshot {
+  id: string;
+  type: 'alarm' | 'snooze';
+  medicineId: string;
+  medicineName: string;
+  reminderTimeId: string;
+  reminderTime: string;
+  triggerTimestamp: number;
+  scheduledTime: string;
+  channelId: string;
+  fullScreenAlarm: boolean;
+  quietHoursActive: boolean;
+  storedNotificationId?: string;
+}
+
+export interface ScheduledNotificationSnapshot {
+  id: string;
+  type: 'alarm' | 'snooze';
+  medicineId?: string;
+  medicineName?: string;
+  reminderTimeId?: string;
+  scheduledTime?: string;
+  triggerTimestamp?: number;
+  channelId?: string;
+  fullScreenAlarm?: boolean;
+  quietHoursActive?: boolean;
+  isDisplayed?: boolean;
+}
+
+export interface NotificationDriftReport {
+  expectedNotifications: ExpectedNotificationSnapshot[];
+  scheduledNotifications: ScheduledNotificationSnapshot[];
+  missingNotificationIds: string[];
+  configDriftIds: string[];
+  orphanTriggerIds: string[];
+  legacySnoozeNotificationIds: string[];
+  hasDrift: boolean;
+}
+
+export interface NotificationDiagnosticsSnapshot {
+  evaluatedAt: string;
+  counts: {
+    activeMedicines: number;
+    enabledReminderTimes: number;
+    activeSnoozes: number;
+    expectedNotifications: number;
+    scheduledNotifications: number;
+    displayedNotifications: number;
+  };
+  settingsSummary: {
+    alarmModeEnabled: boolean;
+    vibrationEnabled: boolean;
+    fullScreenAlarmEnabled: boolean;
+    quietHoursEnabled: boolean;
+    quietHoursStart: string;
+    quietHoursEnd: string;
+    snoozeDuration: number;
+    maxSnoozeCount: number;
+  };
+  report: NotificationDriftReport;
+}
+
+function resolveNotificationSettings(settingsOrFlag?: NotificationSettingsInput): UserSettings {
+  if (typeof settingsOrFlag === 'boolean') {
+    return createDefaultUserSettings({ fullScreenAlarmEnabled: settingsOrFlag });
+  }
+
+  return createDefaultUserSettings(settingsOrFlag ?? {});
+}
+
+function resolveNotificationBehavior(
+  medicine: Medicine,
+  settingsOrFlag?: NotificationSettingsInput,
+  referenceDate: Date = new Date()
+): ResolvedNotificationBehavior {
+  const settings = resolveNotificationSettings(settingsOrFlag);
+  const quietHoursActive = isInQuietHours(settings, referenceDate);
+  const fullScreenAlarm = settings.fullScreenAlarmEnabled && !quietHoursActive;
+  const vibrationEnabled = settings.vibrationEnabled;
+  const useAlarmChannel = settings.alarmModeEnabled;
+
+  const channelId = useAlarmChannel
+    ? vibrationEnabled
+      ? ALARM_CHANNEL_ID
+      : ALARM_NO_VIBRATION_CHANNEL_ID
+    : vibrationEnabled
+      ? REMINDER_CHANNEL_ID
+      : REMINDER_NO_VIBRATION_CHANNEL_ID;
+
+  return {
+    settings,
+    channelId,
+    fullScreenAlarm,
+    vibrationEnabled,
+    useAlarmChannel,
+    quietHoursActive,
+    sound: useAlarmChannel ? 'alarm' : 'default',
+    vibrationPattern: vibrationEnabled ? getVibrationPattern(medicine.vibrationPattern) : undefined,
+  };
+}
+
+export function getNotificationBehaviorSnapshot(
+  medicine: Medicine,
+  settingsOrFlag?: NotificationSettingsInput,
+  referenceDate: Date = new Date()
+): Pick<
+  ResolvedNotificationBehavior,
+  'channelId' | 'fullScreenAlarm' | 'quietHoursActive' | 'sound' | 'vibrationEnabled'
+> {
+  const behavior = resolveNotificationBehavior(medicine, settingsOrFlag, referenceDate);
+
+  return {
+    channelId: behavior.channelId,
+    fullScreenAlarm: behavior.fullScreenAlarm,
+    quietHoursActive: behavior.quietHoursActive,
+    sound: behavior.sound,
+    vibrationEnabled: behavior.vibrationEnabled,
+  };
+}
+
+function getAlarmNotificationId(medicineId: string, reminderTimeId: string): string {
+  return `alarm-${medicineId}-${reminderTimeId}`;
+}
+
+function calculateReminderTriggerDate(
+  reminderTime: ReminderTime,
+  bypassBuffer: boolean = false,
+  referenceNow: Date = new Date()
+): Date {
+  const [hours, minutes] = reminderTime.time.split(':').map(Number);
+  const triggerDate = new Date(referenceNow);
+  triggerDate.setHours(hours, minutes, 0, 0);
+
+  if (bypassBuffer) {
+    const pastThreshold = new Date(referenceNow.getTime() - 60 * 1000);
+    if (triggerDate <= pastThreshold) {
+      triggerDate.setDate(triggerDate.getDate() + 1);
+    }
+  } else {
+    const bufferMs = 2 * 60 * 1000;
+    if (triggerDate.getTime() <= referenceNow.getTime() + bufferMs) {
+      triggerDate.setDate(triggerDate.getDate() + 1);
+    }
+  }
+
+  return triggerDate;
+}
+
+function resolveSmokeTriggerDate(
+  reminderTime: ReminderTime,
+  referenceNow: Date = new Date()
+): Date | null {
+  if (!reminderTime.smokeTriggerTime) {
+    return null;
+  }
+
+  const triggerDate = new Date(reminderTime.smokeTriggerTime);
+  if (Number.isNaN(triggerDate.getTime())) {
+    return null;
+  }
+
+  return triggerDate.getTime() > referenceNow.getTime() ? triggerDate : null;
+}
+
+function resolveReminderTriggerDate(
+  reminderTime: ReminderTime,
+  bypassBuffer: boolean = false,
+  referenceNow: Date = new Date()
+): Date {
+  return (
+    resolveSmokeTriggerDate(reminderTime, referenceNow) ??
+    calculateReminderTriggerDate(reminderTime, bypassBuffer, referenceNow)
+  );
+}
+
+function normalizeBooleanFlag(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  }
+
+  return undefined;
+}
+
+function extractNotificationId(record: unknown): string | undefined {
+  if (!record || typeof record !== 'object') return undefined;
+
+  const topLevel = record as { id?: unknown; notification?: { id?: unknown } };
+  if (typeof topLevel.id === 'string') {
+    return topLevel.id;
+  }
+
+  return typeof topLevel.notification?.id === 'string' ? topLevel.notification.id : undefined;
+}
+
+function normalizeScheduledNotification(raw: unknown): ScheduledNotificationSnapshot | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const candidate = raw as {
+    notification?: {
+      id?: string;
+      data?: Record<string, unknown>;
+      android?: { channelId?: string; fullScreenAction?: unknown };
+    };
+    trigger?: { timestamp?: number };
+  };
+
+  const id = candidate.notification?.id;
+  if (!id) {
+    return null;
+  }
+
+  const data = candidate.notification?.data ?? {};
+  const fullScreenFromData = normalizeBooleanFlag(data.fullScreenAlarm);
+  const fullScreenAlarm = fullScreenFromData ?? !!candidate.notification?.android?.fullScreenAction;
+
+  return {
+    id,
+    type: id.startsWith('snooze-') ? 'snooze' : 'alarm',
+    medicineId: typeof data.medicineId === 'string' ? data.medicineId : undefined,
+    reminderTimeId: typeof data.reminderTimeId === 'string' ? data.reminderTimeId : undefined,
+    scheduledTime: typeof data.scheduledTime === 'string' ? data.scheduledTime : undefined,
+    triggerTimestamp:
+      typeof candidate.trigger?.timestamp === 'number' ? candidate.trigger.timestamp : undefined,
+    channelId: candidate.notification?.android?.channelId,
+    fullScreenAlarm,
+    quietHoursActive: normalizeBooleanFlag(data.quietHoursActive),
+  };
+}
+
+function isNotificationConfigDrifted(
+  expected: ExpectedNotificationSnapshot,
+  scheduled: ScheduledNotificationSnapshot
+): boolean {
+  if (scheduled.channelId && scheduled.channelId !== expected.channelId) {
+    return true;
+  }
+
+  if (
+    scheduled.fullScreenAlarm !== undefined &&
+    scheduled.fullScreenAlarm !== expected.fullScreenAlarm
+  ) {
+    return true;
+  }
+
+  if (
+    scheduled.quietHoursActive !== undefined &&
+    scheduled.quietHoursActive !== expected.quietHoursActive
+  ) {
+    return true;
+  }
+
+  if (
+    scheduled.triggerTimestamp !== undefined &&
+    Math.abs(scheduled.triggerTimestamp - expected.triggerTimestamp) > 1000
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function buildExpectedNotifications(
+  state: NotificationStateSnapshot,
+  referenceNow: Date = new Date()
+): ExpectedNotificationSnapshot[] {
+  const activeMedicines = new Map(
+    state.medicines.filter(medicine => medicine.isActive).map(medicine => [medicine.id, medicine])
+  );
+
+  const expectedReminderNotifications = state.reminderTimes
+    .filter(reminderTime => reminderTime.isEnabled && activeMedicines.has(reminderTime.medicineId))
+    .map(reminderTime => {
+      const medicine = activeMedicines.get(reminderTime.medicineId)!;
+      const triggerDate = resolveReminderTriggerDate(reminderTime, false, referenceNow);
+      const behavior = resolveNotificationBehavior(medicine, state.settings, triggerDate);
+
+      return {
+        id: getAlarmNotificationId(medicine.id, reminderTime.id),
+        type: 'alarm' as const,
+        medicineId: medicine.id,
+        medicineName: medicine.name,
+        reminderTimeId: reminderTime.id,
+        reminderTime: reminderTime.time,
+        triggerTimestamp: triggerDate.getTime(),
+        scheduledTime: triggerDate.toISOString(),
+        channelId: behavior.channelId,
+        fullScreenAlarm: behavior.fullScreenAlarm,
+        quietHoursActive: behavior.quietHoursActive,
+      };
+    });
+
+  const expectedSnoozeNotifications = state.snoozes
+    .filter(snooze => snooze.isActive)
+    .flatMap(snooze => {
+      const medicine = activeMedicines.get(snooze.medicineId);
+      const reminderTime = state.reminderTimes.find(
+        item => item.id === snooze.reminderTimeId && item.isEnabled
+      );
+
+      if (!medicine || !reminderTime) {
+        return [];
+      }
+
+      const triggerDate = new Date(snooze.triggerTime);
+      if (triggerDate <= referenceNow) {
+        return [];
+      }
+
+      const behavior = resolveNotificationBehavior(medicine, state.settings, triggerDate);
+
+      return [
+        {
+          id: buildSnoozeNotificationId(medicine.id, reminderTime.id, snooze.id),
+          type: 'snooze' as const,
+          medicineId: medicine.id,
+          medicineName: medicine.name,
+          reminderTimeId: reminderTime.id,
+          reminderTime: reminderTime.time,
+          triggerTimestamp: triggerDate.getTime(),
+          scheduledTime: triggerDate.toISOString(),
+          channelId: behavior.channelId,
+          fullScreenAlarm: behavior.fullScreenAlarm,
+          quietHoursActive: behavior.quietHoursActive,
+          storedNotificationId: snooze.notificationId,
+        },
+      ];
+    });
+
+  return [...expectedReminderNotifications, ...expectedSnoozeNotifications];
+}
+
+export async function analyzeNotificationDrift(
+  state: NotificationStateSnapshot,
+  referenceNow: Date = new Date()
+): Promise<NotificationDriftReport> {
+  const expectedNotifications = buildExpectedNotifications(state, referenceNow);
+
+  const scheduledNotificationsById = new Map<string, ScheduledNotificationSnapshot>();
+
+  try {
+    const triggerNotifications = await notifee.getTriggerNotifications();
+    const detailedNotifications = triggerNotifications
+      .map(normalizeScheduledNotification)
+      .filter((item): item is ScheduledNotificationSnapshot => item !== null);
+
+    detailedNotifications.forEach(notification => {
+      scheduledNotificationsById.set(notification.id, notification);
+    });
+  } catch (error) {
+    log.debug('Trigger notifications detayli okunamadi, ID listesine dusuluyor', error);
+  }
+
+  try {
+    const triggerIds = await notifee.getTriggerNotificationIds();
+    triggerIds.forEach(id => {
+      if (!scheduledNotificationsById.has(id)) {
+        scheduledNotificationsById.set(id, {
+          id,
+          type: id.startsWith('snooze-') ? ('snooze' as const) : ('alarm' as const),
+        });
+      }
+    });
+  } catch (error) {
+    log.debug('Trigger notification ID listesi okunamadi', error);
+  }
+
+  const scheduledNotifications = Array.from(scheduledNotificationsById.values());
+  const scheduledMap = new Map(
+    scheduledNotifications.map(notification => [notification.id, notification])
+  );
+  const trackedIds = new Set(expectedNotifications.map(notification => notification.id));
+  const missingNotificationIds: string[] = [];
+  const configDriftIds: string[] = [];
+  const legacySnoozeNotificationIds: string[] = [];
+
+  for (const expected of expectedNotifications) {
+    const legacySnoozeId =
+      expected.type === 'snooze' &&
+      expected.storedNotificationId &&
+      expected.storedNotificationId !== expected.id
+        ? expected.storedNotificationId
+        : undefined;
+
+    if (legacySnoozeId) {
+      trackedIds.add(legacySnoozeId);
+    }
+
+    const matchedId = scheduledMap.has(expected.id)
+      ? expected.id
+      : legacySnoozeId && scheduledMap.has(legacySnoozeId)
+        ? legacySnoozeId
+        : undefined;
+
+    if (!matchedId) {
+      missingNotificationIds.push(expected.id);
+      continue;
+    }
+
+    if (legacySnoozeId && matchedId === legacySnoozeId) {
+      legacySnoozeNotificationIds.push(legacySnoozeId);
+    }
+
+    const scheduled = scheduledMap.get(matchedId);
+    if (scheduled && isNotificationConfigDrifted(expected, scheduled)) {
+      configDriftIds.push(expected.id);
+    }
+  }
+
+  const orphanTriggerIds = scheduledNotifications
+    .map(notification => notification.id)
+    .filter(id => (isAlarmNotificationId(id) || isSnoozeNotificationId(id)) && !trackedIds.has(id));
+
+  const shouldSuppressMissingTriggerDrift =
+    Platform.OS === 'android' &&
+    isMIUIDevice() &&
+    state.settings.fullScreenAlarmEnabled &&
+    expectedNotifications.length > ANDROID_TRIGGER_INTROSPECTION_LIMIT &&
+    configDriftIds.length === 0 &&
+    orphanTriggerIds.length === 0 &&
+    legacySnoozeNotificationIds.length === 0;
+
+  return {
+    expectedNotifications,
+    scheduledNotifications,
+    missingNotificationIds: shouldSuppressMissingTriggerDrift ? [] : missingNotificationIds,
+    configDriftIds,
+    orphanTriggerIds,
+    legacySnoozeNotificationIds,
+    hasDrift:
+      (!shouldSuppressMissingTriggerDrift && missingNotificationIds.length > 0) ||
+      configDriftIds.length > 0 ||
+      orphanTriggerIds.length > 0 ||
+      legacySnoozeNotificationIds.length > 0,
+  };
+}
+
+export async function getNotificationDiagnostics(
+  state: NotificationStateSnapshot,
+  referenceNow: Date = new Date()
+): Promise<NotificationDiagnosticsSnapshot> {
+  const report = await analyzeNotificationDrift(state, referenceNow);
+
+  let displayedIds = new Set<string>();
+  try {
+    const displayedNotifications = await notifee.getDisplayedNotifications();
+    displayedIds = new Set(
+      displayedNotifications
+        .map(notification => extractNotificationId(notification))
+        .filter((id): id is string => !!id)
+    );
+  } catch (error) {
+    log.debug('Displayed notifications okunamadi', error);
+  }
+
+  const medicineNameById = new Map(state.medicines.map(medicine => [medicine.id, medicine.name]));
+  const scheduledNotifications = report.scheduledNotifications.map(notification => ({
+    ...notification,
+    medicineName:
+      notification.medicineName ??
+      (notification.medicineId ? medicineNameById.get(notification.medicineId) : undefined),
+    isDisplayed: displayedIds.has(notification.id),
+  }));
+
+  const activeMedicines = state.medicines.filter(medicine => medicine.isActive).length;
+  const enabledReminderTimes = state.reminderTimes.filter(
+    reminderTime => reminderTime.isEnabled
+  ).length;
+  const activeSnoozes = state.snoozes.filter(snooze => snooze.isActive).length;
+
+  return {
+    evaluatedAt: referenceNow.toISOString(),
+    counts: {
+      activeMedicines,
+      enabledReminderTimes,
+      activeSnoozes,
+      expectedNotifications: report.expectedNotifications.length,
+      scheduledNotifications: scheduledNotifications.length,
+      displayedNotifications: displayedIds.size,
+    },
+    settingsSummary: {
+      alarmModeEnabled: state.settings.alarmModeEnabled,
+      vibrationEnabled: state.settings.vibrationEnabled,
+      fullScreenAlarmEnabled: state.settings.fullScreenAlarmEnabled,
+      quietHoursEnabled: state.settings.quietHoursEnabled,
+      quietHoursStart: state.settings.quietHoursStart,
+      quietHoursEnd: state.settings.quietHoursEnd,
+      snoozeDuration: state.settings.snoozeDuration,
+      maxSnoozeCount: state.settings.maxSnoozeCount,
+    },
+    report: {
+      ...report,
+      scheduledNotifications,
+    },
+  };
+}
 function getVibrationPattern(pattern?: 'default' | 'heartbeat' | 'urgent' | 'soft') {
   switch (pattern) {
     case 'heartbeat':
@@ -61,38 +622,57 @@ function getVibrationPattern(pattern?: 'default' | 'heartbeat' | 'urgent' | 'sof
 }
 
 /**
- * Bildirim kanallarını oluştur
+ * Bildirim kanallar?n? olu?tur
  */
 export async function createNotificationChannels(): Promise<void> {
   if (Platform.OS !== 'android') return;
 
   try {
-    // Ana alarm kanalı - Custom alarm sesi ile
     await notifee.createChannel({
       id: ALARM_CHANNEL_ID,
       name: 'Ilac Alarmlari',
-      description: 'Kritik ilac hatirlatmalari - Sessiz modda bile calar',
+      description: 'Kritik ilac hatirlatmalari - sessiz modda bile calar',
       importance: AndroidImportance.HIGH,
-      visibility: AndroidVisibility.PUBLIC,
-      sound: 'alarm', // res/raw/alarm.mp3
+      visibility: AndroidVisibility.PRIVATE,
+      sound: 'alarm',
       vibration: true,
       lights: true,
       lightColor: '#FF0000',
       bypassDnd: true,
     });
-    log.debug('Alarm kanali olusturuldu (custom sound)');
 
-    // Normal hatırlatma kanalı
+    await notifee.createChannel({
+      id: ALARM_NO_VIBRATION_CHANNEL_ID,
+      name: 'Ilac Alarmlari (Sessiz Titre?im)',
+      description: 'Kritik ilac hatirlatmalari - titre?im kapali',
+      importance: AndroidImportance.HIGH,
+      visibility: AndroidVisibility.PRIVATE,
+      sound: 'alarm',
+      vibration: false,
+      lights: true,
+      lightColor: '#FF0000',
+      bypassDnd: true,
+    });
+
     await notifee.createChannel({
       id: REMINDER_CHANNEL_ID,
       name: 'Ilac Hatirlatmalari',
       description: 'Normal ilac hatirlatmalari',
       importance: AndroidImportance.HIGH,
-      visibility: AndroidVisibility.PUBLIC,
+      visibility: AndroidVisibility.PRIVATE,
       sound: 'default',
       vibration: true,
     });
-    log.debug('Hatirlatma kanali olusturuldu');
+
+    await notifee.createChannel({
+      id: REMINDER_NO_VIBRATION_CHANNEL_ID,
+      name: 'Ilac Hatirlatmalari (Sessiz Titre?im)',
+      description: 'Normal ilac hatirlatmalari - titre?im kapali',
+      importance: AndroidImportance.HIGH,
+      visibility: AndroidVisibility.PRIVATE,
+      sound: 'default',
+      vibration: false,
+    });
 
     log.debug('Notifee bildirim kanallari olusturuldu');
   } catch (error) {
@@ -247,7 +827,7 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     } catch (e) {
       log.error('Kanal olusturma hatasi', e);
     }
-    return true; // Hata durumunda devam et
+    return false;
   }
 }
 
@@ -299,13 +879,11 @@ async function scheduleExactAlarmWithBackup(
   medicine: Medicine,
   reminderTime: ReminderTime,
   triggerDate: Date,
-  fullScreenAlarm: boolean
+  behavior: ResolvedNotificationBehavior
 ): Promise<string | null> {
   const mainId = `alarm-${medicine.id}-${reminderTime.id}`;
 
   const baseTime = triggerDate.getTime();
-
-  // 1. Ana alarm (exact time) - SET_ALARM_CLOCK en güçlü alarm tipi
   const mainTrigger: TimestampTrigger = {
     type: TriggerType.TIMESTAMP,
     timestamp: baseTime,
@@ -316,7 +894,6 @@ async function scheduleExactAlarmWithBackup(
   };
 
   try {
-    // Eski alarmı iptal et
     await notifee.cancelNotification(mainId);
 
     const timeStr = triggerDate.toLocaleTimeString('tr-TR', {
@@ -324,29 +901,29 @@ async function scheduleExactAlarmWithBackup(
       minute: '2-digit',
     });
 
-    // Ana alarmı kur - onlyAlertOnce: false olmalı ki fullScreenAction tetiklensin
     const notificationId = await notifee.createTriggerNotification(
       {
         id: mainId,
-        title: `💊 ${medicine.name}`,
+        title: `?? ${medicine.name}`,
         subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
+        body: `${medicine.dosage} almanin zamani!
+? ${timeStr}`,
         android: {
-          channelId: ALARM_CHANNEL_ID,
+          channelId: behavior.channelId,
           category: AndroidCategory.ALARM,
           importance: AndroidImportance.HIGH,
-          visibility: AndroidVisibility.PUBLIC,
-          ongoing: true,
-          autoCancel: false,
+          visibility: AndroidVisibility.PRIVATE,
+          ongoing: behavior.fullScreenAlarm,
+          autoCancel: !behavior.fullScreenAlarm,
           onlyAlertOnce: false,
-          loopSound: true,
-          fullScreenAction: fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
+          loopSound: behavior.fullScreenAlarm,
+          fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
           pressAction: PRESS_ACTION,
           smallIcon: 'ic_launcher',
           color: '#2196F3',
           colorized: true,
-          sound: 'alarm',
-          vibrationPattern: getVibrationPattern(medicine.vibrationPattern),
+          sound: behavior.sound,
+          vibrationPattern: behavior.vibrationPattern,
           lights: ['#2196F3', 500, 500] as [string, number, number],
           actions: ALARM_ACTIONS,
         },
@@ -354,35 +931,45 @@ async function scheduleExactAlarmWithBackup(
           medicineId: medicine.id,
           reminderTimeId: reminderTime.id,
           scheduledTime: triggerDate.toISOString(),
-          fullScreenAlarm: fullScreenAlarm ? 'true' : 'false',
+          fullScreenAlarm: behavior.fullScreenAlarm ? 'true' : 'false',
+          quietHoursActive: behavior.quietHoursActive ? 'true' : 'false',
           isMainAlarm: 'true',
         },
       },
       mainTrigger
     );
 
-    log.debug('MIUI alarm scheduled (single, no backups)', {
+    log.debug('MIUI alarm scheduled', {
       mainId,
       baseTime: new Date(baseTime).toISOString(),
+      quietHoursActive: behavior.quietHoursActive,
     });
 
     return notificationId;
   } catch (error) {
     log.error('Exact alarm scheduling failed', error);
+    void recordDiagnosticEvent({
+      scope: 'schedule',
+      level: 'error',
+      message: 'Exact alarm scheduling failed',
+      context: {
+        medicineId: medicine.id,
+        reminderTimeId: reminderTime.id,
+      },
+    });
     return null;
   }
 }
 
 /**
- * İlaç için bildirim planla
+ * ?la? i?in bildirim planla
  */
 export async function scheduleMedicineNotification(
   medicine: Medicine,
   reminderTime: ReminderTime,
-  fullScreenAlarm: boolean = true,
+  settingsOrFullScreen: UserSettings | boolean = true,
   bypassBuffer: boolean = false
 ): Promise<string | null> {
-  // Guard clause: Gecersiz medicine veya reminderTime kontrolu
   if (!medicine?.id || !reminderTime?.id || !reminderTime?.time) {
     log.warn('scheduleMedicineNotification: Gecersiz parametre, bildirim planlanmadi', {
       hasMedicine: !!medicine,
@@ -394,60 +981,27 @@ export async function scheduleMedicineNotification(
   }
 
   try {
-    // Mevcut bildirimi iptal et
     await cancelNotification(`alarm-${medicine.id}-${reminderTime.id}`);
 
-    const [hours, minutes] = reminderTime.time.split(':').map(Number);
-
-    // Bugün için zamanı hesapla
     const now = new Date();
-    let triggerDate = new Date();
-    triggerDate.setHours(hours, minutes, 0, 0);
+    const triggerDate = resolveReminderTriggerDate(reminderTime, bypassBuffer, now);
 
-    // KRİTİK: Eğer zaman geçtiyse yarın için planla
-    // bypassBuffer=true ise sadece geçmiş zamanları kontrol et (kullanıcı bilinçli ayarladı)
-    if (bypassBuffer) {
-      // Sadece zaman kesin geçmişse yarına al (1 dakika tolerans)
-      const pastThreshold = new Date(now.getTime() - 60 * 1000);
-      if (triggerDate <= pastThreshold) {
-        triggerDate.setDate(triggerDate.getDate() + 1);
-        log.debug('Alarm yarina planlandi (zaman gecti, bypassBuffer)', {
-          triggerDate: triggerDate.toISOString(),
-        });
-      }
-    } else {
-      // Normal akış (app_startup, boot recovery vb.):
-      // Alarm zamanı geçmişse VEYA son 2 dakika içindeyse yarına planla
-      // Bu, "Kapat" sonrası uygulamayı açınca alarmın tekrar çalmasını engeller
-      // Çünkü reRegisterAllAlarms alarm'ı tekrar planlar ve geçmiş zaman hemen tetiklenir
-      const bufferMs = 2 * 60 * 1000; // 2 dakika buffer
-      if (triggerDate.getTime() <= now.getTime() + bufferMs) {
-        triggerDate.setDate(triggerDate.getDate() + 1);
-        log.debug('Alarm yarina planlandi (zaman gecti veya buffer icinde)', {
-          triggerDate: triggerDate.toISOString(),
-        });
-      }
-    }
+    const behavior = resolveNotificationBehavior(medicine, settingsOrFullScreen, triggerDate);
 
     log.debug('Ilac bildirimi planlaniyor', {
       name: medicine.name,
       time: reminderTime.time,
       targetDate: triggerDate.toISOString(),
       isMIUI: isMIUIDevice(),
+      quietHoursActive: behavior.quietHoursActive,
+      fullScreenAlarm: behavior.fullScreenAlarm,
+      channelId: behavior.channelId,
     });
 
-    // UCES: MIUI için hassas zamanlama + backup alarm
-    if (isMIUIDevice() && fullScreenAlarm) {
-      log.debug('MIUI cihaz - exact alarm with backup kullaniliyor');
-      return await scheduleExactAlarmWithBackup(
-        medicine,
-        reminderTime,
-        triggerDate,
-        fullScreenAlarm
-      );
+    if (isMIUIDevice() && behavior.fullScreenAlarm) {
+      return await scheduleExactAlarmWithBackup(medicine, reminderTime, triggerDate, behavior);
     }
 
-    // Normal cihazlar için standart alarm
     const trigger: TimestampTrigger = {
       type: TriggerType.TIMESTAMP,
       timestamp: triggerDate.getTime(),
@@ -461,26 +1015,27 @@ export async function scheduleMedicineNotification(
 
     const notificationId = await notifee.createTriggerNotification(
       {
-        id: `alarm-${medicine.id}-${reminderTime.id}`,
-        title: `💊 ${medicine.name}`,
+        id: getAlarmNotificationId(medicine.id, reminderTime.id),
+        title: `?? ${medicine.name}`,
         subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
+        body: `${medicine.dosage} almanin zamani!
+? ${timeStr}`,
         android: {
-          channelId: fullScreenAlarm ? ALARM_CHANNEL_ID : REMINDER_CHANNEL_ID,
+          channelId: behavior.channelId,
           category: AndroidCategory.ALARM,
           importance: AndroidImportance.HIGH,
-          visibility: AndroidVisibility.PUBLIC,
-          ongoing: fullScreenAlarm,
-          autoCancel: !fullScreenAlarm,
+          visibility: AndroidVisibility.PRIVATE,
+          ongoing: behavior.fullScreenAlarm,
+          autoCancel: !behavior.fullScreenAlarm,
           onlyAlertOnce: false,
-          loopSound: fullScreenAlarm,
-          fullScreenAction: fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
+          loopSound: behavior.fullScreenAlarm,
+          fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
           pressAction: PRESS_ACTION,
           smallIcon: 'ic_launcher',
           color: '#2196F3',
           colorized: true,
-          sound: 'alarm',
-          vibrationPattern: getVibrationPattern(medicine.vibrationPattern),
+          sound: behavior.sound,
+          vibrationPattern: behavior.vibrationPattern,
           lights: ['#2196F3', 500, 500] as [string, number, number],
           actions: ALARM_ACTIONS,
         },
@@ -488,13 +1043,18 @@ export async function scheduleMedicineNotification(
           medicineId: medicine.id,
           reminderTimeId: reminderTime.id,
           scheduledTime: triggerDate.toISOString(),
-          fullScreenAlarm: fullScreenAlarm ? 'true' : 'false',
+          fullScreenAlarm: behavior.fullScreenAlarm ? 'true' : 'false',
+          quietHoursActive: behavior.quietHoursActive ? 'true' : 'false',
         },
       },
       trigger
     );
 
-    log.debug('Bildirim planlandi', { time: reminderTime.time, notificationId });
+    log.debug('Bildirim planlandi', {
+      time: reminderTime.time,
+      notificationId,
+      quietHoursActive: behavior.quietHoursActive,
+    });
 
     const triggers = await notifee.getTriggerNotificationIds();
     log.debug('Aktif trigger sayisi', { count: triggers.length });
@@ -502,6 +1062,15 @@ export async function scheduleMedicineNotification(
     return notificationId;
   } catch (error) {
     log.error('Bildirim planlanirken hata', error);
+    void recordDiagnosticEvent({
+      scope: 'schedule',
+      level: 'error',
+      message: 'Medicine notification scheduling failed',
+      context: {
+        medicineId: medicine.id,
+        reminderTimeId: reminderTime.id,
+      },
+    });
     return null;
   }
 }
@@ -511,10 +1080,26 @@ export async function scheduleMedicineNotification(
  */
 export async function scheduleTestAlarmNotification(
   minutesFromNow: number,
-  language: 'tr' | 'en' = 'tr'
+  language: 'tr' | 'en' = 'tr',
+  settingsOrFlag?: NotificationSettingsInput
 ): Promise<string> {
   const seconds = Math.round(minutesFromNow * 60);
   const scheduledTime = new Date(Date.now() + seconds * 1000);
+  const behavior = resolveNotificationBehavior(
+    {
+      id: 'test-medicine',
+      name: language === 'tr' ? 'Test Ilaci' : 'Test Medicine',
+      dosage: '500mg',
+      frequency: 1,
+      color: '#2196F3',
+      isActive: true,
+      createdAt: scheduledTime.toISOString(),
+      updatedAt: scheduledTime.toISOString(),
+      startDate: scheduledTime.toISOString(),
+    },
+    settingsOrFlag,
+    scheduledTime
+  );
 
   log.debug('Test alarm planlaniyor', {
     currentTime: new Date().toISOString(),
@@ -545,20 +1130,21 @@ export async function scheduleTestAlarmNotification(
         ? `Aspirin 500mg almanin zamani!\n⏰ ${timeStr}`
         : `Time to take Aspirin 500mg!\n⏰ ${timeStr}`,
     android: {
-      channelId: ALARM_CHANNEL_ID,
+      channelId: behavior.channelId,
       category: AndroidCategory.ALARM,
       importance: AndroidImportance.HIGH,
-      visibility: AndroidVisibility.PUBLIC,
-      ongoing: true,
-      autoCancel: false,
+      visibility: AndroidVisibility.PRIVATE,
+      ongoing: behavior.fullScreenAlarm,
+      autoCancel: !behavior.fullScreenAlarm,
       onlyAlertOnce: false,
-      fullScreenAction: FULL_SCREEN_ACTION,
+      loopSound: behavior.fullScreenAlarm,
+      fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
       pressAction: PRESS_ACTION,
       smallIcon: 'ic_launcher',
       color: '#2196F3',
       colorized: true,
-      sound: 'alarm',
-      vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
+      sound: behavior.sound,
+      vibrationPattern: behavior.vibrationPattern,
       lights: ['#2196F3', 500, 500] as [string, number, number],
       actions: ALARM_ACTIONS,
     },
@@ -566,7 +1152,9 @@ export async function scheduleTestAlarmNotification(
       medicineId: testMedicineId,
       reminderTimeId: testReminderId,
       scheduledTime: scheduledTime.toISOString(),
-      fullScreenAlarm: 'true',
+      fullScreenAlarm: behavior.fullScreenAlarm ? 'true' : 'false',
+      quietHoursActive: behavior.quietHoursActive ? 'true' : 'false',
+      isTestAlarm: 'true',
     },
   };
 
@@ -599,7 +1187,7 @@ export async function scheduleTestAlarmNotification(
     const triggers = await notifee.getTriggerNotificationIds();
     log.debug('Planlanan bildirim IDleri', { triggers });
 
-    return notificationId;
+    return notifId;
   } catch (error) {
     log.error('Test alarm planlama hatasi', error);
     throw error;
@@ -613,6 +1201,8 @@ export interface ScheduleSnoozeParams {
   snoozeId: string;
   originalScheduledTime: string;
   snoozeCount: number;
+  settings?: UserSettings;
+  triggerTime?: Date;
 }
 
 export async function scheduleSnoozeNotification(
@@ -625,11 +1215,16 @@ export async function scheduleSnoozeNotification(
     snoozeId,
     originalScheduledTime,
     snoozeCount,
+    settings,
+    triggerTime: explicitTriggerTime,
   } = params;
 
   try {
-    const triggerTime = addMinutes(new Date(), snoozeDuration);
-    const notificationId = `snooze-${snoozeId}`;
+    const triggerTime = explicitTriggerTime ?? addMinutes(new Date(), snoozeDuration);
+    const notificationId = buildSnoozeNotificationId(medicine.id, reminderTime.id, snoozeId);
+    const behavior = resolveNotificationBehavior(medicine, settings, triggerTime);
+
+    await cancelNotification(notificationId);
 
     const trigger: TimestampTrigger = {
       type: TriggerType.TIMESTAMP,
@@ -645,24 +1240,25 @@ export async function scheduleSnoozeNotification(
     await notifee.createTriggerNotification(
       {
         id: notificationId,
-        title: `🔔 ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
+        title: `?? ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
         subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
+        body: `${medicine.dosage} almanin zamani!
+? ${timeStr}`,
         android: {
-          channelId: ALARM_CHANNEL_ID,
+          channelId: behavior.channelId,
           category: AndroidCategory.ALARM,
           importance: AndroidImportance.HIGH,
-          visibility: AndroidVisibility.PUBLIC,
-          ongoing: true,
-          autoCancel: false,
-          loopSound: true,
-          fullScreenAction: FULL_SCREEN_ACTION,
+          visibility: AndroidVisibility.PRIVATE,
+          ongoing: behavior.fullScreenAlarm,
+          autoCancel: !behavior.fullScreenAlarm,
+          loopSound: behavior.fullScreenAlarm,
+          fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
           pressAction: PRESS_ACTION,
           smallIcon: 'ic_launcher',
           color: '#FF6B6B',
           colorized: true,
-          sound: 'alarm',
-          vibrationPattern: [500, 200, 500, 200, 500, 200],
+          sound: behavior.sound,
+          vibrationPattern: behavior.vibrationPattern,
           lights: ['#FF0000', 500, 500] as [string, number, number],
           actions: ALARM_ACTIONS,
         },
@@ -671,7 +1267,8 @@ export async function scheduleSnoozeNotification(
           reminderTimeId: reminderTime.id,
           scheduledTime: triggerTime.toISOString(),
           originalScheduledTime,
-          fullScreenAlarm: 'true',
+          fullScreenAlarm: behavior.fullScreenAlarm ? 'true' : 'false',
+          quietHoursActive: behavior.quietHoursActive ? 'true' : 'false',
           isSnooze: 'true',
           snoozeId,
           snoozeCount: String(snoozeCount),
@@ -680,10 +1277,25 @@ export async function scheduleSnoozeNotification(
       trigger
     );
 
-    log.debug('Erteleme bildirimi planlandi', { snoozeDuration, notificationId, snoozeCount });
+    log.debug('Erteleme bildirimi planlandi', {
+      snoozeDuration,
+      notificationId,
+      snoozeCount,
+      quietHoursActive: behavior.quietHoursActive,
+    });
     return { notificationId, triggerTime };
   } catch (error) {
     log.error('Erteleme bildirimi planlanirken hata', error);
+    void recordDiagnosticEvent({
+      scope: 'reschedule',
+      level: 'error',
+      message: 'Snooze scheduling failed',
+      context: {
+        medicineId: medicine.id,
+        reminderTimeId: reminderTime.id,
+        snoozeId,
+      },
+    });
     return null;
   }
 }
@@ -709,9 +1321,7 @@ export async function cancelMedicineNotifications(medicineId: string): Promise<v
     const triggerIds = await notifee.getTriggerNotificationIds();
 
     // Bu ilaca ait olanları filtrele (alarm-{medicineId}-* ve snooze-{medicineId}-*)
-    const medicineNotificationIds = triggerIds.filter(
-      id => id.startsWith(`alarm-${medicineId}-`) || id.startsWith(`snooze-${medicineId}-`)
-    );
+    const medicineNotificationIds = triggerIds.filter(id => belongsToMedicine(id, medicineId));
 
     // Her birini iptal et
     for (const notifId of medicineNotificationIds) {
@@ -722,9 +1332,10 @@ export async function cancelMedicineNotifications(medicineId: string): Promise<v
     // Görüntülenen bildirimleri de kontrol et
     const displayedNotifications = await notifee.getDisplayedNotifications();
     for (const notif of displayedNotifications) {
+      const displayedMedicineId = extractDisplayedMedicineId(notif);
       if (
-        notif.id?.startsWith(`alarm-${medicineId}-`) ||
-        notif.id?.startsWith(`snooze-${medicineId}-`)
+        notif.id &&
+        (displayedMedicineId === medicineId || belongsToMedicine(notif.id, medicineId))
       ) {
         await notifee.cancelDisplayedNotification(notif.id);
         log.debug('Goruntulen bildirim iptal edildi', { notifId: notif.id, medicineId });
@@ -756,22 +1367,24 @@ export async function cleanupOrphanNotifications(validMedicineIds: string[]): Pr
   try {
     // Test alarmi her zaman gecerli kabul edilir
     const validIds = new Set([...validMedicineIds, 'test-medicine']);
+    const validMedicineIdList = Array.from(validIds);
 
     // Tum planlanmis trigger'lari al
     const triggerIds = await notifee.getTriggerNotificationIds();
     let cancelledCount = 0;
 
     for (const triggerId of triggerIds) {
-      // alarm-{medicineId}-{reminderTimeId} veya snooze-{medicineId}-{timestamp} formatini parse et
-      const alarmMatch = triggerId.match(/^alarm-([^-]+)-/);
-      const snoozeMatch = triggerId.match(/^snooze-([^-]+)-/);
-      const medicineId = alarmMatch?.[1] || snoozeMatch?.[1];
+      const isKnownMedicine = validMedicineIdList.some(medicineId =>
+        belongsToMedicine(triggerId, medicineId)
+      );
 
-      // Medicine ID bulunamadiysa veya gecerli listede degilse iptal et
-      if (medicineId && !validIds.has(medicineId)) {
+      // Legacy snooze ID'leri medicineId içermeyebilir; yanlış pozitif silmeyi önlemek için atla.
+      if (isAlarmNotificationId(triggerId) && !isKnownMedicine) {
         await notifee.cancelNotification(triggerId);
         cancelledCount++;
-        log.debug('Yetim bildirim iptal edildi', { triggerId, medicineId });
+        log.debug('Yetim alarm bildirimi iptal edildi', { triggerId });
+      } else if (isSnoozeNotificationId(triggerId) && !isKnownMedicine) {
+        log.debug('MedicineId çözülemeyen snooze trigger atlandı', { triggerId });
       }
     }
 
@@ -780,11 +1393,15 @@ export async function cleanupOrphanNotifications(validMedicineIds: string[]): Pr
     for (const notif of displayedNotifications) {
       if (!notif.id) continue;
 
-      const alarmMatch = notif.id.match(/^alarm-([^-]+)-/);
-      const snoozeMatch = notif.id.match(/^snooze-([^-]+)-/);
-      const medicineId = alarmMatch?.[1] || snoozeMatch?.[1];
+      const medicineId = extractDisplayedMedicineId(notif);
+      const isKnownMedicine =
+        (medicineId && validIds.has(medicineId)) ||
+        validMedicineIdList.some(validMedicineId => belongsToMedicine(notif.id, validMedicineId));
 
-      if (medicineId && !validIds.has(medicineId)) {
+      if (
+        (isAlarmNotificationId(notif.id) || isSnoozeNotificationId(notif.id)) &&
+        !isKnownMedicine
+      ) {
         await notifee.cancelDisplayedNotification(notif.id);
         cancelledCount++;
         log.debug('Goruntulen yetim bildirim iptal edildi', { notifId: notif.id, medicineId });
@@ -839,14 +1456,13 @@ export async function sendTestNotification(): Promise<void> {
 /**
  * Gece modu kontrolü
  */
-export function isInQuietHours(settings: UserSettings): boolean {
+export function isInQuietHours(settings: UserSettings, referenceDate: Date = new Date()): boolean {
   if (!settings.quietHoursEnabled) {
     return false;
   }
 
-  const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
+  const currentHour = referenceDate.getHours();
+  const currentMinute = referenceDate.getMinutes();
   const currentTime = currentHour * 60 + currentMinute;
 
   const [startHour, startMinute] = settings.quietHoursStart.split(':').map(Number);
@@ -855,24 +1471,32 @@ export function isInQuietHours(settings: UserSettings): boolean {
   const startTime = startHour * 60 + startMinute;
   const endTime = endHour * 60 + endMinute;
 
+  if (startTime == endTime) {
+    return false;
+  }
+
   if (startTime > endTime) {
     return currentTime >= startTime || currentTime < endTime;
-  } else {
-    return currentTime >= startTime && currentTime < endTime;
   }
+
+  return currentTime >= startTime && currentTime < endTime;
 }
 
 /**
  * Titreşimi durdur
  */
 export function stopAlarmVibration(): void {
-  Vibration.cancel();
+  try {
+    Vibration.cancel?.();
+  } catch (error) {
+    log.debug('Titreşim durdurma native bridge olmadan atlandi', error);
+  }
 }
 
 /**
  * Notifee event listener'ı kur
  */
-interface NotificationData {
+export interface NotificationData {
   medicineId?: string;
   reminderTimeId?: string;
   scheduledTime?: string;
@@ -880,6 +1504,7 @@ interface NotificationData {
   isSnooze?: string;
   snoozeId?: string;
   snoozeCount?: string;
+  isPersistent?: string;
 }
 
 export interface AlarmPressData {
@@ -906,8 +1531,16 @@ export function setupNotificationListeners(
       if (notification?.data?.fullScreenAlarm === 'true' && notification?.id) {
         const medId = notification.data.medicineId as string;
         const remId = notification.data.reminderTimeId as string;
-        const today = new Date().toISOString().split('T')[0];
-        const alarmKey = `${medId}-${remId}-${today}`;
+        const alarmKey = getAlarmKey(
+          {
+            medicineId: medId,
+            reminderTimeId: remId,
+            scheduledTime: notification.data.scheduledTime as string,
+            isSnooze: notification.data.isSnooze as string | undefined,
+            snoozeId: notification.data.snoozeId as string | undefined,
+          },
+          new Date()
+        );
 
         // KRİTİK: Bu alarm zaten handle edildi mi kontrol et (AsyncStorage + memory)
         let handled = false;

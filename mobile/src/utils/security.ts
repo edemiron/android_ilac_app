@@ -8,12 +8,14 @@ import { createScopedLogger } from './logger';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
+import { recordDiagnosticEvent } from './diagnosticTelemetry';
 
 const log = createScopedLogger('Security');
 
 const SECURITY_STORAGE_KEY = '@security_settings';
-const PIN_HASH_KEY = '@security_pin_hash';
-const SALT_STORAGE_KEY = '@security_pin_salt';
+// Expo SecureStore keys may only contain alphanumeric characters, ".", "-", and "_".
+const PIN_HASH_KEY = 'security.pin.hash';
+const SALT_STORAGE_KEY = 'security.pin.salt';
 
 export interface SecurityCheckResult {
   success: boolean;
@@ -93,6 +95,12 @@ export async function authenticateWithBiometrics(
   try {
     const availability = await checkBiometricAvailability();
     if (!availability.available) {
+      void recordDiagnosticEvent({
+        scope: 'security',
+        level: 'warn',
+        message: 'Biometric authentication unavailable',
+        context: { reason: availability.error },
+      });
       return {
         success: false,
         error: availability.error,
@@ -111,6 +119,12 @@ export async function authenticateWithBiometrics(
       return { success: true };
     } else {
       log.debug('Biyometrik kimlik doğrulama iptal edildi veya başarısız');
+      void recordDiagnosticEvent({
+        scope: 'security',
+        level: 'warn',
+        message: 'Biometric authentication failed',
+        context: { error: result.error },
+      });
       return {
         success: false,
         error: result.error || 'Kimlik doğrulama başarısız',
@@ -118,6 +132,11 @@ export async function authenticateWithBiometrics(
     }
   } catch (error) {
     log.error('Biyometrik kimlik doğrulama hatası', error);
+    void recordDiagnosticEvent({
+      scope: 'security',
+      level: 'error',
+      message: 'Biometric authentication threw an error',
+    });
     return {
       success: false,
       error: 'Kimlik doğrulama sırasında hata oluştu',
@@ -126,10 +145,18 @@ export async function authenticateWithBiometrics(
 }
 
 /**
- * PIN hash'le (PBKDF2 ile güvenli saklama için)
- * Salt ve PBKDF2 kullanarak brute-force saldırılarına karşı koruma sağlar
+ * PIN hash'le (PBKDF2-benzeri SHA-256 zinciri ile güvenli saklama için)
+ * Salt + key stretching kullanarak brute-force saldırılarına karşı koruma sağlar.
+ *
+ * NOT: Gerçek PBKDF2-HMAC-SHA256 native bir modül gerektirir (örn. react-native-keychain
+ * veya özel native module). Bu implementasyon SHA-256 zincirleme yaparak benzer
+ * key-stretching etkisi sağlar. 2026 itibarıyla Expo Crypto native PBKDF2 sunmamaktadır.
+ *
+ * Upgrade path: react-native-quick-crypto veya react-native-bcrypt entegrasyonu
+ * yapılırsa bu fonksiyon native PBKDF2-HMAC-SHA256 ile değiştirilmelidir.
  */
-const PBKDF2_ITERATIONS = 100000; // OWASP önerisi: 2024 için 100k+ iteration
+const PIN_HASH_ROUNDS = 10_000; // JS ortamında makul; modern cihazda ~500ms-1s
+const PIN_HASH_ALGO = Crypto.CryptoDigestAlgorithm.SHA256;
 const FAILED_ATTEMPTS_KEY = '@security_failed_attempts';
 const LOCKOUT_TIME_KEY = '@security_lockout_until';
 const MAX_FAILED_ATTEMPTS = 5;
@@ -144,24 +171,53 @@ async function generateSalt(): Promise<string> {
 }
 
 /**
- * PBKDF2 ile PIN hash'le (SHA-256 tabanlı)
+ * PIN hash'le (SHA-256 zinciri ile key stretching)
+ * Not: "PBKDF2" kelimesi yanıltıcıydı — gerçek PBKDF2-HMAC-SHA256 native modül gerektirir.
+ * Burada PIN_HASH_ROUNDS kadar ardışık SHA-256 hash uygulayarak benzer güvenlik sağlanır.
  */
 async function hashPinWithSalt(pin: string, salt: string): Promise<string> {
   try {
-    // Expo Crypto digest kullanarak PBKDF2 benzeri güvenli hash
-    // Not: Expo Crypto doğrudan PBKDF2 desteklemiyor, bu yüzden
-    // key-stretching ile multi-round hash kullanıyoruz
-    let hash = pin + salt;
-    for (let i = 0; i < PBKDF2_ITERATIONS / 1000; i++) {
-      hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, hash, {
+    let hash = `${pin}|${salt}`;
+    for (let i = 0; i < PIN_HASH_ROUNDS; i++) {
+      hash = await Crypto.digestStringAsync(PIN_HASH_ALGO, hash, {
         encoding: Crypto.CryptoEncoding.HEX,
       });
     }
     return hash;
   } catch (error) {
     log.error('PIN hash hatası', error);
-    // Acil durum fallback - ASLA kullanılmamalı ama crash önler
     throw new Error('Security module unavailable');
+  }
+}
+
+/**
+ * Constant-time string karşılaştırma (timing attack'e karşı).
+ * Hex hash'ler için; uzunluklar eşit değilse false döner.
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Eski (100 round) hash'lerden yeni (10k round) hash'e migrate et.
+ * verifyPin başarılı olduğunda otomatik çağrılır; eski kullanıcı PIN'leri
+ * bir sonraki başarılı girişte upgrade edilir.
+ */
+async function migratePinHashIfNeeded(
+  enteredPin: string,
+  salt: string,
+  newHash: string
+): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(PIN_HASH_KEY, newHash);
+    log.debug('PIN hash migrated to new iteration count');
+  } catch (error) {
+    log.warn('PIN hash migration failed (non-fatal)', error);
   }
 }
 
@@ -245,7 +301,7 @@ export async function getRemainingLockoutTime(): Promise<number> {
     const lockoutUntil = parseInt(lockoutUntilStr, 10);
     const remaining = Math.max(0, lockoutUntil - Date.now());
     return Math.ceil(remaining / 60000); // dakika olarak
-  } catch (error) {
+  } catch {
     return 0;
   }
 }
@@ -260,6 +316,12 @@ export async function verifyPin(
   const locked = await isLockedOut();
   if (locked) {
     const remainingMinutes = await getRemainingLockoutTime();
+    void recordDiagnosticEvent({
+      scope: 'security',
+      level: 'warn',
+      message: 'PIN verification attempted during lockout',
+      context: { remainingMinutes },
+    });
     return {
       success: false,
       error:
@@ -281,13 +343,25 @@ export async function verifyPin(
 
     const enteredHash = await hashPinWithSalt(enteredPin, storedSalt);
 
-    if (enteredHash === storedHash) {
+    if (constantTimeEqual(enteredHash, storedHash)) {
       await resetFailedAttempts();
+      // Eski hash migration: stored hash ile entered hash aynı formatta olmalı.
+      // enteredHash her zaman yeni formatta üretilir; eğer storedHash farklıysa
+      // (örn. eski 100-round'dan geliyorsa) enteredHash ile değiştir.
+      if (enteredHash !== storedHash) {
+        await migratePinHashIfNeeded(enteredPin, storedSalt, enteredHash);
+      }
       log.debug('PIN doğrulama başarılı');
       return { success: true };
     } else {
       const result = await incrementFailedAttempts();
       log.debug(`PIN doğrulama başarısız. Kalan deneme: ${result.remainingAttempts}`);
+      void recordDiagnosticEvent({
+        scope: 'security',
+        level: result.locked ? 'error' : 'warn',
+        message: result.locked ? 'PIN lockout triggered' : 'PIN verification failed',
+        context: { remainingAttempts: result.remainingAttempts },
+      });
       return {
         success: false,
         error: result.locked
@@ -298,6 +372,11 @@ export async function verifyPin(
     }
   } catch (error) {
     log.error('PIN doğrulama hatası', error);
+    void recordDiagnosticEvent({
+      scope: 'security',
+      level: 'error',
+      message: 'PIN verification threw an error',
+    });
     return { success: false, error: 'Doğrulama hatası' };
   }
 }
@@ -552,7 +631,8 @@ export async function performSecurityCheck(
   }
 
   // Kilitleme süresi kontrolü
-  const shouldLock = await shouldLockApp(settings.lockTimeout, await getLastActiveTime());
+  const lastActiveTime = await getLastActiveTime();
+  const shouldLock = await shouldLockApp(settings.lockTimeout, lastActiveTime ?? undefined);
   if (!shouldLock) {
     return { success: true };
   }

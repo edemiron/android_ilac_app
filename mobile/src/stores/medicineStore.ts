@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
@@ -19,8 +20,13 @@ import { getSyncQueue } from '../utils/syncQueue';
 import { markMissedReminders as calculateMissedReminders } from '../utils/missedReminders';
 import { validateSyncData } from '../utils/syncDataValidator';
 import {
+  analyzeNotificationDrift,
+  cancelAllNotifications,
   cancelNotification,
   cancelMedicineNotifications,
+  NotificationDriftReport,
+  scheduleMedicineNotification,
+  scheduleSnoozeNotification,
   stopAlarmVibration,
 } from '../utils/notifications';
 import { createScopedLogger } from '../utils/logger';
@@ -28,11 +34,18 @@ import { updateWidgetData } from '../services/widgetService';
 import {
   uploadAllDataToCloud,
   downloadAllDataFromCloud,
+  saveMedicineToCloud,
+  deleteMedicineFromCloud,
   saveMedicineLogToCloud,
   syncSettingsToCloud,
   deleteAllUserData,
   SyncData,
+  SavedMedicineCloudData,
 } from '../services/firestoreSync';
+import { isLocalMedicineImageUri } from '../services/localMedicineImage';
+import { DEFAULT_USER_SETTINGS } from '../utils/defaultSettings';
+import { migrateMedicineStoreState, SETTINGS_STORAGE_VERSION } from '../utils/settingsStorage';
+import { recordDiagnosticEvent } from '../utils/diagnosticTelemetry';
 
 // Kategori bazlı renk ve etiket tanımları
 export interface MedicineCategoryInfo {
@@ -56,6 +69,148 @@ export const MEDICINE_CATEGORIES: MedicineCategoryInfo[] = [
 ];
 
 const log = createScopedLogger('MedicineStore');
+const DEFAULT_ALARM_STATE: AlarmState = {
+  isActive: false,
+};
+
+function isAndroidPlatform(): boolean {
+  return Platform?.OS === 'android';
+}
+
+function didReminderSchedulingSettingsChange(prev: UserSettings, next: UserSettings): boolean {
+  return (
+    prev.fullScreenAlarmEnabled !== next.fullScreenAlarmEnabled ||
+    prev.vibrationEnabled !== next.vibrationEnabled ||
+    prev.alarmModeEnabled !== next.alarmModeEnabled ||
+    prev.quietHoursEnabled !== next.quietHoursEnabled ||
+    prev.quietHoursStart !== next.quietHoursStart ||
+    prev.quietHoursEnd !== next.quietHoursEnd
+  );
+}
+
+interface RescheduledSnoozeNotification {
+  snoozeId: string;
+  notificationId: string;
+  triggerTime: string;
+}
+
+export interface NotificationSelfHealResult extends NotificationDriftReport {
+  repaired: boolean;
+  cancelledNotificationIds: string[];
+  snoozeNotificationUpdates: RescheduledSnoozeNotification[];
+}
+
+export interface SettingsUpdateOptions {
+  skipReschedule?: boolean;
+  skipSelfHeal?: boolean;
+  skipCloudSync?: boolean;
+}
+
+function mergeSnoozeNotificationRescheduleUpdates(
+  snoozes: Snooze[],
+  updates: RescheduledSnoozeNotification[]
+): Snooze[] {
+  if (updates.length === 0) {
+    return snoozes;
+  }
+
+  const updatesMap = new Map(updates.map(update => [update.snoozeId, update]));
+
+  return snoozes.map(snooze => {
+    const update = updatesMap.get(snooze.id);
+    if (!update) {
+      return snooze;
+    }
+
+    return {
+      ...snooze,
+      notificationId: update.notificationId,
+      triggerTime: update.triggerTime,
+    };
+  });
+}
+
+function parseSnoozeTriggerTime(triggerTime: string): Date | null {
+  const parsedTriggerTime = new Date(triggerTime);
+
+  return Number.isNaN(parsedTriggerTime.getTime()) ? null : parsedTriggerTime;
+}
+
+async function rescheduleActiveNotificationsFromState(
+  state: Pick<MedicineState, 'medicines' | 'reminderTimes' | 'snoozes' | 'settings'>,
+  applySnoozeUpdates?: (updates: RescheduledSnoozeNotification[]) => void
+): Promise<void> {
+  const activeMedicines = new Map(
+    state.medicines.filter(medicine => medicine.isActive).map(medicine => [medicine.id, medicine])
+  );
+
+  const enabledReminderTimes = state.reminderTimes.filter(
+    reminderTime => reminderTime.isEnabled && activeMedicines.has(reminderTime.medicineId)
+  );
+
+  await Promise.allSettled(
+    enabledReminderTimes.map(reminderTime =>
+      scheduleMedicineNotification(
+        activeMedicines.get(reminderTime.medicineId)!,
+        reminderTime,
+        state.settings,
+        false
+      )
+    )
+  );
+
+  const now = new Date();
+  const activeSnoozes = state.snoozes.filter(snooze => snooze.isActive);
+  const snoozeResults = await Promise.allSettled(
+    activeSnoozes.map(async snooze => {
+      const triggerTime = parseSnoozeTriggerTime(snooze.triggerTime);
+      const medicine = activeMedicines.get(snooze.medicineId);
+      const reminderTime = state.reminderTimes.find(
+        item => item.id === snooze.reminderTimeId && item.isEnabled
+      );
+
+      if (!triggerTime || triggerTime.getTime() <= now.getTime()) {
+        log.debug('Gecmis veya gecersiz aktif snooze yeniden planlamada atlandi', {
+          snoozeId: snooze.id,
+          triggerTime: snooze.triggerTime,
+        });
+        return null;
+      }
+
+      if (!medicine || !reminderTime) {
+        return null;
+      }
+
+      const result = await scheduleSnoozeNotification({
+        medicine,
+        reminderTime,
+        snoozeId: snooze.id,
+        originalScheduledTime: snooze.originalScheduledTime,
+        snoozeCount: snooze.snoozeCount,
+        settings: state.settings,
+        triggerTime,
+      });
+
+      if (!result) {
+        return null;
+      }
+
+      return {
+        snoozeId: snooze.id,
+        notificationId: result.notificationId,
+        triggerTime: result.triggerTime.toISOString(),
+      };
+    })
+  );
+
+  const updates = snoozeResults.flatMap(result =>
+    result.status === 'fulfilled' && result.value ? [result.value] : []
+  );
+
+  if (updates.length > 0) {
+    applySnoozeUpdates?.(updates);
+  }
+}
 
 // Türkçe karakter encoding sorunlarını düzelt
 function sanitizeString(str: string | undefined | null): string {
@@ -65,11 +220,100 @@ function sanitizeString(str: string | undefined | null): string {
 }
 
 function sanitizeMedicineData<T extends { name?: string; dosage?: string }>(data: T): T {
-  return {
-    ...data,
-    name: data.name ? sanitizeString(data.name) : data.name,
-    dosage: data.dosage ? sanitizeString(data.dosage) : data.dosage,
-  };
+  const sanitized = { ...data };
+
+  if (typeof data.name === 'string') {
+    sanitized.name = sanitizeString(data.name) as T['name'];
+  }
+
+  if (typeof data.dosage === 'string') {
+    sanitized.dosage = sanitizeString(data.dosage) as T['dosage'];
+  }
+
+  return sanitized;
+}
+
+function resolveMedicineLogArgs(
+  reminderTimeId: string,
+  medicines: Medicine[],
+  reminderTimes: ReminderTime[],
+  medicineIdFallbackOrNote?: string,
+  explicitNote?: string
+): { medicineIdFallback?: string; note?: string } {
+  if (explicitNote !== undefined) {
+    return {
+      medicineIdFallback: medicineIdFallbackOrNote,
+      note: explicitNote,
+    };
+  }
+
+  if (!medicineIdFallbackOrNote) {
+    return {};
+  }
+
+  const reminderExists = reminderTimes.some(reminderTime => reminderTime.id === reminderTimeId);
+
+  if (!reminderExists) {
+    return { medicineIdFallback: medicineIdFallbackOrNote };
+  }
+
+  const isKnownMedicineId = medicines.some(medicine => medicine.id === medicineIdFallbackOrNote);
+
+  return isKnownMedicineId
+    ? { medicineIdFallback: medicineIdFallbackOrNote }
+    : { note: medicineIdFallbackOrNote };
+}
+
+function buildMedicineLogSlotKey(reminderTimeId: string, scheduledTime: string): string {
+  return `${reminderTimeId}__${scheduledTime}`;
+}
+
+function isScheduledTimeInFuture(scheduledTime: string, referenceDate: Date = new Date()): boolean {
+  const parsedScheduledTime = new Date(scheduledTime);
+
+  if (Number.isNaN(parsedScheduledTime.getTime())) {
+    return false;
+  }
+
+  return parsedScheduledTime.getTime() > referenceDate.getTime();
+}
+
+function getMedicineLogStatusPriority(status: MedicineLog['status']): number {
+  switch (status) {
+    case 'taken':
+      return 3;
+    case 'skipped':
+      return 2;
+    case 'missed':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function normalizeMedicineLogsBySlot(medicineLogs: MedicineLog[]): MedicineLog[] {
+  const logsBySlot = new Map<string, MedicineLog>();
+
+  medicineLogs.forEach(logEntry => {
+    const slotKey = buildMedicineLogSlotKey(logEntry.reminderTimeId, logEntry.scheduledTime);
+    const existingLog = logsBySlot.get(slotKey);
+
+    if (!existingLog) {
+      logsBySlot.set(slotKey, logEntry);
+      return;
+    }
+
+    const existingPriority = getMedicineLogStatusPriority(existingLog.status);
+    const nextPriority = getMedicineLogStatusPriority(logEntry.status);
+
+    if (nextPriority > existingPriority || nextPriority === existingPriority) {
+      logsBySlot.set(slotKey, logEntry);
+    }
+  });
+
+  return Array.from(logsBySlot.values()).sort((left, right) =>
+    left.scheduledTime.localeCompare(right.scheduledTime)
+  );
 }
 
 // Varsayılan renk paleti - Hem açık hem koyu modda iyi görünür
@@ -105,7 +349,7 @@ interface MedicineState {
   addMedicine: (medicine: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt' | 'isActive'>) => string;
   updateMedicine: (id: string, updates: Partial<Medicine>) => void;
   deleteMedicine: (id: string) => void;
-  toggleMedicineActive: (id: string) => void;
+  toggleMedicineActive: (id: string) => Promise<void>;
 
   updateReminderTime: (id: string, updates: Partial<ReminderTime>) => void;
   regenerateReminderTimes: (medicineId: string) => void;
@@ -142,15 +386,17 @@ interface MedicineState {
     reminderTimeId: string,
     originalScheduledTime: string,
     triggerTime: Date,
-    notificationId: string
+    notificationId: string,
+    snoozeId?: string
   ) => Snooze;
   deactivateSnooze: (snoozeId: string) => void;
   deactivateSnoozesForMedicine: (medicineId: string) => void;
   getActiveSnooze: (medicineId: string, reminderTimeId: string) => Snooze | undefined;
   getSnoozeByNotificationId: (notificationId: string) => Snooze | undefined;
   cleanupStaleSnoozes: () => Promise<number>;
+  runNotificationSelfHeal: () => Promise<NotificationSelfHealResult>;
 
-  updateSettings: (updates: Partial<UserSettings>) => void;
+  updateSettings: (updates: Partial<UserSettings>, options?: SettingsUpdateOptions) => void;
 
   setAlarmActive: (medicine: Medicine, reminderTime: ReminderTime, scheduledTime: string) => void;
   dismissAlarm: () => void;
@@ -188,6 +434,36 @@ const scheduleBackgroundSync = (syncFn: () => Promise<void>): void => {
   });
 };
 
+function getSyncErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Senkronizasyon hatasi';
+}
+
+function applySavedMedicineCloudData(
+  medicines: Medicine[],
+  medicineId: string,
+  cloudData: SavedMedicineCloudData
+): Medicine[] {
+  return medicines.map(medicine =>
+    medicine.id === medicineId
+      ? {
+          ...medicine,
+          updatedAt: cloudData.updatedAt ?? medicine.updatedAt,
+          imageUri: cloudData.clearLocalImage
+            ? undefined
+            : (cloudData.localImageUri ?? medicine.imageUri),
+          imageStoragePath: cloudData.imageStoragePath,
+          imageMimeType: cloudData.imageMimeType,
+          imageSize: cloudData.imageSize,
+          imageUpdatedAt: cloudData.imageUpdatedAt,
+        }
+      : medicine
+  );
+}
+
+function hasPendingMedicineImageBackfill(medicine: Medicine): boolean {
+  return isLocalMedicineImageUri(medicine.imageUri) && !medicine.imageStoragePath;
+}
+
 export const useMedicineStore = create<MedicineState>()(
   persist(
     (set, get) => ({
@@ -195,41 +471,8 @@ export const useMedicineStore = create<MedicineState>()(
       reminderTimes: [],
       medicineLogs: [],
       snoozes: [],
-      settings: {
-        wakeUpTime: '08:00',
-        sleepTime: '23:00',
-        notificationSound: 'default',
-        vibrationEnabled: true,
-        fullScreenAlarmEnabled: true,
-        language: 'tr',
-        alarmSound: 'alarm',
-        alarmVolume: 80,
-        snoozeDuration: 5,
-        maxSnoozeCount: 3,
-        quietHoursEnabled: false,
-        quietHoursStart: '23:00',
-        quietHoursEnd: '07:00',
-        alarmModeEnabled: true,
-        conflictIntervalMinutes: 10,
-        // Güvenlik ayarları
-        securityEnabled: false,
-        securityType: 'none',
-        biometricsEnabled: false,
-        lockTimeout: 0,
-        // TTS ayarları
-        ttsEnabled: true,
-        ttsVolume: 80,
-        ttsRepeatCount: 1,
-        ttsSpeakMedicineName: true,
-        ttsSpeakDosage: true,
-        ttsSpeakInstructions: true,
-        // Kalıcı bildirim ayarları
-        persistentNotificationEnabled: true,
-        persistentNotificationDuration: 60,
-      },
-      alarmState: {
-        isActive: false,
-      },
+      settings: DEFAULT_USER_SETTINGS,
+      alarmState: DEFAULT_ALARM_STATE,
 
       // Sync durumu
       isSyncing: false,
@@ -305,7 +548,7 @@ export const useMedicineStore = create<MedicineState>()(
               const cloudLogs = cloudData.medicineLogs || [];
               const localLogIds = new Set(localLogs.map(l => l.id));
               const newCloudLogs = cloudLogs.filter(cl => !localLogIds.has(cl.id));
-              const mergedLogs = [...localLogs, ...newCloudLogs];
+              const mergedLogs = normalizeMedicineLogsBySlot([...localLogs, ...newCloudLogs]);
 
               // Medicines için merge - updatedAt karşılaştırması ile
               const localMedicineMap = new Map(localState.medicines.map(m => [m.id, m]));
@@ -330,25 +573,74 @@ export const useMedicineStore = create<MedicineState>()(
               );
               const mergedReminders = [...localState.reminderTimes, ...newCloudReminders];
 
+              const mergedSettings = {
+                ...localState.settings,
+                ...Object.fromEntries(
+                  Object.entries(cloudData.settings || {}).filter(([, v]) => v !== undefined)
+                ),
+              } as UserSettings;
+
               set({
                 medicines: mergedMedicines,
                 reminderTimes: mergedReminders,
                 medicineLogs: mergedLogs,
-                // Settings için deep merge - cloud'dan gelenleri local'in üzerine yazma
-                // Sadece cloud'da var olan ve local'de olmayan alanları ekle
-                settings: {
-                  ...localState.settings,
-                  ...Object.fromEntries(
-                    Object.entries(cloudData.settings || {}).filter(([, v]) => v !== undefined)
-                  ),
-                } as UserSettings,
+                settings: mergedSettings,
                 isSyncing: false,
                 lastSyncAt: new Date().toISOString(),
               });
 
-              // NOT: Artık merge sonrası otomatik upload yapılmıyor!
-              // Bu gereksiz API çağrılarına ve potansiyel race condition'lara neden oluyordu.
-              // Cloud'a upload sadece veri değişikliği yapıldığında (addMedicine, updateMedicine vb.) yapılır.
+              const pendingImageBackfillIds = mergedMedicines
+                .filter(hasPendingMedicineImageBackfill)
+                .map(medicine => medicine.id);
+
+              void rescheduleActiveNotificationsFromState(get(), updates => {
+                set(state => ({
+                  snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
+                }));
+              }).catch(error =>
+                log.error('Cloud senkronundan sonra alarmlar yeniden planlanamad?', error)
+              );
+
+              if (pendingImageBackfillIds.length > 0) {
+                void getSyncQueue()
+                  .enqueue(async () => {
+                    set({ isSyncing: true, syncError: null });
+
+                    try {
+                      for (const medicineId of pendingImageBackfillIds) {
+                        const currentMedicine = get().getMedicineById(medicineId);
+                        if (!currentMedicine || !hasPendingMedicineImageBackfill(currentMedicine)) {
+                          continue;
+                        }
+
+                        const savedCloudData = await saveMedicineToCloud(userId, currentMedicine);
+                        set(state => ({
+                          medicines: applySavedMedicineCloudData(
+                            state.medicines,
+                            medicineId,
+                            savedCloudData
+                          ),
+                        }));
+                      }
+
+                      set({
+                        isSyncing: false,
+                        lastSyncAt: new Date().toISOString(),
+                        syncError: null,
+                      });
+                    } catch (error) {
+                      const errorMessage = getSyncErrorMessage(error);
+                      set({
+                        isSyncing: false,
+                        syncError: errorMessage,
+                      });
+                      throw error;
+                    }
+                  })
+                  .catch(error => {
+                    log.error('Pending medicine image backfill failed', error);
+                  });
+              }
             } else {
               // Bulutta veri yoksa, mevcut verileri yükle
               set({ isSyncing: false });
@@ -418,13 +710,45 @@ export const useMedicineStore = create<MedicineState>()(
           reminderTimes: [...state.reminderTimes, ...times],
         }));
 
-        // Buluta kaydet (arka planda)
+        // Medicine kaydını ve varsa görselini önce doğrudan buluta gönder.
+        // Böylece Storage/Firebase tarafı sadece genel tam sync'e bağlı kalmaz.
         if (userId) {
+          void getSyncQueue()
+            .enqueue(async () => {
+              set({ isSyncing: true, syncError: null });
+
+              try {
+                const currentMedicine = get().getMedicineById(id);
+                if (!currentMedicine) {
+                  set({ isSyncing: false });
+                  return;
+                }
+
+                const savedCloudData = await saveMedicineToCloud(userId, currentMedicine);
+                set(state => ({
+                  medicines: applySavedMedicineCloudData(state.medicines, id, savedCloudData),
+                  isSyncing: false,
+                  lastSyncAt: new Date().toISOString(),
+                  syncError: null,
+                }));
+              } catch (error) {
+                const errorMessage = getSyncErrorMessage(error);
+                set({
+                  isSyncing: false,
+                  syncError: errorMessage,
+                });
+                throw error;
+              }
+            })
+            .catch(error => {
+              log.error('Medicine direct cloud save failed', error);
+            });
+
           scheduleBackgroundSync(() => get().syncToCloud());
         }
 
         // Widget'ı güncelle (güvenli mod - hata olursa app çökmez)
-        if (Platform.OS === 'android') {
+        if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
               const currentMedicines = get().medicines;
@@ -465,13 +789,44 @@ export const useMedicineStore = create<MedicineState>()(
           get().regenerateReminderTimes(id);
         }
 
-        // Buluta kaydet (arka planda)
+        // Medicine kaydını ve varsa görselini önce doğrudan buluta gönder.
         if (userId) {
+          void getSyncQueue()
+            .enqueue(async () => {
+              set({ isSyncing: true, syncError: null });
+
+              try {
+                const currentMedicine = get().getMedicineById(id);
+                if (!currentMedicine) {
+                  set({ isSyncing: false });
+                  return;
+                }
+
+                const savedCloudData = await saveMedicineToCloud(userId, currentMedicine);
+                set(state => ({
+                  medicines: applySavedMedicineCloudData(state.medicines, id, savedCloudData),
+                  isSyncing: false,
+                  lastSyncAt: new Date().toISOString(),
+                  syncError: null,
+                }));
+              } catch (error) {
+                const errorMessage = getSyncErrorMessage(error);
+                set({
+                  isSyncing: false,
+                  syncError: errorMessage,
+                });
+                throw error;
+              }
+            })
+            .catch(error => {
+              log.error('Medicine direct cloud update failed', error);
+            });
+
           scheduleBackgroundSync(() => get().syncToCloud());
         }
 
         // Widget'ı güncelle (güvenli mod)
-        if (Platform.OS === 'android') {
+        if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
               const { medicines, reminderTimes, medicineLogs } = get();
@@ -484,7 +839,14 @@ export const useMedicineStore = create<MedicineState>()(
       },
 
       deleteMedicine: id => {
-        const { userId } = get();
+        const { userId, snoozes } = get();
+
+        const medicineSnoozes = snoozes.filter(s => s.medicineId === id);
+        for (const snooze of medicineSnoozes) {
+          cancelNotification(snooze.notificationId).catch(err =>
+            log.error('Failed to cancel stored snooze notification on delete', err)
+          );
+        }
 
         cancelMedicineNotifications(id).catch(err =>
           log.error('Failed to cancel medicine notifications on delete', err)
@@ -500,12 +862,36 @@ export const useMedicineStore = create<MedicineState>()(
         }));
 
         if (userId) {
+          void getSyncQueue()
+            .enqueue(async () => {
+              set({ isSyncing: true, syncError: null });
+
+              try {
+                await deleteMedicineFromCloud(userId, id);
+                set({
+                  isSyncing: false,
+                  lastSyncAt: new Date().toISOString(),
+                  syncError: null,
+                });
+              } catch (error) {
+                const errorMessage = getSyncErrorMessage(error);
+                set({
+                  isSyncing: false,
+                  syncError: errorMessage,
+                });
+                throw error;
+              }
+            })
+            .catch(error => {
+              log.error('Medicine direct cloud delete failed', error);
+            });
+
           scheduleBackgroundSync(() => get().syncToCloud());
         }
 
         // Widget'ı güncelle (güvenli mod)
         try {
-          if (Platform.OS === 'android') {
+          if (isAndroidPlatform()) {
             setTimeout(() => {
               const currentMedicines = get().medicines;
               const currentReminderTimes = get().reminderTimes;
@@ -521,20 +907,68 @@ export const useMedicineStore = create<MedicineState>()(
       },
 
       // İlaç aktif/pasif
-      toggleMedicineActive: id => {
-        const { userId } = get();
+      toggleMedicineActive: async id => {
+        const { userId, medicines, snoozes, settings } = get();
+        const medicine = medicines.find(m => m.id === id);
+
+        if (!medicine) {
+          return;
+        }
+
+        const nextIsActive = !medicine.isActive;
+        const updatedAt = new Date().toISOString();
 
         set(state => ({
-          medicines: state.medicines.map(m => (m.id === id ? { ...m, isActive: !m.isActive } : m)),
+          medicines: state.medicines.map(m =>
+            m.id === id ? { ...m, isActive: nextIsActive, updatedAt } : m
+          ),
         }));
+
+        if (!nextIsActive) {
+          const snoozeNotificationIds = Array.from(
+            new Set(
+              snoozes.filter(s => s.medicineId === id && s.isActive).map(s => s.notificationId)
+            )
+          );
+
+          get().deactivateSnoozesForMedicine(id);
+
+          await Promise.allSettled([
+            cancelMedicineNotifications(id),
+            ...snoozeNotificationIds.map(notificationId => cancelNotification(notificationId)),
+          ]);
+
+          log.debug('Ilac pasife alindi, alarmlar iptal edildi', {
+            medicineId: id,
+            cancelledSnoozes: snoozeNotificationIds.length,
+          });
+        } else {
+          const activeMedicine = get().medicines.find(m => m.id === id);
+          const reminderTimesToSchedule = get().reminderTimes.filter(
+            reminderTime => reminderTime.medicineId === id && reminderTime.isEnabled
+          );
+
+          if (activeMedicine) {
+            await Promise.allSettled(
+              reminderTimesToSchedule.map(reminderTime =>
+                scheduleMedicineNotification(activeMedicine, reminderTime, settings)
+              )
+            );
+          }
+
+          log.debug('Ilac aktife alindi, alarmlar yeniden planlandi', {
+            medicineId: id,
+            scheduledCount: reminderTimesToSchedule.length,
+          });
+        }
 
         if (userId) {
           scheduleBackgroundSync(() => get().syncToCloud());
         }
 
-        // Widget'ı güncelle
-        const { medicines, reminderTimes, medicineLogs } = get();
-        updateWidgetData(medicines, reminderTimes, medicineLogs);
+        // Widget'? g?ncelle
+        const { medicines: currentMedicines, reminderTimes, medicineLogs } = get();
+        updateWidgetData(currentMedicines, reminderTimes, medicineLogs);
       },
 
       // Hatırlatma zamanı güncelleme
@@ -647,13 +1081,29 @@ export const useMedicineStore = create<MedicineState>()(
       logMedicineTaken: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
         log.debug('logMedicineTaken called', { reminderTimeId, scheduledTime });
 
-        const { userId, medicines } = get();
+        const { userId, medicines, reminderTimes } = get();
+
+        if (isScheduledTimeInFuture(scheduledTime)) {
+          log.warn('Gelecekteki doz erkenden alindi olarak isaretlenemedi', {
+            reminderTimeId,
+            scheduledTime,
+          });
+          return;
+        }
+
+        const resolvedArgs = resolveMedicineLogArgs(
+          reminderTimeId,
+          medicines,
+          reminderTimes,
+          medicineIdFallback,
+          note
+        );
         const medicineLog = get()._createMedicineLog(
           'taken',
           reminderTimeId,
           scheduledTime,
-          medicineIdFallback,
-          note
+          resolvedArgs.medicineIdFallback,
+          resolvedArgs.note
         );
 
         if (!medicineLog) return;
@@ -680,7 +1130,7 @@ export const useMedicineStore = create<MedicineState>()(
         );
 
         set(state => ({
-          medicineLogs: [...state.medicineLogs, medicineLog],
+          medicineLogs: normalizeMedicineLogsBySlot([...state.medicineLogs, medicineLog]),
           snoozes: state.snoozes.map(s =>
             activeSnoozes.some(as => as.id === s.id) ? { ...s, isActive: false } : s
           ),
@@ -701,7 +1151,7 @@ export const useMedicineStore = create<MedicineState>()(
         }
 
         // Widget'ı güncelle (ilaç alındı)
-        if (Platform.OS === 'android') {
+        if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
               const { medicines, reminderTimes, medicineLogs } = get();
@@ -716,13 +1166,20 @@ export const useMedicineStore = create<MedicineState>()(
       logMedicineSkipped: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
         log.debug('logMedicineSkipped called', { reminderTimeId, scheduledTime });
 
-        const { userId, medicines } = get();
+        const { userId, medicines, reminderTimes } = get();
+        const resolvedArgs = resolveMedicineLogArgs(
+          reminderTimeId,
+          medicines,
+          reminderTimes,
+          medicineIdFallback,
+          note
+        );
         const medicineLog = get()._createMedicineLog(
           'skipped',
           reminderTimeId,
           scheduledTime,
-          medicineIdFallback,
-          note
+          resolvedArgs.medicineIdFallback,
+          resolvedArgs.note
         );
 
         if (!medicineLog) return;
@@ -749,7 +1206,7 @@ export const useMedicineStore = create<MedicineState>()(
         );
 
         set(state => ({
-          medicineLogs: [...state.medicineLogs, medicineLog],
+          medicineLogs: normalizeMedicineLogsBySlot([...state.medicineLogs, medicineLog]),
           snoozes: state.snoozes.map(s =>
             activeSnoozes.some(as => as.id === s.id) ? { ...s, isActive: false } : s
           ),
@@ -767,7 +1224,7 @@ export const useMedicineStore = create<MedicineState>()(
         }
 
         // Widget'ı güncelle (ilaç atlandı)
-        if (Platform.OS === 'android') {
+        if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
               const { medicines, reminderTimes, medicineLogs } = get();
@@ -786,11 +1243,31 @@ export const useMedicineStore = create<MedicineState>()(
 
         if (missedLogs.length > 0) {
           set(state => ({
-            medicineLogs: [...state.medicineLogs, ...missedLogs],
+            medicineLogs: normalizeMedicineLogsBySlot([...state.medicineLogs, ...missedLogs]),
           }));
 
           if (userId) {
-            scheduleBackgroundSync(() => get().syncToCloud());
+            for (const missedLog of missedLogs) {
+              saveMedicineLogToCloud(userId, missedLog).catch(err =>
+                log.error('Failed to save missed log to cloud', err)
+              );
+
+              const medicine = medicines.find(item => item.id === missedLog.medicineId);
+              if (!medicine) {
+                continue;
+              }
+
+              import('../services/caregiverNotificationService').then(
+                ({ notifyCaregiversAboutMedicineStatus }) => {
+                  notifyCaregiversAboutMedicineStatus(
+                    userId,
+                    medicine.name,
+                    missedLog.scheduledTime,
+                    'missed'
+                  ).catch(err => log.error('Bakıcı missed bildirimi hatası', err));
+                }
+              );
+            }
           }
         }
       },
@@ -800,7 +1277,8 @@ export const useMedicineStore = create<MedicineState>()(
         reminderTimeId,
         originalScheduledTime,
         triggerTime,
-        notificationId
+        notificationId,
+        snoozeId
       ) => {
         const { snoozes, settings } = get();
 
@@ -828,7 +1306,7 @@ export const useMedicineStore = create<MedicineState>()(
         }
 
         const newSnooze: Snooze = {
-          id: generateId(),
+          id: snoozeId || generateId(),
           medicineId,
           reminderTimeId,
           originalScheduledTime,
@@ -878,19 +1356,25 @@ export const useMedicineStore = create<MedicineState>()(
       },
 
       cleanupStaleSnoozes: async () => {
-        const { snoozes, medicines } = get();
+        const { snoozes, medicines, reminderTimes } = get();
         const now = new Date();
         const staleThreshold = 5 * 60 * 1000;
 
         const staleSnoozes = snoozes.filter(s => {
           if (!s.isActive) return false;
 
-          const triggerTime = new Date(s.triggerTime);
-          const isStale = triggerTime.getTime() + staleThreshold < now.getTime();
+          const triggerTime = parseSnoozeTriggerTime(s.triggerTime);
+          const isStale = !triggerTime || triggerTime.getTime() + staleThreshold < now.getTime();
 
           const medicineExists = medicines.some(m => m.id === s.medicineId && m.isActive);
+          const reminderTimeExists = reminderTimes.some(
+            reminderTime =>
+              reminderTime.id === s.reminderTimeId &&
+              reminderTime.medicineId === s.medicineId &&
+              reminderTime.isEnabled
+          );
 
-          return isStale || !medicineExists;
+          return isStale || !medicineExists || !reminderTimeExists;
         });
 
         if (staleSnoozes.length === 0) {
@@ -916,27 +1400,125 @@ export const useMedicineStore = create<MedicineState>()(
         return staleSnoozes.length;
       },
 
-      updateSettings: updates => {
+      runNotificationSelfHeal: async () => {
+        try {
+          const cleanedStaleSnoozes = await get().cleanupStaleSnoozes();
+          const driftReport = await analyzeNotificationDrift(get());
+
+          if (!driftReport.hasDrift) {
+            void recordDiagnosticEvent({
+              scope: 'self-heal',
+              level: 'info',
+              message: 'Notification self-heal found no drift',
+              context: {
+                cleanedStaleSnoozeCount: cleanedStaleSnoozes,
+              },
+            });
+            return {
+              ...driftReport,
+              repaired: cleanedStaleSnoozes > 0,
+              cancelledNotificationIds: [],
+              snoozeNotificationUpdates: [],
+            };
+          }
+
+          const cancelledNotificationIds = Array.from(
+            new Set([...driftReport.orphanTriggerIds, ...driftReport.legacySnoozeNotificationIds])
+          );
+
+          await Promise.allSettled(
+            cancelledNotificationIds.map(notificationId => cancelNotification(notificationId))
+          );
+
+          const snoozeNotificationUpdates: RescheduledSnoozeNotification[] = [];
+          await rescheduleActiveNotificationsFromState(get(), updates => {
+            snoozeNotificationUpdates.push(...updates);
+            set(state => ({
+              snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
+            }));
+          });
+
+          void recordDiagnosticEvent({
+            scope: 'self-heal',
+            level: 'info',
+            message: 'Notification self-heal repaired drift',
+            context: {
+              missingCount: driftReport.missingNotificationIds.length,
+              configDriftCount: driftReport.configDriftIds.length,
+              orphanCount: driftReport.orphanTriggerIds.length,
+              legacySnoozeCount: driftReport.legacySnoozeNotificationIds.length,
+              cancelledCount: cancelledNotificationIds.length,
+              cleanedStaleSnoozeCount: cleanedStaleSnoozes,
+              snoozeUpdateCount: snoozeNotificationUpdates.length,
+            },
+          });
+
+          return {
+            ...driftReport,
+            repaired: true,
+            cancelledNotificationIds,
+            snoozeNotificationUpdates,
+          };
+        } catch (error) {
+          log.error('Notification self-heal failed', error);
+          void recordDiagnosticEvent({
+            scope: 'self-heal',
+            level: 'error',
+            message: 'Notification self-heal failed',
+          });
+          throw error;
+        }
+      },
+
+      updateSettings: (updates, options) => {
         const { userId } = get();
+        const previousSettings = get().settings;
+        const nextSettings = { ...previousSettings, ...updates };
+        const wakeSleepChanged =
+          updates.wakeUpTime !== undefined || updates.sleepTime !== undefined;
+        const shouldReschedule =
+          wakeSleepChanged || didReminderSchedulingSettingsChange(previousSettings, nextSettings);
+        const skipReschedule = options?.skipReschedule === true;
+        const skipSelfHeal = options?.skipSelfHeal === true || skipReschedule;
+        const skipCloudSync = options?.skipCloudSync === true;
 
-        set(state => ({
-          settings: { ...state.settings, ...updates },
-        }));
+        set({ settings: nextSettings });
 
-        // Uyku/uyanma saati değiştiyse tüm ilaçların zamanlarını güncelle
-        if (updates.wakeUpTime !== undefined || updates.sleepTime !== undefined) {
+        if (wakeSleepChanged) {
           const { medicines } = get();
-          medicines.forEach(m => {
-            if (m.isActive) {
-              get().regenerateReminderTimes(m.id);
+          medicines.forEach(medicine => {
+            if (medicine.isActive) {
+              get().regenerateReminderTimes(medicine.id);
             }
           });
         }
 
-        // Buluta kaydet
-        if (userId) {
-          const { settings } = get();
-          syncSettingsToCloud(userId, settings).catch(err =>
+        if (shouldReschedule && !skipReschedule) {
+          void rescheduleActiveNotificationsFromState(get(), updates => {
+            set(state => ({
+              snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
+            }));
+          })
+            .then(async () => {
+              if (skipSelfHeal) {
+                return;
+              }
+
+              const healResult = await get().runNotificationSelfHeal();
+              if (healResult.repaired) {
+                log.debug('Ayar degisikligi sonrasi self-heal tamamlandi', {
+                  missingCount: healResult.missingNotificationIds.length,
+                  configDriftCount: healResult.configDriftIds.length,
+                });
+              }
+            })
+            .catch(error =>
+              log.error('Ayar de?i?ikli?inden sonra alarmlar yeniden planlanamad?', error)
+            );
+        }
+
+        if (userId && !skipCloudSync) {
+          syncSettingsToCloud(userId, nextSettings).catch(err =>
             log.error('Failed to sync settings to cloud', err)
           );
         }
@@ -982,6 +1564,15 @@ export const useMedicineStore = create<MedicineState>()(
       getTodayReminders: () => {
         const { medicines, reminderTimes, medicineLogs } = get();
         const today = format(new Date(), 'yyyy-MM-dd');
+        const normalizedLogs = normalizeMedicineLogsBySlot(medicineLogs);
+        const todayLogMap = new Map(
+          normalizedLogs
+            .filter(logEntry => logEntry.scheduledTime.startsWith(today))
+            .map(logEntry => [
+              buildMedicineLogSlotKey(logEntry.reminderTimeId, logEntry.scheduledTime),
+              logEntry,
+            ])
+        );
 
         const result: { medicine: Medicine; reminderTime: ReminderTime; log?: MedicineLog }[] = [];
 
@@ -991,9 +1582,8 @@ export const useMedicineStore = create<MedicineState>()(
             const times = reminderTimes.filter(rt => rt.medicineId === medicine.id && rt.isEnabled);
 
             times.forEach(reminderTime => {
-              const log = medicineLogs.find(
-                l => l.reminderTimeId === reminderTime.id && l.scheduledTime.startsWith(today)
-              );
+              const scheduledTime = `${today}T${reminderTime.time}:00`;
+              const log = todayLogMap.get(buildMedicineLogSlotKey(reminderTime.id, scheduledTime));
 
               result.push({ medicine, reminderTime, log });
             });
@@ -1008,6 +1598,7 @@ export const useMedicineStore = create<MedicineState>()(
       // Uyum oranını hesapla
       getAdherenceRate: (days = 7) => {
         const { medicineLogs, medicines, reminderTimes } = get();
+        const normalizedLogs = normalizeMedicineLogsBySlot(medicineLogs);
         const now = new Date();
         // eslint-disable-next-line unused-imports/no-unused-vars
         const today = format(now, 'yyyy-MM-dd');
@@ -1024,7 +1615,7 @@ export const useMedicineStore = create<MedicineState>()(
         // Aktif hatırlatma yoksa %100 dön (ilaç yok = sorun yok)
         if (activeReminderCount === 0) return 100;
 
-        const recentLogs = medicineLogs.filter(log => new Date(log.scheduledTime) >= startDate);
+        const recentLogs = normalizedLogs.filter(log => new Date(log.scheduledTime) >= startDate);
 
         // Log yoksa: bugün için geçmiş zamanlı hatırlatma var mı kontrol et
         if (recentLogs.length === 0) {
@@ -1048,6 +1639,7 @@ export const useMedicineStore = create<MedicineState>()(
 
       getCurrentStreak: () => {
         const { medicineLogs, medicines, reminderTimes } = get();
+        const normalizedLogs = normalizeMedicineLogsBySlot(medicineLogs);
 
         const activeMedicineIds = new Set(medicines.filter(m => m.isActive).map(m => m.id));
 
@@ -1059,9 +1651,9 @@ export const useMedicineStore = create<MedicineState>()(
 
         // OPTİMİZASYON: MedicineLogs'u tarihe göre önceden indexle - O(n) yerine O(m)
         // Bu, her gün için tüm diziyi taramak yerine, doğrudan o günün loglarına erişmemizi sağlar
-        const logsByDate = new Map<string, typeof medicineLogs>();
+        const logsByDate = new Map<string, typeof normalizedLogs>();
 
-        for (const log of medicineLogs) {
+        for (const log of normalizedLogs) {
           if (!activeMedicineIds.has(log.medicineId)) continue;
 
           const dateStr = log.scheduledTime.slice(0, 10); // 'yyyy-MM-dd' formatı
@@ -1202,14 +1794,11 @@ export const useMedicineStore = create<MedicineState>()(
 
         try {
           // 1. Önce TÜM bildirimleri iptal et (UCES: Zero-tolerance for orphaned alarms)
-          const { cancelAllNotifications, stopAlarmVibration } =
-            await import('../utils/notifications');
           await cancelAllNotifications();
           stopAlarmVibration();
           log.debug('Tum bildirimler iptal edildi');
 
           // 2. Her ilacın bildirimlerini ayrı ayrı iptal et (double safety)
-          const { cancelMedicineNotifications } = await import('../utils/notifications');
           for (const medicine of medicines) {
             try {
               await cancelMedicineNotifications(medicine.id);
@@ -1219,7 +1808,13 @@ export const useMedicineStore = create<MedicineState>()(
           }
           log.debug('Tum ilac bildirimleri iptal edildi');
 
-          // 3. AsyncStorage'ı temizle (persist middleware için kritik)
+          // 3. Cloud'dan da sil (isteğe bağlı)
+          if (shouldDeleteFromCloud && userId) {
+            log.info('Tum veriler cloud dan da siliniyor', { userId });
+            await deleteAllUserData(userId);
+          }
+
+          // 4. AsyncStorage'ı temizle (persist middleware için kritik)
           await AsyncStorage.multiRemove([
             'medicine-store',
             'medicine-store-sync-queue',
@@ -1227,56 +1822,16 @@ export const useMedicineStore = create<MedicineState>()(
           ]);
           log.debug('AsyncStorage temizlendi');
 
-          // 4. Local state'i temizle
+          // 5. Local state'i temizle
           set({
             medicines: [],
             reminderTimes: [],
             medicineLogs: [],
             snoozes: [],
-            alarmState: {
-              isPlaying: false,
-              activeAlarms: [],
-              currentMedicineId: null,
-            },
-            settings: {
-              wakeUpTime: '08:00',
-              sleepTime: '23:00',
-              notificationSound: 'default',
-              vibrationEnabled: true,
-              fullScreenAlarmEnabled: true,
-              language: 'tr',
-              alarmSound: 'alarm',
-              alarmVolume: 80,
-              snoozeDuration: 5,
-              maxSnoozeCount: 3,
-              quietHoursEnabled: false,
-              quietHoursStart: '23:00',
-              quietHoursEnd: '07:00',
-              alarmModeEnabled: true,
-              conflictIntervalMinutes: 10,
-              securityEnabled: false,
-              securityType: 'none',
-              biometricsEnabled: false,
-              lockTimeout: 0,
-              ttsEnabled: true,
-              ttsVolume: 80,
-              ttsRepeatCount: 1,
-              ttsSpeakMedicineName: true,
-              ttsSpeakDosage: true,
-              ttsSpeakInstructions: true,
-              persistentNotificationEnabled: true,
-              persistentNotificationDuration: 60,
-            },
+            alarmState: DEFAULT_ALARM_STATE,
+            settings: DEFAULT_USER_SETTINGS,
             lastSyncAt: null,
           });
-
-          // 5. Cloud'dan da sil (isteğe bağlı)
-          if (shouldDeleteFromCloud && userId) {
-            log.info('Tum veriler cloud dan da siliniyor', { userId });
-            deleteAllUserData(userId).catch(error => {
-              log.error('Cloud veri silme hatasi', error);
-            });
-          }
 
           log.info('Tum veriler basariyla temizlendi');
         } catch (error) {
@@ -1287,12 +1842,10 @@ export const useMedicineStore = create<MedicineState>()(
 
       // Veri import et (buluttan gelen veriler için)
       importData: (data: SyncData) => {
-        // Validate incoming data with Zod schema
         const validationResult = validateSyncData(data);
 
         if (!validationResult.success) {
           log.error('ImportData validation failed', new Error(validationResult.error.message));
-          // Don't import invalid data - this protects against corrupted cloud data
           return;
         }
 
@@ -1305,10 +1858,18 @@ export const useMedicineStore = create<MedicineState>()(
           settings: validatedData.settings,
           lastSyncAt: new Date().toISOString(),
         });
+
+        void rescheduleActiveNotificationsFromState(get(), updates => {
+          set(state => ({
+            snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
+          }));
+        }).catch(error => log.error('Import sonras?nda alarmlar yeniden planlanamad?', error));
       },
     }),
     {
       name: STORAGE_KEYS.MEDICINE_STORAGE,
+      version: SETTINGS_STORAGE_VERSION,
+      migrate: (persistedState, version) => migrateMedicineStoreState(persistedState, version),
       storage: createJSONStorage(() => AsyncStorage),
       partialize: state => ({
         medicines: state.medicines,
@@ -1342,39 +1903,44 @@ export const useMedicineStore = create<MedicineState>()(
 // Component'ler bu hook'ları kullanarak gereksiz re-render'ları önleyebilir
 
 /**
- * Aktif ilaçları getir (memoized)
+ * Aktif ilaçları getir.
+ * useShallow ile shallow equality: aynı ilaç listesi olduğunda re-render tetiklenmez.
  */
 export function useActiveMedicines(): Medicine[] {
-  return useMedicineStore(
-    state => state.medicines.filter(m => m.isActive),
-    // Shallow equality check
-    (a, b) => a.length === b.length && a.every((m, i) => m.id === b[i]?.id)
-  );
+  return useMedicineStore(useShallow(state => state.medicines.filter(m => m.isActive)));
 }
 
 /**
- * Bugünkü hatırlatmaları getir (memoized)
+ * Bugünkü hatırlatmaları getir.
+ *
+ * useShallow kullanırız: getTodayReminders her çağrıda yeni bir array döndürür
+ * (içeride filter+map+sort var). useShallow olmadan Zustand her render'da
+ * yeni array'i "değişti" sanıp consumer'ı re-render eder. useShallow ile
+ * shallow equality kontrol edilir; aynı içerikte referans değişse bile
+ * re-render tetiklenmez.
  */
 export function useTodayReminders(): ReturnType<MedicineState['getTodayReminders']> {
-  return useMedicineStore(state => state.getTodayReminders());
+  return useMedicineStore(useShallow(state => state.getTodayReminders()));
 }
 
 /**
- * Stok azalan ilaçları getir (memoized)
+ * Stok azalan ilaçları getir
  */
 export function useLowStockMedicines(): Medicine[] {
-  return useMedicineStore(state => state.getLowStockMedicines());
+  return useMedicineStore(useShallow(state => state.getLowStockMedicines()));
 }
 
 /**
- * Uyum oranını getir (memoized)
+ * Uyum oranını getir (sayısal, primitive). useShallow gerekmez çünkü
+ * sonuç primitive (number). Ancak dependency array'e days parametresini
+ * eklememiz gerekir; Zustand bunu otomatik halleder.
  */
 export function useAdherenceRate(days = 7): number {
   return useMedicineStore(state => state.getAdherenceRate(days));
 }
 
 /**
- * Mevcut seriyi getir (memoized)
+ * Mevcut seriyi getir (primitive)
  */
 export function useCurrentStreak(): number {
   return useMedicineStore(state => state.getCurrentStreak());
