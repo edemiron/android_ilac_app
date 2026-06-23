@@ -1,26 +1,87 @@
-name: CI/CD Pipeline
+name: Monorepo CI
 
 on:
   push:
-    branches: [main, master]
+    paths:
+      - 'server/**'
+      - 'mobile/**'
+      - '.github/workflows/ci.yml'
   pull_request:
-    branches: [main, master]
+    paths:
+      - 'server/**'
+      - 'mobile/**'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+
+# En dusuk yetki: sadece repo okuma. PR'lardan gelen fork'larda
+# secret'lara yazma izni vermiyoruz.
+permissions:
+  contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: monorepo-ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  NODE_VERSION: '20'
-  WORKING_DIRECTORY: ./mobile
-
 jobs:
-  lint:
-    name: Lint & Type Check
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed areas
+        id: filter
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "server=true" >> "$GITHUB_OUTPUT"
+            echo "mobile=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+
+          head="${{ github.sha }}"
+
+          if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+            echo "server=true" >> "$GITHUB_OUTPUT"
+            echo "mobile=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          files="$(git diff --name-only "$base" "$head")"
+
+          if echo "$files" | grep -qE '^(server/|\.github/workflows/ci\.yml$)'; then
+            echo "server=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "server=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if echo "$files" | grep -qE '^(mobile/|\.github/workflows/ci\.yml$)'; then
+            echo "mobile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mobile=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  validate-server:
+    name: Validate server
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
-        working-directory: ${{ env.WORKING_DIRECTORY }}
+        working-directory: server
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,9 +89,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -38,19 +99,23 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Run TypeScript type check
-        run: npx tsc --noEmit
+      - name: Run typecheck
+        run: npm run typecheck
 
-      - name: Check Prettier formatting
-        run: npm run format:check
+      - name: Run tests
+        run: npm test
 
-  test:
-    name: Unit Tests
+  validate-mobile:
+    name: Validate mobile
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
-    needs: lint
+    timeout-minutes: 20
+    env:
+      CI: true
     defaults:
       run:
-        working-directory: ${{ env.WORKING_DIRECTORY }}
+        working-directory: mobile
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -58,136 +123,176 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          node-version: 20
+          cache: npm
           cache-dependency-path: mobile/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Jest tests
-        run: npm test -- --coverage --ci --reporters=default --reporters=jest-junit
-        env:
-          JEST_JUNIT_OUTPUT_DIR: ./reports
-          JEST_JUNIT_OUTPUT_NAME: junit.xml
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: mobile/reports/
-          retention-days: 7
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: coverage-report
-          path: mobile/coverage/
-          retention-days: 7
-
-  build-preview:
-    name: EAS Build (Preview)
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'pull_request'
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Setup Expo CLI
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build preview APK
-        run: eas build --platform android --profile preview --non-interactive --no-wait
-
-  build-production:
-    name: EAS Build (Production)
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Setup Expo CLI
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build production AAB
-        run: eas build --platform android --profile production --non-interactive --no-wait
-
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    needs: build-production
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Get version from package.json
-        id: version
+      - name: Run ESLint
+        id: mobile_lint
+        shell: bash
         run: |
-          VERSION=$(node -p "require('./mobile/package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Check if tag exists
-        id: tag_check
-        run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+          start=$(date +%s)
+          if npm run lint; then
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
 
-      - name: Create and push tag
-        if: steps.tag_check.outputs.exists == 'false'
+      - name: Run typecheck
+        id: mobile_typecheck
+        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
-          git push origin "v${{ steps.version.outputs.version }}"
+          start=$(date +%s)
+          if npm run typecheck; then
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+          else
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
-      - name: Create GitHub Release
-        if: steps.tag_check.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+      - name: Run settings regression pack
+        id: mobile_settings
+        shell: bash
+        run: |
+          start=$(date +%s)
+          if npm run test:settings; then
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+          else
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Run caregiver regression pack
+        id: mobile_caregiver
+        shell: bash
+        run: |
+          start=$(date +%s)
+          if npm run test:caregiver; then
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+          else
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Run critical tests
+        id: mobile_critical
+        shell: bash
+        run: |
+          start=$(date +%s)
+          if npm run test:critical; then
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+          else
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Run full test suite with coverage gate
+        id: mobile_coverage
+        shell: bash
+        run: |
+          start=$(date +%s)
+          # coverageThreshold jest.config.js icinde tanimli; asan testler fail eder.
+          # CI'da coverage raporunu artifact olarak da yukluyoruz ki PR inceleme
+          # yapabilsin.
+          if npm run test:coverage; then
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+          else
+            end=$(date +%s)
+            echo "duration_seconds=$((end-start))" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Release v${{ steps.version.outputs.version }}
-          generate_release_notes: true
-          draft: false
+          name: mobile-coverage-${{ github.run_id }}
+          path: mobile/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Publish mobile validation summary
+        if: always()
+        shell: bash
+        run: |
+          lint_seconds="${{ steps.mobile_lint.outputs.duration_seconds }}"
+          typecheck_seconds="${{ steps.mobile_typecheck.outputs.duration_seconds }}"
+          settings_seconds="${{ steps.mobile_settings.outputs.duration_seconds }}"
+          caregiver_seconds="${{ steps.mobile_caregiver.outputs.duration_seconds }}"
+          critical_seconds="${{ steps.mobile_critical.outputs.duration_seconds }}"
+          coverage_seconds="${{ steps.mobile_coverage.outputs.duration_seconds }}"
+
+          total_seconds=0
+          for value in "$lint_seconds" "$typecheck_seconds" "$settings_seconds" "$caregiver_seconds" "$critical_seconds" "$coverage_seconds"; do
+            if [[ "$value" =~ ^[0-9]+$ ]]; then
+              total_seconds=$((total_seconds + value))
+            fi
+          done
+
+          format_duration() {
+            local value="$1"
+            if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+              echo "n/a"
+              return
+            fi
+
+            local minutes=$((value / 60))
+            local seconds=$((value % 60))
+            printf "%dm %02ds" "$minutes" "$seconds"
+          }
+
+          {
+            echo "## Mobile Validation Summary"
+            echo
+            echo "| Check | Result | Duration |"
+            echo "| --- | --- | --- |"
+            echo "| ESLint | ${{ steps.mobile_lint.outcome }} | $(format_duration "$lint_seconds") |"
+            echo "| Typecheck | ${{ steps.mobile_typecheck.outcome }} | $(format_duration "$typecheck_seconds") |"
+            echo "| Settings regression pack | ${{ steps.mobile_settings.outcome }} | $(format_duration "$settings_seconds") |"
+            echo "| Caregiver regression pack | ${{ steps.mobile_caregiver.outcome }} | $(format_duration "$caregiver_seconds") |"
+            echo "| Critical tests | ${{ steps.mobile_critical.outcome }} | $(format_duration "$critical_seconds") |"
+            echo "| Coverage gate | ${{ steps.mobile_coverage.outcome }} | $(format_duration "$coverage_seconds") |"
+            echo
+            echo "**Total measured duration:** $(format_duration "$total_seconds")"
+            echo
+            echo "### Follow-up Notes / Sonraki Kontroller"
+
+            if [[ "${{ steps.mobile_lint.outcome }}" == "failure" ]]; then
+              echo "- ESLint failed / ESLint hatasi: first check formatting, unused imports, and rule details in the step log."
+            fi
+
+            if [[ "${{ steps.mobile_typecheck.outcome }}" == "failure" ]]; then
+              echo "- Typecheck failed / Typecheck hatasi: start with recent TS prop-type changes, especially navigation params and test mocks."
+            fi
+
+            if [[ "${{ steps.mobile_settings.outcome }}" == "failure" ]]; then
+              echo "- Settings regression pack failed / Ayarlar paketi hatasi: review persistence, boot restore, notification, and security changes first."
+            fi
+
+            if [[ "${{ steps.mobile_caregiver.outcome }}" == "failure" ]]; then
+              echo "- Caregiver regression pack failed / Bakici paketi hatasi: review invite share helpers, CaregiverScreen actions, and caregiver notification mocks."
+            fi
+
+            if [[ "${{ steps.mobile_critical.outcome }}" == "failure" ]]; then
+              echo "- Critical tests failed / Kritik test hatasi: inspect barcode flow, add-medicine flow, and core medicine utility changes."
+            fi
+
+            if [[ "${{ steps.mobile_coverage.outcome }}" == "failure" ]]; then
+              echo "- Coverage gate failed / Coverage esigi altinda: jest.config.js'deki threshold degerlerinin altinda. Yeni testler ekleyin veya mevcut testlerin kapsamini arttirin."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

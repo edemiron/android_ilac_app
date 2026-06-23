@@ -1,6 +1,6 @@
 module.exports = {
   transform: {
-    '^.+\\.(ts|tsx|js|jsx)$': ['babel-jest', { presets: ['module:@react-native/babel-preset'] }],
+    '^.+\\.(ts|tsx|js|jsx)$': 'babel-jest',
   },
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@notifee/react-native|uuid)',
@@ -17,10 +17,14 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      branches: 15,
-      functions: 18,
-      lines: 20,
-      statements: 20,
+      // Mevcut olcum (2026-06): ~44% lines, ~32% branches, ~42% functions, ~44% statements
+      // Threshold, mevcut coverage'nin biraz altinda tutulur ki yeni testler eklenirken
+      // CI yanlislikla kirmaya baslamasin. Asil hedef: her sprint'te bu esikleri
+      // kademeli olarak artirmak (sonraki sprint hedefi: lines 55, branches 45).
+      branches: 28,
+      functions: 38,
+      lines: 40,
+      statements: 40,
     },
   },
 };

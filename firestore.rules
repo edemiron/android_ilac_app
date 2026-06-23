@@ -6,8 +6,9 @@ rules_version = '2';
  * SECURITY PRINCIPLES:
  * 1. All data requires authentication - no anonymous access
  * 2. Users can only access their own data (data isolation)
- * 3. Write operations validate data structure
- * 4. Rate limiting through Firebase quotas
+ * 3. Write operations validate data structure AND content (regex allowlist)
+ * 4. Foreign key validation: medicineLogs.medicineId must reference an existing medicine
+ * 5. Rate limiting through Firebase quotas
  *
  * DEPLOYMENT:
  * Deploy these rules using Firebase CLI:
@@ -38,9 +39,34 @@ service cloud.firestore {
       return ts is timestamp && ts <= request.time + duration.value(5, 'm');
     }
 
-    // Validate string length
+    // Validate string length only
     function isValidString(str, minLen, maxLen) {
       return str is string && str.size() >= minLen && str.size() <= maxLen;
+    }
+
+    // Content allowlist for medicine name/dosage:
+    // - Turkce harfler + ASCII + yaygin noktalama
+    // - Yeni satir, kontrol karakteri ve HTML/XML karakterleri YASAK
+    // - Boylece stored XSS ve log injection engellenir
+    function isValidMedicineText(str) {
+      return str is string
+          && str.size() >= 1
+          && str.size() <= 200
+          && str.matches('^[A-Za-z0-9ğüşıöçĞÜŞİÖÇ .,\\-()/+&%:%µ]+$');
+    }
+
+    function isValidDosage(str) {
+      return str is string
+          && str.size() >= 1
+          && str.size() <= 100
+          && str.matches('^[A-Za-z0-9ğüşıöçĞÜŞİÖÇ .,\\-()/+&%:%µ/]+$');
+    }
+
+    // Note alanlari icin daha gevsek (Turkce cumle yazilabilir)
+    function isValidNote(str) {
+      return str is string
+          && str.size() <= 500
+          && str.matches('^[\\s\\S]*$');
     }
 
     // Check if request has App Check token (when enforced)
@@ -67,12 +93,12 @@ service cloud.firestore {
         allow read: if isOwner(userId);
 
         allow create: if isOwner(userId)
-          && isValidString(request.resource.data.name, 1, 200)
-          && isValidString(request.resource.data.dosage, 1, 100);
+          && isValidMedicineText(request.resource.data.name)
+          && isValidDosage(request.resource.data.dosage);
 
         allow update: if isOwner(userId)
-          && isValidString(request.resource.data.name, 1, 200)
-          && isValidString(request.resource.data.dosage, 1, 100);
+          && isValidMedicineText(request.resource.data.name)
+          && isValidDosage(request.resource.data.dosage);
 
         allow delete: if isOwner(userId);
       }
@@ -93,15 +119,33 @@ service cloud.firestore {
       match /medicineLogs/{logId} {
         allow read: if isOwner(userId);
 
-        // Logs can only be created, not modified (audit trail)
+        // Create: status enum + foreign key medicineId must reference
+        // an existing medicine owned by the same user. Prevents orphaned
+        // and injected log entries.
         allow create: if isOwner(userId)
-          && request.resource.data.status in ['taken', 'skipped', 'missed'];
+          && request.resource.data.status in ['taken', 'skipped', 'missed']
+          && request.resource.data.medicineId is string
+          && request.resource.data.medicineId.size() > 0
+          && exists(/databases/$(database)/documents/users/$(userId)/medicines/$(request.resource.data.medicineId))
+          && isValidNote(request.resource.data.note);
 
-        // Allow update for status corrections within 24 hours
+        // Update: status corrections within the same medicineId.
+        // medicineId degistirilemez (immutable audit trail).
         allow update: if isOwner(userId)
-          && request.resource.data.status in ['taken', 'skipped', 'missed'];
+          && request.resource.data.status in ['taken', 'skipped', 'missed']
+          && request.resource.data.medicineId == resource.data.medicineId
+          && isValidNote(request.resource.data.note);
 
         allow delete: if isOwner(userId);
+      }
+
+      // ----------------------------------------
+      // SUBSCRIPTION SUBCOLLECTION
+      // ----------------------------------------
+      match /subscription/{subscriptionId} {
+        // Subscription state may be read by the owner, but must only be written by trusted backend code.
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
       }
 
       // ----------------------------------------
@@ -113,6 +157,17 @@ service cloud.firestore {
         allow update: if isOwner(userId);
         allow delete: if isOwner(userId);
       }
+    }
+
+    // ============================================
+    // VERIFIED GLOBAL MEDICINE CATALOG
+    // ============================================
+
+    match /globalMedicines/{medicineId} {
+      // Only verified catalog items may be read by authenticated users.
+      // Client queries must include isVerified == true.
+      allow read: if isAuthenticated() && resource.data.isVerified == true;
+      allow create, update, delete: if false;
     }
 
     // ============================================

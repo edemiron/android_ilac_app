@@ -1,46 +1,86 @@
 # Dependencies
 node_modules/
+**/node_modules/
 
-# Temp files
-.temp_ag_kit/
-antigravity-doc
-.worktrees/
-worktrees/
-
-# Environment files (sensitive)
-.env
-.env.local
-.env.*.local
-
-# Firebase Admin SDK (sensitive - DO NOT COMMIT)
-*-firebase-adminsdk-*.json
-
-# Build outputs
+# Expo / React Native
+.expo/
+.expo-shared/
 dist/
-build/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.keystore
+keystores/
+
+# Android signing (CRITICAL - rotate and regenerate if exposed)
+android/app/debug.keystore
+android/release-keystore.properties
+android/*.keystore
+android/keystores/
+
+# Metro
+.metro-health-check*
 
 # IDE
 .idea/
 .vscode/
+*.swp
+*.swo
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
+# Local env files (CRITICAL - never commit secrets)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+**/.env
+**/.env.local
+**/.env.*.local
 
-# APK files (large binaries)
-*.apk
+# TypeScript
+*.tsbuildinfo
 
-# Google Services (sensitive)
-google-services.json
+# Test coverage
+coverage/
+**/coverage/
 
-# Client secrets (sensitive)
-client/
+# Worktrees
+.worktrees/
 
-# Null file
-nul
+# Build artifacts
+ios/
+android/build/
+android/.gradle/
+android/app/build/
+android/.idea/
+android/local.properties
 
-# Next.js build
-web/.next/
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Temporary / debug files
+tmp/
+*.tmp
+*.bak
+*.swp

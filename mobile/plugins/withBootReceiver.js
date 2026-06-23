@@ -46,7 +46,8 @@ class BootReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "BootReceiver"
         private const val ACTION_TIME_SET = "android.intent.action.TIME_SET"
-        private const val ACTION_LOCKED_BOOT_COMPLETED = "android.intent.action.LOCKED_BOOT_COMPLETED"
+        // LOCKED_BOOT_COMPLETED kaldirildi: credential-protected storage'a
+        // cihaz kilitli boot asamasinda erisilmesini engeller.
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -55,7 +56,6 @@ class BootReceiver : BroadcastReceiver() {
 
         when (action) {
             Intent.ACTION_BOOT_COMPLETED,
-            ACTION_LOCKED_BOOT_COMPLETED,
             ACTION_TIME_SET,
             Intent.ACTION_TIMEZONE_CHANGED,
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
@@ -233,14 +233,21 @@ function withManifestReceiver(config) {
         $: {
           'android:name': '.BootReceiver',
           'android:enabled': 'true',
-          'android:exported': 'true',
-          'android:directBootAware': 'true',
+          // exported=false: Saldirgan ayni UID olmadan broadcast gonderemez.
+          // BOOT_COMPLETED zaten system-only signed permission ile korunur.
+          'android:exported': 'false',
+          // directBootAware=false: Cihaz kilitli boot asamasinda receiver
+          // tetiklenmesin; sadece kullanici kilidi actiktan sonra calissin.
+          // Boylece credential-protected storage'a (SecureStore) erisim
+          // gerektiren alarm re-schedule islemi yanlis zamanda calismaz.
+          'android:directBootAware': 'false',
         },
         'intent-filter': [
           {
             action: [
+              // Sadece normal boot, timezone/time degisiklikleri ve
+              // package upgrade. LOCKED_BOOT_COMPLETED cikarildi (gerekli degil).
               { $: { 'android:name': 'android.intent.action.BOOT_COMPLETED' } },
-              { $: { 'android:name': 'android.intent.action.LOCKED_BOOT_COMPLETED' } },
               { $: { 'android:name': 'android.intent.action.TIME_SET' } },
               { $: { 'android:name': 'android.intent.action.TIMEZONE_CHANGED' } },
               { $: { 'android:name': 'android.intent.action.MY_PACKAGE_REPLACED' } },
