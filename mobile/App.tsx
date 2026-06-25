@@ -1,7 +1,7 @@
 // Polyfill for crypto.getRandomValues (required for uuid package)
 import 'react-native-get-random-values';
 
-import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useRef, Suspense, lazy } from 'react';
 import {
   StatusBar,
   View,
@@ -16,11 +16,11 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import notifee, { EventType } from '@notifee/react-native';
+import notifee from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -48,8 +48,6 @@ import {
 const BarcodeScannerScreen = lazy(() => import('./src/screens/BarcodeScannerScreen'));
 import { RootStackParamList, MainTabParamList, AuthStackParamList } from './src/types';
 import {
-  requestNotificationPermissions,
-  createNotificationChannels,
   setupNotificationListeners,
   dismissNotification,
   scheduleSnoozeNotification,
@@ -57,7 +55,6 @@ import {
   cleanupOrphanNotifications,
   cancelAllNotifications,
 } from './src/utils/notifications';
-import { createPersistentNotificationChannel } from './src/utils/persistentNotification';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { generateId } from './src/utils/idGenerator';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
@@ -66,31 +63,24 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { AlertProvider } from './src/contexts/AlertContext';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
+import { usePermissionsGate } from './src/hooks/usePermissionsGate';
+import { useSecurityGate } from './src/hooks/useSecurityGate';
+import { useBootRecovery } from './src/hooks/useBootRecovery';
+import { useAlarmQueue } from './src/hooks/useAlarmQueue';
 import {
   getBootRecoveryResult,
   clearBootRecoveryResult,
-  BootRecoveryResult,
   reRegisterAllAlarms,
 } from './src/utils/bootHandler';
 import { isAlarmHandled } from './index';
 import { createScopedLogger } from './src/utils/logger';
 import { STORAGE_KEYS } from './src/constants';
-import {
-  performSecurityCheck,
-  getSecuritySettings,
-  authenticateWithBiometrics,
-  verifyPin,
-  updateLastActiveTime,
-  SecuritySettings,
-} from './src/utils/security';
 
 const appLog = createScopedLogger('App');
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-
-const PERMISSIONS_SHOWN_KEY = '@permissions_shown';
 
 function getTriggerDisplayName(trigger: string): string {
   const triggerNames: Record<string, string> = {
@@ -307,7 +297,7 @@ function MainTabs() {
   const panResponder = React.useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: (evt) => {
+        onStartShouldSetPanResponder: evt => {
           const x = evt.nativeEvent.pageX;
           return x < EDGE_ZONE || x > SCREEN_WIDTH - EDGE_ZONE;
         },
@@ -327,9 +317,8 @@ function MainTabs() {
           const idx = tabIndexRef.current;
 
           const isSignificant = Math.abs(gs.dx) > 50 || Math.abs(gs.vx) > 0.3;
-          const nextIdx = gs.dx < 0
-            ? Math.min(idx + 1, TAB_ROUTES.length - 1)
-            : Math.max(idx - 1, 0);
+          const nextIdx =
+            gs.dx < 0 ? Math.min(idx + 1, TAB_ROUTES.length - 1) : Math.max(idx - 1, 0);
 
           if (!isSignificant || nextIdx === idx || !nav) {
             // Snap back
@@ -374,7 +363,7 @@ function MainTabs() {
     <View style={{ flex: 1 }} {...panResponder.panHandlers}>
       <Animated.View style={{ flex: 1, transform: [{ translateX }] }}>
         <Tab.Navigator
-          tabBar={(props) => {
+          tabBar={props => {
             tabNavRef.current = props.navigation;
             tabIndexRef.current = props.state.index;
             return <CustomTabBar {...props} />;
@@ -385,10 +374,26 @@ function MainTabs() {
             headerTitleStyle: { fontWeight: '600', color: colors.headerText },
           }}
         >
-          <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false, title: t('tab_home') }} />
-          <Tab.Screen name="Medicines" component={MedicinesScreen} options={{ title: t('tab_medicines'), headerTitle: t('tab_medicines') }} />
-          <Tab.Screen name="Statistics" component={StatisticsScreen} options={{ title: t('tab_statistics'), headerTitle: t('tab_statistics') }} />
-          <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: t('tab_settings'), headerTitle: t('tab_settings') }} />
+          <Tab.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{ headerShown: false, title: t('tab_home') }}
+          />
+          <Tab.Screen
+            name="Medicines"
+            component={MedicinesScreen}
+            options={{ title: t('tab_medicines'), headerTitle: t('tab_medicines') }}
+          />
+          <Tab.Screen
+            name="Statistics"
+            component={StatisticsScreen}
+            options={{ title: t('tab_statistics'), headerTitle: t('tab_statistics') }}
+          />
+          <Tab.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{ title: t('tab_settings'), headerTitle: t('tab_settings') }}
+          />
         </Tab.Navigator>
       </Animated.View>
     </View>
@@ -449,34 +454,23 @@ function AppContent() {
     logMedicineSkipped,
   } = useMedicineStore();
 
-  const [showPermissions, setShowPermissions] = useState<boolean | null>(null);
-  const [pendingAlarm, setPendingAlarm] = useState<any>(null);
-  const [bootRecovery, setBootRecovery] = useState<BootRecoveryResult | null>(null);
+  // Pending alarm queue (App.tsx'ten çıkartıldı, useAlarmQueue hook'una taşındı)
+  const { pendingAlarm, setPendingAlarm } = useAlarmQueue();
+  // Boot recovery (App.tsx'ten çıkartıldı, useBootRecovery hook'una taşındı)
+  const { bootRecovery, clearBootRecovery } = useBootRecovery();
 
-  // Güvenlik kontrolü state'leri - TÜM HOOK'LAR EN ÜSTTE
-  const [securityCheckComplete, setSecurityCheckComplete] = useState(false);
-  const [showPinEntry, setShowPinEntry] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [securitySettings, setSecuritySettings] = useState<SecuritySettings | null>(null);
+  // İzin ekranı gate (App.tsx'ten çıkartıldı, usePermissionsGate hook'una taşındı)
+  const { showPermissions, handlePermissionsComplete } = usePermissionsGate();
 
-  // İzin ekranı gösterildi mi kontrol et
-  useEffect(() => {
-    const checkPermissionsShown = async () => {
-      try {
-        const shown = await AsyncStorage.getItem(PERMISSIONS_SHOWN_KEY);
-        setShowPermissions(shown !== 'true');
-      } catch (error) {
-        setShowPermissions(true);
-      }
-    };
-    checkPermissionsShown();
-  }, []);
-
-  // İzin ekranı tamamlandığında
-  const handlePermissionsComplete = async () => {
-    await AsyncStorage.setItem(PERMISSIONS_SHOWN_KEY, 'true');
-    setShowPermissions(false);
-  };
+  // Güvenlik kapısı (App.tsx'ten çıkartıldı, useSecurityGate hook'una taşındı)
+  const {
+    securityCheckComplete,
+    showPinEntry,
+    pinInput,
+    setPinInput,
+    securitySettings,
+    handlePinVerify,
+  } = useSecurityGate();
 
   // Auth durumu değiştiğinde store'u güncelle ve sync yap
   useEffect(() => {
@@ -487,69 +481,6 @@ function AppContent() {
       setUserId(null);
     }
   }, [isAuthenticated, user]);
-
-  // Güvenlik kontrolü - app açılışında
-  useEffect(() => {
-    const checkSecurity = async () => {
-      if (!isAuthenticated) return;
-
-      const secSettings = await getSecuritySettings();
-      if (!secSettings || !secSettings.securityEnabled || secSettings.securityType === 'none') {
-        setSecurityCheckComplete(true);
-        return;
-      }
-
-      setSecuritySettings(secSettings);
-
-      // Biyometrik kontrol
-      if (secSettings.securityType === 'biometric' || secSettings.securityType === 'both') {
-        const bioResult = await authenticateWithBiometrics();
-        if (bioResult.success) {
-          await updateLastActiveTime();
-          setSecurityCheckComplete(true);
-          return;
-        }
-        // Biyometrik başarısız ve "biometric" modundaysa, PIN gerekli
-        if (secSettings.securityType === 'biometric') {
-          setShowPinEntry(true);
-          return;
-        }
-      }
-
-      // PIN gerekli
-      if (secSettings.securityType === 'pin' || secSettings.securityType === 'both') {
-        setShowPinEntry(true);
-      }
-    };
-
-    checkSecurity();
-  }, [isAuthenticated]);
-
-  const handlePinVerify = async () => {
-    if (!pinInput || pinInput.length < 4) {
-      Alert.alert(
-        language === 'tr' ? 'Geçersiz PIN' : 'Invalid PIN',
-        language === 'tr' ? 'PIN en az 4 haneli olmalı.' : 'PIN must be at least 4 digits.'
-      );
-      return;
-    }
-
-    const result = await verifyPin(pinInput);
-    if (result.success) {
-      setPinInput('');
-      setShowPinEntry(false);
-      await updateLastActiveTime();
-      setSecurityCheckComplete(true);
-    } else {
-      Alert.alert(
-        language === 'tr' ? 'Yanlış PIN' : 'Incorrect PIN',
-        result.error || (language === 'tr' ? 'Girdiğiniz PIN doğru değil.' : 'The PIN you entered is incorrect.')
-      );
-      if (!result.success) {
-        setPinInput('');
-      }
-    }
-  };
 
   const navigateToAlarm = async (data: {
     medicineId: string;
@@ -762,6 +693,7 @@ function AppContent() {
     }
   };
 
+  // Notifee event listener'larını kur
   useEffect(() => {
     const performStartupCleanup = async () => {
       try {
@@ -819,7 +751,7 @@ function AppContent() {
 
         const recovery = await getBootRecoveryResult();
         if (recovery && (recovery.reminders > 0 || recovery.snoozes > 0)) {
-          setBootRecovery(recovery);
+          // setBootRecovery useBootRecovery hook'unda — burada bir sey yapmaya gerek yok.
           await clearBootRecoveryResult();
         }
       } catch (error) {
@@ -832,10 +764,6 @@ function AppContent() {
 
   // Notifee event listener'larını kur
   useEffect(() => {
-    // Bildirim kanallarını oluştur
-    createNotificationChannels();
-    createPersistentNotificationChannel();
-
     // Foreground event listener
     const unsubscribe = setupNotificationListeners(navigateToAlarm, handleAction);
 
@@ -976,7 +904,7 @@ function AppContent() {
         `${triggerName} sonrası ${bootRecovery.reminders} hatırlatma${bootRecovery.snoozes > 0 ? ` ve ${bootRecovery.snoozes} erteleme` : ''} yeniden planlandı.`,
         [{ text: 'Tamam', style: 'default' }]
       );
-      setBootRecovery(null);
+      clearBootRecovery();
     }
   }, [bootRecovery]);
 

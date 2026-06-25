@@ -88,8 +88,7 @@
     "jest": "^30.0.0",
     "lint-staged": "^16.0.0",
     "prettier": "^3.5.0",
-    "typescript": "~5.9.2",
-    "xlsx": "^0.18.5"
+    "typescript": "~5.9.2"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

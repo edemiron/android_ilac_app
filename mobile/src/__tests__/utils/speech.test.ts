@@ -3,26 +3,41 @@
  * Tests for TTS (Text-to-Speech) functionality using react-native-tts
  */
 
-// Mock react-native-tts
-const mockSpeak = jest.fn().mockResolvedValue(undefined);
-const mockStop = jest.fn().mockResolvedValue(undefined);
-const mockSetDefaultLanguage = jest.fn().mockResolvedValue(undefined);
-const mockSetDefaultRate = jest.fn().mockResolvedValue(undefined);
-const mockSetDefaultPitch = jest.fn().mockResolvedValue(undefined);
-const mockVoices = jest.fn().mockResolvedValue([]);
-const mockAddEventListener = jest.fn();
-const mockRemoveAllListeners = jest.fn();
+// Mock react-native-tts.
+// NOT: Babel `jest.mock` factory'sini dosyanin basina hoist eder. Bu yuzden
+// factory icindeki degiskenler (jest.fn) henuz tanimli olmayabilir. Cozum:
+// factory icinde literal olarak tanimlamak veya `jest.fn()`'i inline olusturmak.
+// Babel esModuleInterop: import Tts from 'react-native-tts' once
+// require() yapar, sonra `.default` ile erisir. Mock'ta hem default
+// hem named export saglamaliyiz.
+jest.mock('react-native-tts', () => {
+  const mock = {
+    speak: jest.fn().mockResolvedValue(undefined),
+    stop: jest.fn().mockResolvedValue(undefined),
+    setDefaultLanguage: jest.fn().mockResolvedValue(undefined),
+    setDefaultRate: jest.fn().mockResolvedValue(undefined),
+    setDefaultPitch: jest.fn().mockResolvedValue(undefined),
+    voices: jest.fn().mockResolvedValue([]),
+    addEventListener: jest.fn(),
+    removeAllListeners: jest.fn(),
+  };
+  return {
+    __esModule: true,
+    default: mock,
+    ...mock,
+  };
+});
 
-jest.mock('react-native-tts', () => ({
-  speak: mockSpeak,
-  stop: mockStop,
-  setDefaultLanguage: mockSetDefaultLanguage,
-  setDefaultRate: mockSetDefaultRate,
-  setDefaultPitch: mockSetDefaultPitch,
-  voices: mockVoices,
-  addEventListener: mockAddEventListener,
-  removeAllListeners: mockRemoveAllListeners,
-}));
+// Test disinda mock fonksiyon referanslari gerekirse:
+// `import { speak } from 'react-native-tts'` ile alabiliriz.
+const mockSpeak = jest.requireMock('react-native-tts').speak as jest.Mock;
+const mockStop = jest.requireMock('react-native-tts').stop as jest.Mock;
+const mockSetDefaultLanguage = jest.requireMock('react-native-tts').setDefaultLanguage as jest.Mock;
+const mockSetDefaultRate = jest.requireMock('react-native-tts').setDefaultRate as jest.Mock;
+const mockSetDefaultPitch = jest.requireMock('react-native-tts').setDefaultPitch as jest.Mock;
+const mockVoices = jest.requireMock('react-native-tts').voices as jest.Mock;
+const mockAddEventListener = jest.requireMock('react-native-tts').addEventListener as jest.Mock;
+const mockRemoveAllListeners = jest.requireMock('react-native-tts').removeAllListeners as jest.Mock;
 
 // Import after mocks
 import {

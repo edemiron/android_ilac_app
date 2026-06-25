@@ -1,0 +1,202 @@
+/**
+ * Alarm navigation helper'ları — notifications.ts ve App.tsx tarafından paylaşılır.
+ *
+ * Amaç: Aynı ilaç+saat için alarm key üretmek (dedup kontrolü için) ve
+ * alarm navigation yaşam döngüsünü yönetmek.
+ */
+
+import { format } from 'date-fns';
+import type { Medicine, ReminderTime, Snooze } from '../types';
+
+export interface AlarmNavigationData {
+  medicineId: string;
+  reminderTimeId: string;
+  scheduledTime: string;
+  isSnooze?: string;
+  snoozeId?: string;
+  snoozeCount?: string;
+  originalScheduledTime?: string;
+}
+
+export interface AlarmNavigationStore {
+  getMedicineById: (id: string) => Medicine | undefined;
+  getReminderTimesForMedicine: (id: string) => ReminderTime[];
+  medicineLogs: Array<{ reminderTimeId: string; scheduledTime: string; status: string }>;
+  snoozes: Snooze[];
+  setAlarmActive: (medicine: Medicine, reminderTime: ReminderTime, scheduledTime: string) => void;
+  deactivateSnooze: (id: string) => void;
+}
+
+export interface AlarmScreenNavigationParams {
+  medicineId: string;
+  reminderTimeId: string;
+  scheduledTime: string;
+  snoozeCount?: number;
+  originalScheduledTime?: string;
+}
+
+export interface AlarmNavigationDependencies {
+  now?: () => Date;
+  isAlarmHandled: (alarmKey: string) => Promise<boolean> | boolean;
+  navigationReady: boolean;
+  setPendingAlarm: (data: AlarmNavigationData) => void;
+  activeAlarmKeys: Set<string>;
+  scheduleAlarmKeyCleanup: (alarmKey: string) => void;
+  navigateToAlarmScreen: (params: AlarmScreenNavigationParams) => void;
+  cancelMedicineNotifications: (medicineId: string) => Promise<void> | void;
+  storeState: AlarmNavigationStore;
+  logger: {
+    debug: (msg: string, meta?: unknown) => void;
+    warn: (msg: string, meta?: unknown) => void;
+  };
+}
+
+export function buildAlarmNotificationId(medicineId: string, reminderTimeId: string): string {
+  return `alarm-${medicineId}-${reminderTimeId}`;
+}
+
+export function buildSnoozeNotificationId(medicineId: string, reminderTimeId: string): string {
+  return `snooze-${medicineId}-${reminderTimeId}`;
+}
+
+/**
+ * Aynı alarm için tek bir anahtar üretir (medicineId + reminderTimeId + dakika hassasiyetinde zaman).
+ * Bu anahtarı kullanarak:
+ *   - Aynı dakika içinde gelen tekrar alarmları skip ederiz
+ *   - 60 saniye sonra activeAlarmKeys'ten otomatik temizlenir
+ */
+export function getAlarmKey(data: AlarmNavigationData, now: Date): string {
+  // scheduledTime ISO; dakika seviyesinde anahtar üret.
+  const minute = format(now, 'yyyy-MM-dd-HH-mm');
+  return `${data.medicineId}::${data.reminderTimeId}::${minute}`;
+}
+
+export function getNotificationIdForAlarmData(data: AlarmNavigationData): string | null {
+  if (data.isSnooze === 'true' && data.snoozeId) {
+    return buildSnoozeNotificationId(data.medicineId, data.reminderTimeId);
+  }
+  return buildAlarmNotificationId(data.medicineId, data.reminderTimeId);
+}
+
+/**
+ * Bugün için bu alarm zaten loglanmış mı kontrol eder.
+ */
+export function hasAlarmBeenLoggedToday(
+  medicineLogs: AlarmNavigationStore['medicineLogs'],
+  data: AlarmNavigationData,
+  now: Date
+): boolean {
+  const today = format(now, 'yyyy-MM-dd');
+  return medicineLogs.some(
+    log =>
+      log.reminderTimeId === data.reminderTimeId &&
+      log.scheduledTime.startsWith(today) &&
+      (log.status === 'taken' || log.status === 'skipped')
+  );
+}
+
+async function dismissCurrentNotification(
+  data: AlarmNavigationData,
+  dependencies: AlarmNavigationDependencies
+): Promise<void> {
+  const notificationId = getNotificationIdForAlarmData(data);
+  if (notificationId) {
+    try {
+      // notifee global instance; test ortamında mock'lanmış olabilir
+      const { notifee } = await import('@notifee/react-native').catch(
+        () => ({ notifee: null }) as never
+      );
+      if (notifee) {
+        await notifee.cancelDisplayedNotification(notificationId).catch(() => undefined);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export async function handleIncomingAlarmNavigation(
+  data: AlarmNavigationData,
+  dependencies: AlarmNavigationDependencies
+): Promise<'handled' | 'duplicate' | 'queued' | 'dismissed' | 'navigated'> {
+  const now = dependencies.now?.() ?? new Date();
+  const alarmKey = getAlarmKey(data, now);
+
+  if (await dependencies.isAlarmHandled(alarmKey)) {
+    dependencies.logger.debug('Alarm already handled, skipping', { alarmKey });
+    return 'handled';
+  }
+
+  if (!dependencies.navigationReady) {
+    dependencies.setPendingAlarm(data);
+    return 'queued';
+  }
+
+  if (dependencies.activeAlarmKeys.has(alarmKey)) {
+    dependencies.logger.debug('Alarm already active on screen, skipping duplicate', { alarmKey });
+    return 'duplicate';
+  }
+
+  const isTestMode = data.medicineId === 'test-medicine';
+  const isSnooze = data.isSnooze === 'true';
+
+  if (!isTestMode) {
+    const medicine = dependencies.storeState.getMedicineById(data.medicineId);
+
+    if (!medicine) {
+      dependencies.logger.warn('Alarm: medicine missing, dismissing notifications', {
+        medicineId: data.medicineId,
+        reminderTimeId: data.reminderTimeId,
+      });
+      await dismissCurrentNotification(data, dependencies);
+      await Promise.resolve(dependencies.cancelMedicineNotifications(data.medicineId));
+      return 'dismissed';
+    }
+
+    if (hasAlarmBeenLoggedToday(dependencies.storeState.medicineLogs, data, now)) {
+      dependencies.logger.warn('Alarm: reminder already logged for today', {
+        medicineId: data.medicineId,
+        reminderTimeId: data.reminderTimeId,
+      });
+      await dismissCurrentNotification(data, dependencies);
+      if (isSnooze && data.snoozeId) {
+        dependencies.storeState.deactivateSnooze(data.snoozeId);
+      }
+      return 'dismissed';
+    }
+
+    if (isSnooze && data.snoozeId) {
+      const snooze = dependencies.storeState.snoozes.find(item => item.id === data.snoozeId);
+      if (snooze && !snooze.isActive) {
+        dependencies.logger.warn('Alarm: snooze inactive, dismissing notification', {
+          snoozeId: data.snoozeId,
+          medicineId: data.medicineId,
+        });
+        await dismissCurrentNotification(data, dependencies);
+        return 'dismissed';
+      }
+    }
+
+    const reminderTime = dependencies.storeState
+      .getReminderTimesForMedicine(data.medicineId)
+      .find(item => item.id === data.reminderTimeId);
+
+    if (reminderTime) {
+      dependencies.storeState.setAlarmActive(medicine, reminderTime, data.scheduledTime);
+    }
+  }
+
+  dependencies.activeAlarmKeys.add(alarmKey);
+  dependencies.scheduleAlarmKeyCleanup(alarmKey);
+
+  dependencies.navigateToAlarmScreen({
+    medicineId: data.medicineId,
+    reminderTimeId: data.reminderTimeId,
+    scheduledTime: data.scheduledTime,
+    snoozeCount: data.snoozeCount ? parseInt(data.snoozeCount, 10) : undefined,
+    originalScheduledTime: data.originalScheduledTime,
+  });
+
+  await dismissCurrentNotification(data, dependencies);
+  return 'navigated';
+}

@@ -4,11 +4,20 @@
  * Covers: addMedicine, updateMedicine, deleteMedicine, sync operations
  */
 
-
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
+
+jest.mock('../../services/widgetService', () => ({
+  updateWidgetData: jest.fn().mockResolvedValue(undefined),
+}));
+
+// React Native'in NativeModules objesini tamamen mockla; test ortaminda
+// native bridge kurulu degil, "Invariant Violation" hatasi veriyor.
+jest.mock('react-native/Libraries/BatchedBridge/NativeModules', () => ({
+  WidgetDataModule: { updateData: jest.fn().mockResolvedValue(undefined) },
+}));
 
 // Mock the logger
 jest.mock('../../utils/logger', () => ({
@@ -52,7 +61,7 @@ import { Medicine, ReminderTime } from '../../types';
 
 describe('MedicineStore', () => {
   // Reset store state before each test
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset all mocks
     jest.clearAllMocks();
     mockUploadAllDataToCloud.mockResolvedValue(undefined);
@@ -65,7 +74,6 @@ describe('MedicineStore', () => {
     await store.clearAllData();
     store.setUserId(null);
   });
-
   describe('Initial State', () => {
     it('should have empty medicines array initially', () => {
       const { medicines } = useMedicineStore.getState();
@@ -80,7 +88,7 @@ describe('MedicineStore', () => {
       expect(settings.sleepTime).toBe('23:00');
       expect(settings.language).toBe('tr');
       expect(settings.vibrationEnabled).toBe(true);
-      expect(settings.alarmModeEnabled).toBe(true);
+      expect(settings.fullScreenAlarmEnabled).toBe(true);
     });
 
     it('should have inactive alarm state initially', () => {

@@ -48,22 +48,29 @@ jest.mock('react-native-haptic-feedback', () => ({
   trigger: jest.fn(),
 }));
 
-const mockTts = {
-  speak: jest.fn(),
-  stop: jest.fn(),
-  setDefaultLanguage: jest.fn(),
-  setDefaultRate: jest.fn(),
-  setDefaultPitch: jest.fn(),
-  voices: jest.fn(() => Promise.resolve([])),
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
-  removeAllListeners: jest.fn(),
-};
-
-// Mock react-native-tts
-jest.mock('react-native-tts', () => ({
-  ...mockTts,
-}));
+// Mock react-native-tts.
+// Babel'in esModuleInterop davranisi: `import Tts from 'react-native-tts'` once
+// `_reactNativeTts = require('react-native-tts')` der, sonra `Tts = _reactNativeTts.default`.
+// Bizim mock'umuzda `_reactNativeTts.default` mockTts olmali; ayrica
+// bireysel fonksiyonlara erisim de calismali (some code may do Tts.setDefaultLanguage).
+jest.mock('react-native-tts', () => {
+  const mock = {
+    speak: jest.fn(),
+    stop: jest.fn(),
+    setDefaultLanguage: jest.fn(),
+    setDefaultRate: jest.fn(),
+    setDefaultPitch: jest.fn(),
+    voices: jest.fn(() => Promise.resolve([])),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    removeAllListeners: jest.fn(),
+  };
+  return {
+    __esModule: true,
+    default: mock,
+    ...mock,
+  };
+});
 
 // Mock react-native-vector-icons
 jest.mock('react-native-vector-icons/Ionicons', () => 'Ionicons');
