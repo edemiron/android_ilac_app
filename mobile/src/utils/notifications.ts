@@ -26,14 +26,27 @@ import { createDefaultUserSettings } from './defaultSettings';
 import { recordDiagnosticEvent } from './diagnosticTelemetry';
 import { getAlarmKey } from './alarmNavigation';
 
-const log = createScopedLogger('Notifications');
+// Re-export channel sabitleri (geriye uyumluluk için) — Sprint 3'te
+// notifications/channels.ts modülüne tasindi. Import edip yeniden export
+// ediyoruz ki dosya icinde de kullanilabilir olsun.
+import {
+  CHANNEL_VERSION,
+  ALARM_CHANNEL_ID,
+  ALARM_NO_VIBRATION_CHANNEL_ID,
+  REMINDER_CHANNEL_ID,
+  REMINDER_NO_VIBRATION_CHANNEL_ID,
+  createNotificationChannels,
+} from './notifications/channels';
+export {
+  CHANNEL_VERSION,
+  ALARM_CHANNEL_ID,
+  ALARM_NO_VIBRATION_CHANNEL_ID,
+  REMINDER_CHANNEL_ID,
+  REMINDER_NO_VIBRATION_CHANNEL_ID,
+  createNotificationChannels,
+};
 
-// Kanal ID'leri - Versiyon değişince yeni kanal oluşur (ses ayarı için gerekli)
-const CHANNEL_VERSION = 'v4';
-const ALARM_CHANNEL_ID = `medicine-alarms-${CHANNEL_VERSION}`;
-const ALARM_NO_VIBRATION_CHANNEL_ID = `medicine-alarms-no-vibration-${CHANNEL_VERSION}`;
-const REMINDER_CHANNEL_ID = `medicine-reminders-${CHANNEL_VERSION}`;
-const REMINDER_NO_VIBRATION_CHANNEL_ID = `medicine-reminders-no-vibration-${CHANNEL_VERSION}`;
+const log = createScopedLogger('Notifications');
 
 // Shared notification config
 const ALARM_ACTIONS = [
@@ -623,66 +636,14 @@ function getVibrationPattern(pattern?: 'default' | 'heartbeat' | 'urgent' | 'sof
 
 /**
  * Bildirim kanallar?n? olu?tur
+ *
+ * NOT: Bu fonksiyon Sprint 3'te notifications/channels.ts modülüne tasindi.
+ * Geriye uyumluluk icin re-export yapiyoruz — yeni import:
+ *
+ *   import { createNotificationChannels } from './notifications/channels';
  */
-export async function createNotificationChannels(): Promise<void> {
-  if (Platform.OS !== 'android') return;
 
-  try {
-    await notifee.createChannel({
-      id: ALARM_CHANNEL_ID,
-      name: 'Ilac Alarmlari',
-      description: 'Kritik ilac hatirlatmalari - sessiz modda bile calar',
-      importance: AndroidImportance.HIGH,
-      visibility: AndroidVisibility.PRIVATE,
-      sound: 'alarm',
-      vibration: true,
-      lights: true,
-      lightColor: '#FF0000',
-      bypassDnd: true,
-    });
-
-    await notifee.createChannel({
-      id: ALARM_NO_VIBRATION_CHANNEL_ID,
-      name: 'Ilac Alarmlari (Sessiz Titre?im)',
-      description: 'Kritik ilac hatirlatmalari - titre?im kapali',
-      importance: AndroidImportance.HIGH,
-      visibility: AndroidVisibility.PRIVATE,
-      sound: 'alarm',
-      vibration: false,
-      lights: true,
-      lightColor: '#FF0000',
-      bypassDnd: true,
-    });
-
-    await notifee.createChannel({
-      id: REMINDER_CHANNEL_ID,
-      name: 'Ilac Hatirlatmalari',
-      description: 'Normal ilac hatirlatmalari',
-      importance: AndroidImportance.HIGH,
-      visibility: AndroidVisibility.PRIVATE,
-      sound: 'default',
-      vibration: true,
-    });
-
-    await notifee.createChannel({
-      id: REMINDER_NO_VIBRATION_CHANNEL_ID,
-      name: 'Ilac Hatirlatmalari (Sessiz Titre?im)',
-      description: 'Normal ilac hatirlatmalari - titre?im kapali',
-      importance: AndroidImportance.HIGH,
-      visibility: AndroidVisibility.PRIVATE,
-      sound: 'default',
-      vibration: false,
-    });
-
-    log.debug('Notifee bildirim kanallari olusturuldu');
-  } catch (error) {
-    log.error('Kanal olusturma hatasi', error);
-  }
-}
-
-/**
- * Power Manager bilgilerini al (MIUI, EMUI, ColorOS vb. için kritik)
- */
+// Power Manager bilgilerini al (MIUI, EMUI, ColorOS vb. için kritik)
 export async function getPowerManagerInfo(): Promise<PowerManagerInfo | null> {
   if (Platform.OS !== 'android') return null;
 

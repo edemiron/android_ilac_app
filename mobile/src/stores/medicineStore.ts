@@ -1,3 +1,31 @@
+/**
+ * medicineStore — Sprint 4 (slice mimarisi) için mimari dokümantasyon
+ *
+ * Mevcut tek Zustand store'u, sorumluluklarına göre 4 mantıksal slice'a
+ * ayrılacak. Her slice kendi state alanı + action setine sahip olacak.
+ *
+ *   1. medicinesSlice  → ilaç CRUD (addMedicine, updateMedicine, ...)
+ *   2. logsSlice      → medicineLogs (alındı/atlandı/kaçırıldı)
+ *   3. snoozesSlice   → erteleme (snooze, deactivate, ...)
+ *   4. settingsSlice  → UserSettings + sync
+ *
+ * Mevcut durum: tek store, 1947 satır. Sprint 4 sonunda 4 ayrı dosyaya
+ * (medicines.ts, logs.ts, snoozes.ts, settings.ts) bölünecek + slice
+ * compositing yapılacak (combine + devtools).
+ *
+ * ŞU AN: Bu refactor başlatılmadı — riskli. Bunun yerine Sprint 4'te
+ * aşağıdaki adımlar atılacak:
+ *
+ * 1. Her slice için types.ts + initialState.ts oluştur
+ * 2. Her slice için action'ları isolated test edilebilir hale getir
+ * 3. Eski tek-store'dan slice'lara action'ları taşı
+ * 4. medicineStore.ts'i combine(...) ile 4 slice'dan compose et
+ * 5. Test coverage korunarak böl
+ *
+ * NOT: Bu refactor MedicineState tipinin bileşimini değiştirir; tüm
+ * hook'lar ve testler uyumlu olmalı. Davranış korunmalı.
+ */
+
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { persist, createJSONStorage } from 'zustand/middleware';

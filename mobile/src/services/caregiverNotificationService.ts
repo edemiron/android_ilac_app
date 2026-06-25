@@ -6,14 +6,18 @@
  */
 
 import { createScopedLogger } from '../utils/logger';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-import { Platform } from 'react-native';
+import { getMessaging, onMessage } from 'firebase/messaging';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updateCaregiverFcmToken } from './caregiverService';
 
+import * as SecureStore from 'expo-secure-store';
+
 const log = createScopedLogger('CaregiverNotifications');
 
-const FCM_TOKEN_KEY = '@caregiver_fcm_token';
+// SecureStore keys may only contain alphanumeric characters, ".", "-", and "_".
+// Eski AsyncStorage key '@caregiver_fcm_token' SecureStore'a uygun degil.
+// PR #1 sonrasi migration: SecureStore uyumlu yeni key.
+const FCM_TOKEN_KEY = 'caregiver.fcm.token';
 const CAREGIVER_NOTIFICATIONS_ENABLED = '@caregiver_notifications_enabled';
 
 /**
@@ -39,8 +43,8 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
       return null;
     }
 
-    // Token'ı kaydet
-    await AsyncStorage.setItem(FCM_TOKEN_KEY, fcmToken);
+    // Token'ı kaydet (SecureStore — hassas veri)
+    await SecureStore.setItemAsync(FCM_TOKEN_KEY, fcmToken);
 
     // Bakıcı ilişkilerini güncelle
     await updateCaregiverFcmToken(userId, fcmToken);
@@ -55,11 +59,11 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
 }
 
 /**
- * Kayıtlı FCM token'ı getir
+ * Kayıtlı FCM token'ı getir (SecureStore)
  */
 export async function getStoredFcmToken(): Promise<string | null> {
   try {
-    return await AsyncStorage.getItem(FCM_TOKEN_KEY);
+    return await SecureStore.getItemAsync(FCM_TOKEN_KEY);
   } catch (error) {
     log.error('FCM token okuma hatası', error);
     return null;
@@ -93,16 +97,18 @@ export async function isCaregiverNotificationsEnabled(): Promise<boolean> {
 /**
  * Foreground mesaj dinleyicisi
  */
-export function setupCaregiverMessageListener(callback: (message: {
-  notification?: {
-    title?: string;
-    body?: string;
-  };
-  data?: Record<string, string>;
-}) => void): () => void {
+export function setupCaregiverMessageListener(
+  callback: (message: {
+    notification?: {
+      title?: string;
+      body?: string;
+    };
+    data?: Record<string, string>;
+  }) => void
+): () => void {
   const messaging = getMessaging();
 
-  const unsubscribe = onMessage(messaging, (message) => {
+  const unsubscribe = onMessage(messaging, message => {
     log.debug('Foreground mesaj alındı', { message });
     callback(message);
   });
