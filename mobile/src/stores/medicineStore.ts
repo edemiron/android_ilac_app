@@ -344,17 +344,11 @@ function normalizeMedicineLogsBySlot(medicineLogs: MedicineLog[]): MedicineLog[]
   );
 }
 
-// Varsayılan renk paleti - Hem açık hem koyu modda iyi görünür
-export const MEDICINE_COLORS = [
-  '#FF6B6B', // Kırmızı
-  '#4ECDC4', // Turkuaz
-  '#45B7D1', // Mavi
-  '#96CEB4', // Yeşil
-  '#FFD93D', // Sarı (daha canlı)
-  '#C9A0DC', // Mor (daha dengeli)
-  '#FF8C69', // Turuncu
-  '#98D8C8', // Mint
-];
+// MEDICINE_COLORS artık src/constants.ts'te tanımlı (Sprint 4 — slice mimarisi)
+// Burada re-export ederek geriye uyumluluk korunuyor.
+export { MEDICINE_COLORS } from '../constants';
+// (Eski tanım kaldırıldı:)
+// export const MEDICINE_COLORS = [...];
 
 interface MedicineState {
   medicines: Medicine[];
