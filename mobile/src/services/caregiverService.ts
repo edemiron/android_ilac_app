@@ -11,15 +11,13 @@
  * - FCM bildirimleri
  */
 
-import { collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, query, where, onSnapshot, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { generateId } from '../utils/idGenerator';
 import { createScopedLogger } from '../utils/logger';
 import type {
   CaregiverRelationship,
   CaregiverInvite,
   PatientInfo,
-  CaregiverStatus,
-  InviteStatus,
 } from '../types';
 
 const log = createScopedLogger('CaregiverService');

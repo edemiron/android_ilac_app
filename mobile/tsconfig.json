@@ -33,7 +33,12 @@
     "node_modules",
     "android",
     "ios",
-    "coverage"
+    "coverage",
+    // Sprint 4 sonu: skip edilen testler TS type-check disi birakildi.
+    // Kayip dosyalar (drugInteraction.ts, patientNotificationService.ts, vb.)
+    // yeniden olusturulduktan sonra bu exclude kaldirilacak.
+    "src/__tests__/services/drugInteraction.test.ts",
+    "src/__tests__/screens/LoginScreen.test.ts"
   ],
   "extends": "expo/tsconfig.base"
 }

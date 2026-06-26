@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Linking } from 'react-native';
 import {
   Camera,
@@ -91,6 +91,11 @@ export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenPro
     Linking.openSettings();
   }, []);
 
+  const fallbackDevice = useMemo(
+    () => Camera.getAvailableCameraDevices().find(d => d.position === 'back'),
+    []
+  );
+
   // İzin yükleniyor
   if (hasPermission === null) {
     return <PermissionRequest isLoading />;
@@ -119,7 +124,6 @@ export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenPro
     );
   }
 
-  const fallbackDevice = useMemo(() => Camera.getAvailableCameraDevices().find(d => d.position === 'back'), []);
   const activeDevice = device || fallbackDevice;
 
   // Kamera henüz cihazda bulunamadı (yükleniyor)

@@ -26,7 +26,6 @@ import {
   isPinSet,
   saveSecuritySettings,
   getBiometricTypeName,
-  getRemainingLockoutTime,
 } from '../utils/security';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { createScopedLogger } from '../utils/logger';

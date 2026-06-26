@@ -32,7 +32,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { Platform } from 'react-native';
-import { STORAGE_KEYS } from '../constants';
+import { STORAGE_KEYS, MEDICINE_COLORS } from '../constants';
 import {
   Medicine,
   ReminderTime,

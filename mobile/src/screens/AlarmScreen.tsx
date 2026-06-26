@@ -41,7 +41,7 @@ const log = createScopedLogger('AlarmScreen');
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'Alarm'>;
 
-// eslint-disable-next-line unused-imports/no-unused-vars
+ 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const { width, height } = Dimensions.get('window');
 

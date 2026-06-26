@@ -646,13 +646,28 @@ describe('MedicineStore', () => {
 
       it('should calculate correct adherence rate', () => {
         const store = useMedicineStore.getState();
+
+        // Add a medicine first — reminder times are needed for logs
+        store.addMedicine({
+          name: 'Adherence Test',
+          dosage: '500mg',
+          frequency: 1,
+          color: '#FF6B6B',
+          startDate: new Date().toISOString().split('T')[0],
+        });
+
         const { reminderTimes } = useMedicineStore.getState();
         const rt = reminderTimes[0];
 
-        // Add 2 taken, 1 skipped
-        store.logMedicineTaken(rt.id, new Date().toISOString());
-        store.logMedicineTaken(rt.id, new Date().toISOString());
-        store.logMedicineSkipped(rt.id, new Date().toISOString());
+        // Geçmiş zamanlar (normalize slot çakışmasını önlemek için farklı saatler)
+        const t1 = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+        const t2 = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+        const t3 = new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString();
+
+        // Add 2 taken, 1 skipped (3 farklı slot)
+        store.logMedicineTaken(rt.id, t1);
+        store.logMedicineTaken(rt.id, t2);
+        store.logMedicineSkipped(rt.id, t3);
 
         const rate = store.getAdherenceRate(7);
 
