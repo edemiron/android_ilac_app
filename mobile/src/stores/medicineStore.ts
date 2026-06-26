@@ -350,6 +350,36 @@ export { MEDICINE_COLORS } from '../constants';
 // (Eski tanım kaldırıldı:)
 // export const MEDICINE_COLORS = [...];
 
+/**
+ * medicineStore — Sprint 4 (slice mimarisi) temelleri
+ *
+ * Mevcut tek Zustand store'u, sorumluluklarına göre 4 mantıksal slice'a
+ * ayrılmış mimari ile uyumlu hale getirildi:
+ *
+ *   - MedicinesSlice  → ilaç CRUD (addMedicine, updateMedicine, ...)
+ *   - LogsSlice       → medicineLogs (alındı/atlandı/kaçırıldı)
+ *   - SnoozesSlice    → erteleme (snooze, deactivate, ...)
+ *   - SettingsSlice   → UserSettings + sync
+ *
+ * Bu temel interface, slice composability ile uyumlu hale getirildi.
+ * Davranış: 1:1 aynı — sadece tip tanımı parçalı olarak dokümante edildi.
+ *
+ * NOT: Incremental migration stratejisi — bu sprint'te slice composability
+ * için altyapı kuruldu. Her action, kendi slice dosyasına bağlanacak.
+ * Sprint 4 devamı + Sprint 5'te (useAlarmNavigation) tamamlanacak.
+ */
+
+export { useMedicinesStore } from './slices/medicines';
+export { useLogsStore } from './slices/logs';
+export { useSnoozesStore } from './slices/snoozes';
+export { useSettingsStore } from './slices/settings';
+export type {
+  MedicinesSlice,
+  LogsSlice,
+  SnoozesSlice,
+  SettingsSlice,
+} from './slices';
+
 interface MedicineState {
   medicines: Medicine[];
   reminderTimes: ReminderTime[];

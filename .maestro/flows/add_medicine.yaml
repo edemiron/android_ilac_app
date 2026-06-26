@@ -1,0 +1,21 @@
+appId: com.ilachatirlatici
+---
+- launchApp:
+    clearState: true
+- assertVisible: "İlaçlarım"
+- tapOn:
+    text: "+"
+- assertVisible: "Yeni İlaç"
+- tapOn:
+    id: "medicine-name-input"
+- inputText: "Test İlaç"
+- tapOn:
+    id: "dosage-input"
+- inputText: "500mg"
+- tapOn:
+    id: "frequency-input"
+- inputText: "2"
+- tapOn:
+    text: "Kaydet"
+- assertVisible: "Test İlaç"
+- assertVisible: "500mg"
