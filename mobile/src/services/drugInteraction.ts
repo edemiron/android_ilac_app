@@ -275,6 +275,36 @@ export function checkInteractionLocal(drug1: string, drug2: string): DrugInterac
   return null;
 }
 
+// İki ilaç arasındaki etkileşimi kontrol et (async wrapper).
+// Sprint 4 (skip testleri geri ekleme): `drugInteraction.test.ts` bu fonksiyonu
+// import ediyor. Önce local DB'den kontrol et, yoksa API'ye düş.
+// Bu fonksiyon `checkInteractionLocal` + ileride API fallback'i birleştirir.
+export async function checkInteraction(
+  drug1: string,
+  drug2: string
+): Promise<InteractionCheckResult> {
+  const localResult = checkInteractionLocal(drug1, drug2);
+  const now = new Date().toISOString();
+
+  if (localResult) {
+    return {
+      interactions: [localResult],
+      hasInteractions: true,
+      checkedAt: now,
+      source: 'local',
+    };
+  }
+
+  // Local DB'de yoksa, sonuc yok olarak dön. İleride RxNorm API entegrasyonu
+  // eklendiğinde burada checkInteractionsFromAPI'ye fallback yapılabilir.
+  return {
+    interactions: [],
+    hasInteractions: false,
+    checkedAt: now,
+    source: 'local',
+  };
+}
+
 // Birden fazla ilaç için gerçek RxNav API veya yerel kontrol (HIBRIT)
 export async function checkMultipleInteractions(drugNames: string[]): Promise<InteractionCheckResult> {
   const interactions: DrugInteraction[] = [];
