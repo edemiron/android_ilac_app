@@ -227,14 +227,14 @@ describe('Notification Service', () => {
   });
 
   describe('isInQuietHours', () => {
-    const baseSettings: UserSettings = {
+    const baseSettings = {
       wakeUpTime: '08:00',
       sleepTime: '23:00',
       notificationSound: 'default',
       vibrationEnabled: true,
       fullScreenAlarmEnabled: true,
-      language: 'tr',
-      alarmSound: 'alarm',
+      language: 'tr' as const,
+      alarmSound: 'alarm' as const,
       alarmVolume: 80,
       snoozeDuration: 5,
       maxSnoozeCount: 3,
@@ -243,7 +243,7 @@ describe('Notification Service', () => {
       quietHoursEnd: '07:00',
       alarmModeEnabled: true,
       conflictIntervalMinutes: 10,
-    };
+    } as UserSettings;
 
     it('should return false when quiet hours disabled', () => {
       expect(isInQuietHours({ ...baseSettings, quietHoursEnabled: false })).toBe(false);

@@ -19,6 +19,8 @@ export interface InteractionCheckResult {
   hasInteractions: boolean;
   interactions: DrugInteraction[];
   checkedAt: string;
+  // Sprint 4: 'local' | 'api' — kaynak göstergesi
+  source?: 'local' | 'api';
 }
 
 // Bilinen ilaç etkileşimleri veritabanı (örnek)

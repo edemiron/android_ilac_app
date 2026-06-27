@@ -157,6 +157,37 @@ jest.mock('expo-crypto', () => ({
   },
 }));
 
+// Mock expo-constants (Sprint 1: medicineStoreSelectors test icin gerekli)
+// expo-constants Platform.OS'a erisim saglar, test ortaminda yok.
+jest.mock('expo-constants', () => ({
+  default: {
+    platform: { ios: {}, android: {} },
+    expoConfig: { name: 'ilac-hatirlatici', slug: 'ilac-hatirlatici' },
+    manifest: { name: 'ilac-hatirlatici' },
+  },
+  expoConfig: { name: 'ilac-hatirlatici', slug: 'ilac-hatirlatici' },
+  manifest: { name: 'ilac-hatirlatici' },
+}));
+
+// Mock expo-modules-core (Platform.OS test ortaminda undefined)
+// medicineStoreSelectors test'inde firebase/auth'in Platform.OS'a
+// erisimi icin gerekli. Test'te 'android' dondurmeli.
+jest.mock('expo-modules-core', () => ({
+  Platform: { OS: 'android', Version: 33 },
+  CodedError: class CodedError extends Error {
+    constructor(code: string, message: string) {
+      super(message);
+      this.code = code;
+    }
+  },
+  NativeModulesProxy: {},
+  requireNativeModule: jest.fn(() => ({})),
+  EventEmitter: class {
+    addListener() { return { remove: jest.fn() }; }
+    removeListeners() {}
+  },
+}));
+
 // Silence console warnings in tests
 global.console = {
   ...console,

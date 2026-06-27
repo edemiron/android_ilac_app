@@ -166,6 +166,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              testID="login-button"
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               disabled={isLoading}

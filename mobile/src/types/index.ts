@@ -70,6 +70,8 @@ export interface ReminderTime {
   time: string; // "HH:mm" formatında
   notificationId?: string;
   isEnabled: boolean;
+  // Smoke testi icin trigger time (Sprint 1'de eklenen alan, opsiyonel)
+  smokeTriggerTime?: string;
 }
 
 // Kullanıcı ayarları
