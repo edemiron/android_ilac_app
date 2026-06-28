@@ -583,7 +583,7 @@ export function useSettingsScreen() {
             },
           },
           {
-            type: 1, // TIMESTAMP
+            type: 0, // TriggerType.TIMESTAMP (raw value to avoid import)
             timestamp: triggerTime.getTime(),
             alarmManager: { allowWhileIdle: true, type: 2 }, // SET_ALARM_CLOCK
           }

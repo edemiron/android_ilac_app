@@ -64,4 +64,13 @@ export interface Settings {
   quietHoursStart?: string;
   quietHoursEnd?: string;
   conflictIntervalMinutes?: number;
+  // Sprint 1: persistent notification alanlari eklendi
+  persistentNotificationEnabled?: boolean;
+  persistentNotificationDuration?: number;
+  ttsEnabled?: boolean;
+  ttsVolume?: number;
+  ttsRepeatCount?: number;
+  ttsSpeakMedicineName?: boolean;
+  ttsSpeakDosage?: boolean;
+  ttsSpeakInstructions?: boolean;
 }

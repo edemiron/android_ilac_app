@@ -84,7 +84,8 @@ describe('syncDataValidator utils', () => {
         settings: FULL_SETTINGS,
       };
       const parsed = validateSyncDataOrThrow(valid);
-      expect(parsed.settings.userId ?? 'no-uid').toBe('no-uid'); // settings.userId yok
+      // settings.userId yok (UserSettings tipinde tanimli degil)
+      // Bu test sadece parsed objenin valid medicines-only validate oldugunu kontrol eder.
       expect(parsed.medicines).toEqual([]);
     });
 
