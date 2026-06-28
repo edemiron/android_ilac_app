@@ -98,8 +98,10 @@ export const logger: Logger = {
    * Use for errors that need attention
    */
   error: (message: string, error?: Error | unknown, context?: LogContext): void => {
-    const errorDetails = error ? extractErrorDetails(error) : {};
-    const fullContext = { ...context, ...errorDetails };
+    const errorDetails = error ? extractErrorDetails(error) : ({} as Record<string, unknown>);
+    const safeContext: Record<string, unknown> =
+      context && typeof context === 'object' ? (context as Record<string, unknown>) : {};
+    const fullContext: Record<string, unknown> = { ...safeContext, ...errorDetails };
 
     if (__DEV__) {
       console.error(formatLog('error', message, fullContext));

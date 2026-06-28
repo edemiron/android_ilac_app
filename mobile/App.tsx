@@ -962,7 +962,7 @@ function AppContent() {
               <TouchableOpacity
                 key={num}
                 style={[styles.pinButton, { backgroundColor: colors.card }]}
-                onPress={() => pinInput.length < 6 && setPinInput(prev => prev + num)}
+                onPress={() => pinInput.length < 6 && setPinInput((prev: string) => prev + num)}
               >
                 <Text style={[styles.pinButtonText, { color: colors.text }]}>{num}</Text>
               </TouchableOpacity>
@@ -975,7 +975,7 @@ function AppContent() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.pinButton, { backgroundColor: colors.card }]}
-              onPress={() => pinInput.length < 6 && setPinInput(prev => prev + '0')}
+              onPress={() => pinInput.length < 6 && setPinInput((prev: string) => prev + '0')}
             >
               <Text style={[styles.pinButtonText, { color: colors.text }]}>0</Text>
             </TouchableOpacity>

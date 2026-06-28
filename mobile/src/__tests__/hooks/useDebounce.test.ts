@@ -16,9 +16,13 @@ describe('useDebounce hook', () => {
   });
 
   it('does not update value before delay elapses', () => {
-    const { result, rerender } = renderHook(({ value }) => useDebounce(value, 500), {
-      initialProps: { value: 'a' },
-    });
+    // Sprint 1: explicit generic kaldirildi — TS strict mode'da
+    // renderHook callback type uyumsuzlugu. useDebounce<T> generic'i
+    // zaten value parametresinden T'yi cikarimsar.
+    const { result, rerender } = renderHook(
+      ({ value }: { value: string }) => useDebounce(value, 500),
+      { initialProps: { value: 'a' } }
+    );
 
     rerender({ value: 'b' });
     act(() => {
@@ -33,9 +37,10 @@ describe('useDebounce hook', () => {
   });
 
   it('resets timer on rapid value changes', () => {
-    const { result, rerender } = renderHook(({ value }) => useDebounce(value, 500), {
-      initialProps: { value: 'a' },
-    });
+    const { result, rerender } = renderHook(
+      ({ value }: { value: string }) => useDebounce(value, 500),
+      { initialProps: { value: 'a' } }
+    );
 
     rerender({ value: 'b' });
     act(() => jest.advanceTimersByTime(300));
@@ -49,9 +54,10 @@ describe('useDebounce hook', () => {
   });
 
   it('handles numeric values', () => {
-    const { result, rerender } = renderHook(({ value }) => useDebounce(value, 100), {
-      initialProps: { value: 0 },
-    });
+    const { result, rerender } = renderHook(
+      ({ value }: { value: number }) => useDebounce(value, 100),
+      { initialProps: { value: 0 } }
+    );
 
     rerender({ value: 42 });
     act(() => jest.advanceTimersByTime(100));

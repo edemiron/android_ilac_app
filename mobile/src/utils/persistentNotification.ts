@@ -239,10 +239,12 @@ export async function dismissAllPersistentNotifications(): Promise<void> {
       // Kalıcı bildirimleri filtrele
       if (
         notification.id?.startsWith('persistent-') ||
-        notification.data?.isPersistent === 'true'
+        notification.notification?.data?.isPersistent === 'true'
       ) {
-        await notifee.cancelDisplayedNotification(notification.id);
-        log.debug('Kalıcı bildirim kaldırıldı', { notificationId: notification.id });
+        const notificationId = notification.id;
+        if (!notificationId) continue;
+        await notifee.cancelDisplayedNotification(notificationId);
+        log.debug('Kalıcı bildirim kaldırıldı', { notificationId });
       }
     }
   } catch (error) {

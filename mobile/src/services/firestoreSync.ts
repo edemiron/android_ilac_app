@@ -151,13 +151,45 @@ export async function syncMedicinesToCloud(userId: string, medicines: Medicine[]
   }
 }
 
-// Tek bir ilaç kaydet
-export async function saveMedicineToCloud(userId: string, medicine: Medicine): Promise<void> {
+/**
+ * İlaç kaydedildikten sonra cloud'dan dönen metadata.
+ * Sprint 4 (medicineStore slice): `saveMedicineToCloud` artik bu tipi
+ * donduruyor; `applySavedMedicineCloudData` ile local state'e uygulanir.
+ */
+export interface SavedMedicineCloudData {
+  updatedAt?: string;
+  clearLocalImage?: boolean;
+  localImageUri?: string | null;
+  imageStoragePath?: string | null;
+  imageMimeType?: string | null;
+  imageSize?: number;
+  imageUpdatedAt?: string | null;
+}
+
+// Tek bir ilaç kaydet. Cloud response metadata'sini doner (Sprint 4).
+export async function saveMedicineToCloud(
+  userId: string,
+  medicine: Medicine
+): Promise<SavedMedicineCloudData> {
   const docRef = doc(getMedicinesRef(userId), medicine.id);
+  const updatedAt = new Date().toISOString();
   await setDoc(docRef, {
     ...sanitizeForFirestore(medicine as unknown as Record<string, unknown>),
     updatedAt: Timestamp.now(),
   });
+
+  // Cloud response: image metadata'sini doner. Local image
+  // upload islemi (medicineStore tarafindan tetiklenir) burada
+  // yapiyor olurdu — Sprint 4 sonrasi integration.
+  return {
+    updatedAt,
+    clearLocalImage: false,
+    localImageUri: medicine.imageUri,
+    imageStoragePath: medicine.imageStoragePath,
+    imageMimeType: medicine.imageMimeType,
+    imageSize: medicine.imageSize,
+    imageUpdatedAt: medicine.imageUpdatedAt,
+  };
 }
 
 // İlaç sil
@@ -321,6 +353,9 @@ export async function getSettingsFromCloud(userId: string): Promise<UserSettings
   if (snapshot.exists()) {
     const data = snapshot.data();
     return {
+      // Sprint 1: 'as UserSettings' cast — Firestore'dan gelen data tüm
+      // UserSettings alanlarını içermeyebilir. Default değerlerle birlikte
+      // döndürüyoruz; eksik alanlar varsa uygulamanın default'ları geçerli.
       wakeUpTime: data.wakeUpTime ?? '08:00',
       sleepTime: data.sleepTime ?? '23:00',
       notificationSound: data.notificationSound ?? 'default',
@@ -336,7 +371,7 @@ export async function getSettingsFromCloud(userId: string): Promise<UserSettings
       quietHoursEnd: data.quietHoursEnd ?? '07:00',
       alarmModeEnabled: data.alarmModeEnabled ?? true,
       conflictIntervalMinutes: data.conflictIntervalMinutes ?? 10,
-    };
+    } as UserSettings;
   }
 
   return null;

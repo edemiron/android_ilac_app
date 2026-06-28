@@ -300,7 +300,7 @@ export function useSettingsScreen() {
     const activeMedicineNames = medicines.filter(m => m.isActive).map(m => m.name);
     const allDrugNames = [...activeMedicineNames, testMedicineName];
 
-    const interactionResult = checkMultipleInteractions(allDrugNames);
+    const interactionResult = await checkMultipleInteractions(allDrugNames);
 
     // Belirli bir saat icin cakisma kontrolu
     const checkTimeConflictForTime = (
@@ -482,7 +482,9 @@ export function useSettingsScreen() {
     // Önce ilaç etkileşimi kontrolü
     if (interactionResult.hasInteractions) {
       const interactionMessages = interactionResult.interactions
-        .map(i => `${getSeverityIcon(i.severity)} ${i.drug1} + ${i.drug2}\n${i.description}`)
+        .map((i: { severity: string; drug1: string; drug2: string; description: string }) =>
+          `${getSeverityIcon(i.severity as never)} ${i.drug1} + ${i.drug2}\n${i.description}`
+        )
         .join('\n\n');
 
       showAlert({

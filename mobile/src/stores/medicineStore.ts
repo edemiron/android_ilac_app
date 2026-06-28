@@ -1907,7 +1907,9 @@ export const useMedicineStore = create<MedicineState>()(
           medicines: validatedData.medicines,
           reminderTimes: validatedData.reminderTimes,
           medicineLogs: validatedData.medicineLogs,
-          settings: validatedData.settings,
+          // Sprint 1: cast — ValidatedSyncData'dan gelen settings tüm
+          // UserSettings alanlarını içermeyebilir (defaultSyncData).
+          settings: validatedData.settings as UserSettings,
           lastSyncAt: new Date().toISOString(),
         });
 

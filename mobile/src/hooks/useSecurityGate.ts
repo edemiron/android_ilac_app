@@ -7,8 +7,8 @@ import {
   getSecuritySettings,
   updateLastActiveTime,
   verifyPin,
-} from './security';
-import type { SecuritySettings } from './security';
+} from '../utils/security';
+import type { SecuritySettings } from '../utils/security';
 
 export interface UseSecurityGateResult {
   securityCheckComplete: boolean;
