@@ -66,7 +66,7 @@ import ErrorBoundary from './src/components/common/ErrorBoundary';
 import { usePermissionsGate } from './src/hooks/usePermissionsGate';
 import { useSecurityGate } from './src/hooks/useSecurityGate';
 import { useBootRecovery } from './src/hooks/useBootRecovery';
-import { useAlarmQueue } from './src/hooks/useAlarmQueue';
+import { useAlarmNavigation, type PendingAlarmData } from './src/hooks/useAlarmNavigation';
 import {
   getBootRecoveryResult,
   clearBootRecoveryResult,
@@ -439,7 +439,6 @@ function LazyBarcodeScannerScreen(props: any) {
 function AppContent() {
   const navigationRef = useRef<any>(null);
   const processedSnoozesRef = useRef<Set<string>>(new Set()); // Snooze işlemi yapılmış notification'lar
-  const activeAlarmKeysRef = useRef<Set<string>>(new Set()); // Şu an açık olan alarm key'leri (duplicate guard)
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -454,8 +453,53 @@ function AppContent() {
     logMedicineSkipped,
   } = useMedicineStore();
 
-  // Pending alarm queue (App.tsx'ten çıkartıldı, useAlarmQueue hook'una taşındı)
-  const { pendingAlarm, setPendingAlarm } = useAlarmQueue();
+  // Pending alarm queue + navigation — Sprint 5 refactor:
+  // useAlarmQueue yerine useAlarmNavigation tam hook kullaniliyor (dedup, validation,
+  // snooze kontrolü, navigation fallback dahil). navigateToAlarm callback'i
+  // tamamen hook'a tasindi (~115 satır App.tsx'ten cikarildi).
+  const { pendingAlarm, setPendingAlarm, handleIncomingAlarm } = useAlarmNavigation({
+    isNavigationReady: () => navigationRef.current?.isReady() ?? false,
+    isMedicineValid: (medicineId: string) => {
+      const state = useMedicineStore.getState();
+      return !!state.getMedicineById(medicineId);
+    },
+    isAlarmAlreadyHandled: async (
+      medicineId: string,
+      reminderTimeId: string,
+      scheduledTime: string
+    ) => {
+      const today = new Date().toISOString().split('T')[0];
+      return await isAlarmHandled(`${medicineId}-${reminderTimeId}-${today}`);
+    },
+    navigateToAlarmScreen: (data: PendingAlarmData) => {
+      navigationRef.current?.navigate('Alarm', {
+        medicineId: data.medicineId,
+        reminderTimeId: data.reminderTimeId,
+        scheduledTime: data.scheduledTime,
+        snoozeCount: data.snoozeCount ? parseInt(data.snoozeCount, 10) : undefined,
+        originalScheduledTime: data.originalScheduledTime,
+      });
+      // Bildirimi HEMEN iptal et — foreground DELIVERED handler tekrar tetiklenmesin
+      notifee
+        .cancelDisplayedNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`)
+        .catch(() => undefined);
+    },
+    dismissNotification,
+    cancelMedicineNotifications,
+    setAlarmActive: (medicineId: string, reminderTimeId: string, scheduledTime: string) => {
+      const state = useMedicineStore.getState();
+      const medicine = state.getMedicineById(medicineId);
+      if (!medicine) return;
+      const reminderTime = state
+        .getReminderTimesForMedicine(medicineId)
+        .find((rt: { id: string }) => rt.id === reminderTimeId);
+      if (!reminderTime) return;
+      state.setAlarmActive(medicine, reminderTime, scheduledTime);
+    },
+    deactivateSnooze: (snoozeId: string) => {
+      useMedicineStore.getState().deactivateSnooze(snoozeId);
+    },
+  });
   // Boot recovery (App.tsx'ten çıkartıldı, useBootRecovery hook'una taşındı)
   const { bootRecovery, clearBootRecovery } = useBootRecovery();
 
@@ -482,121 +526,8 @@ function AppContent() {
     }
   }, [isAuthenticated, user]);
 
-  const navigateToAlarm = async (data: {
-    medicineId: string;
-    reminderTimeId: string;
-    scheduledTime: string;
-    isSnooze?: string;
-    snoozeId?: string;
-    snoozeCount?: string;
-    originalScheduledTime?: string;
-  }) => {
-    console.log('🔴 navigateToAlarm:', data.medicineId, data.reminderTimeId);
-
-    // KRİTİK: Bu alarm zaten handle edildi mi? (ertele/aldım/dismiss)
-    const today = new Date().toISOString().split('T')[0];
-    const alarmKey = `${data.medicineId}-${data.reminderTimeId}-${today}`;
-    const handled = await isAlarmHandled(alarmKey);
-    if (handled) {
-      appLog.debug('Alarm already handled, skipping', { alarmKey });
-      return;
-    }
-
-    // DUPLICATE GUARD: Aynı alarm key için zaten ekran açıksa tekrar açma
-    if (activeAlarmKeysRef.current.has(alarmKey)) {
-      appLog.debug('Alarm already active on screen, skipping duplicate', { alarmKey });
-      return;
-    }
-    activeAlarmKeysRef.current.add(alarmKey);
-    // 60 saniye sonra guard'ı temizle (alarm ekranı kapanmış olmalı)
-    setTimeout(() => activeAlarmKeysRef.current.delete(alarmKey), 60_000);
-
-    const isTestMode = data.medicineId === 'test-medicine';
-    const isSnooze = data.isSnooze === 'true';
-
-    if (!isTestMode) {
-      const storeState = useMedicineStore.getState();
-      const medicine = storeState.getMedicineById(data.medicineId);
-
-      if (!medicine) {
-        appLog.warn('Alarm: ilaç silinmiş', {
-          medicineId: data.medicineId,
-          reminderTimeId: data.reminderTimeId,
-        });
-        if (isSnooze && data.snoozeId) {
-          dismissNotification(`snooze-${data.snoozeId}`);
-        } else {
-          dismissNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`);
-        }
-        cancelMedicineNotifications(data.medicineId);
-        return;
-      }
-
-      const medicineLogs = storeState.medicineLogs;
-      const today = new Date().toISOString().split('T')[0];
-      const alreadyLogged = medicineLogs.some(
-        log =>
-          log.reminderTimeId === data.reminderTimeId &&
-          log.scheduledTime.startsWith(today) &&
-          (log.status === 'taken' || log.status === 'skipped')
-      );
-
-      if (alreadyLogged) {
-        appLog.warn('Alarm: zaten loglanmış', {
-          medicineId: data.medicineId,
-          reminderTimeId: data.reminderTimeId,
-        });
-        if (isSnooze && data.snoozeId) {
-          dismissNotification(`snooze-${data.snoozeId}`);
-          storeState.deactivateSnooze(data.snoozeId);
-        } else {
-          dismissNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`);
-        }
-        return;
-      }
-
-      if (isSnooze && data.snoozeId) {
-        const snooze = storeState.snoozes.find(s => s.id === data.snoozeId);
-        if (snooze && !snooze.isActive) {
-          appLog.warn('Alarm: snooze inaktif', {
-            snoozeId: data.snoozeId,
-            medicineId: data.medicineId,
-          });
-          dismissNotification(`snooze-${data.snoozeId}`);
-          return;
-        }
-      }
-    }
-
-    if (!navigationRef.current?.isReady()) {
-      setPendingAlarm(data);
-      return;
-    }
-
-    navigationRef.current?.navigate('Alarm', {
-      medicineId: data.medicineId,
-      reminderTimeId: data.reminderTimeId,
-      scheduledTime: data.scheduledTime,
-      snoozeCount: data.snoozeCount ? parseInt(data.snoozeCount, 10) : undefined,
-      originalScheduledTime: data.originalScheduledTime,
-    });
-
-    // KRİTİK: Navigate sonrası bildirimi HEMEN iptal et
-    // Foreground DELIVERED handler'ın tekrar tetiklenmesini engeller
-    const mainNotifId = `alarm-${data.medicineId}-${data.reminderTimeId}`;
-    try {
-      await notifee.cancelDisplayedNotification(mainNotifId);
-    } catch (_e) {
-      /* */
-    }
-
-    if (isSnooze && data.snoozeId) {
-      dismissNotification(`snooze-${data.snoozeId}`);
-    } else {
-      dismissNotification(mainNotifId);
-      cancelMedicineNotifications(data.medicineId);
-    }
-  };
+  // navigateToAlarm callback'i tamamen useAlarmNavigation hook'una tasindi (Sprint 5).
+  // Inline 115 satirlik callback buradan cikarildi — bkz: src/hooks/useAlarmNavigation.ts.
 
   // Aksiyon işle (bildirim butonlarından)
   const handleAction = async (actionId: string, data: any) => {
@@ -765,7 +696,7 @@ function AppContent() {
   // Notifee event listener'larını kur
   useEffect(() => {
     // Foreground event listener
-    const unsubscribe = setupNotificationListeners(navigateToAlarm, handleAction);
+    const unsubscribe = setupNotificationListeners(handleIncomingAlarm, handleAction);
 
     // Background event handler artık index.ts'te register ediliyor
 
@@ -846,12 +777,8 @@ function AppContent() {
     };
   }, []);
 
-  useEffect(() => {
-    if (pendingAlarm && navigationRef.current?.isReady()) {
-      navigateToAlarm(pendingAlarm);
-      setPendingAlarm(null);
-    }
-  }, [pendingAlarm]);
+  // pendingAlarm hazir oldugunda navigate etme islemi useAlarmNavigation hook'u
+  // icinde yonetiliyor (src/hooks/useAlarmNavigation.ts:148-153). Bu effect kaldirildi.
 
   // KRİTİK: Uygulama arka plandan öne geldiğinde pending-alarm kontrol et
   // wakeAndOpenApp warm start'ta uygulamayı öne getirir ama checkInitialNotification
@@ -1011,11 +938,10 @@ function AppContent() {
     <NavigationContainer
       ref={navigationRef}
       onReady={() => {
-        // Navigation hazır olduğunda pending alarm varsa yönlendir
-        if (pendingAlarm) {
-          navigateToAlarm(pendingAlarm);
-          setPendingAlarm(null);
-        }
+        // Navigation hazır olduğunda pending alarm varsa yönlendir.
+        // NOT: useAlarmNavigation hook'u kendi içinde
+        // pendingAlarm + isNavigationReady'i izliyor (effect içinde), bu yüzden
+        // tekrar tetiklemeye gerek yok. Burada boş bırakılır.
       }}
     >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />

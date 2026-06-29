@@ -26,16 +26,26 @@ export interface UseAlarmNavigationOptions {
   isNavigationReady: () => boolean;
   /** Medicine'in store'da mevcut olup olmadigini kontrol eder */
   isMedicineValid: (medicineId: string) => boolean;
-  /** Alarm icin 'taken' veya 'skipped' loglanip loglanmadigini kontrol eder */
-  isAlarmAlreadyHandled: (medicineId: string, reminderTimeId: string, scheduledTime: string) => boolean;
+  /** Alarm icin 'taken' veya 'skipped' loglanip loglanmadigini kontrol eder.
+   *  Async kabul edilir (App.tsx'te isAlarmHandled AsyncStorage'a erişir). */
+  isAlarmAlreadyHandled: (
+    medicineId: string,
+    reminderTimeId: string,
+    scheduledTime: string
+  ) => boolean | Promise<boolean>;
   /** Alarm screen'e navigate eder (App.tsx'ten navigation callback) */
   navigateToAlarmScreen: (params: PendingAlarmData) => void;
   /** Notification'i dismiss eder */
   dismissNotification: (notificationId: string) => void;
   /** Tum notification'lari cancel eder */
   cancelMedicineNotifications: (medicineId: string) => void;
-  /** Alarm'i 'active' olarak isaretler */
-  setAlarmActive?: () => void;
+  /**
+   * Alarm'i 'active' olarak isaretler.
+   * NOT: medicineStore.setAlarmActive 3 parametre bekler (medicine, reminderTime, scheduledTime).
+   * App.tsx'ten bu parametreleri iceren bir callback enjekte edilir.
+   * Opsiyonel — verilmezse alarm active isaretleme atlanir (test/legacy uyumluluk).
+   */
+  setAlarmActive?: (medicineId: string, reminderTimeId: string, scheduledTime: string) => void;
   /** Snooze deaktif eder */
   deactivateSnooze?: (snoozeId: string) => void;
 }
@@ -65,16 +75,12 @@ const ALARM_KEY_DEDUP_WINDOW_MS = 60_000;
  * Davranış: App.tsx'teki orijinal mantık + Sprint 3'teki alarmNavigation.ts
  * mantığının birleşimi. Test edilebilir.
  */
-export function useAlarmNavigation(
-  options: UseAlarmNavigationOptions
-): UseAlarmNavigationResult {
+export function useAlarmNavigation(options: UseAlarmNavigationOptions): UseAlarmNavigationResult {
   const [pendingAlarm, setPendingAlarm] = useState<PendingAlarmData | null>(null);
 
   // Ayni alarm key icin duplicate guard (60s pencere)
   const recentAlarmKeysRef = useRef<Set<string>>(new Set());
-  const alarmKeyCleanupTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map()
-  );
+  const alarmKeyCleanupTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const clearAlarmKey = useCallback((alarmKey: string) => {
     recentAlarmKeysRef.current.delete(alarmKey);
@@ -111,7 +117,13 @@ export function useAlarmNavigation(
       }
 
       // 3. Bu alarm zaten handled (taken/skipped) mi?
-      if (options.isAlarmAlreadyHandled(data.medicineId, data.reminderTimeId, data.scheduledTime)) {
+      if (
+        await options.isAlarmAlreadyHandled(
+          data.medicineId,
+          data.reminderTimeId,
+          data.scheduledTime
+        )
+      ) {
         options.dismissNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`);
         if (data.isSnooze === 'true' && data.snoozeId && options.deactivateSnooze) {
           options.deactivateSnooze(data.snoozeId);
@@ -133,7 +145,7 @@ export function useAlarmNavigation(
       }
 
       // 6. Alarm'i 'active' olarak isaretle (opsiyonel)
-      options.setAlarmActive?.();
+      options.setAlarmActive?.(data.medicineId, data.reminderTimeId, data.scheduledTime);
 
       // 7. Alarm ekranina navigate et
       options.navigateToAlarmScreen(data);
