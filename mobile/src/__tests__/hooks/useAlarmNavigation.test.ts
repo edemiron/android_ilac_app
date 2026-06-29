@@ -1,4 +1,5 @@
 import { renderHook, act } from '@testing-library/react-native';
+import { format } from 'date-fns';
 import { useAlarmNavigation } from '../../hooks/useAlarmNavigation';
 
 // Mock the medicine store so the hook can read state via getState()
@@ -119,7 +120,11 @@ describe('useAlarmNavigation hook (Sprint 6 DRY)', () => {
 
     it('skips navigation when alarm already logged for today (bug fix)', async () => {
       // Bug fix: hook artık hasAlarmBeenLoggedToday kontrolünü pure
-      // function üzerinden yapar (önce yapmıyordu).
+      // function üzerinden yapar (önce yapmıyordu). Test için scheduledTime
+      // bugünün tarihini kullanmalı (hasAlarmBeenLoggedToday gün-precision kontrol eder).
+      // date-fns format() local timezone kullanır — UTC değil.
+      const todayLocal = format(new Date(), 'yyyy-MM-dd');
+      const todayScheduled = `${todayLocal}T12:00:00Z`;
       mockGetState.mockReturnValue({
         getMedicineById: jest.fn().mockReturnValue(mockMedicine),
         getReminderTimesForMedicine: jest.fn().mockReturnValue([mockReminderTime]),
@@ -128,9 +133,9 @@ describe('useAlarmNavigation hook (Sprint 6 DRY)', () => {
             id: 'log-1',
             medicineId: 'med-1',
             reminderTimeId: 'rt-1',
-            scheduledTime: new Date().toISOString(),
+            scheduledTime: todayScheduled,
             status: 'taken',
-            takenAt: new Date().toISOString(),
+            takenAt: todayScheduled,
           },
         ],
         snoozes: [
@@ -138,10 +143,10 @@ describe('useAlarmNavigation hook (Sprint 6 DRY)', () => {
             id: 'sn-1',
             medicineId: 'med-1',
             reminderTimeId: 'rt-1',
-            originalScheduledTime: '2024-01-15T10:00:00Z',
-            triggerTime: '2024-01-15T10:05:00Z',
+            originalScheduledTime: todayScheduled,
+            triggerTime: todayScheduled,
             isActive: true,
-            createdAt: '2024-01-15T10:00:00Z',
+            createdAt: todayScheduled,
             notificationId: 'notif-1',
             snoozeCount: 1,
           },
@@ -156,7 +161,7 @@ describe('useAlarmNavigation hook (Sprint 6 DRY)', () => {
         await result.current.handleIncomingAlarm({
           medicineId: 'med-1',
           reminderTimeId: 'rt-1',
-          scheduledTime: '2024-01-15T10:00:00Z',
+          scheduledTime: todayScheduled,
           isSnooze: 'true',
           snoozeId: 'sn-1',
         });
