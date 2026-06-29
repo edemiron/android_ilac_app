@@ -453,16 +453,14 @@ function AppContent() {
     logMedicineSkipped,
   } = useMedicineStore();
 
-  // Pending alarm queue + navigation — Sprint 5 refactor:
-  // useAlarmQueue yerine useAlarmNavigation tam hook kullaniliyor (dedup, validation,
-  // snooze kontrolü, navigation fallback dahil). navigateToAlarm callback'i
-  // tamamen hook'a tasindi (~115 satır App.tsx'ten cikarildi).
+  // Pending alarm queue + navigation — Sprint 6 DRY refactor:
+  // Hook artık sadece React state'i tutar; tüm alarm validation/snooze/navigate
+  // mantığı utils/alarmNavigation.ts içindeki `handleIncomingAlarmNavigation`
+  // pure fonksiyonuna delege edilir. Hook kendisi useMedicineStore.getState()
+  // ile store action'larına erişir, dolayısıyla App.tsx options yüzeyi
+  // 8 callback'ten 4'e indi.
   const { pendingAlarm, setPendingAlarm, handleIncomingAlarm } = useAlarmNavigation({
     isNavigationReady: () => navigationRef.current?.isReady() ?? false,
-    isMedicineValid: (medicineId: string) => {
-      const state = useMedicineStore.getState();
-      return !!state.getMedicineById(medicineId);
-    },
     isAlarmAlreadyHandled: async (
       medicineId: string,
       reminderTimeId: string,
@@ -484,21 +482,7 @@ function AppContent() {
         .cancelDisplayedNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`)
         .catch(() => undefined);
     },
-    dismissNotification,
     cancelMedicineNotifications,
-    setAlarmActive: (medicineId: string, reminderTimeId: string, scheduledTime: string) => {
-      const state = useMedicineStore.getState();
-      const medicine = state.getMedicineById(medicineId);
-      if (!medicine) return;
-      const reminderTime = state
-        .getReminderTimesForMedicine(medicineId)
-        .find((rt: { id: string }) => rt.id === reminderTimeId);
-      if (!reminderTime) return;
-      state.setAlarmActive(medicine, reminderTime, scheduledTime);
-    },
-    deactivateSnooze: (snoozeId: string) => {
-      useMedicineStore.getState().deactivateSnooze(snoozeId);
-    },
   });
   // Boot recovery (App.tsx'ten çıkartıldı, useBootRecovery hook'una taşındı)
   const { bootRecovery, clearBootRecovery } = useBootRecovery();

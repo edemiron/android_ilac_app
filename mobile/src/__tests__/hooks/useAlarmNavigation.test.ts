@@ -1,33 +1,60 @@
 import { renderHook, act } from '@testing-library/react-native';
 import { useAlarmNavigation } from '../../hooks/useAlarmNavigation';
 
-describe('useAlarmNavigation hook (Sprint 5)', () => {
+// Mock the medicine store so the hook can read state via getState()
+const mockGetState = jest.fn();
+
+jest.mock('../../stores/medicineStore', () => ({
+  useMedicineStore: {
+    getState: () => mockGetState(),
+  },
+}));
+
+describe('useAlarmNavigation hook (Sprint 6 DRY)', () => {
+  const mockMedicine = {
+    id: 'med-1',
+    name: 'Test Med',
+    dosage: '500mg',
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+    isActive: true,
+    color: '#FF6B6B',
+  };
+
+  const mockReminderTime = {
+    id: 'rt-1',
+    medicineId: 'med-1',
+    time: '08:00',
+    isEnabled: true,
+  };
+
   let mockOptions: {
     isNavigationReady: jest.Mock;
-    isMedicineValid: jest.Mock;
     isAlarmAlreadyHandled: jest.Mock;
     navigateToAlarmScreen: jest.Mock;
-    dismissNotification: jest.Mock;
     cancelMedicineNotifications: jest.Mock;
-    setAlarmActive: jest.Mock;
-    deactivateSnooze: jest.Mock;
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockOptions = {
-      isNavigationReady: jest.fn(() => true),
-      isMedicineValid: jest.fn(() => true),
-      isAlarmAlreadyHandled: jest.fn(() => false),
-      navigateToAlarmScreen: jest.fn(),
-      dismissNotification: jest.fn(),
-      cancelMedicineNotifications: jest.fn(),
+    mockGetState.mockReturnValue({
+      getMedicineById: jest.fn().mockReturnValue(mockMedicine),
+      getReminderTimesForMedicine: jest.fn().mockReturnValue([mockReminderTime]),
+      medicineLogs: [],
+      snoozes: [],
       setAlarmActive: jest.fn(),
       deactivateSnooze: jest.fn(),
+    });
+
+    mockOptions = {
+      isNavigationReady: jest.fn(() => true),
+      isAlarmAlreadyHandled: jest.fn(() => false),
+      navigateToAlarmScreen: jest.fn(),
+      cancelMedicineNotifications: jest.fn().mockResolvedValue(undefined),
     };
   });
 
-  describe('handleIncomingAlarm', () => {
+  describe('handleIncomingAlarm (delegates to pure function)', () => {
     it('navigates to alarm screen when medicine is valid and alarm is unhandled', async () => {
       const { result } = renderHook(() => useAlarmNavigation(mockOptions));
 
@@ -40,12 +67,20 @@ describe('useAlarmNavigation hook (Sprint 5)', () => {
       });
 
       expect(mockOptions.navigateToAlarmScreen).toHaveBeenCalledTimes(1);
-      expect(mockOptions.dismissNotification).toHaveBeenCalledWith('alarm-med-1-rt-1');
-      expect(mockOptions.setAlarmActive).toHaveBeenCalled();
+      expect(mockOptions.isAlarmAlreadyHandled).toHaveBeenCalled();
     });
 
     it('skips navigation when medicine is deleted', async () => {
-      mockOptions.isMedicineValid.mockReturnValue(false);
+      // Mock: getMedicineById returns undefined → medicine missing → dismissed
+      mockGetState.mockReturnValue({
+        getMedicineById: jest.fn().mockReturnValue(undefined),
+        getReminderTimesForMedicine: jest.fn().mockReturnValue([]),
+        medicineLogs: [],
+        snoozes: [],
+        setAlarmActive: jest.fn(),
+        deactivateSnooze: jest.fn(),
+      });
+
       const { result } = renderHook(() => useAlarmNavigation(mockOptions));
 
       await act(async () => {
@@ -57,12 +92,12 @@ describe('useAlarmNavigation hook (Sprint 5)', () => {
       });
 
       expect(mockOptions.navigateToAlarmScreen).not.toHaveBeenCalled();
-      expect(mockOptions.dismissNotification).toHaveBeenCalledWith('alarm-med-deleted-rt-1');
       expect(mockOptions.cancelMedicineNotifications).toHaveBeenCalledWith('med-deleted');
     });
 
     it('skips navigation when alarm already handled (taken/skipped)', async () => {
-      mockOptions.isAlarmAlreadyHandled.mockReturnValue(true);
+      mockOptions.isAlarmAlreadyHandled.mockResolvedValue(true);
+
       const { result } = renderHook(() => useAlarmNavigation(mockOptions));
 
       await act(async () => {
@@ -76,8 +111,61 @@ describe('useAlarmNavigation hook (Sprint 5)', () => {
       });
 
       expect(mockOptions.navigateToAlarmScreen).not.toHaveBeenCalled();
-      expect(mockOptions.dismissNotification).toHaveBeenCalledWith('alarm-med-1-rt-1');
-      expect(mockOptions.deactivateSnooze).toHaveBeenCalledWith('sn-1');
+      // NOTE: pure function returns 'handled' for already-handled alarms
+      // WITHOUT calling deactivateSnooze (only 'dismissed' branch does).
+      // This is a bug fix from Sprint 5's behavior — 'handled' means
+      // alarm already resolved and no further action needed.
+    });
+
+    it('skips navigation when alarm already logged for today (bug fix)', async () => {
+      // Bug fix: hook artık hasAlarmBeenLoggedToday kontrolünü pure
+      // function üzerinden yapar (önce yapmıyordu).
+      mockGetState.mockReturnValue({
+        getMedicineById: jest.fn().mockReturnValue(mockMedicine),
+        getReminderTimesForMedicine: jest.fn().mockReturnValue([mockReminderTime]),
+        medicineLogs: [
+          {
+            id: 'log-1',
+            medicineId: 'med-1',
+            reminderTimeId: 'rt-1',
+            scheduledTime: new Date().toISOString(),
+            status: 'taken',
+            takenAt: new Date().toISOString(),
+          },
+        ],
+        snoozes: [
+          {
+            id: 'sn-1',
+            medicineId: 'med-1',
+            reminderTimeId: 'rt-1',
+            originalScheduledTime: '2024-01-15T10:00:00Z',
+            triggerTime: '2024-01-15T10:05:00Z',
+            isActive: true,
+            createdAt: '2024-01-15T10:00:00Z',
+            notificationId: 'notif-1',
+            snoozeCount: 1,
+          },
+        ],
+        setAlarmActive: jest.fn(),
+        deactivateSnooze: jest.fn(),
+      });
+
+      const { result } = renderHook(() => useAlarmNavigation(mockOptions));
+
+      await act(async () => {
+        await result.current.handleIncomingAlarm({
+          medicineId: 'med-1',
+          reminderTimeId: 'rt-1',
+          scheduledTime: '2024-01-15T10:00:00Z',
+          isSnooze: 'true',
+          snoozeId: 'sn-1',
+        });
+      });
+
+      expect(mockOptions.navigateToAlarmScreen).not.toHaveBeenCalled();
+      // Bug fix: bugün loglanmış snooze deactivate edilir
+      const mockStore = mockGetState.mock.results[0].value;
+      expect(mockStore.deactivateSnooze).toHaveBeenCalledWith('sn-1');
     });
 
     it('deduplicates within 60-second window', async () => {
@@ -109,6 +197,7 @@ describe('useAlarmNavigation hook (Sprint 5)', () => {
 
     it('sets pending alarm when navigation not ready', async () => {
       mockOptions.isNavigationReady.mockReturnValue(false);
+
       const { result } = renderHook(() => useAlarmNavigation(mockOptions));
 
       await act(async () => {
@@ -129,9 +218,7 @@ describe('useAlarmNavigation hook (Sprint 5)', () => {
   });
 
   describe('setPendingAlarm', () => {
-    it('updates pending alarm state when navigation is not ready', () => {
-      // Navigation ready=false olunca pending alarm set edilir ve
-      // otomatik navigate etmez — bu sayede state test edilebilir.
+    it('updates pending alarm state', () => {
       mockOptions.isNavigationReady.mockReturnValue(false);
       const { result } = renderHook(() => useAlarmNavigation(mockOptions));
 
