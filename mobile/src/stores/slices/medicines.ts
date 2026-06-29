@@ -53,6 +53,15 @@ export interface MedicinesSlice {
 
   /** Tum medicines ve reminder times'i temizle */
   clearAllMedicines: () => void;
+
+  /**
+   * Sprint 4 devami: getNextAvailableColor.
+   *
+   * Aktif ilaclarin renklerine gore siradaki uygun rengi secer.
+   * medicineStore.ts'deki getNextAvailableColor wrapper'inin
+   * kaynak implementasyonu.
+   */
+  getNextAvailableColor: () => string;
 }
 
 /**
@@ -75,9 +84,7 @@ export const useMedicinesStore = create<MedicinesSlice>()(
         // Renk: yoksa mevcut renklerden ilk kullanilmayan
         const usedColors = new Set(get().medicines.map(m => m.color));
         const availableColor =
-          medicine.color ||
-          MEDICINE_COLORS.find(c => !usedColors.has(c)) ||
-          MEDICINE_COLORS[0];
+          medicine.color || MEDICINE_COLORS.find(c => !usedColors.has(c)) || MEDICINE_COLORS[0];
 
         const newMedicine: Medicine = {
           ...medicine,
@@ -156,19 +163,14 @@ export const useMedicinesStore = create<MedicinesSlice>()(
       addReminderTime: reminderTime => {
         const id = generateId();
         set(state => ({
-          reminderTimes: [
-            ...state.reminderTimes,
-            { ...reminderTime, id },
-          ],
+          reminderTimes: [...state.reminderTimes, { ...reminderTime, id }],
         }));
         return id;
       },
 
       updateReminderTime: (id, updates) => {
         set(state => ({
-          reminderTimes: state.reminderTimes.map(rt =>
-            rt.id === id ? { ...rt, ...updates } : rt
-          ),
+          reminderTimes: state.reminderTimes.map(rt => (rt.id === id ? { ...rt, ...updates } : rt)),
         }));
       },
 
@@ -180,6 +182,36 @@ export const useMedicinesStore = create<MedicinesSlice>()(
 
       clearAllMedicines: () => {
         set({ medicines: [], reminderTimes: [] });
+      },
+
+      // Sprint 4 devami: medicineStore.getNextAvailableColor delegasyonu
+      // Aktif ilaclarin renklerinden en az kullanilan / kullanilmamis rengi secer.
+      getNextAvailableColor: () => {
+        const { medicines } = get();
+        const usedColors = medicines.filter(m => m.isActive).map(m => m.color);
+
+        // İlk kullanılmayan rengi bul
+        const unusedColor = MEDICINE_COLORS.find((color: string) => !usedColors.includes(color));
+        if (unusedColor) {
+          return unusedColor;
+        }
+
+        // Tum renkler kullaniliyorsa en az kullanilan rengi bul
+        const colorCounts = new Map<string, number>();
+        MEDICINE_COLORS.forEach((color: string) => colorCounts.set(color, 0));
+        usedColors.forEach(color => {
+          colorCounts.set(color, (colorCounts.get(color) ?? 0) + 1);
+        });
+
+        let minCount = Infinity;
+        let leastUsedColor: string = MEDICINE_COLORS[0];
+        colorCounts.forEach((count, color) => {
+          if (count < minCount) {
+            minCount = count;
+            leastUsedColor = color;
+          }
+        });
+        return leastUsedColor;
       },
     }),
     {

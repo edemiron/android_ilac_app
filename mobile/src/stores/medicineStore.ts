@@ -32,7 +32,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { Platform } from 'react-native';
-import { STORAGE_KEYS, MEDICINE_COLORS } from '../constants';
+import { STORAGE_KEYS } from '../constants';
 import {
   Medicine,
   ReminderTime,
@@ -373,6 +373,8 @@ export { useMedicinesStore } from './slices/medicines';
 export { useLogsStore } from './slices/logs';
 export { useSnoozesStore } from './slices/snoozes';
 export { useSettingsStore } from './slices/settings';
+// Internal: Wrapper action'lar slice store'larina delege eder
+import { useMedicinesStore as _useMedicinesStore } from './slices/medicines';
 export type { MedicinesSlice, LogsSlice, SnoozesSlice, SettingsSlice } from './slices';
 
 interface MedicineState {
@@ -1796,39 +1798,10 @@ export const useMedicineStore = create<MedicineState>()(
       },
 
       // Bir sonraki uygun rengi getir
-      getNextAvailableColor: () => {
-        const { medicines } = get();
-
-        // Sadece aktif ilaçların renklerini al
-        const usedColors = medicines.filter(m => m.isActive).map(m => m.color);
-
-        // İlk kullanılmayan rengi bul
-        const unusedColor = MEDICINE_COLORS.find(color => !usedColors.includes(color));
-        if (unusedColor) {
-          return unusedColor;
-        }
-
-        // Tüm renkler kullanılıyorsa, en az kullanılan rengi bul
-        const colorCounts = new Map<string, number>();
-        MEDICINE_COLORS.forEach(color => colorCounts.set(color, 0));
-
-        usedColors.forEach(color => {
-          const count = colorCounts.get(color) || 0;
-          colorCounts.set(color, count + 1);
-        });
-
-        let minCount = Infinity;
-        let leastUsedColor: string = MEDICINE_COLORS[0];
-
-        colorCounts.forEach((count, color) => {
-          if (count < minCount) {
-            minCount = count;
-            leastUsedColor = color;
-          }
-        });
-
-        return leastUsedColor;
-      },
+      // Sprint 4 devami: getNextAvailableColor slice'a delege edildi.
+      // Kaynak implementasyon: src/stores/slices/medicines.ts
+      // Bu wrapper geriye uyumluluk icin korunuyor.
+      getNextAvailableColor: () => _useMedicinesStore.getState().getNextAvailableColor(),
 
       clearAllData: async (options?: { deleteFromCloud?: boolean }) => {
         const { userId, medicines } = get();
