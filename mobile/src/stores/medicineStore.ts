@@ -1823,7 +1823,7 @@ export const useMedicineStore = create<MedicineState>()(
         });
 
         let minCount = Infinity;
-        let leastUsedColor = MEDICINE_COLORS[0];
+        let leastUsedColor: typeof MEDICINE_COLORS[number] = MEDICINE_COLORS[0];
 
         colorCounts.forEach((count, color) => {
           if (count < minCount) {
