@@ -71,7 +71,7 @@ async function scheduleActiveSnooze(
     timestamp: triggerTime.getTime(),
     alarmManager: {
       allowWhileIdle: true,
-      type: AlarmType.RTC_WAKEUP,
+      type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE,
     },
   };
 

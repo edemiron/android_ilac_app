@@ -98,7 +98,9 @@ export const logger: Logger = {
    * Use for errors that need attention
    */
   error: (message: string, error?: Error | unknown, context?: LogContext): void => {
-    const errorDetails = error ? extractErrorDetails(error) : ({} as Record<string, unknown>);
+    const errorDetails: Record<string, unknown> = error
+      ? (extractErrorDetails(error) as Record<string, unknown>)
+      : {};
     const safeContext: Record<string, unknown> =
       context && typeof context === 'object' ? (context as Record<string, unknown>) : {};
     const fullContext: Record<string, unknown> = { ...safeContext, ...errorDetails };

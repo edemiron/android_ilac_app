@@ -95,7 +95,7 @@ export async function searchMedicineByBarcodeAI(barcode: string): Promise<AISear
       const data = result.data as { success?: boolean; result?: unknown } | undefined;
 
       if (data?.success) {
-        return parseAIResponse(data.result, barcode, 'Gemini (Function)');
+        return parseAIResponse(data.result as string, barcode, 'Gemini (Function)');
       }
 
       // Function başarısız olursa fallback olarak direct API dene

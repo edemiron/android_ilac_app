@@ -373,12 +373,7 @@ export { useMedicinesStore } from './slices/medicines';
 export { useLogsStore } from './slices/logs';
 export { useSnoozesStore } from './slices/snoozes';
 export { useSettingsStore } from './slices/settings';
-export type {
-  MedicinesSlice,
-  LogsSlice,
-  SnoozesSlice,
-  SettingsSlice,
-} from './slices';
+export type { MedicinesSlice, LogsSlice, SnoozesSlice, SettingsSlice } from './slices';
 
 interface MedicineState {
   medicines: Medicine[];
@@ -502,11 +497,11 @@ function applySavedMedicineCloudData(
           updatedAt: cloudData.updatedAt ?? medicine.updatedAt,
           imageUri: cloudData.clearLocalImage
             ? undefined
-            : (cloudData.localImageUri ?? medicine.imageUri),
-          imageStoragePath: cloudData.imageStoragePath,
-          imageMimeType: cloudData.imageMimeType,
-          imageSize: cloudData.imageSize,
-          imageUpdatedAt: cloudData.imageUpdatedAt,
+            : (cloudData.localImageUri ?? medicine.imageUri ?? undefined),
+          imageStoragePath: cloudData.imageStoragePath ?? undefined,
+          imageMimeType: cloudData.imageMimeType ?? undefined,
+          imageSize: cloudData.imageSize ?? undefined,
+          imageUpdatedAt: cloudData.imageUpdatedAt ?? undefined,
         }
       : medicine
   );
@@ -1823,7 +1818,7 @@ export const useMedicineStore = create<MedicineState>()(
         });
 
         let minCount = Infinity;
-        let leastUsedColor: typeof MEDICINE_COLORS[number] = MEDICINE_COLORS[0];
+        let leastUsedColor: string = MEDICINE_COLORS[0];
 
         colorCounts.forEach((count, color) => {
           if (count < minCount) {

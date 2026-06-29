@@ -103,11 +103,18 @@ async function dismissCurrentNotification(
   if (notificationId) {
     try {
       // notifee global instance; test ortamında mock'lanmış olabilir
-      const { notifee } = await import('@notifee/react-native').catch(
-        () => ({ notifee: null }) as never
-      );
-      if (notifee) {
-        await notifee.cancelDisplayedNotification(notificationId).catch(() => undefined);
+      let notifeeInstance: { cancelDisplayedNotification: (id: string) => Promise<void> } | null =
+        null;
+      try {
+        const mod = await import('@notifee/react-native');
+        notifeeInstance =
+          (mod as { notifee?: { cancelDisplayedNotification: (id: string) => Promise<void> } })
+            .notifee ?? null;
+      } catch {
+        notifeeInstance = null;
+      }
+      if (notifeeInstance) {
+        await notifeeInstance.cancelDisplayedNotification(notificationId).catch(() => undefined);
       }
     } catch {
       /* ignore */

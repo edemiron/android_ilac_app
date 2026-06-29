@@ -111,8 +111,7 @@ export async function showPersistentMedicineNotification(
         color: '#FF6B6B',
         colorized: true,
         badgeIconType: AndroidBadgeIconType.LARGE,
-        // Sessiz modda bile göster
-        bypassDnd: true,
+        // Sessiz modda bile göster (channel zaten bypassDnd: true ile oluşturuldu)
         // Grup bildirimi (birden fazla ilaç varsa)
         groupId: 'medicine-reminders',
         groupAlertBehavior: AndroidGroupAlertBehavior.CHILDREN,
@@ -129,7 +128,7 @@ export async function showPersistentMedicineNotification(
         scheduledTime,
         isPersistent: 'true',
         fullScreenAlarm: 'true',
-      } as PersistentNotificationData,
+      } as unknown as { [key: string]: string | number | object },
       // iOS için (uygulanabilirse)
       ios: {
         categoryId: 'medicine',
