@@ -375,6 +375,7 @@ export { useSnoozesStore } from './slices/snoozes';
 export { useSettingsStore } from './slices/settings';
 // Internal: Wrapper action'lar slice store'larina delege eder
 import { useMedicinesStore as _useMedicinesStore } from './slices/medicines';
+import { useLogsStore as _useLogsStore } from './slices/logs';
 export type { MedicinesSlice, LogsSlice, SnoozesSlice, SettingsSlice } from './slices';
 
 interface MedicineState {
@@ -395,7 +396,10 @@ interface MedicineState {
   syncFromCloud: () => Promise<void>;
   clearSyncError: () => void;
 
-  addMedicine: (medicine: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt' | 'isActive'>) => string;
+  addMedicine: (
+    medicine: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt' | 'isActive'> &
+      Partial<Pick<Medicine, 'id' | 'customTimes' | 'isActive'>>
+  ) => string;
   updateMedicine: (id: string, updates: Partial<Medicine>) => void;
   deleteMedicine: (id: string) => void;
   toggleMedicineActive: (id: string) => Promise<void>;
@@ -718,49 +722,36 @@ export const useMedicineStore = create<MedicineState>()(
         set({ syncError: null });
       },
 
-      // İlaç ekleme
+      // İlaç ekleme — Sprint 4 devamı: wrapper pattern.
+      // Core logic (sanitize, ID üretimi, reminder times hesaplama) useMedicinesStore
+      // slice'ına delege edilir. Side-effect'ler (cloud sync, widget update, legacy
+      // state sync) medicineStore.ts'te kalır.
       addMedicine: medicineData => {
         const id = generateId();
-        const now = new Date().toISOString();
         const { settings, userId } = get();
 
-        // Türkçe karakter encoding sorunlarını düzelt
+        // 1. Sanitize — slice'a göndermeden önce türkçe karakter fix
         const sanitizedData = sanitizeMedicineData(medicineData);
 
-        const newMedicine: Medicine = {
-          ...sanitizedData,
-          id,
-          isActive: true,
-          createdAt: now,
-          updatedAt: now,
-        };
+        // 2. Slice delege — state set + reminder times hesaplama
+        // settings opsiyonel parametre olarak geçirilir (kullanıcı tercihi korunur)
+        _useMedicinesStore
+          .getState()
+          .addMedicine(
+            { ...sanitizedData, id },
+            { wakeUpTime: settings.wakeUpTime, sleepTime: settings.sleepTime }
+          );
 
-        let times: Omit<ReminderTime, 'notificationId'>[];
+        // 3. Legacy state sync — medicineStore.ts'in kendi medicines/reminderTimes
+        // field'larını slice ile senkronize et (geriye uyumluluk)
+        const sliceMedicines = _useMedicinesStore.getState().medicines;
+        const sliceReminderTimes = _useMedicinesStore.getState().reminderTimes;
+        set({
+          medicines: sliceMedicines,
+          reminderTimes: sliceReminderTimes,
+        });
 
-        // CustomTimes varsa onu kullan, yoksa otomatik hesapla
-        if (medicineData.customTimes && medicineData.customTimes.length > 0) {
-          times = medicineData.customTimes.map((time, index) => ({
-            id: `${id}_${index}`,
-            medicineId: id,
-            time,
-            isEnabled: true,
-          }));
-        } else {
-          times = calculateMedicineTimes(id, {
-            wakeUpTime: settings.wakeUpTime,
-            sleepTime: settings.sleepTime,
-            frequency: medicineData.frequency,
-            instruction: medicineData.instructions,
-          });
-        }
-
-        set(state => ({
-          medicines: [...state.medicines, newMedicine],
-          reminderTimes: [...state.reminderTimes, ...times],
-        }));
-
-        // Medicine kaydını ve varsa görselini önce doğrudan buluta gönder.
-        // Böylece Storage/Firebase tarafı sadece genel tam sync'e bağlı kalmaz.
+        // 4. Cloud sync — mevcut kod (768-800 bloğu, satır kayması olabilir)
         if (userId) {
           void getSyncQueue()
             .enqueue(async () => {
@@ -796,7 +787,7 @@ export const useMedicineStore = create<MedicineState>()(
           scheduleBackgroundSync(() => get().syncToCloud());
         }
 
-        // Widget'ı güncelle (güvenli mod - hata olursa app çökmez)
+        // 5. Widget update — mevcut kod
         if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
@@ -1127,11 +1118,16 @@ export const useMedicineStore = create<MedicineState>()(
         return { notificationId, activeSnoozes };
       },
 
+      // İlaç alındı olarak logla — Sprint 4 devamı: wrapper pattern.
+      // _createMedicineLog helper'ı medicineStore.ts'te kalır (semantik
+      // çözümleme: medicineId fallback, note, status). medicineLogs slice'a
+      // bulk replace ile delege edilir (normalize wrapper'da).
       logMedicineTaken: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
         log.debug('logMedicineTaken called', { reminderTimeId, scheduledTime });
 
-        const { userId, medicines, reminderTimes } = get();
+        const { userId, medicines, reminderTimes, medicineLogs } = get();
 
+        // 1. Future guard (KORUNMALİ — early return)
         if (isScheduledTimeInFuture(scheduledTime)) {
           log.warn('Gelecekteki doz erkenden alindi olarak isaretlenemedi', {
             reminderTimeId,
@@ -1140,6 +1136,7 @@ export const useMedicineStore = create<MedicineState>()(
           return;
         }
 
+        // 2. resolveMedicineLogArgs ile semantik çözümleme (helper)
         const resolvedArgs = resolveMedicineLogArgs(
           reminderTimeId,
           medicines,
@@ -1147,6 +1144,8 @@ export const useMedicineStore = create<MedicineState>()(
           medicineIdFallback,
           note
         );
+
+        // 3. _createMedicineLog ile medicineLog objesi üret (helper)
         const medicineLog = get()._createMedicineLog(
           'taken',
           reminderTimeId,
@@ -1154,12 +1153,10 @@ export const useMedicineStore = create<MedicineState>()(
           resolvedArgs.medicineIdFallback,
           resolvedArgs.note
         );
-
         if (!medicineLog) return;
 
+        // 4. Caregiver notification (mevcut kod)
         const medicine = medicines.find(m => m.id === medicineLog.medicineId);
-
-        // Bakıcı bildirimi gönder
         if (userId && medicine) {
           import('../services/caregiverNotificationService').then(
             ({ notifyCaregiversAboutMedicineStatus }) => {
@@ -1173,13 +1170,19 @@ export const useMedicineStore = create<MedicineState>()(
           );
         }
 
+        // 5. _cleanupNotifications (helper)
         const { notificationId, activeSnoozes } = get()._cleanupNotifications(
           medicineLog.medicineId,
           reminderTimeId
         );
 
+        // 6. medicineLogs — slice bulk replace (normalize wrapper'da)
+        const normalizedLogs = normalizeMedicineLogsBySlot([...medicineLogs, medicineLog]);
+        _useLogsStore.getState().replaceMedicineLogs(normalizedLogs);
+
+        // 7. medicineStore.ts'in legacy state'i + snoozes — wrapper'da kalır
         set(state => ({
-          medicineLogs: normalizeMedicineLogsBySlot([...state.medicineLogs, medicineLog]),
+          medicineLogs: normalizedLogs,
           snoozes: state.snoozes.map(s =>
             activeSnoozes.some(as => as.id === s.id) ? { ...s, isActive: false } : s
           ),
@@ -1190,21 +1193,22 @@ export const useMedicineStore = create<MedicineState>()(
           cancelledSnoozes: activeSnoozes.length,
         });
 
-        // Stok takibi aktifse stoku azalt (sadece taken'da)
+        // 8. decrementStock (sadece taken'da)
         get().decrementStock(medicineLog.medicineId);
 
+        // 9. Cloud save (mevcut kod)
         if (userId) {
           saveMedicineLogToCloud(userId, medicineLog).catch(err =>
             log.error('Failed to save log to cloud', err)
           );
         }
 
-        // Widget'ı güncelle (ilaç alındı)
+        // 10. Widget update (mevcut kod)
         if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
-              const { medicines, reminderTimes, medicineLogs } = get();
-              updateWidgetData(medicines, reminderTimes, medicineLogs).catch(() => {});
+              const { medicines, reminderTimes, medicineLogs: currentLogs } = get();
+              updateWidgetData(medicines, reminderTimes, currentLogs).catch(() => {});
             } catch (e) {
               log.debug('Widget hatası (logMedicineTaken)', e);
             }
@@ -1212,10 +1216,12 @@ export const useMedicineStore = create<MedicineState>()(
         }
       },
 
+      // İlaç atlandı olarak logla — Sprint 4 devamı: wrapper pattern.
+      // logMedicineTaken ile aynı yapı, fark: decrementStock yok, status='skipped'.
       logMedicineSkipped: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
         log.debug('logMedicineSkipped called', { reminderTimeId, scheduledTime });
 
-        const { userId, medicines, reminderTimes } = get();
+        const { userId, medicines, reminderTimes, medicineLogs } = get();
         const resolvedArgs = resolveMedicineLogArgs(
           reminderTimeId,
           medicines,
@@ -1254,8 +1260,11 @@ export const useMedicineStore = create<MedicineState>()(
           reminderTimeId
         );
 
+        // medicineLogs — slice bulk replace + legacy state sync
+        const normalizedLogs = normalizeMedicineLogsBySlot([...medicineLogs, medicineLog]);
+        _useLogsStore.getState().replaceMedicineLogs(normalizedLogs);
         set(state => ({
-          medicineLogs: normalizeMedicineLogsBySlot([...state.medicineLogs, medicineLog]),
+          medicineLogs: normalizedLogs,
           snoozes: state.snoozes.map(s =>
             activeSnoozes.some(as => as.id === s.id) ? { ...s, isActive: false } : s
           ),
@@ -1276,8 +1285,8 @@ export const useMedicineStore = create<MedicineState>()(
         if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
-              const { medicines, reminderTimes, medicineLogs } = get();
-              updateWidgetData(medicines, reminderTimes, medicineLogs).catch(() => {});
+              const { medicines, reminderTimes, medicineLogs: currentLogs } = get();
+              updateWidgetData(medicines, reminderTimes, currentLogs).catch(() => {});
             } catch (e) {
               log.debug('Widget hatası (logMedicineSkipped)', e);
             }
@@ -1852,6 +1861,10 @@ export const useMedicineStore = create<MedicineState>()(
             settings: DEFAULT_USER_SETTINGS,
             lastSyncAt: null,
           });
+
+          // 6. Slice state'lerini de temizle (Sprint 4 devami)
+          _useMedicinesStore.getState().clearAllMedicines();
+          _useLogsStore.getState().clearAllLogs();
 
           log.info('Tum veriler basariyla temizlendi');
         } catch (error) {

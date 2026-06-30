@@ -13,7 +13,7 @@ import { createScopedLogger } from '../../utils/logger';
 import { generateId } from '../../utils/idGenerator';
 import { calculateMedicineTimes } from '../../utils/timeCalculator';
 import { MEDICINE_COLORS } from '../../constants';
-import type { Medicine, ReminderTime } from '../../types';
+import type { Medicine, ReminderTime, UserSettings } from '../../types';
 
 const log = createScopedLogger('MedicinesSlice');
 
@@ -23,9 +23,10 @@ export interface MedicinesSlice {
 
   /** Yeni ilac ekle (ID uretilir, reminder times otomatik hesaplanir) */
   addMedicine: (
-    medicine: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt'> &
-      Partial<Pick<Medicine, 'id' | 'customTimes'>>
-  ) => string | null;
+    medicine: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt' | 'isActive'> &
+      Partial<Pick<Medicine, 'id' | 'customTimes' | 'isActive'>>,
+    settings?: Pick<UserSettings, 'wakeUpTime' | 'sleepTime'>
+  ) => string;
 
   /** Mevcut ilaci guncelle */
   updateMedicine: (id: string, updates: Partial<Medicine>) => void;
@@ -77,9 +78,11 @@ export const useMedicinesStore = create<MedicinesSlice>()(
       medicines: [],
       reminderTimes: [],
 
-      addMedicine: medicine => {
+      addMedicine: (medicine, settings) => {
         const id = medicine.id ?? generateId();
         const now = new Date().toISOString();
+        const wakeUpTime = settings?.wakeUpTime ?? '08:00';
+        const sleepTime = settings?.sleepTime ?? '23:00';
 
         // Renk: yoksa mevcut renklerden ilk kullanilmayan
         const usedColors = new Set(get().medicines.map(m => m.color));
@@ -97,19 +100,20 @@ export const useMedicinesStore = create<MedicinesSlice>()(
 
         set(state => {
           // Reminder times otomatik hesapla
-          // NOT: calculateMedicineTimes gerçek API'si options bekliyor;
-          // mevcut tek basit yapiyi korumak icin burada hardcoded kullanildi.
-          // Sprint 4'ün tamamlanmasinda settings slice'a baglanacak.
+          // NOT: customTimes varsa medicineStore davranışıyla uyumlu
+          // ${medicineId}_${index} formatı kullanılır (regenerateReminderTimes
+          // ile tutarlı). calculateMedicineTimes'tan gelen reminder'lar için
+          // generateId() kullanılır (time.time alanı ile birlikte).
           const newReminders = medicine.customTimes
-            ? medicine.customTimes.map(time => ({
-                id: generateId(),
+            ? medicine.customTimes.map((time, index) => ({
+                id: `${id}_${index}`,
                 medicineId: id,
                 time,
                 isEnabled: true,
               }))
             : calculateMedicineTimes(id, {
-                wakeUpTime: '08:00',
-                sleepTime: '23:00',
+                wakeUpTime,
+                sleepTime,
                 frequency: medicine.frequency,
                 instruction: medicine.instructions,
               }).map(time => ({

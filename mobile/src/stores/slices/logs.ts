@@ -40,6 +40,14 @@ export interface LogsSlice {
   /** Log sil */
   deleteLog: (logId: string) => void;
 
+  /**
+   * Sprint 4 devami: Bulk replace medicineLogs.
+   * Normalize edilmis listeyi (slot-bazli) tek seferde yerlestirir.
+   * medicineStore wrapper'i normalizeMedicineLogsBySlot helper'ini kullanir
+   * ve bu action ile slice'a delege eder.
+   */
+  replaceMedicineLogs: (logs: MedicineLog[]) => void;
+
   /** Bugun bu hatirlatma icin log var mi kontrol et */
   hasLogFor: (reminderTimeId: string, date: string) => MedicineLog | undefined;
 
@@ -104,6 +112,12 @@ export const useLogsStore = create<LogsSlice>()(
         set(state => ({
           medicineLogs: state.medicineLogs.filter(l => l.id !== logId),
         }));
+      },
+
+      // Sprint 4 devami: bulk replace — medicineStore wrapper normalize
+      // edilmis listeyi (slot-bazli) tek seferde yerlestirmek icin kullanir.
+      replaceMedicineLogs: (logs: MedicineLog[]) => {
+        set({ medicineLogs: logs });
       },
 
       hasLogFor: (reminderTimeId, date) => {
