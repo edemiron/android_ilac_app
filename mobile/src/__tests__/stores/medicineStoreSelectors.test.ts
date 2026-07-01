@@ -1,6 +1,4 @@
 import { renderHook } from '@testing-library/react-native';
-import { useActiveMedicines, useTodayReminders } from '../../stores/medicineStore';
-import { useMedicineStore } from '../../stores/medicineStore';
 
 // WidgetService NativeModules.WidgetDataModule'a erisim sagliyor; test ortaminda mock'la.
 jest.mock('react-native/Libraries/BatchedBridge/NativeModules', () => ({
@@ -10,10 +8,52 @@ jest.mock('../../services/widgetService', () => ({
   updateWidgetData: jest.fn().mockResolvedValue(undefined),
 }));
 
+// Firestore sync + Firebase chain mock (config/firebase.ts Firebase initialization yapıyor)
+jest.mock('../../services/firestoreSync', () => ({
+  uploadAllDataToCloud: jest.fn().mockResolvedValue(undefined),
+  downloadAllDataFromCloud: jest.fn().mockResolvedValue(null),
+  saveMedicineToCloud: jest.fn().mockResolvedValue({}),
+  deleteMedicineFromCloud: jest.fn().mockResolvedValue(undefined),
+  saveMedicineLogToCloud: jest.fn().mockResolvedValue(undefined),
+  syncSettingsToCloud: jest.fn().mockResolvedValue(undefined),
+  deleteAllUserData: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../../config/firebase', () => ({
+  auth: { currentUser: null, onAuthStateChanged: jest.fn(() => () => {}) },
+  db: {},
+  app: {},
+}));
+jest.mock('../../services/localMedicineImage', () => ({
+  isLocalMedicineImageUri: jest.fn().mockReturnValue(false),
+}));
+jest.mock('../../utils/notifications', () => ({
+  cancelAllNotifications: jest.fn(),
+  cancelMedicineNotifications: jest.fn(),
+  scheduleMedicineNotification: jest.fn(),
+  scheduleSnoozeNotification: jest.fn(),
+  analyzeNotificationDrift: jest.fn().mockResolvedValue({ needsUpdate: false }),
+  stopAlarmVibration: jest.fn(),
+}));
+jest.mock('../../utils/syncQueue', () => ({
+  getSyncQueue: () => ({ enqueue: (fn: () => Promise<unknown>) => fn() }),
+}));
+jest.mock('../../utils/syncDataValidator', () => ({
+  validateSyncData: jest.fn(data => ({ success: true, data })),
+}));
+jest.mock('../../utils/diagnosticTelemetry', () => ({
+  recordDiagnosticEvent: jest.fn(),
+}));
+
+import {
+  useActiveMedicines,
+  useTodayReminders,
+  useMedicineStore,
+} from '../../stores/medicineStore';
+
 // NOT: Bu test Sprint 4'te (medicineStore slice mimarisi) yeniden aktif
 // edilecek. Su an medicineStore.ts test ortaminda expo-constants ve Firebase
 // mock zinciri gerekli — Sprint 4'te mockFactory duzenlenecek.
-describe.skip('Performance: store selectors', () => {
+describe('Performance: store selectors', () => {
   beforeEach(() => {
     useMedicineStore.setState({
       medicines: [],
