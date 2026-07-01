@@ -20,12 +20,12 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      // Sprint 7 sonu (2026-06): %19 -> %23 (Tier 1+2+3 kismi). Threshold = current -3.
-      // Sprint 8 sonu final: lines 60, branches 50, functions 55, statements 60.
-      branches: 11,
-      functions: 24,
-      lines: 23,
-      statements: 23,
+      // Sprint 8 Tier 4 devamı sonu (2026-07): %28.8 coverage. Threshold = current -3.
+      // Sprint 8 son final: lines 60, branches 50, functions 55, statements 60 (hedef).
+      branches: 16,
+      functions: 27,
+      lines: 28,
+      statements: 28,
     },
   },
 };
