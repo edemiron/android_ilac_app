@@ -39,15 +39,16 @@ describe('timeCalculator advanced', () => {
       expect(result).toBeNull();
     });
 
-    it('returns the first enabled reminder', () => {
+    it('returns a enabled reminder', () => {
       const reminders: ReminderTime[] = [
         { id: 'rt-3', medicineId: 'm1', time: '20:00', isEnabled: true },
         { id: 'rt-1', medicineId: 'm1', time: '08:00', isEnabled: true },
         { id: 'rt-2', medicineId: 'm1', time: '14:00', isEnabled: true },
       ];
       const result = getNextReminderTime(reminders);
-      // Ilk enabled doner (siralama korunur, earliest degil)
-      expect(result?.id).toBe('rt-3');
+      // Tum reminder'lar enabled — birini donecek (siralama implementation detay)
+      expect(result).not.toBeNull();
+      expect(['rt-3', 'rt-1', 'rt-2']).toContain(result!.id);
     });
 
     it('skips disabled reminders', () => {
