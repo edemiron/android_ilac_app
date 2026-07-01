@@ -24,16 +24,12 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      // Mevcut olcum (2026-06 Sprint 7 sonu): ~18% lines, ~9% branches, ~17% functions, ~18% statements.
-      // Coverage dustuk cunku useShallow + zustand store helper fonksiyonlari
-      // coverage'a dahil edilmiyor (mock'lanmamis davranis).
-      // Threshold mevcut coverage'nin biraz altinda — CI yanlislikla kirmasin.
-      // Hedef: Sprint 7+ ile %50+ line coverage (useAddMedicine, useBarcodeScanner
-      // hook testleri, ekran testleri).
-      branches: 8,
-      functions: 16,
-      lines: 17,
-      statements: 17,
+      // Sprint 7 sonu (2026-06): %19 -> %23 (Tier 1+2+3 kismi). Threshold = current -3.
+      // Sprint 8 sonu final: lines 60, branches 50, functions 55, statements 60.
+      branches: 11,
+      functions: 24,
+      lines: 23,
+      statements: 23,
     },
   },
 };
