@@ -26,6 +26,9 @@ import {
 // Internal kullanim icin import.
 import { requestNotificationPermissions } from './notifications/permissions';
 
+// Sprint 3: time helpers ./notifications/time'a tasindi.
+import { isInQuietHours } from './notifications/time';
+
 // PowerManagerInfo type (notifee'den dogrudan export edilmiyor)
 interface PowerManagerInfo {
   manufacturer?: string;
@@ -1234,33 +1237,9 @@ export async function sendTestNotification(): Promise<void> {
 }
 
 /**
- * Gece modu kontrolü
+ * Sprint 3: time helpers ./notifications/time'a tasindi.
  */
-export function isInQuietHours(settings: UserSettings, referenceDate: Date = new Date()): boolean {
-  if (!settings.quietHoursEnabled) {
-    return false;
-  }
-
-  const currentHour = referenceDate.getHours();
-  const currentMinute = referenceDate.getMinutes();
-  const currentTime = currentHour * 60 + currentMinute;
-
-  const [startHour, startMinute] = settings.quietHoursStart.split(':').map(Number);
-  const [endHour, endMinute] = settings.quietHoursEnd.split(':').map(Number);
-
-  const startTime = startHour * 60 + startMinute;
-  const endTime = endHour * 60 + endMinute;
-
-  if (startTime == endTime) {
-    return false;
-  }
-
-  if (startTime > endTime) {
-    return currentTime >= startTime || currentTime < endTime;
-  }
-
-  return currentTime >= startTime && currentTime < endTime;
-}
+export { isInQuietHours } from './notifications/time';
 
 /**
  * Titreşimi durdur
