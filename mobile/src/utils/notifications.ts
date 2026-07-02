@@ -29,6 +29,9 @@ import { requestNotificationPermissions } from './notifications/permissions';
 // Sprint 3: time helpers ./notifications/time'a tasindi.
 import { isInQuietHours } from './notifications/time';
 
+// Sprint 3: vibration helpers ./notifications/vibration'a tasindi.
+import { getVibrationPattern } from './notifications/vibration';
+
 // PowerManagerInfo type (notifee'den dogrudan export edilmiyor)
 interface PowerManagerInfo {
   manufacturer?: string;
@@ -614,19 +617,11 @@ export async function getNotificationDiagnostics(
     },
   };
 }
-function getVibrationPattern(pattern?: 'default' | 'heartbeat' | 'urgent' | 'soft') {
-  switch (pattern) {
-    case 'heartbeat':
-      return [300, 150, 300, 1000, 300, 150, 300, 1000];
-    case 'urgent':
-      return [150, 150, 150, 150, 150, 500, 150, 150, 150, 150];
-    case 'soft':
-      return [1000, 2000, 1000, 2000];
-    case 'default':
-    default:
-      return [500, 1000, 500, 1000, 500, 1000];
-  }
-}
+
+/**
+ * Sprint 3: getVibrationPattern ./notifications/vibration'a tasindi.
+ */
+export { getVibrationPattern } from './notifications/vibration';
 
 /**
  * Bildirim kanallar?n? olu?tur
