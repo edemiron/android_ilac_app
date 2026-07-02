@@ -8,7 +8,7 @@ import notifee, {
   TimestampTrigger,
   AlarmType,
 } from '@notifee/react-native';
-import { Platform, Vibration, NativeModules } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import { STORAGE_KEYS } from '../constants';
 
 // Sprint 3 (notifications.ts modular): id helper'lari ./notifications/ids'e tasindi.
@@ -1242,15 +1242,9 @@ export async function sendTestNotification(): Promise<void> {
 export { isInQuietHours } from './notifications/time';
 
 /**
- * Titreşimi durdur
+ * Titreşimi durdur — Sprint 3: vibration modülüne tasindi.
  */
-export function stopAlarmVibration(): void {
-  try {
-    Vibration.cancel?.();
-  } catch (error) {
-    log.debug('Titreşim durdurma native bridge olmadan atlandi', error);
-  }
-}
+export { stopAlarmVibration } from './notifications/vibration';
 
 /**
  * Notifee event listener'ı kur
