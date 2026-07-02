@@ -4,14 +4,27 @@ import notifee, {
   AndroidCategory,
   EventType,
   Event,
-  AuthorizationStatus,
-  AndroidNotificationSetting,
   TriggerType,
   TimestampTrigger,
   AlarmType,
 } from '@notifee/react-native';
-import { Platform, Vibration, Linking, NativeModules } from 'react-native';
+import { Platform, Vibration, NativeModules } from 'react-native';
 import { STORAGE_KEYS } from '../constants';
+
+// Sprint 3 (notifications.ts modular): id helper'lari ./notifications/ids'e tasindi.
+// Internal kullanim icin ayrica import ediyoruz (re-export ile ayni path degil).
+import {
+  buildSnoozeNotificationId,
+  getAlarmNotificationId,
+  isAlarmNotificationId,
+  isSnoozeNotificationId,
+  belongsToMedicine,
+  extractDisplayedMedicineId,
+} from './notifications/ids';
+
+// Sprint 3: permission fonksiyonlari ./notifications/permissions'a tasindi.
+// Internal kullanim icin import.
+import { requestNotificationPermissions } from './notifications/permissions';
 
 // PowerManagerInfo type (notifee'den dogrudan export edilmiyor)
 interface PowerManagerInfo {
@@ -70,36 +83,18 @@ const PRESS_ACTION = {
 // turning that platform limitation into a hard "missing trigger" failure.
 const ANDROID_TRIGGER_INTROSPECTION_LIMIT = 50;
 
-export function buildSnoozeNotificationId(
-  medicineId: string,
-  reminderTimeId: string,
-  snoozeId: string
-): string {
-  return `snooze-${medicineId}-${reminderTimeId}-${snoozeId}`;
-}
-
-function isAlarmNotificationId(notificationId?: string): boolean {
-  return !!notificationId?.startsWith('alarm-');
-}
-
-function isSnoozeNotificationId(notificationId?: string): boolean {
-  return !!notificationId?.startsWith('snooze-');
-}
-
-function belongsToMedicine(notificationId: string | undefined, medicineId: string): boolean {
-  return (
-    !!notificationId &&
-    (notificationId.startsWith(`alarm-${medicineId}-`) ||
-      notificationId.startsWith(`snooze-${medicineId}-`))
-  );
-}
-
-function extractDisplayedMedicineId(
-  notification: { notification?: { data?: Record<string, unknown> } } | undefined
-): string | undefined {
-  const medicineId = notification?.notification?.data?.medicineId;
-  return typeof medicineId === 'string' ? medicineId : undefined;
-}
+// Sprint 3 (notifications.ts modular): id helper'lari ./notifications/ids'e tasindi.
+// Davranis korunuyor — mevcut import'lar (buildSnoozeNotificationId, vb.)
+// notifications.ts uzerinden hala erisebilir (asagidaki re-export).
+export {
+  buildSnoozeNotificationId,
+  buildAlarmNotificationId,
+  getAlarmNotificationId,
+  isAlarmNotificationId,
+  isSnoozeNotificationId,
+  belongsToMedicine,
+  extractDisplayedMedicineId,
+} from './notifications/ids';
 
 type NotificationSettingsInput = UserSettings | boolean | undefined;
 
@@ -239,10 +234,6 @@ export function getNotificationBehaviorSnapshot(
     sound: behavior.sound,
     vibrationEnabled: behavior.vibrationEnabled,
   };
-}
-
-function getAlarmNotificationId(medicineId: string, reminderTimeId: string): string {
-  return `alarm-${medicineId}-${reminderTimeId}`;
 }
 
 function calculateReminderTriggerDate(
@@ -643,194 +634,22 @@ function getVibrationPattern(pattern?: 'default' | 'heartbeat' | 'urgent' | 'sof
  *   import { createNotificationChannels } from './notifications/channels';
  */
 
-// Power Manager bilgilerini al (MIUI, EMUI, ColorOS vb. için kritik)
-export async function getPowerManagerInfo(): Promise<PowerManagerInfo | null> {
-  if (Platform.OS !== 'android') return null;
-
-  try {
-    const info = await notifee.getPowerManagerInfo();
-    log.debug('Power Manager bilgisi', {
-      manufacturer: info.manufacturer,
-      activity: info.activity,
-    });
-    return info;
-  } catch (error) {
-    log.error('Power Manager bilgisi alinamadi', error);
-    return null;
-  }
-}
-
 /**
- * Cihaza özel power manager ayarlarını aç (MIUI autostart vb.)
+ * Sprint 3 (notifications.ts modular): permission fonksiyonlari
+ * ./notifications/permissions modülüne tasindi. Davranis korunuyor.
  */
-export async function openPowerManagerSettings(): Promise<void> {
-  if (Platform.OS !== 'android') return;
-
-  try {
-    await notifee.openPowerManagerSettings();
-    log.debug('Power Manager ayarlari acildi');
-  } catch (error) {
-    log.error('Power Manager ayarlari acilamadi', error);
-    // Fallback: Genel pil ayarlarını aç
-    await notifee.openBatteryOptimizationSettings();
-  }
-}
-
-/**
- * Tüm gerekli izinleri kontrol et
- */
-export async function checkAllPermissions(): Promise<{
-  notifications: boolean;
-  exactAlarm: boolean;
-  batteryOptimization: boolean;
-  dnd: boolean;
-  fullScreenIntent: boolean;
-  powerManagerRestricted: boolean;
-  manufacturer: string | null;
-  isMIUI: boolean;
-}> {
-  const settings = await notifee.getNotificationSettings();
-
-  // Android 14+ için full screen intent izni kontrolü
-  let fullScreenIntentEnabled = true;
-  if (Platform.OS === 'android' && Platform.Version >= 34) {
-    // Android 14+ için özel kontrol gerekiyor
-    // Notifee tipler henuz fullScreenIntent'i icermeyebilir
-    const androidSettings = settings.android as { fullScreenIntent?: number };
-    fullScreenIntentEnabled = androidSettings?.fullScreenIntent !== 0;
-  }
-
-  // batteryOptimizationStatus notifee tiplerinde olmayabilir
-  const androidSettingsWithBattery = settings.android as { batteryOptimizationStatus?: number };
-
-  // Power Manager bilgisi (MIUI, EMUI, ColorOS vb.)
-  let powerManagerRestricted = false;
-  let manufacturer: string | null = null;
-
-  if (Platform.OS === 'android') {
-    try {
-      const powerInfo = await notifee.getPowerManagerInfo();
-      manufacturer = powerInfo.manufacturer || null;
-      // Eger cihaz ureticisi ozel power manager'a sahipse ve activity varsa
-      // bu, kullanicinin ayarlari yapmasi gerektigini gosterir
-      powerManagerRestricted = !!powerInfo.activity;
-      log.debug('Power Manager durumu', {
-        manufacturer,
-        hasActivity: !!powerInfo.activity,
-        activity: powerInfo.activity,
-      });
-      // eslint-disable-next-line unused-imports/no-unused-vars
-    } catch (e) {
-      log.debug('Power Manager bilgisi alinamadi');
-    }
-  }
-
-  return {
-    notifications: settings.authorizationStatus === AuthorizationStatus.AUTHORIZED,
-    exactAlarm:
-      Platform.OS === 'android'
-        ? settings.android.alarm === AndroidNotificationSetting.ENABLED
-        : true,
-    batteryOptimization:
-      Platform.OS === 'android'
-        ? !androidSettingsWithBattery.batteryOptimizationStatus ||
-          androidSettingsWithBattery.batteryOptimizationStatus === 1
-        : true,
-    dnd: true,
-    fullScreenIntent: fullScreenIntentEnabled,
-    powerManagerRestricted,
-    manufacturer,
-    isMIUI: isMIUIDevice(),
-  };
-}
-
-/**
- * Full screen intent izin ayarlarını aç (Android 14+)
- */
-export async function openFullScreenIntentSettings(): Promise<void> {
-  if (Platform.OS === 'android' && Platform.Version >= 34) {
-    try {
-      await Linking.sendIntent('android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT');
-      // eslint-disable-next-line unused-imports/no-unused-vars
-    } catch (error) {
-      // Fallback: Uygulama ayarlarını aç
-      await notifee.openNotificationSettings();
-    }
-  }
-}
-
-/**
- * Bildirim izni iste
- */
-export async function requestNotificationPermissions(): Promise<boolean> {
-  try {
-    log.debug('requestNotificationPermissions cagirildi');
-    const settings = await notifee.requestPermission();
-    log.debug('notifee.requestPermission sonucu', {
-      authorizationStatus: settings.authorizationStatus,
-    });
-
-    // Kanalları her durumda oluştur
-    await createNotificationChannels();
-    log.debug('Kanallar olusturuldu');
-
-    const isAuthorized =
-      settings.authorizationStatus === AuthorizationStatus.AUTHORIZED ||
-      settings.authorizationStatus === AuthorizationStatus.PROVISIONAL;
-
-    log.debug('Izin durumu', { isAuthorized });
-    return isAuthorized;
-  } catch (error) {
-    log.error('requestNotificationPermissions hatasi', error);
-    // Hata durumunda bile kanalları oluşturmayı dene
-    try {
-      await createNotificationChannels();
-    } catch (e) {
-      log.error('Kanal olusturma hatasi', e);
-    }
-    return false;
-  }
-}
-
-/**
- * Exact Alarm izni iste (Android 12+)
- */
-export async function requestExactAlarmPermission(): Promise<void> {
-  if (Platform.OS === 'android') {
-    await notifee.openAlarmPermissionSettings();
-  }
-}
-
-/**
- * Pil optimizasyonu devre dışı bırakma izni iste
- */
-export async function requestBatteryOptimizationPermission(): Promise<void> {
-  if (Platform.OS === 'android') {
-    await notifee.openBatteryOptimizationSettings();
-  }
-}
-
-/**
- * DND (Rahatsız Etmeyin) izin ayarlarını aç
- */
-export async function openDndSettings(): Promise<void> {
-  if (Platform.OS === 'android') {
-    try {
-      await Linking.sendIntent('android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS');
-      // eslint-disable-next-line unused-imports/no-unused-vars
-    } catch (error) {
-      // Fallback: Genel ayarları aç
-      await Linking.openSettings();
-    }
-  }
-}
-
-/**
- * Uygulama bildirim ayarlarını aç
- */
-export async function openNotificationSettings(): Promise<void> {
-  await notifee.openNotificationSettings();
-}
+export {
+  getPowerManagerInfo,
+  openPowerManagerSettings,
+  checkAllPermissions,
+  openFullScreenIntentSettings,
+  requestNotificationPermissions,
+  requestExactAlarmPermission,
+  requestBatteryOptimizationPermission,
+  openDndSettings,
+  openNotificationSettings,
+  type PermissionStatus,
+} from './notifications/permissions';
 
 /**
  * UCES: MIUI için AGRESİF hassas alarm zamanlama
