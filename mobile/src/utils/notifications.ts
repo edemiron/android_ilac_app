@@ -8,7 +8,7 @@ import notifee, {
   TimestampTrigger,
   AlarmType,
 } from '@notifee/react-native';
-import { Platform, NativeModules } from 'react-native';
+import { Platform } from 'react-native';
 import { STORAGE_KEYS } from '../constants';
 
 // Sprint 3 (notifications.ts modular): id helper'lari ./notifications/ids'e tasindi.
@@ -18,8 +18,6 @@ import {
   getAlarmNotificationId,
   isAlarmNotificationId,
   isSnoozeNotificationId,
-  belongsToMedicine,
-  extractDisplayedMedicineId,
 } from './notifications/ids';
 
 // Sprint 3: permission fonksiyonlari ./notifications/permissions'a tasindi.
@@ -28,6 +26,9 @@ import { requestNotificationPermissions } from './notifications/permissions';
 
 // Sprint 3: time helpers ./notifications/time'a tasindi.
 import { isInQuietHours } from './notifications/time';
+
+// Sprint 3: cancel modülüne tasindi.
+import { cancelNotification } from './notifications/cancel';
 
 // Sprint 3: vibration helpers ./notifications/vibration'a tasindi.
 import { getVibrationPattern } from './notifications/vibration';
@@ -1079,157 +1080,33 @@ export async function scheduleSnoozeNotification(
 }
 
 /**
- * Bildirimi iptal et
+ * Bildirim iptal et — Sprint 3: cancel modülüne tasindi.
  */
-export async function cancelNotification(notificationId: string): Promise<void> {
-  try {
-    await notifee.cancelNotification(notificationId);
-  } catch (error) {
-    log.error('Bildirim iptal edilirken hata', error);
-  }
-}
+export {
+  cancelNotification,
+  cancelMedicineNotifications,
+  cleanupOrphanNotifications,
+} from './notifications/cancel';
 
 /**
- * Belirli bir ilaca ait TÜM bildirimleri iptal et
- * İlaç silindiğinde çağrılmalı - phantom notification'ları engeller
+ * Tüm bildirimleri iptal et — Sprint 3: actions modülüne tasindi.
  */
-export async function cancelMedicineNotifications(medicineId: string): Promise<void> {
-  try {
-    // Tüm planlanmış (trigger) bildirimleri al
-    const triggerIds = await notifee.getTriggerNotificationIds();
-
-    // Bu ilaca ait olanları filtrele (alarm-{medicineId}-* ve snooze-{medicineId}-*)
-    const medicineNotificationIds = triggerIds.filter(id => belongsToMedicine(id, medicineId));
-
-    // Her birini iptal et
-    for (const notifId of medicineNotificationIds) {
-      await notifee.cancelNotification(notifId);
-      log.debug('Ilac bildirimi iptal edildi', { notifId, medicineId });
-    }
-
-    // Görüntülenen bildirimleri de kontrol et
-    const displayedNotifications = await notifee.getDisplayedNotifications();
-    for (const notif of displayedNotifications) {
-      const displayedMedicineId = extractDisplayedMedicineId(notif);
-      if (
-        notif.id &&
-        (displayedMedicineId === medicineId || belongsToMedicine(notif.id, medicineId))
-      ) {
-        await notifee.cancelDisplayedNotification(notif.id);
-        log.debug('Goruntulen bildirim iptal edildi', { notifId: notif.id, medicineId });
-      }
-    }
-
-    log.debug('Ilaca ait tum bildirimler iptal edildi', {
-      medicineId,
-      cancelledCount: medicineNotificationIds.length,
-    });
-  } catch (error) {
-    log.error('Ilac bildirimleri iptal edilirken hata', error);
-  }
-}
-
-/**
- * Tüm bildirimleri iptal et
- */
-export async function cancelAllNotifications(): Promise<void> {
-  await notifee.cancelAllNotifications();
-}
+export {
+  cancelAllNotifications,
+  dismissNotification,
+  sendTestNotification,
+} from './notifications/actions';
 
 /**
  * Yetim (orphan) bildirimleri temizle
  * Gecerli ilac ID'leri ile eslesmeyenleri iptal eder
- * Uygulama acilisinda cagrilmali
+ * Uygulama acilisinda cagrilmali — Sprint 3: cancel modülüne tasindi.
  */
-export async function cleanupOrphanNotifications(validMedicineIds: string[]): Promise<number> {
-  try {
-    // Test alarmi her zaman gecerli kabul edilir
-    const validIds = new Set([...validMedicineIds, 'test-medicine']);
-    const validMedicineIdList = Array.from(validIds);
-
-    // Tum planlanmis trigger'lari al
-    const triggerIds = await notifee.getTriggerNotificationIds();
-    let cancelledCount = 0;
-
-    for (const triggerId of triggerIds) {
-      const isKnownMedicine = validMedicineIdList.some(medicineId =>
-        belongsToMedicine(triggerId, medicineId)
-      );
-
-      // Legacy snooze ID'leri medicineId içermeyebilir; yanlış pozitif silmeyi önlemek için atla.
-      if (isAlarmNotificationId(triggerId) && !isKnownMedicine) {
-        await notifee.cancelNotification(triggerId);
-        cancelledCount++;
-        log.debug('Yetim alarm bildirimi iptal edildi', { triggerId });
-      } else if (isSnoozeNotificationId(triggerId) && !isKnownMedicine) {
-        log.debug('MedicineId çözülemeyen snooze trigger atlandı', { triggerId });
-      }
-    }
-
-    // Goruntulen bildirimleri de kontrol et
-    const displayedNotifications = await notifee.getDisplayedNotifications();
-    for (const notif of displayedNotifications) {
-      if (!notif.id) continue;
-
-      const medicineId = extractDisplayedMedicineId(notif);
-      const isKnownMedicine =
-        (medicineId && validIds.has(medicineId)) ||
-        validMedicineIdList.some(validMedicineId => belongsToMedicine(notif.id, validMedicineId));
-
-      if (
-        (isAlarmNotificationId(notif.id) || isSnoozeNotificationId(notif.id)) &&
-        !isKnownMedicine
-      ) {
-        await notifee.cancelDisplayedNotification(notif.id);
-        cancelledCount++;
-        log.debug('Goruntulen yetim bildirim iptal edildi', { notifId: notif.id, medicineId });
-      }
-    }
-
-    if (cancelledCount > 0) {
-      log.debug('Yetim bildirim temizligi tamamlandi', {
-        cancelledCount,
-        validMedicineCount: validMedicineIds.length,
-      });
-    }
-
-    return cancelledCount;
-  } catch (error) {
-    log.error('Yetim bildirim temizligi sirasinda hata', error);
-    return 0;
-  }
-}
 
 /**
- * Görüntülenen bildirimi kapat
+ * Görüntülenen bildirimi kapat + Test bildirimi gönder —
+ * Sprint 3: actions modülüne tasindi.
  */
-export async function dismissNotification(notificationId: string): Promise<void> {
-  try {
-    await notifee.cancelDisplayedNotification(notificationId);
-  } catch (error) {
-    log.error('Bildirim kapatilirken hata', error);
-  }
-}
-
-/**
- * Test bildirimi gönder
- */
-export async function sendTestNotification(): Promise<void> {
-  // Kanal oluşturulduğundan emin ol
-  await createNotificationChannels();
-
-  await notifee.displayNotification({
-    title: '🔔 Test Bildirimi',
-    body: 'İlaç hatırlatma sistemi çalışıyor!',
-    android: {
-      channelId: REMINDER_CHANNEL_ID,
-      smallIcon: 'ic_launcher',
-      pressAction: {
-        id: 'default',
-      },
-    },
-  });
-}
 
 /**
  * Sprint 3: time helpers ./notifications/time'a tasindi.
@@ -1459,38 +1336,8 @@ export { requestNotificationPermissions as setupNotificationCategories };
 // MIUI Helper re-exports
 export { isMIUIDevice, getMIUIInstructions, openMIUIAutoStartSettings };
 
-// MIUI Alarm Service helpers
-export async function wakeAndOpenApp(): Promise<boolean> {
-  if (Platform.OS !== 'android') return false;
+// Sprint 3: wake helpers ./notifications/wake'a tasindi.
+export { wakeAndOpenApp, wakeScreenOnly } from './notifications/wake';
 
-  try {
-    const { AlarmModule } = NativeModules;
-    if (AlarmModule) {
-      await AlarmModule.wakeAndOpenApp();
-      log.debug('AlarmModule: Screen woken + app opened');
-      return true;
-    }
-  } catch (error) {
-    log.error('AlarmModule: wakeAndOpenApp failed', error);
-  }
-  return false;
-}
-
-/**
- * Sadece ekranı aç (FullScreenIntent izni olmayan cihazlar için fallback)
- */
-export async function wakeScreenOnly(): Promise<boolean> {
-  if (Platform.OS !== 'android') return false;
-
-  try {
-    const { AlarmModule } = NativeModules;
-    if (AlarmModule) {
-      await AlarmModule.wakeScreenOnly();
-      log.debug('AlarmModule: Screen woken only');
-      return true;
-    }
-  } catch (error) {
-    log.error('AlarmModule: wakeScreenOnly failed', error);
-  }
-  return false;
-}
+// MIUI Alarm Service helpers — Sprint 3: ./notifications/wake'a tasindi.
+// export { wakeAndOpenApp, wakeScreenOnly } from './notifications/wake'; yukarida.
