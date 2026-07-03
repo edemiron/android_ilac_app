@@ -21,6 +21,10 @@ import { cancelNotification } from './cancel';
 import { createNotificationChannels } from './channels';
 import { buildSnoozeNotificationId } from './ids';
 import { resolveNotificationBehavior, type NotificationSettingsInput } from './behavior';
+import { recordDiagnosticEvent } from '../diagnosticTelemetry';
+import { isMIUIDevice } from '../miuiHelper';
+import { resolveReminderTriggerDate } from './diagnostics';
+import { getAlarmNotificationId } from './ids';
 import type { Medicine, ReminderTime, UserSettings } from '../../types';
 
 const log = createScopedLogger('NotificationSchedule');
@@ -344,3 +348,113 @@ export async function scheduleTestAlarmNotification(
     throw error;
   }
 }
+export async function scheduleMedicineNotification(
+  medicine: Medicine,
+  reminderTime: ReminderTime,
+  settingsOrFullScreen: UserSettings | boolean = true,
+  bypassBuffer: boolean = false
+): Promise<string | null> {
+  if (!medicine?.id || !reminderTime?.id || !reminderTime?.time) {
+    log.warn('scheduleMedicineNotification: Gecersiz parametre, bildirim planlanmadi', {
+      hasMedicine: !!medicine,
+      hasMedicineId: !!medicine?.id,
+      hasReminderTime: !!reminderTime,
+      hasReminderTimeId: !!reminderTime?.id,
+    });
+    return null;
+  }
+
+  try {
+    await cancelNotification(`alarm-${medicine.id}-${reminderTime.id}`);
+
+    const now = new Date();
+    const triggerDate = resolveReminderTriggerDate(reminderTime, bypassBuffer, now);
+
+    const behavior = resolveNotificationBehavior(medicine, settingsOrFullScreen, triggerDate);
+
+    log.debug('Ilac bildirimi planlaniyor', {
+      name: medicine.name,
+      time: reminderTime.time,
+      targetDate: triggerDate.toISOString(),
+      isMIUI: isMIUIDevice(),
+      quietHoursActive: behavior.quietHoursActive,
+      fullScreenAlarm: behavior.fullScreenAlarm,
+      channelId: behavior.channelId,
+    });
+
+    const trigger: TimestampTrigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: triggerDate.getTime(),
+      alarmManager: {
+        allowWhileIdle: true,
+        type: AlarmType.SET_ALARM_CLOCK,
+      },
+    };
+
+    const timeStr = triggerDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+    const notificationId = await notifee.createTriggerNotification(
+      {
+        id: getAlarmNotificationId(medicine.id, reminderTime.id),
+        title: `?? ${medicine.name}`,
+        subtitle: timeStr,
+        body: `${medicine.dosage} almanin zamani!
+? ${timeStr}`,
+        android: {
+          channelId: behavior.channelId,
+          category: AndroidCategory.ALARM,
+          importance: AndroidImportance.HIGH,
+          visibility: AndroidVisibility.PRIVATE,
+          ongoing: behavior.fullScreenAlarm,
+          autoCancel: !behavior.fullScreenAlarm,
+          onlyAlertOnce: false,
+          loopSound: behavior.fullScreenAlarm,
+          fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
+          pressAction: PRESS_ACTION,
+          smallIcon: 'ic_launcher',
+          color: '#2196F3',
+          colorized: true,
+          sound: behavior.sound,
+          vibrationPattern: behavior.vibrationPattern,
+          lights: ['#2196F3', 500, 500] as [string, number, number],
+          actions: ALARM_ACTIONS,
+        },
+        data: {
+          medicineId: medicine.id,
+          reminderTimeId: reminderTime.id,
+          scheduledTime: triggerDate.toISOString(),
+          fullScreenAlarm: behavior.fullScreenAlarm ? 'true' : 'false',
+          quietHoursActive: behavior.quietHoursActive ? 'true' : 'false',
+        },
+      },
+      trigger
+    );
+
+    log.debug('Bildirim planlandi', {
+      time: reminderTime.time,
+      notificationId,
+      quietHoursActive: behavior.quietHoursActive,
+    });
+
+    const triggers = await notifee.getTriggerNotificationIds();
+    log.debug('Aktif trigger sayisi', { count: triggers.length });
+
+    return notificationId;
+  } catch (error) {
+    log.error('Bildirim planlanirken hata', error);
+    void recordDiagnosticEvent({
+      scope: 'schedule',
+      level: 'error',
+      message: 'Medicine notification scheduling failed',
+      context: {
+        medicineId: medicine.id,
+        reminderTimeId: reminderTime.id,
+      },
+    });
+    return null;
+  }
+}
+
+/**
+ * Test alarm bildirimi planla
+ */

@@ -3,9 +3,7 @@
  * Tests for notification scheduling, cancellation, and management
  */
 
-import notifee, {
-  AndroidImportance,
-} from '@notifee/react-native';
+import notifee, { AndroidImportance } from '@notifee/react-native';
 import {
   scheduleMedicineNotification,
   scheduleTestAlarmNotification,
@@ -58,6 +56,10 @@ jest.mock('../../utils/logger', () => ({
 jest.mock('react-native', () => ({
   Platform: { OS: 'android' },
   Vibration: { cancel: jest.fn() },
+}));
+
+jest.mock('../../utils/diagnosticTelemetry', () => ({
+  recordDiagnosticEvent: jest.fn(),
 }));
 
 const { Vibration } = require('react-native');
