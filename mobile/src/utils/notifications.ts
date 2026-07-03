@@ -2,14 +2,11 @@ import notifee, {
   AndroidImportance,
   AndroidVisibility,
   AndroidCategory,
-  EventType,
-  Event,
   TriggerType,
   TimestampTrigger,
   AlarmType,
 } from '@notifee/react-native';
 import { Platform } from 'react-native';
-import { STORAGE_KEYS } from '../constants';
 
 // Sprint 3 (notifications.ts modular): id helper'lari ./notifications/ids'e tasindi.
 // Internal kullanim icin ayrica import ediyoruz (re-export ile ayni path degil).
@@ -44,7 +41,6 @@ import { createScopedLogger } from './logger';
 import { isMIUIDevice, getMIUIInstructions, openMIUIAutoStartSettings } from './miuiHelper';
 import { createDefaultUserSettings } from './defaultSettings';
 import { recordDiagnosticEvent } from './diagnosticTelemetry';
-import { getAlarmKey } from './alarmNavigation';
 
 // Re-export channel sabitleri (geriye uyumluluk için) — Sprint 3'te
 // notifications/channels.ts modülüne tasindi. Import edip yeniden export
@@ -1118,124 +1114,12 @@ export { isInQuietHours } from './notifications/time';
  */
 export { stopAlarmVibration } from './notifications/vibration';
 
-/**
- * Notifee event listener'ı kur
- */
-export interface NotificationData {
-  medicineId?: string;
-  reminderTimeId?: string;
-  scheduledTime?: string;
-  fullScreenAlarm?: string;
-  isSnooze?: string;
-  snoozeId?: string;
-  snoozeCount?: string;
-  isPersistent?: string;
-}
-
-export interface AlarmPressData {
-  medicineId: string;
-  reminderTimeId: string;
-  scheduledTime: string;
-  originalScheduledTime?: string;
-  isSnooze?: string;
-  snoozeId?: string;
-  snoozeCount?: string;
-}
-
-export function setupNotificationListeners(
-  onAlarmPress: (data: AlarmPressData) => void,
-  onAction: (actionId: string, data: NotificationData | undefined) => void
-): () => void {
-  return notifee.onForegroundEvent(async ({ type, detail }: Event) => {
-    const { notification, pressAction } = detail;
-
-    log.debug('Foreground event', { type, notificationId: notification?.id });
-
-    // ─── DELIVERED ───
-    if (type === EventType.DELIVERED) {
-      if (notification?.data?.fullScreenAlarm === 'true' && notification?.id) {
-        const medId = notification.data.medicineId as string;
-        const remId = notification.data.reminderTimeId as string;
-        const alarmKey = getAlarmKey(
-          {
-            medicineId: medId,
-            reminderTimeId: remId,
-            scheduledTime: notification.data.scheduledTime as string,
-            isSnooze: notification.data.isSnooze as string | undefined,
-            snoozeId: notification.data.snoozeId as string | undefined,
-          },
-          new Date()
-        );
-
-        // KRİTİK: Bu alarm zaten handle edildi mi kontrol et (AsyncStorage + memory)
-        let handled = false;
-        try {
-          const AsyncStorageModule = require('@react-native-async-storage/async-storage').default;
-          const raw = await AsyncStorageModule.getItem(STORAGE_KEYS.HANDLED_ALARMS);
-          if (raw) {
-            const arr: { key: string; ts: number }[] = JSON.parse(raw);
-            handled = arr.some(a => a.key === alarmKey && Date.now() - a.ts < 5 * 60 * 1000);
-          }
-          // eslint-disable-next-line unused-imports/no-unused-vars
-        } catch (_e) {
-          /* ignore */
-        }
-
-        if (handled) {
-          log.debug('Alarm already handled, skipping', { alarmKey });
-          await notifee.cancelDisplayedNotification(notification.id);
-          return;
-        }
-
-        log.debug('Full screen alarm - opening alarm screen');
-        await notifee.cancelDisplayedNotification(notification.id);
-
-        // pending-alarm'ı temizle — checkInitialNotification ile çakışmayı engelle
-        try {
-          const AsyncStorageModule = require('@react-native-async-storage/async-storage').default;
-          await AsyncStorageModule.removeItem(STORAGE_KEYS.PENDING_ALARM);
-          // eslint-disable-next-line unused-imports/no-unused-vars
-        } catch (_e) {
-          /* ignore */
-        }
-
-        onAlarmPress({
-          medicineId: medId,
-          reminderTimeId: remId,
-          scheduledTime: notification.data.scheduledTime as string,
-          originalScheduledTime: notification.data.originalScheduledTime as string | undefined,
-          isSnooze: notification.data.isSnooze as string | undefined,
-          snoozeId: notification.data.snoozeId as string | undefined,
-          snoozeCount: notification.data.snoozeCount as string | undefined,
-        });
-      }
-    }
-
-    // ─── PRESS ───
-    if (type === EventType.PRESS) {
-      if (notification?.id) {
-        await notifee.cancelDisplayedNotification(notification.id);
-      }
-      if (notification?.data) {
-        onAlarmPress({
-          medicineId: notification.data.medicineId as string,
-          reminderTimeId: notification.data.reminderTimeId as string,
-          scheduledTime: notification.data.scheduledTime as string,
-          originalScheduledTime: notification.data.originalScheduledTime as string | undefined,
-          isSnooze: notification.data.isSnooze as string | undefined,
-          snoozeId: notification.data.snoozeId as string | undefined,
-          snoozeCount: notification.data.snoozeCount as string | undefined,
-        });
-      }
-    }
-
-    // ─── ACTION_PRESS ───
-    if (type === EventType.ACTION_PRESS && pressAction) {
-      onAction(pressAction.id, notification?.data);
-    }
-  });
-}
-
+/* Sprint 3: listeners modulu */
+export {
+  setupNotificationListeners,
+  type NotificationData,
+  type AlarmPressData,
+} from './notifications/listeners';
 /* Sprint 3: schedule modulu */
 export { scheduleExpiryReminder, cancelExpiryReminder } from './notifications/schedule';
 // Expo-notifications ile uyumluluk için eski fonksiyon adları
