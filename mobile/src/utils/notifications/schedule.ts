@@ -18,8 +18,9 @@ import { createScopedLogger } from '../logger';
 import { REMINDER_CHANNEL_ID } from './channels';
 import { ALARM_ACTIONS, FULL_SCREEN_ACTION, PRESS_ACTION } from './config';
 import { cancelNotification } from './cancel';
+import { createNotificationChannels } from './channels';
 import { buildSnoozeNotificationId } from './ids';
-import { resolveNotificationBehavior } from './behavior';
+import { resolveNotificationBehavior, type NotificationSettingsInput } from './behavior';
 import type { Medicine, ReminderTime, UserSettings } from '../../types';
 
 const log = createScopedLogger('NotificationSchedule');
@@ -219,5 +220,127 @@ export async function scheduleSnoozeNotification(
   } catch (error) {
     log.error('Erteleme bildirimi planlanirken hata', error);
     return null;
+  }
+}
+
+/**
+ * Test alarm bildirimi planla
+ */
+export async function scheduleTestAlarmNotification(
+  minutesFromNow: number,
+  language: 'tr' | 'en' = 'tr',
+  settingsOrFlag?: NotificationSettingsInput
+): Promise<string> {
+  const seconds = Math.round(minutesFromNow * 60);
+  const scheduledTime = new Date(Date.now() + seconds * 1000);
+  const behavior = resolveNotificationBehavior(
+    {
+      id: 'test-medicine',
+      name: language === 'tr' ? 'Test Ilaci' : 'Test Medicine',
+      dosage: '500mg',
+      frequency: 1,
+      color: '#2196F3',
+      isActive: true,
+      createdAt: scheduledTime.toISOString(),
+      updatedAt: scheduledTime.toISOString(),
+      startDate: scheduledTime.toISOString(),
+    },
+    settingsOrFlag,
+    scheduledTime
+  );
+
+  log.debug('Test alarm planlaniyor', {
+    currentTime: new Date().toISOString(),
+    targetTime: scheduledTime.toISOString(),
+    delaySeconds: seconds,
+  });
+
+  // Kanalin olusturuldugundan emin ol
+  await createNotificationChannels();
+
+  // Sabit ID kullan - dismiss icin gerekli
+  const testMedicineId = 'test-medicine';
+  const testReminderId = 'test-reminder';
+  const notifId = `alarm-${testMedicineId}-${testReminderId}`;
+
+  // Onceki test alarmini iptal et
+  await cancelNotification(notifId);
+
+  // Saat formati
+  const timeStr = scheduledTime.toLocaleTimeString('tr-TR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const notificationConfig = {
+    id: notifId,
+    title: language === 'tr' ? '💊 Test Ilaci' : '💊 Test Medicine',
+    subtitle: timeStr,
+    body:
+      language === 'tr'
+        ? `Aspirin 500mg almanin zamani!\n⏰ ${timeStr}`
+        : `Time to take Aspirin 500mg!\n⏰ ${timeStr}`,
+    android: {
+      channelId: behavior.channelId,
+      category: AndroidCategory.ALARM,
+      importance: AndroidImportance.HIGH,
+      visibility: AndroidVisibility.PRIVATE,
+      ongoing: behavior.fullScreenAlarm,
+      autoCancel: !behavior.fullScreenAlarm,
+      onlyAlertOnce: false,
+      loopSound: behavior.fullScreenAlarm,
+      fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
+      pressAction: PRESS_ACTION,
+      smallIcon: 'ic_launcher',
+      color: '#2196F3',
+      colorized: true,
+      sound: behavior.sound,
+      vibrationPattern: behavior.vibrationPattern,
+      lights: ['#2196F3', 500, 500] as [string, number, number],
+      actions: ALARM_ACTIONS,
+    },
+    data: {
+      medicineId: testMedicineId,
+      reminderTimeId: testReminderId,
+      scheduledTime: scheduledTime.toISOString(),
+      fullScreenAlarm: behavior.fullScreenAlarm ? 'true' : 'false',
+      quietHoursActive: behavior.quietHoursActive ? 'true' : 'false',
+      isTestAlarm: 'true',
+    },
+  };
+
+  try {
+    // Minimum 5 saniye (Android kisitlamasi)
+    const minSeconds = Math.max(5, seconds);
+    const adjustedTime = new Date(Date.now() + minSeconds * 1000);
+
+    // Her zaman createTriggerNotification kullan (setTimeout arka planda calismaz)
+    const trigger: TimestampTrigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: adjustedTime.getTime(),
+      alarmManager: {
+        allowWhileIdle: true,
+        type: AlarmType.SET_ALARM_CLOCK,
+      },
+    };
+
+    log.debug('Trigger olusturuldu', {
+      triggerType: trigger.type,
+      timestamp: trigger.timestamp,
+      delaySeconds: minSeconds,
+    });
+
+    const notificationId = await notifee.createTriggerNotification(notificationConfig, trigger);
+
+    log.debug('Test alarm basariyla planlandi', { notificationId });
+
+    // Planlanan bildirimleri kontrol et
+    const triggers = await notifee.getTriggerNotificationIds();
+    log.debug('Planlanan bildirim IDleri', { triggers });
+
+    return notifId;
+  } catch (error) {
+    log.error('Test alarm planlama hatasi', error);
+    throw error;
   }
 }
