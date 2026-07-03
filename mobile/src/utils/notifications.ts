@@ -36,7 +36,6 @@ interface PowerManagerInfo {
   activity?: string | null;
 }
 import { Medicine, ReminderTime, Snooze, UserSettings } from '../types';
-import { addMinutes } from 'date-fns';
 import { createScopedLogger } from './logger';
 import { isMIUIDevice, getMIUIInstructions, openMIUIAutoStartSettings } from './miuiHelper';
 import { createDefaultUserSettings } from './defaultSettings';
@@ -969,115 +968,13 @@ export async function scheduleTestAlarmNotification(
   }
 }
 
-export interface ScheduleSnoozeParams {
-  medicine: Medicine;
-  reminderTime: ReminderTime;
-  snoozeDuration?: number;
-  snoozeId: string;
-  originalScheduledTime: string;
-  snoozeCount: number;
-  settings?: UserSettings;
-  triggerTime?: Date;
-}
-
-export async function scheduleSnoozeNotification(
-  params: ScheduleSnoozeParams
-): Promise<{ notificationId: string; triggerTime: Date } | null> {
-  const {
-    medicine,
-    reminderTime,
-    snoozeDuration = 5,
-    snoozeId,
-    originalScheduledTime,
-    snoozeCount,
-    settings,
-    triggerTime: explicitTriggerTime,
-  } = params;
-
-  try {
-    const triggerTime = explicitTriggerTime ?? addMinutes(new Date(), snoozeDuration);
-    const notificationId = buildSnoozeNotificationId(medicine.id, reminderTime.id, snoozeId);
-    const behavior = resolveNotificationBehavior(medicine, settings, triggerTime);
-
-    await cancelNotification(notificationId);
-
-    const trigger: TimestampTrigger = {
-      type: TriggerType.TIMESTAMP,
-      timestamp: triggerTime.getTime(),
-      alarmManager: {
-        allowWhileIdle: true,
-        type: AlarmType.SET_ALARM_CLOCK,
-      },
-    };
-
-    const timeStr = triggerTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-
-    await notifee.createTriggerNotification(
-      {
-        id: notificationId,
-        title: `?? ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
-        subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!
-? ${timeStr}`,
-        android: {
-          channelId: behavior.channelId,
-          category: AndroidCategory.ALARM,
-          importance: AndroidImportance.HIGH,
-          visibility: AndroidVisibility.PRIVATE,
-          ongoing: behavior.fullScreenAlarm,
-          autoCancel: !behavior.fullScreenAlarm,
-          loopSound: behavior.fullScreenAlarm,
-          fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
-          pressAction: PRESS_ACTION,
-          smallIcon: 'ic_launcher',
-          color: '#FF6B6B',
-          colorized: true,
-          sound: behavior.sound,
-          vibrationPattern: behavior.vibrationPattern,
-          lights: ['#FF0000', 500, 500] as [string, number, number],
-          actions: ALARM_ACTIONS,
-        },
-        data: {
-          medicineId: medicine.id,
-          reminderTimeId: reminderTime.id,
-          scheduledTime: triggerTime.toISOString(),
-          originalScheduledTime,
-          fullScreenAlarm: behavior.fullScreenAlarm ? 'true' : 'false',
-          quietHoursActive: behavior.quietHoursActive ? 'true' : 'false',
-          isSnooze: 'true',
-          snoozeId,
-          snoozeCount: String(snoozeCount),
-        },
-      },
-      trigger
-    );
-
-    log.debug('Erteleme bildirimi planlandi', {
-      snoozeDuration,
-      notificationId,
-      snoozeCount,
-      quietHoursActive: behavior.quietHoursActive,
-    });
-    return { notificationId, triggerTime };
-  } catch (error) {
-    log.error('Erteleme bildirimi planlanirken hata', error);
-    void recordDiagnosticEvent({
-      scope: 'reschedule',
-      level: 'error',
-      message: 'Snooze scheduling failed',
-      context: {
-        medicineId: medicine.id,
-        reminderTimeId: reminderTime.id,
-        snoozeId,
-      },
-    });
-    return null;
-  }
-}
-
 /**
  * Bildirim iptal et — Sprint 3: cancel modülüne tasindi.
  */
+
+/* Sprint 3: snooze modulu schedule.ts'e tasindi */
+export { scheduleSnoozeNotification, type ScheduleSnoozeParams } from './notifications/schedule';
+
 export {
   cancelNotification,
   cancelMedicineNotifications,
