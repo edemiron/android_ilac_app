@@ -3,6 +3,7 @@
 // RxNav, OpenFDA veya DrugBank gibi servisler kullanılabilir.
 
 import { createScopedLogger } from '../utils/logger';
+import { withServiceResult, type ServiceResult } from './types';
 
 const log = createScopedLogger('DrugInteraction');
 
@@ -44,28 +45,32 @@ const KNOWN_INTERACTIONS: Omit<DrugInteraction, 'id'>[] = [
     drug1: 'aspirin',
     drug2: 'naproxen',
     severity: 'high',
-    description: 'Aspirin ve Naproxen (Apranax) birlikte kullanıldığında ciddi mide kanaması ve ülser riski artar.',
+    description:
+      'Aspirin ve Naproxen (Apranax) birlikte kullanıldığında ciddi mide kanaması ve ülser riski artar.',
     recommendation: 'İki NSAID ilacı aynı anda kullanmayın. Doktorunuza danışın.',
   },
   {
     drug1: 'aspirin',
     drug2: 'apranax',
     severity: 'high',
-    description: 'Aspirin ve Apranax birlikte kullanıldığında ciddi mide kanaması ve ülser riski artar.',
+    description:
+      'Aspirin ve Apranax birlikte kullanıldığında ciddi mide kanaması ve ülser riski artar.',
     recommendation: 'İki NSAID ilacı aynı anda kullanmayın. Doktorunuza danışın.',
   },
   {
     drug1: 'ibuprofen',
     drug2: 'naproxen',
     severity: 'high',
-    description: 'İbuprofen ve Naproxen birlikte kullanıldığında mide kanaması riski ciddi şekilde artar.',
+    description:
+      'İbuprofen ve Naproxen birlikte kullanıldığında mide kanaması riski ciddi şekilde artar.',
     recommendation: 'İki NSAID ilacı aynı anda kullanmayın.',
   },
   {
     drug1: 'ibuprofen',
     drug2: 'apranax',
     severity: 'high',
-    description: 'İbuprofen ve Apranax birlikte kullanıldığında mide kanaması riski ciddi şekilde artar.',
+    description:
+      'İbuprofen ve Apranax birlikte kullanıldığında mide kanaması riski ciddi şekilde artar.',
     recommendation: 'İki NSAID ilacı aynı anda kullanmayın.',
   },
   {
@@ -79,14 +84,15 @@ const KNOWN_INTERACTIONS: Omit<DrugInteraction, 'id'>[] = [
     drug1: 'minoset',
     drug2: 'alkol',
     severity: 'high',
-    description: 'Minoset (Parasetamol) ve alkol birlikte kullanıldığında karaciğer hasarı riski artar.',
+    description:
+      'Minoset (Parasetamol) ve alkol birlikte kullanıldığında karaciğer hasarı riski artar.',
     recommendation: 'Minoset kullanırken alkolden kaçının.',
   },
   {
     drug1: 'omeprazol',
     drug2: 'clopidogrel',
     severity: 'moderate',
-    description: 'Omeprazol, Clopidogrel\'in etkinliğini azaltabilir.',
+    description: "Omeprazol, Clopidogrel'in etkinliğini azaltabilir.",
     recommendation: 'Alternatif proton pompa inhibitörü kullanmayı düşünün.',
   },
   {
@@ -135,15 +141,17 @@ const KNOWN_INTERACTIONS: Omit<DrugInteraction, 'id'>[] = [
     drug1: 'methotrexate',
     drug2: 'nsaid',
     severity: 'high',
-    description: 'NSAID\'ler Metotreksat toksisitesini artırabilir.',
+    description: "NSAID'ler Metotreksat toksisitesini artırabilir.",
     recommendation: 'Doktorunuza danışmadan birlikte kullanmayın.',
   },
   {
     drug1: 'paracetamol',
     drug2: 'dexketoprofen',
     severity: 'moderate',
-    description: 'Aynı anda birden fazla ağrı kesici kullanmak mide, karaciğer ve böbrekler üzerinde ekstra yük oluşturabilir.',
-    recommendation: 'Gerekmedikçe birlikte kullanmayın veya dönüşümlü/aralıklı kullanmayı doktorunuza sıklığını danışarak tercih edin.',
+    description:
+      'Aynı anda birden fazla ağrı kesici kullanmak mide, karaciğer ve böbrekler üzerinde ekstra yük oluşturabilir.',
+    recommendation:
+      'Gerekmedikçe birlikte kullanmayın veya dönüşümlü/aralıklı kullanmayı doktorunuza sıklığını danışarak tercih edin.',
   },
 ];
 
@@ -155,78 +163,78 @@ const KNOWN_INTERACTIONS: Omit<DrugInteraction, 'id'>[] = [
 // doğrudan RxNorm Concept Unique Identifier (RxCUI) kodlarına eşler.
 const TURKISH_TO_RXNORM_MAP: Record<string, string> = {
   // Analjezikler & NSAID'ler
-  'parol': 'paracetamol',
-  'minoset': 'paracetamol',
-  'vermidon': 'paracetamol',
-  'calpol': 'paracetamol',
-  'arveles': 'dexketoprofen',
-  'majezik': 'flurbiprofen',
-  'apranax': 'naproxen',
-  'dikloron': 'diclofenac',
-  'coraspin': 'aspirin',
-  'ecopirin': 'aspirin',
-  'novalgin': 'metamizole', // RxNav'da metamizole (dipyrone) kısıtlı olabilir
-  'ibufen': 'ibuprofen',
-  'brufen': 'ibuprofen',
-  'dolven': 'ibuprofen',
+  parol: 'paracetamol',
+  minoset: 'paracetamol',
+  vermidon: 'paracetamol',
+  calpol: 'paracetamol',
+  arveles: 'dexketoprofen',
+  majezik: 'flurbiprofen',
+  apranax: 'naproxen',
+  dikloron: 'diclofenac',
+  coraspin: 'aspirin',
+  ecopirin: 'aspirin',
+  novalgin: 'metamizole', // RxNav'da metamizole (dipyrone) kısıtlı olabilir
+  ibufen: 'ibuprofen',
+  brufen: 'ibuprofen',
+  dolven: 'ibuprofen',
 
   // Antibiyotikler
-  'augmentin': 'amoxicillin',
-  'klamoks': 'amoxicillin',
-  'croxilex': 'amoxicillin',
-  'cipro': 'ciprofloxacin',
-  'monurol': 'fosfomycin',
-  'zinnat': 'cefuroxime',
-  'azitro': 'azithromycin',
-  'macrol': 'clarithromycin',
+  augmentin: 'amoxicillin',
+  klamoks: 'amoxicillin',
+  croxilex: 'amoxicillin',
+  cipro: 'ciprofloxacin',
+  monurol: 'fosfomycin',
+  zinnat: 'cefuroxime',
+  azitro: 'azithromycin',
+  macrol: 'clarithromycin',
 
   // Mide Koruyucular & Sindirim
-  'pantpas': 'pantoprazole',
-  'panto': 'pantoprazole',
-  'nexium': 'esomeprazole',
-  'lansor': 'lansoprazole',
-  'rennie': 'calcium carbonate', // Basitleştirilmiş
-  'gaviscon': 'alginic acid',
+  pantpas: 'pantoprazole',
+  panto: 'pantoprazole',
+  nexium: 'esomeprazole',
+  lansor: 'lansoprazole',
+  rennie: 'calcium carbonate', // Basitleştirilmiş
+  gaviscon: 'alginic acid',
 
   // Antidepresan & Nöroloji
-  'cipralex': 'escitalopram',
-  'selectra': 'sertraline',
-  'lustral': 'sertraline',
-  'prozac': 'fluoxetine',
-  'paxera': 'paroxetine',
-  'symra': 'pregabalin',
-  'lyrica': 'pregabalin',
+  cipralex: 'escitalopram',
+  selectra: 'sertraline',
+  lustral: 'sertraline',
+  prozac: 'fluoxetine',
+  paxera: 'paroxetine',
+  symra: 'pregabalin',
+  lyrica: 'pregabalin',
 
   // Tansiyon & Kardiyoloji
-  'beloc': 'metoprolol',
-  'sanisoc': 'metoprolol',
-  'vasoxen': 'nebivolol',
-  'delix': 'ramipril',
-  'coversyl': 'perindopril',
-  'karvezide': 'irbesartan',
-  'atacand': 'candesartan',
+  beloc: 'metoprolol',
+  sanisoc: 'metoprolol',
+  vasoxen: 'nebivolol',
+  delix: 'ramipril',
+  coversyl: 'perindopril',
+  karvezide: 'irbesartan',
+  atacand: 'candesartan',
 
   // Diyabet
-  'matofin': 'metformin',
-  'glucophage': 'metformin',
-  'diaformin': 'metformin',
-  'forziga': 'dapagliflozin',
-  'jardiance': 'empagliflozin',
+  matofin: 'metformin',
+  glucophage: 'metformin',
+  diaformin: 'metformin',
+  forziga: 'dapagliflozin',
+  jardiance: 'empagliflozin',
 
   // Kan Sulandırıcılar
-  'plavix': 'clopidogrel',
-  'karum': 'clopidogrel',
-  'xarelto': 'rivaroxaban',
-  'eliquis': 'apixaban',
+  plavix: 'clopidogrel',
+  karum: 'clopidogrel',
+  xarelto: 'rivaroxaban',
+  eliquis: 'apixaban',
 
   // Antihistaminik & Soğuk Algınlığı (Genel)
-  'zyrtec': 'cetirizine',
-  'allerset': 'cetirizine',
-  'aerius': 'desloratadine',
-  'crebros': 'levocetirizine',
-  'aferin': 'paracetamol', // Çoklu etken madde ama en kritiği
-  'nurofen': 'ibuprofen', // Veya Nurofen Plus
-  'katarin': 'paracetamol',
+  zyrtec: 'cetirizine',
+  allerset: 'cetirizine',
+  aerius: 'desloratadine',
+  crebros: 'levocetirizine',
+  aferin: 'paracetamol', // Çoklu etken madde ama en kritiği
+  nurofen: 'ibuprofen', // Veya Nurofen Plus
+  katarin: 'paracetamol',
 };
 
 // İlaç adını normalize et ve etken maddeye çevir
@@ -254,9 +262,11 @@ function drugMatches(drugName: string, interactionDrug: string): boolean {
   const normalizedInteraction = normalizeDrugName(interactionDrug);
 
   // Tam eşleşme veya içerme kontrolü
-  return normalizedName.includes(normalizedInteraction) ||
+  return (
+    normalizedName.includes(normalizedInteraction) ||
     normalizedInteraction.includes(normalizedName) ||
-    normalizedName === normalizedInteraction;
+    normalizedName === normalizedInteraction
+  );
 }
 
 // İki ilaç arasındaki yerel etkileşimi kontrol et (Fallback)
@@ -308,7 +318,9 @@ export async function checkInteraction(
 }
 
 // Birden fazla ilaç için gerçek RxNav API veya yerel kontrol (HIBRIT)
-export async function checkMultipleInteractions(drugNames: string[]): Promise<InteractionCheckResult> {
+export async function checkMultipleInteractions(
+  drugNames: string[]
+): Promise<InteractionCheckResult> {
   const interactions: DrugInteraction[] = [];
 
   try {
@@ -343,8 +355,10 @@ export async function checkMultipleInteractions(drugNames: string[]): Promise<In
               drug1: duplicates[i],
               drug2: duplicates[j],
               severity: 'high',
-              description: 'Dikkat! Bu iki ilaç KESİNLİKLE aynı etken maddeyi içermektedir (Çifte Doz / Duplicate Therapy).',
-              recommendation: 'Aşırı doz ve toksisite (zehirlenme) riskine karşı lütfen bu ilaçları aynı anda kullanmayın. Hangisini kullanmanız gerektiğini doktorunuza danışın.',
+              description:
+                'Dikkat! Bu iki ilaç KESİNLİKLE aynı etken maddeyi içermektedir (Çifte Doz / Duplicate Therapy).',
+              recommendation:
+                'Aşırı doz ve toksisite (zehirlenme) riskine karşı lütfen bu ilaçları aynı anda kullanmayın. Hangisini kullanmanız gerektiğini doktorunuza danışın.',
             });
           }
         }
@@ -372,9 +386,11 @@ export async function checkMultipleInteractions(drugNames: string[]): Promise<In
           const locInt = checkInteractionLocal(drugNames[i], drugNames[j]);
           if (locInt) {
             // Aynı etkileşim zaten API'den geldiyse ekleme (duplicate önlemek için)
-            const exists = interactions.some(apiInt =>
-              (drugMatches(apiInt.drug1, locInt.drug1) && drugMatches(apiInt.drug2, locInt.drug2)) ||
-              (drugMatches(apiInt.drug1, locInt.drug2) && drugMatches(apiInt.drug2, locInt.drug1))
+            const exists = interactions.some(
+              apiInt =>
+                (drugMatches(apiInt.drug1, locInt.drug1) &&
+                  drugMatches(apiInt.drug2, locInt.drug2)) ||
+                (drugMatches(apiInt.drug1, locInt.drug2) && drugMatches(apiInt.drug2, locInt.drug1))
             );
             if (!exists) {
               interactions.push(locInt);
@@ -383,7 +399,6 @@ export async function checkMultipleInteractions(drugNames: string[]): Promise<In
         }
       }
     }
-
   } catch (error) {
     log.error('Etkileşim kontrolü genel hata', error);
   }
@@ -445,7 +460,10 @@ export async function getRxCuiForDrug(drugName: string): Promise<string | null> 
 }
 
 // RxNav Interaction API üzerinden RxCUI'leri kullanarak etkileşimleri çeker
-export async function checkInteractionsFromAPI(rxcuis: string[], originalDrugNames: string[]): Promise<InteractionCheckResult> {
+export async function checkInteractionsFromAPI(
+  rxcuis: string[],
+  originalDrugNames: string[]
+): Promise<InteractionCheckResult> {
   try {
     // https://rxnav.nlm.nih.gov/InteractionAPIs.html
     const url = `https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis=${rxcuis.join('+')}`;
@@ -459,14 +477,17 @@ export async function checkInteractionsFromAPI(rxcuis: string[], originalDrugNam
       for (const group of data.fullInteractionTypeGroup) {
         for (const type of group.fullInteractionType || []) {
           for (const pair of type.interactionPair || []) {
-
             // Amerikan kaynaklı orjinal isimler
             const apiDrug1 = pair.interactionConcept[0]?.minConceptItem?.name || 'Bilinmeyen';
             const apiDrug2 = pair.interactionConcept[1]?.minConceptItem?.name || 'Bilinmeyen';
 
             // Kullanıcının yazdığı isimlerle (originalDrugNames) RxNav isimlerini eşleştir (kullanıcıya türkçe adı yansıtmak için)
-            const trDrug1 = originalDrugNames.find(n => drugMatches(n, apiDrug1) || drugMatches(apiDrug1, n)) || apiDrug1;
-            const trDrug2 = originalDrugNames.find(n => drugMatches(n, apiDrug2) || drugMatches(apiDrug2, n)) || apiDrug2;
+            const trDrug1 =
+              originalDrugNames.find(n => drugMatches(n, apiDrug1) || drugMatches(apiDrug1, n)) ||
+              apiDrug1;
+            const trDrug2 =
+              originalDrugNames.find(n => drugMatches(n, apiDrug2) || drugMatches(apiDrug2, n)) ||
+              apiDrug2;
 
             interactions.push({
               id: `api-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
@@ -474,7 +495,8 @@ export async function checkInteractionsFromAPI(rxcuis: string[], originalDrugNam
               drug2: trDrug2,
               severity: mapSeverity(pair.severity),
               description: translateApiDescription(pair.description || ''),
-              recommendation: 'Lütfen bunu kullanmadan önce doktorunuza veya eczacınıza danışın (RxNav Uyarısı).',
+              recommendation:
+                'Lütfen bunu kullanmadan önce doktorunuza veya eczacınıza danışın (RxNav Uyarısı).',
             });
           }
         }
@@ -518,14 +540,15 @@ function translateApiDescription(desc: string): string {
   const dictionary: Record<string, string> = {
     'The risk or severity of': 'Riski veya şiddeti artabilir:',
     'The serum concentration of': 'Kandaki yoğunluğu artabilir/azalabilir:',
-    'can be increased when it is combined with': 'ile birlikte kullanıldığında etkileşime girebilir.',
+    'can be increased when it is combined with':
+      'ile birlikte kullanıldığında etkileşime girebilir.',
     'can be decreased when combined with': 'ile birlikte kullanıldığında etkisi azalabilir.',
     'may increase the': 'artırabilir:',
-    'activities': 'etkisini',
+    activities: 'etkisini',
     'adverse effects': 'yan etkilerini',
     'can cause': 'neden olabilir',
-    'bleeding': 'kanama',
-    'toxicity': 'zehirlenme/toksisite',
+    bleeding: 'kanama',
+    toxicity: 'zehirlenme/toksisite',
     'serotonin syndrome': 'serotonin sendromu',
   };
 
@@ -534,4 +557,69 @@ function translateApiDescription(desc: string): string {
   }
 
   return text;
+}
+
+// ============================================================================
+// Sprint 6.4: ServiceResult<T> wrapper alternatifleri — geriye donuk uyumluluk
+// korunarak yeni API ekleniyor. Eski fonksiyonlar (Promise<T | null>, vb.)
+// oldugu gibi kalmaya devam ediyor; yeni fonksiyonlar ServiceResult<T> doner.
+// ============================================================================
+
+/**
+ * Drug icin RxCUI fetch — Sprint 4.3 ServiceResult<T> wrapper.
+ * Network/parse hatalari err doner, basarili donus RxCUI string.
+ */
+export async function getRxCuiForDrugService(
+  drugName: string
+): Promise<ServiceResult<string | null>> {
+  return withServiceResult(() => getRxCuiForDrug(drugName), {
+    errorCode: 'API_ERROR',
+  });
+}
+
+/**
+ * API etkilesim fetch — Sprint 4.3 ServiceResult<T> wrapper.
+ * Network/parse hatalari err doner, basarili donus InteractionCheckResult.
+ */
+export async function checkInteractionsFromAPIService(
+  rxcuis: string[],
+  originalDrugNames: string[]
+): Promise<ServiceResult<InteractionCheckResult>> {
+  return withServiceResult(() => checkInteractionsFromAPI(rxcuis, originalDrugNames), {
+    errorCode: 'API_ERROR',
+  });
+}
+
+/**
+ * Tek ilac etkilesim kontrolu — Sprint 4.3 ServiceResult<T> wrapper.
+ */
+export async function checkInteractionService(
+  drug1: string,
+  drug2: string
+): Promise<ServiceResult<InteractionCheckResult>> {
+  return withServiceResult(() => checkInteraction(drug1, drug2), {
+    errorCode: 'NOT_FOUND',
+  });
+}
+
+/**
+ * Birden fazla ilac etkilesim kontrolu — Sprint 4.3 ServiceResult<T> wrapper.
+ */
+export async function checkMultipleInteractionsService(
+  drugNames: string[]
+): Promise<ServiceResult<InteractionCheckResult>> {
+  return withServiceResult(() => checkMultipleInteractions(drugNames), {
+    errorCode: 'NOT_FOUND',
+  });
+}
+
+/**
+ * Lokalde tek bir ilac etkilesim kontrolu — pure helper (network yok).
+ */
+export function checkInteractionLocalService(
+  drug1: string,
+  drug2: string
+): ServiceResult<DrugInteraction | null> {
+  const result = checkInteractionLocal(drug1, drug2);
+  return result ? { ok: true, data: result } : { ok: true, data: null };
 }
