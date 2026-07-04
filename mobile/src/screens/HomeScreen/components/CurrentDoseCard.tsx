@@ -1,0 +1,287 @@
+/**
+ * HomeScreen — CurrentDoseCard bileşeni.
+ *
+ * Sprint 4.2: HomeScreen.tsx (1962 satir) içinden ayrıldı.
+ * Bugünkü pending reminder için "Al / Ertele / Atla" aksiyonları sunar.
+ */
+
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { formatTimeDisplay } from '../../../utils/timeCalculator';
+import { ThemeColors } from '../../../contexts/ThemeContext';
+import { SOFT_RED, SNOOZE_OPTIONS, type TodayReminder } from '../types';
+import { getRelativeTimeText } from '../helpers';
+
+interface CurrentDoseCardProps {
+  reminder: TodayReminder;
+  colors: ThemeColors;
+  isDark: boolean;
+  language: string;
+  onTake: () => void;
+  onSnooze: (minutes: number) => void;
+  onSkip: () => void;
+}
+
+export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
+  reminder,
+  colors,
+  isDark,
+  language,
+  onTake,
+  onSnooze,
+  onSkip,
+}) => {
+  const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
+  const {
+    text: relativeTime,
+    isNow,
+    isPast,
+  } = getRelativeTimeText(reminder.reminderTime.time, language, reminder.log);
+
+  const statusColor = isNow ? colors.primary : isPast ? SOFT_RED : colors.textSecondary;
+
+  return (
+    <>
+      <View
+        style={[
+          styles.currentDoseCard,
+          {
+            backgroundColor: colors.card,
+            shadowOpacity: isDark ? 0 : 0.08,
+            borderLeftColor: isPast ? SOFT_RED : colors.primary,
+            borderWidth: isDark ? 1 : 0,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+          },
+        ]}
+      >
+        <View style={styles.currentDoseHeader}>
+          <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
+            <Text style={[styles.statusPillText, { color: statusColor }]}>{relativeTime}</Text>
+          </View>
+          <Text style={[styles.currentDoseTime, { color: colors.textSecondary }]}>
+            {formatTimeDisplay(reminder.reminderTime.time)}
+          </Text>
+        </View>
+
+        <View style={styles.currentDoseInfo}>
+          <View
+            style={[
+              styles.medicineIcon,
+              { backgroundColor: reminder.medicine.color + (isDark ? '50' : '20') },
+            ]}
+          >
+            <Ionicons name="medical" size={24} color={reminder.medicine.color} />
+          </View>
+          <View style={styles.currentDoseText}>
+            <Text style={[styles.currentDoseName, { color: colors.text }]} numberOfLines={1}>
+              {reminder.medicine.name}
+            </Text>
+            <Text style={[styles.currentDoseDosage, { color: colors.textMuted }]}>
+              {reminder.medicine.dosage}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.currentDoseActions}>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.takeBtn, { backgroundColor: colors.primary }]}
+            onPress={onTake}
+          >
+            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+            <Text style={styles.takeBtnText}>{language === 'tr' ? 'Aldım' : 'Taken'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              styles.snoozeBtn,
+              {
+                borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FDE68A',
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB',
+              },
+            ]}
+            onPress={() => setShowSnoozeOptions(true)}
+          >
+            <Ionicons name="time-outline" size={18} color={isDark ? '#F59E0B' : '#D97706'} />
+            <Text style={[styles.snoozeBtnText, { color: isDark ? '#F59E0B' : '#D97706' }]}>
+              {language === 'tr' ? 'Ertele' : 'Snooze'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              styles.skipBtn,
+              {
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FECACA',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
+              },
+            ]}
+            onPress={onSkip}
+          >
+            <Ionicons
+              name="close-circle-outline"
+              size={18}
+              color={isDark ? '#EF4444' : '#DC2626'}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Modal
+        visible={showSnoozeOptions}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSnoozeOptions(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSnoozeOptions(false)}
+        >
+          <View style={[styles.snoozeModal, { backgroundColor: colors.card }]}>
+            <Text style={[styles.snoozeModalTitle, { color: colors.text }]}>
+              {language === 'tr' ? 'Ne kadar erteleyelim?' : 'Snooze for how long?'}
+            </Text>
+            <View style={styles.snoozeOptionsGrid}>
+              {SNOOZE_OPTIONS.map(minutes => (
+                <TouchableOpacity
+                  key={minutes}
+                  style={[styles.snoozeOption, { backgroundColor: colors.background }]}
+                  onPress={() => {
+                    setShowSnoozeOptions(false);
+                    onSnooze(minutes);
+                  }}
+                >
+                  <Text style={[styles.snoozeOptionText, { color: colors.primary }]}>
+                    {minutes} {language === 'tr' ? 'dk' : 'min'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+};
+
+const styles = StyleSheet.create({
+  currentDoseCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
+    borderLeftWidth: 4,
+  },
+  currentDoseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  currentDoseTime: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  currentDoseInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  medicineIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  currentDoseText: {
+    flex: 1,
+  },
+  currentDoseName: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  currentDoseDosage: {
+    fontSize: 14,
+  },
+  currentDoseActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginHorizontal: 4,
+  },
+  takeBtn: {},
+  takeBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    marginLeft: 6,
+  },
+  snoozeBtn: {
+    borderWidth: 1,
+  },
+  snoozeBtnText: {
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  skipBtn: {
+    borderWidth: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  snoozeModal: {
+    borderRadius: 16,
+    padding: 20,
+    width: '80%',
+    maxWidth: 320,
+  },
+  snoozeModalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  snoozeOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  snoozeOption: {
+    width: '48%',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  snoozeOptionText: {
+    fontWeight: '600',
+  },
+});
