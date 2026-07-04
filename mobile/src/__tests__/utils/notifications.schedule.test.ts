@@ -42,8 +42,9 @@ import {
   cancelExpiryReminder,
   scheduleSnoozeNotification,
   scheduleTestAlarmNotification,
-  type ScheduleSnoozeParams,
+  scheduleMedicineNotification,
 } from '../../utils/notifications/schedule';
+import type { ScheduleSnoozeParams } from '../../utils/notifications/schedule';
 
 const baseMedicine = {
   id: 'med-1',
@@ -212,5 +213,85 @@ describe('scheduleTestAlarmNotification', () => {
     await scheduleTestAlarmNotification(5);
     const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
     expect(call[0].data.isTestAlarm).toBe('true');
+  });
+});
+
+describe('scheduleMedicineNotification', () => {
+  const mockMedicine: any = {
+    id: 'med-1',
+    name: 'Aspirin',
+    dosage: '500mg',
+    frequency: 2,
+    color: '#FF6B6B',
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+    startDate: '2024-01-01',
+  };
+
+  const mockReminder: any = {
+    id: 'rt-1',
+    medicineId: 'med-1',
+    time: '08:00',
+    isEnabled: true,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns null for invalid medicine (no id)', async () => {
+    const result = await scheduleMedicineNotification(
+      { ...mockMedicine, id: '' } as any,
+      mockReminder
+    );
+    expect(result).toBeNull();
+    expect(notifee.createTriggerNotification).not.toHaveBeenCalled();
+  });
+
+  it('returns null for invalid reminder (no id)', async () => {
+    const result = await scheduleMedicineNotification(mockMedicine, {
+      ...mockReminder,
+      id: '',
+    } as any);
+    expect(result).toBeNull();
+  });
+
+  it('returns null for reminder without time', async () => {
+    const result = await scheduleMedicineNotification(mockMedicine, {
+      ...mockReminder,
+      time: '',
+    } as any);
+    expect(result).toBeNull();
+  });
+
+  it('returns notification id for valid medicine + reminder', async () => {
+    const result = await scheduleMedicineNotification(mockMedicine, mockReminder);
+    expect(result).toBe('notification-id');
+  });
+
+  it('cancels existing alarm before creating new one', async () => {
+    await scheduleMedicineNotification(mockMedicine, mockReminder);
+    expect(notifee.cancelNotification).toHaveBeenCalledWith('alarm-med-1-rt-1');
+  });
+
+  it('includes medicine + reminder data in payload', async () => {
+    await scheduleMedicineNotification(mockMedicine, mockReminder);
+    const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
+    expect(call[0].id).toBe('alarm-med-1-rt-1');
+    expect(call[0].data.medicineId).toBe('med-1');
+    expect(call[0].data.reminderTimeId).toBe('rt-1');
+  });
+
+  it('uses AlarmType.SET_ALARM_CLOCK for trigger', async () => {
+    await scheduleMedicineNotification(mockMedicine, mockReminder);
+    const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
+    expect(call[1].alarmManager.type).toBe(4); // SET_ALARM_CLOCK
+  });
+
+  it('returns null on createTriggerNotification error', async () => {
+    (notifee.createTriggerNotification as jest.Mock).mockRejectedValueOnce(new Error('fail'));
+    const result = await scheduleMedicineNotification(mockMedicine, mockReminder);
+    expect(result).toBeNull();
   });
 });
