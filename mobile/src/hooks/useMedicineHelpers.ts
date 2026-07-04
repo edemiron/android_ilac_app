@@ -94,3 +94,71 @@ export function compareTimeStrings(a: string, b: string): number {
   if (ah !== bh) return ah - bh;
   return am - bm;
 }
+
+/**
+ * Sanitize: medicine name'i normalize et.
+ * - Leading/trailing whitespace trim
+ * - Multiple spaces tek space'e indir
+ * - Empty string donerse null doner
+ */
+export function sanitizeMedicineName(name: string): string | null {
+  if (typeof name !== 'string') return null;
+  const trimmed = name.trim().replace(/\s+/g, ' ');
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Sanitize: dosage string normalize.
+ * Ornek: '500 mg' -> '500mg', '500  MG' -> '500mg'.
+ */
+export function sanitizeDosage(dosage: string): string | null {
+  if (typeof dosage !== 'string') return null;
+  const trimmed = dosage.trim().replace(/\s+/g, '');
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Validation: dosage formati kontrol et (rakam + birim).
+ * Kabul edilen format: '500mg', '5ml', '1 tablet', '2 kapsül', '10mg/5ml' vs.
+ */
+export function isValidDosageFormat(dosage: string): boolean {
+  if (typeof dosage !== 'string') return false;
+  const sanitized = sanitizeDosage(dosage);
+  if (!sanitized) return false;
+  // En az bir rakam icermeli (opsiyonel birim ile)
+  return /\d/.test(sanitized);
+}
+
+/**
+ * Validation: reminder time dizisi bos mu / gecersiz saat iceriyor mu.
+ */
+export function isValidReminderTimes(times: string[]): boolean {
+  if (!Array.isArray(times) || times.length === 0) return false;
+  return times.every(t => /^\d{2}:\d{2}$/.test(t) && isValidClockTime(t));
+}
+
+/**
+ * HH:mm formatindaki saat gercek bir saat mi (00:00-23:59).
+ */
+export function isValidClockTime(time: string): boolean {
+  const [hours, minutes] = parseTimeString(time);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return false;
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+}
+
+/**
+ * Form state ozet bilgisi (debug/log icin).
+ */
+export function summarizeFormState(formState: {
+  name?: string;
+  dosage?: string;
+  frequency?: number;
+  useCustomTimes?: boolean;
+  customTimes?: string[];
+}): string {
+  const name = formState.name?.trim() || '(no-name)';
+  const dosage = formState.dosage?.trim() || '?';
+  const freq = formState.frequency ?? 0;
+  const times = formState.useCustomTimes ? (formState.customTimes?.length ?? 0) : freq;
+  return `${name} | ${dosage} | ${freq}x/gün | ${times} alarm`;
+}
