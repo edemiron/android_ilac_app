@@ -8,7 +8,6 @@ import {
   Alert,
   Switch,
   ScrollView,
-  Vibration,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -27,9 +26,9 @@ import {
   saveSecuritySettings,
   getBiometricTypeName,
 } from '../utils/security';
-import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { createScopedLogger } from '../utils/logger';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { triggerHaptic } from './SecurityScreen/helpers';
 
 const log = createScopedLogger('SecurityScreen');
 
@@ -152,21 +151,6 @@ export default function SecurityScreen() {
     }
   };
 
-  const triggerHaptic = (type: 'light' | 'success' | 'error') => {
-    try {
-      ReactNativeHapticFeedback.trigger(
-        type === 'success'
-          ? 'notificationSuccess'
-          : type === 'error'
-            ? 'notificationError'
-            : 'impactLight',
-        { enableVibrateFallback: true }
-      );
-    } catch {
-      Vibration.vibrate(50);
-    }
-  };
-
   const handleToggleSecurity = useCallback(
     async (enabled: boolean) => {
       if (enabled && !hasPin && !biometricAvailable) {
@@ -239,7 +223,24 @@ export default function SecurityScreen() {
     }
 
     // Zayıf PIN kontrolü
-    const weakPins = ['1234', '1111', '0000', '1212', '7777', '1004', '2000', '4444', '2222', '3333', '5555', '6666', '8888', '9999', '123456', '654321'];
+    const weakPins = [
+      '1234',
+      '1111',
+      '0000',
+      '1212',
+      '7777',
+      '1004',
+      '2000',
+      '4444',
+      '2222',
+      '3333',
+      '5555',
+      '6666',
+      '8888',
+      '9999',
+      '123456',
+      '654321',
+    ];
     if (weakPins.includes(pin)) {
       Alert.alert(
         language === 'tr' ? 'Zayıf PIN' : 'Weak PIN',
@@ -289,7 +290,24 @@ export default function SecurityScreen() {
     }
 
     // Zayıf PIN kontrolü
-    const weakPins = ['1234', '1111', '0000', '1212', '7777', '1004', '2000', '4444', '2222', '3333', '5555', '6666', '8888', '9999', '123456', '654321'];
+    const weakPins = [
+      '1234',
+      '1111',
+      '0000',
+      '1212',
+      '7777',
+      '1004',
+      '2000',
+      '4444',
+      '2222',
+      '3333',
+      '5555',
+      '6666',
+      '8888',
+      '9999',
+      '123456',
+      '654321',
+    ];
     if (weakPins.includes(pin)) {
       Alert.alert(
         language === 'tr' ? 'Zayıf PIN' : 'Weak PIN',
