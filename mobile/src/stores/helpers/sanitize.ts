@@ -15,7 +15,7 @@ export function sanitizeString(str: string | undefined | null): string {
 }
 
 /**
- * Medicine data icindeki string alanlari sanitize et.
+ * Sanitize: medicine isim/icerik trim.
  * Generic constraint: name veya dosage alanlarini sanitize eder.
  */
 export function sanitizeMedicineData<T extends { name?: string; dosage?: string }>(data: T): T {
@@ -29,5 +29,20 @@ export function sanitizeMedicineData<T extends { name?: string; dosage?: string 
     sanitized.dosage = sanitizeString(data.dosage) as T['dosage'];
   }
 
+  return sanitized;
+}
+
+/**
+ * Firestore undefined degerleri kabul etmiyor.
+ * Objedeki undefined alanlari temizler.
+ * Sprint 7.2: DRY — firestoreSync.ts icindeki inline duplicate bu modulden kullanacak.
+ */
+export function sanitizeForFirestore<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const sanitized: Partial<T> = {};
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key) && obj[key] !== undefined) {
+      sanitized[key as keyof T] = obj[key] as T[keyof T];
+    }
+  }
   return sanitized;
 }

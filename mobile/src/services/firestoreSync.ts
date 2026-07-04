@@ -12,41 +12,20 @@ import {
 import { db } from '../config/firebase';
 import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../types';
 import { createScopedLogger } from '../utils/logger';
+// Sprint 7.2: DRY — stores/helpers/sanitize.ts'ten sanitizeString + sanitizeForFirestore
+// import ediliyor. firestoreSync.ts icindeki duplicate inline tanimlar silindi.
+import { sanitizeString, sanitizeForFirestore } from '../stores/helpers/sanitize';
 
 const log = createScopedLogger('FirestoreSync');
 
 // Firestore batch limiti
 const FIRESTORE_BATCH_LIMIT = 500;
-
-/**
- * Türkçe karakter encoding sorunlarını düzelt
- * Unicode escape sequence'ları decode et (\u00fc -> ü)
- */
-function sanitizeString(str: string | undefined | null): string {
-  if (!str) return '';
-  return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
-}
-
 function sanitizeMedicine(medicine: Medicine): Medicine {
   return {
     ...medicine,
     name: sanitizeString(medicine.name) || medicine.name,
     dosage: medicine.dosage ? sanitizeString(medicine.dosage) : medicine.dosage,
   };
-}
-
-/**
- * Firestore undefined değerleri kabul etmiyor.
- * Bu fonksiyon objedeki undefined değerleri temizler.
- */
-function sanitizeForFirestore<T extends Record<string, unknown>>(obj: T): Partial<T> {
-  const sanitized: Partial<T> = {};
-  for (const key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key) && obj[key] !== undefined) {
-      sanitized[key as keyof T] = obj[key] as T[keyof T];
-    }
-  }
-  return sanitized;
 }
 
 // Collection isimleri
