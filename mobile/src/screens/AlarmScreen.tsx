@@ -36,12 +36,14 @@ import { tr, enUS } from 'date-fns/locale';
 import { useLanguage } from '../contexts/LanguageContext';
 import { createScopedLogger } from '../utils/logger';
 
+// Sprint 6.2: AlarmScreen.tsx (910 satir) pure helper extraction.
+import { getInstructionDisplay } from './AlarmScreen/helpers';
+
 const log = createScopedLogger('AlarmScreen');
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'Alarm'>;
 
- 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const { width, height } = Dimensions.get('window');
 
@@ -665,13 +667,8 @@ export default function AlarmScreen() {
           <Text style={styles.scannerTitle}>
             {language === 'tr' ? 'İlacın Barkodunu Okutun' : 'Scan Medicine Barcode'}
           </Text>
-          {scannedMessage ? (
-            <Text style={styles.scannerMessage}>{scannedMessage}</Text>
-          ) : null}
-          <TouchableOpacity
-            style={styles.cancelScanButton}
-            onPress={() => setShowScanner(false)}
-          >
+          {scannedMessage ? <Text style={styles.scannerMessage}>{scannedMessage}</Text> : null}
+          <TouchableOpacity style={styles.cancelScanButton} onPress={() => setShowScanner(false)}>
             <Text style={styles.cancelScanText}>{language === 'tr' ? 'İptal' : 'Cancel'}</Text>
           </TouchableOpacity>
         </View>
@@ -680,19 +677,7 @@ export default function AlarmScreen() {
   }
 
   // Talimat metni
-  const getInstructionDisplay = () => {
-    if (!medicine.instructions) return null;
-
-    const instructionTexts: Record<string, { tr: string; en: string }> = {
-      before_meal: { tr: '🍽️ Yemekten önce', en: '🍽️ Before meal' },
-      after_meal: { tr: '🍽️ Yemekten sonra', en: '🍽️ After meal' },
-      with_meal: { tr: '🍽️ Yemekle birlikte', en: '🍽️ With meal' },
-      empty_stomach: { tr: '⚠️ Aç karnına', en: '⚠️ Empty stomach' },
-      before_sleep: { tr: '🌙 Yatmadan önce', en: '🌙 Before sleep' },
-    };
-
-    return instructionTexts[medicine.instructions]?.[language] || null;
-  };
+  const getInstructionDisplayText = () => getInstructionDisplay(medicine.instructions, language);
 
   return (
     <View style={[styles.container, { backgroundColor: medicine.color }]}>
@@ -712,9 +697,9 @@ export default function AlarmScreen() {
         <Text style={styles.medicineName}>{medicine.name}</Text>
         <Text style={styles.dosageText}>{medicine.dosage}</Text>
 
-        {getInstructionDisplay() && (
+        {getInstructionDisplayText() && (
           <View style={styles.instructionBadge}>
-            <Text style={styles.instructionText}>{getInstructionDisplay()}</Text>
+            <Text style={styles.instructionText}>{getInstructionDisplayText()}</Text>
           </View>
         )}
       </View>
