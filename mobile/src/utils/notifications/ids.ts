@@ -23,6 +23,15 @@ export function buildSnoozeNotificationId(
 }
 
 /**
+ * 2-parametreli snooze ID — alarmNavigation.ts gibi snoozeId bilinmediğinde
+ * kullanılır. Aynı medicine+reminder icin tek bir snooze ID uretilir
+ * (cancelled/created durumlarinda deterministik davranis korunur).
+ */
+export function getSnoozeNotificationId(medicineId: string, reminderTimeId: string): string {
+  return `snooze-${medicineId}-${reminderTimeId}`;
+}
+
+/**
  * 2-parametreli alarm ID — medicineId + reminderTimeId
  */
 export function getAlarmNotificationId(medicineId: string, reminderTimeId: string): string {

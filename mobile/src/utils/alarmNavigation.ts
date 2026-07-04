@@ -7,6 +7,12 @@
 
 import { format } from 'date-fns';
 import type { Medicine, ReminderTime, Snooze } from '../types';
+import { getAlarmNotificationId, getSnoozeNotificationId } from './notifications/ids';
+
+// Re-export ID builder'lar (geriye uyumluluk): alarmNavigation.ts eski
+// implementasyonlari notifications/ids.ts modulune tasindi.
+export { getAlarmNotificationId as buildAlarmNotificationId };
+export { getSnoozeNotificationId as buildSnoozeNotificationId };
 
 export interface AlarmNavigationData {
   medicineId: string;
@@ -51,20 +57,6 @@ export interface AlarmNavigationDependencies {
   };
 }
 
-export function buildAlarmNotificationId(medicineId: string, reminderTimeId: string): string {
-  return `alarm-${medicineId}-${reminderTimeId}`;
-}
-
-export function buildSnoozeNotificationId(medicineId: string, reminderTimeId: string): string {
-  return `snooze-${medicineId}-${reminderTimeId}`;
-}
-
-/**
- * Aynı alarm için tek bir anahtar üretir (medicineId + reminderTimeId + dakika hassasiyetinde zaman).
- * Bu anahtarı kullanarak:
- *   - Aynı dakika içinde gelen tekrar alarmları skip ederiz
- *   - 60 saniye sonra activeAlarmKeys'ten otomatik temizlenir
- */
 export function getAlarmKey(data: AlarmNavigationData, now: Date): string {
   // scheduledTime ISO; dakika seviyesinde anahtar üret.
   const minute = format(now, 'yyyy-MM-dd-HH-mm');
@@ -73,9 +65,9 @@ export function getAlarmKey(data: AlarmNavigationData, now: Date): string {
 
 export function getNotificationIdForAlarmData(data: AlarmNavigationData): string | null {
   if (data.isSnooze === 'true' && data.snoozeId) {
-    return buildSnoozeNotificationId(data.medicineId, data.reminderTimeId);
+    return getSnoozeNotificationId(data.medicineId, data.reminderTimeId);
   }
-  return buildAlarmNotificationId(data.medicineId, data.reminderTimeId);
+  return getAlarmNotificationId(data.medicineId, data.reminderTimeId);
 }
 
 /**
