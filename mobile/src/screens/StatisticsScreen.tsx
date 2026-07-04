@@ -13,7 +13,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { format, subDays, eachDayOfInterval, isWithinInterval } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
-import { useTheme, ThemeColors } from '../contexts/ThemeContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useMedicineStore } from '../stores/medicineStore';
 import {
@@ -25,72 +25,15 @@ import {
 import { useAlert } from '../contexts/AlertContext';
 import { createScopedLogger } from '../utils/logger';
 
+// Sprint 6.1: StatisticsScreen.tsx (910 -> 849 satir) modularizasyonu.
+// Component'ler ve helpers screens/StatisticsScreen/* altinda.
+import { Section } from './StatisticsScreen/components/Section';
+import { StatRow } from './StatisticsScreen/components/StatRow';
+import type { Period } from './StatisticsScreen/helpers';
+import { getAdherenceColor } from './StatisticsScreen/helpers';
+
 const screenWidth = Dimensions.get('window').width;
 const log = createScopedLogger('StatisticsScreen');
-
-type Period = 'weekly' | 'monthly';
-
-interface SectionProps {
-  icon: string;
-  title: string;
-  children: React.ReactNode;
-  colors: ThemeColors;
-  isDark: boolean;
-}
-
-const Section: React.FC<SectionProps> = ({ icon, title, children, colors, isDark }) => (
-  <View
-    style={[
-      styles.section,
-      {
-        backgroundColor: colors.card,
-        shadowOpacity: isDark ? 0 : 0.05,
-        elevation: isDark ? 0 : 1,
-      },
-    ]}
-  >
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionIcon}>{icon}</Text>
-      <Text style={[styles.sectionTitle, { color: colors.primary }]}>{title}</Text>
-    </View>
-    {children}
-  </View>
-);
-
-interface StatRowProps {
-  icon: string;
-  iconBg: string;
-  label: string;
-  value: string | number;
-  valueColor?: string;
-  colors: ThemeColors;
-  isFirst?: boolean;
-}
-
-const StatRow: React.FC<StatRowProps> = ({
-  icon,
-  iconBg,
-  label,
-  value,
-  valueColor,
-  colors,
-  isFirst,
-}) => (
-  <View
-    style={[
-      styles.statRow,
-      !isFirst && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider },
-    ]}
-  >
-    <View style={styles.statInfo}>
-      <View style={[styles.iconContainer, { backgroundColor: iconBg }]}>
-        <Text style={styles.iconEmoji}>{icon}</Text>
-      </View>
-      <Text style={[styles.statLabel, { color: colors.text }]}>{label}</Text>
-    </View>
-    <Text style={[styles.statValue, { color: valueColor || colors.primary }]}>{value}</Text>
-  </View>
-);
 
 export default function StatisticsScreen() {
   const { colors, isDark } = useTheme();
@@ -256,11 +199,7 @@ export default function StatisticsScreen() {
     },
   };
 
-  const getAdherenceColor = (rate: number) => {
-    if (rate >= 80) return colors.success;
-    if (rate >= 50) return '#F59E0B';
-    return '#EF4444';
-  };
+  const getColor = (rate: number) => getAdherenceColor(rate, colors);
 
   const handleGeneratePDF = async (days: 7 | 30 | 90) => {
     try {
@@ -659,7 +598,10 @@ export default function StatisticsScreen() {
                 style={[
                   styles.historyRate,
                   {
-                    color: day.total > 0 ? getAdherenceColor(day.adherenceRate) : colors.textMuted,
+                    color:
+                      day.total > 0
+                        ? getAdherenceColor(day.adherenceRate, colors)
+                        : colors.textMuted,
                   },
                 ]}
               >
