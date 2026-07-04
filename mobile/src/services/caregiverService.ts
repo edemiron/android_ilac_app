@@ -11,14 +11,26 @@
  * - FCM bildirimleri
  */
 
-import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+} from 'firebase/firestore';
 import { generateId } from '../utils/idGenerator';
 import { createScopedLogger } from '../utils/logger';
-import type {
-  CaregiverRelationship,
-  CaregiverInvite,
-  PatientInfo,
-} from '../types';
+// Sprint 7.3: Pure helper'lar ./caregiverHelpers.ts'e tasindi.
+// generateInviteCode + isValidInviteCode inline tanimlar kaldirildi,
+// re-export ile public API korunuyor.
+import { generateInviteCode, isValidInviteCode } from './caregiverHelpers';
+export { generateInviteCode, isValidInviteCode };
+import type { CaregiverRelationship, CaregiverInvite, PatientInfo } from '../types';
 
 const log = createScopedLogger('CaregiverService');
 
@@ -35,22 +47,6 @@ const INVITE_EXPIRY_DAYS = 7;
  * 6 haneli rastgele davet kodu oluştur
  * Okunabilir karakterler: 0-9, A-Z (hariç I, O, Q)
  */
-function generateInviteCode(): string {
-  const chars = '0123456789ABCDEFGHJKLMNPRSTUVWXYZ'; // I, O, Q çıkarıldı (karışıklık önleme)
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
-
-/**
- * Davet kodu validasyonu
- */
-export function isValidInviteCode(code: string): boolean {
-  // 6 haneli, sadece alfanümerik
-  return /^[A-Z0-9]{6}$/.test(code);
-}
 
 /**
  * Yeni bakıcı daveti oluştur
@@ -84,9 +80,10 @@ export async function createCaregiverInvite(
       log.warn('Zaten pending davet var', { caregiverEmail });
       return {
         success: false,
-        error: caregiverEmail === 'tr'
-          ? 'Bu e-posta adresine zaten bekleyen bir davet var.'
-          : 'There is already a pending invite for this email.',
+        error:
+          caregiverEmail === 'tr'
+            ? 'Bu e-posta adresine zaten bekleyen bir davet var.'
+            : 'There is already a pending invite for this email.',
       };
     }
 
@@ -103,9 +100,10 @@ export async function createCaregiverInvite(
       log.warn('Zaten aktif bakıcı ilişkisi var', { caregiverEmail });
       return {
         success: false,
-        error: caregiverEmail === 'tr'
-          ? 'Bu kişi zaten bakıcınız olarak ekli.'
-          : 'This person is already your caregiver.',
+        error:
+          caregiverEmail === 'tr'
+            ? 'Bu kişi zaten bakıcınız olarak ekli.'
+            : 'This person is already your caregiver.',
       };
     }
 
@@ -252,16 +250,11 @@ export async function acceptCaregiverInvite(
 /**
  * Kullanıcının bakıcı ilişkilerini getir
  */
-export async function getCaregivers(
-  patientId: string
-): Promise<CaregiverRelationship[]> {
+export async function getCaregivers(patientId: string): Promise<CaregiverRelationship[]> {
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
-    const q = query(
-      collection(db, RELATIONSHIPS_COLLECTION),
-      where('patientId', '==', patientId)
-    );
+    const q = query(collection(db, RELATIONSHIPS_COLLECTION), where('patientId', '==', patientId));
 
     const snapshot = await getDocs(q);
     const caregivers: CaregiverRelationship[] = [];
@@ -305,7 +298,12 @@ export async function removeCaregiver(
  */
 export async function updateCaregiverRelationship(
   relationshipId: string,
-  updates: Partial<Pick<CaregiverRelationship, 'status' | 'canViewSchedule' | 'canViewHistory' | 'canReceiveAlerts' | 'caregiverFcmToken'>>
+  updates: Partial<
+    Pick<
+      CaregiverRelationship,
+      'status' | 'canViewSchedule' | 'canViewHistory' | 'canReceiveAlerts' | 'caregiverFcmToken'
+    >
+  >
 ): Promise<{ success: boolean }> {
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
@@ -327,9 +325,7 @@ export async function updateCaregiverRelationship(
 /**
  * Bakıcının bağlı olduğu hastaları getir
  */
-export async function getPatientsForCaregiver(
-  caregiverId: string
-): Promise<PatientInfo[]> {
+export async function getPatientsForCaregiver(caregiverId: string): Promise<PatientInfo[]> {
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
@@ -378,12 +374,9 @@ export function subscribeToCaregivers(
   const unsubscribePromise = (async () => {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
-    const q = query(
-      collection(db, RELATIONSHIPS_COLLECTION),
-      where('patientId', '==', patientId)
-    );
+    const q = query(collection(db, RELATIONSHIPS_COLLECTION), where('patientId', '==', patientId));
 
-    return onSnapshot(q, (snapshot) => {
+    return onSnapshot(q, snapshot => {
       const caregivers: CaregiverRelationship[] = [];
       snapshot.forEach(doc => {
         caregivers.push(doc.data() as CaregiverRelationship);
@@ -489,9 +482,7 @@ export async function notifyCaregivers(
 /**
  * Davetleri getir (kullanıcının davetleri)
  */
-export async function getPendingInvites(
-  patientId: string
-): Promise<CaregiverInvite[]> {
+export async function getPendingInvites(patientId: string): Promise<CaregiverInvite[]> {
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
