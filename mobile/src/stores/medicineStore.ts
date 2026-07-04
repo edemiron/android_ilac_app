@@ -54,7 +54,6 @@ import {
   cancelMedicineNotifications,
   NotificationDriftReport,
   scheduleMedicineNotification,
-  scheduleSnoozeNotification,
   stopAlarmVibration,
 } from '../utils/notifications';
 import { createScopedLogger } from '../utils/logger';
@@ -68,12 +67,33 @@ import {
   syncSettingsToCloud,
   deleteAllUserData,
   SyncData,
-  SavedMedicineCloudData,
 } from '../services/firestoreSync';
-import { isLocalMedicineImageUri } from '../services/localMedicineImage';
 import { DEFAULT_USER_SETTINGS } from '../utils/defaultSettings';
 import { migrateMedicineStoreState, SETTINGS_STORAGE_VERSION } from '../utils/settingsStorage';
 import { recordDiagnosticEvent } from '../utils/diagnosticTelemetry';
+
+// Sprint 4: pure helper'lar ./helpers/* modullerine tasindi.
+// medicineStore.ts — store olusturma + action dispatch + selector'lara odaklanir.
+import { sanitizeMedicineData } from './helpers/sanitize';
+import {
+  resolveMedicineLogArgs,
+  buildMedicineLogSlotKey,
+  isScheduledTimeInFuture,
+  normalizeMedicineLogsBySlot,
+} from './helpers/medicineLogs';
+import {
+  didReminderSchedulingSettingsChange,
+  mergeSnoozeNotificationRescheduleUpdates,
+  parseSnoozeTriggerTime,
+  rescheduleActiveNotificationsFromState,
+  type RescheduledSnoozeNotification,
+} from './helpers/reschedule';
+import {
+  getSyncErrorMessage,
+  applySavedMedicineCloudData,
+  hasPendingMedicineImageBackfill,
+  scheduleBackgroundSync,
+} from './helpers/sync';
 
 // Kategori bazlı renk ve etiket tanımları
 export interface MedicineCategoryInfo {
@@ -105,23 +125,6 @@ function isAndroidPlatform(): boolean {
   return Platform?.OS === 'android';
 }
 
-function didReminderSchedulingSettingsChange(prev: UserSettings, next: UserSettings): boolean {
-  return (
-    prev.fullScreenAlarmEnabled !== next.fullScreenAlarmEnabled ||
-    prev.vibrationEnabled !== next.vibrationEnabled ||
-    prev.alarmModeEnabled !== next.alarmModeEnabled ||
-    prev.quietHoursEnabled !== next.quietHoursEnabled ||
-    prev.quietHoursStart !== next.quietHoursStart ||
-    prev.quietHoursEnd !== next.quietHoursEnd
-  );
-}
-
-interface RescheduledSnoozeNotification {
-  snoozeId: string;
-  notificationId: string;
-  triggerTime: string;
-}
-
 export interface NotificationSelfHealResult extends NotificationDriftReport {
   repaired: boolean;
   cancelledNotificationIds: string[];
@@ -132,216 +135,6 @@ export interface SettingsUpdateOptions {
   skipReschedule?: boolean;
   skipSelfHeal?: boolean;
   skipCloudSync?: boolean;
-}
-
-function mergeSnoozeNotificationRescheduleUpdates(
-  snoozes: Snooze[],
-  updates: RescheduledSnoozeNotification[]
-): Snooze[] {
-  if (updates.length === 0) {
-    return snoozes;
-  }
-
-  const updatesMap = new Map(updates.map(update => [update.snoozeId, update]));
-
-  return snoozes.map(snooze => {
-    const update = updatesMap.get(snooze.id);
-    if (!update) {
-      return snooze;
-    }
-
-    return {
-      ...snooze,
-      notificationId: update.notificationId,
-      triggerTime: update.triggerTime,
-    };
-  });
-}
-
-function parseSnoozeTriggerTime(triggerTime: string): Date | null {
-  const parsedTriggerTime = new Date(triggerTime);
-
-  return Number.isNaN(parsedTriggerTime.getTime()) ? null : parsedTriggerTime;
-}
-
-async function rescheduleActiveNotificationsFromState(
-  state: Pick<MedicineState, 'medicines' | 'reminderTimes' | 'snoozes' | 'settings'>,
-  applySnoozeUpdates?: (updates: RescheduledSnoozeNotification[]) => void
-): Promise<void> {
-  const activeMedicines = new Map(
-    state.medicines.filter(medicine => medicine.isActive).map(medicine => [medicine.id, medicine])
-  );
-
-  const enabledReminderTimes = state.reminderTimes.filter(
-    reminderTime => reminderTime.isEnabled && activeMedicines.has(reminderTime.medicineId)
-  );
-
-  await Promise.allSettled(
-    enabledReminderTimes.map(reminderTime =>
-      scheduleMedicineNotification(
-        activeMedicines.get(reminderTime.medicineId)!,
-        reminderTime,
-        state.settings,
-        false
-      )
-    )
-  );
-
-  const now = new Date();
-  const activeSnoozes = state.snoozes.filter(snooze => snooze.isActive);
-  const snoozeResults = await Promise.allSettled(
-    activeSnoozes.map(async snooze => {
-      const triggerTime = parseSnoozeTriggerTime(snooze.triggerTime);
-      const medicine = activeMedicines.get(snooze.medicineId);
-      const reminderTime = state.reminderTimes.find(
-        item => item.id === snooze.reminderTimeId && item.isEnabled
-      );
-
-      if (!triggerTime || triggerTime.getTime() <= now.getTime()) {
-        log.debug('Gecmis veya gecersiz aktif snooze yeniden planlamada atlandi', {
-          snoozeId: snooze.id,
-          triggerTime: snooze.triggerTime,
-        });
-        return null;
-      }
-
-      if (!medicine || !reminderTime) {
-        return null;
-      }
-
-      const result = await scheduleSnoozeNotification({
-        medicine,
-        reminderTime,
-        snoozeId: snooze.id,
-        originalScheduledTime: snooze.originalScheduledTime,
-        snoozeCount: snooze.snoozeCount,
-        settings: state.settings,
-        triggerTime,
-      });
-
-      if (!result) {
-        return null;
-      }
-
-      return {
-        snoozeId: snooze.id,
-        notificationId: result.notificationId,
-        triggerTime: result.triggerTime.toISOString(),
-      };
-    })
-  );
-
-  const updates = snoozeResults.flatMap(result =>
-    result.status === 'fulfilled' && result.value ? [result.value] : []
-  );
-
-  if (updates.length > 0) {
-    applySnoozeUpdates?.(updates);
-  }
-}
-
-// Türkçe karakter encoding sorunlarını düzelt
-function sanitizeString(str: string | undefined | null): string {
-  if (!str) return '';
-  // Unicode escape sequence'ları decode et (\u00fc -> ü)
-  return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
-}
-
-function sanitizeMedicineData<T extends { name?: string; dosage?: string }>(data: T): T {
-  const sanitized = { ...data };
-
-  if (typeof data.name === 'string') {
-    sanitized.name = sanitizeString(data.name) as T['name'];
-  }
-
-  if (typeof data.dosage === 'string') {
-    sanitized.dosage = sanitizeString(data.dosage) as T['dosage'];
-  }
-
-  return sanitized;
-}
-
-function resolveMedicineLogArgs(
-  reminderTimeId: string,
-  medicines: Medicine[],
-  reminderTimes: ReminderTime[],
-  medicineIdFallbackOrNote?: string,
-  explicitNote?: string
-): { medicineIdFallback?: string; note?: string } {
-  if (explicitNote !== undefined) {
-    return {
-      medicineIdFallback: medicineIdFallbackOrNote,
-      note: explicitNote,
-    };
-  }
-
-  if (!medicineIdFallbackOrNote) {
-    return {};
-  }
-
-  const reminderExists = reminderTimes.some(reminderTime => reminderTime.id === reminderTimeId);
-
-  if (!reminderExists) {
-    return { medicineIdFallback: medicineIdFallbackOrNote };
-  }
-
-  const isKnownMedicineId = medicines.some(medicine => medicine.id === medicineIdFallbackOrNote);
-
-  return isKnownMedicineId
-    ? { medicineIdFallback: medicineIdFallbackOrNote }
-    : { note: medicineIdFallbackOrNote };
-}
-
-function buildMedicineLogSlotKey(reminderTimeId: string, scheduledTime: string): string {
-  return `${reminderTimeId}__${scheduledTime}`;
-}
-
-function isScheduledTimeInFuture(scheduledTime: string, referenceDate: Date = new Date()): boolean {
-  const parsedScheduledTime = new Date(scheduledTime);
-
-  if (Number.isNaN(parsedScheduledTime.getTime())) {
-    return false;
-  }
-
-  return parsedScheduledTime.getTime() > referenceDate.getTime();
-}
-
-function getMedicineLogStatusPriority(status: MedicineLog['status']): number {
-  switch (status) {
-    case 'taken':
-      return 3;
-    case 'skipped':
-      return 2;
-    case 'missed':
-      return 1;
-    default:
-      return 0;
-  }
-}
-
-function normalizeMedicineLogsBySlot(medicineLogs: MedicineLog[]): MedicineLog[] {
-  const logsBySlot = new Map<string, MedicineLog>();
-
-  medicineLogs.forEach(logEntry => {
-    const slotKey = buildMedicineLogSlotKey(logEntry.reminderTimeId, logEntry.scheduledTime);
-    const existingLog = logsBySlot.get(slotKey);
-
-    if (!existingLog) {
-      logsBySlot.set(slotKey, logEntry);
-      return;
-    }
-
-    const existingPriority = getMedicineLogStatusPriority(existingLog.status);
-    const nextPriority = getMedicineLogStatusPriority(logEntry.status);
-
-    if (nextPriority > existingPriority || nextPriority === existingPriority) {
-      logsBySlot.set(slotKey, logEntry);
-    }
-  });
-
-  return Array.from(logsBySlot.values()).sort((left, right) =>
-    left.scheduledTime.localeCompare(right.scheduledTime)
-  );
 }
 
 // MEDICINE_COLORS artık src/constants.ts'te tanımlı (Sprint 4 — slice mimarisi)
@@ -477,45 +270,7 @@ interface MedicineState {
 /**
  * Schedules a background sync operation.
  * Errors are logged but do not crash the app.
- * The sync queue ensures sequential execution.
  */
-const scheduleBackgroundSync = (syncFn: () => Promise<void>): void => {
-  // Queue the sync but don't block the caller
-  syncFn().catch(error => {
-    // Log error but don't throw - this is background sync
-    log.error('BackgroundSync failed', error);
-  });
-};
-
-function getSyncErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Senkronizasyon hatasi';
-}
-
-function applySavedMedicineCloudData(
-  medicines: Medicine[],
-  medicineId: string,
-  cloudData: SavedMedicineCloudData
-): Medicine[] {
-  return medicines.map(medicine =>
-    medicine.id === medicineId
-      ? {
-          ...medicine,
-          updatedAt: cloudData.updatedAt ?? medicine.updatedAt,
-          imageUri: cloudData.clearLocalImage
-            ? undefined
-            : (cloudData.localImageUri ?? medicine.imageUri ?? undefined),
-          imageStoragePath: cloudData.imageStoragePath ?? undefined,
-          imageMimeType: cloudData.imageMimeType ?? undefined,
-          imageSize: cloudData.imageSize ?? undefined,
-          imageUpdatedAt: cloudData.imageUpdatedAt ?? undefined,
-        }
-      : medicine
-  );
-}
-
-function hasPendingMedicineImageBackfill(medicine: Medicine): boolean {
-  return isLocalMedicineImageUri(medicine.imageUri) && !medicine.imageStoragePath;
-}
 
 export const useMedicineStore = create<MedicineState>()(
   persist(
