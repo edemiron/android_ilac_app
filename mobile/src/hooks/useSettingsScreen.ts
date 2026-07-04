@@ -15,47 +15,6 @@ import {
 } from '../utils/notifications';
 import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInteraction';
 import { useAlert } from '../contexts/AlertContext';
-
-// Test ilaç verileri
-const TEST_MEDICINE_NAMES = [
-  'Aspirin',
-  'Parol',
-  'Majezik',
-  'Arveles',
-  'Nurofen',
-  'Tylol',
-  'Voltaren',
-  'Cataflam',
-  'Apranax',
-  'Dikloron',
-  'Aferin',
-  'Gripin',
-  'Minoset',
-  'Vermidon',
-  'Dolorex',
-];
-
-const TEST_MEDICINE_DOSES = [
-  '500mg',
-  '200mg',
-  '100mg',
-  '250mg',
-  '400mg',
-  '1 tablet',
-  '2 tablet',
-  '1 kapsu00fcl',
-  '5ml',
-  '10ml',
-];
-
-const TEST_INSTRUCTIONS = [
-  'after_meal',
-  'before_meal',
-  'with_meal',
-  'any_time',
-  'empty_stomach',
-  'before_sleep',
-] as const;
 import { speak } from '../utils/speech';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
 import { useLanguage, Language } from '../contexts/LanguageContext';
@@ -63,6 +22,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { createScopedLogger } from '../utils/logger';
 import { CHANNELS } from '../constants';
+
+// Sprint 5.2: Test data + pure helpers ./useSettingsHelpers.ts'e tasindi.
+import {
+  TEST_MEDICINE_NAMES,
+  TEST_MEDICINE_DOSES,
+  TEST_INSTRUCTIONS,
+  SETTING_TO_PICKER_MAP,
+  parseTimeToDate,
+  togglePickerVisibility,
+  closePickerVisibility,
+  type SettingsPickerKey,
+  type TimeSettingKey,
+} from './useSettingsHelpers';
 
 const log = createScopedLogger('SettingsScreen');
 
@@ -101,46 +73,29 @@ export function useSettingsScreen() {
     showConflictIntervalPicker: false,
   });
 
-  const togglePicker = useCallback((pickerName: keyof typeof pickerState) => {
-    setPickerState(prev => ({
-      ...prev,
-      [pickerName]: !prev[pickerName],
-    }));
-  }, []);
+  const togglePicker = useCallback(
+    (pickerName: SettingsPickerKey) =>
+      setPickerState(prev => togglePickerVisibility(prev, pickerName)),
+    []
+  );
 
-  const closePicker = useCallback((pickerName: keyof typeof pickerState) => {
-    setPickerState(prev => ({
-      ...prev,
-      [pickerName]: false,
-    }));
-  }, []);
-
-  const parseTimeToDate = useCallback((timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-    return date;
-  }, []);
+  const closePicker = useCallback(
+    (pickerName: SettingsPickerKey) =>
+      setPickerState(prev => closePickerVisibility(prev, pickerName)),
+    []
+  );
 
   const handleTimeChange = useCallback(
-    (settingKey: 'wakeUpTime' | 'sleepTime' | 'quietHoursStart' | 'quietHoursEnd') =>
-      (event: DateTimePickerEvent, selectedDate?: Date) => {
-        const pickerMap: Record<string, keyof typeof pickerState> = {
-          wakeUpTime: 'showWakeUpPicker',
-          sleepTime: 'showSleepPicker',
-          quietHoursStart: 'showQuietStartPicker',
-          quietHoursEnd: 'showQuietEndPicker',
-        };
+    (settingKey: TimeSettingKey) => (event: DateTimePickerEvent, selectedDate?: Date) => {
+      if (Platform.OS !== 'ios') {
+        closePicker(SETTING_TO_PICKER_MAP[settingKey]);
+      }
 
-        if (Platform.OS !== 'ios') {
-          closePicker(pickerMap[settingKey]);
-        }
-
-        if (selectedDate) {
-          const timeStr = format(selectedDate, 'HH:mm');
-          updateSettings({ [settingKey]: timeStr });
-        }
-      },
+      if (selectedDate) {
+        const timeStr = format(selectedDate, 'HH:mm');
+        updateSettings({ [settingKey]: timeStr });
+      }
+    },
     [closePicker, updateSettings]
   );
 
@@ -482,8 +437,9 @@ export function useSettingsScreen() {
     // Önce ilaç etkileşimi kontrolü
     if (interactionResult.hasInteractions) {
       const interactionMessages = interactionResult.interactions
-        .map((i: { severity: string; drug1: string; drug2: string; description: string }) =>
-          `${getSeverityIcon(i.severity as never)} ${i.drug1} + ${i.drug2}\n${i.description}`
+        .map(
+          (i: { severity: string; drug1: string; drug2: string; description: string }) =>
+            `${getSeverityIcon(i.severity as never)} ${i.drug1} + ${i.drug2}\n${i.description}`
         )
         .join('\n\n');
 
