@@ -98,3 +98,52 @@ export function extractUserIdFromPath(path: string): string | null {
   if (parts.length < 2) return null;
   return parts[1] || null;
 }
+
+// =============================================================================
+// Sprint 10.1: Firestore referans builder'lari (db bagimli).
+// Bu fonksiyonlar Firestore API'sini kullanir (collection, doc) — pure degil.
+// Sprint 11'de generic abstraction ile test edilebilir hale getirilebilir.
+// =============================================================================
+import { collection as firestoreCollection, doc as firestoreDoc } from 'firebase/firestore';
+import { db as firestoreDb } from '../config/firebase';
+
+/**
+ * Kullanici document reference (Sprint 10.1).
+ */
+export function getUserDocRef(userId: string) {
+  return firestoreDoc(firestoreDb, COLLECTIONS.USERS, userId);
+}
+
+/**
+ * Medicines collection reference (Sprint 10.1).
+ */
+export function getMedicinesRef(userId: string) {
+  return firestoreCollection(firestoreDb, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINES);
+}
+
+/**
+ * Reminder times collection reference (Sprint 10.1).
+ */
+export function getReminderTimesRef(userId: string) {
+  return firestoreCollection(firestoreDb, COLLECTIONS.USERS, userId, COLLECTIONS.REMINDER_TIMES);
+}
+
+/**
+ * Medicine logs collection reference (Sprint 10.1).
+ */
+export function getMedicineLogsRef(userId: string) {
+  return firestoreCollection(firestoreDb, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINE_LOGS);
+}
+
+/**
+ * Settings document reference (Sprint 10.1).
+ */
+export function getSettingsDocRef(userId: string) {
+  return firestoreDoc(
+    firestoreDb,
+    COLLECTIONS.USERS,
+    userId,
+    COLLECTIONS.SETTINGS,
+    SETTINGS_DOCUMENT_ID
+  );
+}

@@ -2,6 +2,15 @@
  * firestoreSyncHelpers testleri.
  */
 
+jest.mock('../../config/firebase', () => ({
+  db: {},
+}));
+
+jest.mock('firebase/firestore', () => ({
+  collection: jest.fn(() => ({})),
+  doc: jest.fn(() => ({})),
+}));
+
 import {
   chunkArray,
   countBatchOperations,

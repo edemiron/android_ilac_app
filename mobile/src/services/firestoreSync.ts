@@ -1,5 +1,4 @@
 import {
-  collection,
   doc,
   setDoc,
   getDoc,
@@ -21,7 +20,15 @@ import { sanitizeString, sanitizeForFirestore } from '../stores/helpers/sanitize
 // Sprint 8.2 + 9.1: Batch + collection + path helpers ./firestoreSyncHelpers.ts'te.
 // Sprint 9.1: Inline referans fonksiyonlari (getMedicinesRef vb.) silindi,
 // path-only helpers eklendi.
-import { FIRESTORE_BATCH_LIMIT, COLLECTIONS, SETTINGS_DOCUMENT_ID } from './firestoreSyncHelpers';
+// Sprint 10.1: Firestore referans builder'lari (getMedicinesRef vb.)
+// firestoreSyncHelpers'a tasindi.
+import {
+  FIRESTORE_BATCH_LIMIT,
+  getMedicinesRef,
+  getReminderTimesRef,
+  getMedicineLogsRef,
+  getSettingsDocRef,
+} from './firestoreSyncHelpers';
 
 const log = createScopedLogger('FirestoreSync');
 
@@ -32,28 +39,6 @@ function sanitizeMedicine(medicine: Medicine): Medicine {
     dosage: medicine.dosage ? sanitizeString(medicine.dosage) : medicine.dosage,
   };
 }
-
-// Collection isimleri
-
-// Kullanıcı doküman referansı
-// eslint-disable-next-line unused-imports/no-unused-vars
-const getUserDocRef = (userId: string) => doc(db, COLLECTIONS.USERS, userId);
-
-// Alt koleksiyon referansları (Sprint 9.1 — inline kaldirildi ama
-// collection/ doc API'lar db instance'i bekledigi icin helpers.ts'de
-// implement edilemedi. Sprint 10'da Firestore DocumentReference generic
-// abstraction ile pure helper'a tasinabilir.)
-const getMedicinesRef = (userId: string) =>
-  collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINES);
-
-const getReminderTimesRef = (userId: string) =>
-  collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.REMINDER_TIMES);
-
-const getMedicineLogsRef = (userId: string) =>
-  collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINE_LOGS);
-
-const getSettingsDocRef = (userId: string) =>
-  doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SETTINGS, SETTINGS_DOCUMENT_ID);
 
 /**
  * Batch işlemleri için yardımcı fonksiyon
