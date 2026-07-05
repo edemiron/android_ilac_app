@@ -152,3 +152,24 @@ describe('summarizeFormState', () => {
     expect(summary).toBe('(no-name) | ? | 0x/gün | 0 alarm');
   });
 });
+
+describe('Sprint 8.4: inline validation delegasyonu', () => {
+  it('sanitizeMedicineName kullanildiginda empty string null doner', () => {
+    // useMedicinePersistence.handleSave icindeki `if (!formState.name.trim())`
+    // artik `if (!sanitizeMedicineName(formState.name))` olarak helper'a delege
+    expect(sanitizeMedicineName('   ')).toBeNull();
+    expect(sanitizeMedicineName('Aspirin')).toBe('Aspirin');
+  });
+
+  it('sanitizeDosage whitespace temizleme davranisi', () => {
+    // `dosage: formState.dosage.trim()` artik sanitizeDosage'a delege
+    expect(sanitizeDosage('500 mg')).toBe('500mg');
+    expect(sanitizeDosage('')).toBeNull();
+  });
+
+  it('summary edge case: special characters', () => {
+    expect(summarizeFormState({ name: 'İlaç-A', dosage: '5ml', frequency: 1 })).toBe(
+      'İlaç-A | 5ml | 1x/gün | 1 alarm'
+    );
+  });
+});

@@ -18,7 +18,13 @@ import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInte
 import { calculateMedicineTimes } from '../utils/timeCalculator';
 
 // Sprint 6.3: pure helper'lar ./useMedicineHelpers.ts'e tasindi.
-import { adjustTimesForConflicts } from './useMedicineHelpers';
+// Sprint 6.3 + 7.4 + 8.4: pure helper'lar ./useMedicineHelpers.ts'te tasindi.
+// Sprint 8.4: inline validation/sanitize logic helper'lara delege ediliyor.
+import {
+  adjustTimesForConflicts,
+  sanitizeMedicineName,
+  sanitizeDosage,
+} from './useMedicineHelpers';
 
 const log = createScopedLogger('MedicinePersistence');
 
@@ -210,9 +216,16 @@ export function useMedicinePersistence({
   const saveMedicine = useCallback(
     async (formState: AddMedicineFormState): Promise<boolean> => {
       try {
+        // Sprint 8.4: inline trim -> sanitizeMedicineName/sanitizeDosage helper'lara delege.
+        const sanitizedName = sanitizeMedicineName(formState.name);
+        const sanitizedDosage = sanitizeDosage(formState.dosage);
+        if (!sanitizedName) {
+          log.error('Medicine name bos/dolu olamaz');
+          return false;
+        }
         const medicineData = {
-          name: formState.name.trim(),
-          dosage: formState.dosage.trim(),
+          name: sanitizedName,
+          dosage: sanitizedDosage || formState.dosage,
           dosageAmount: formState.dosageAmount,
           form: formState.medicineForm,
           frequency: formState.useCustomTimes ? formState.customTimes.length : formState.frequency,
@@ -366,7 +379,8 @@ export function useMedicinePersistence({
 
   const handleSave = useCallback(
     async (formState: AddMedicineFormState) => {
-      if (!formState.name.trim()) {
+      // Sprint 8.4: inline trim -> sanitizeMedicineName helper'a delege.
+      if (!sanitizeMedicineName(formState.name)) {
         showError(t('error'), t('error_required_field'));
         return false;
       }
@@ -400,7 +414,7 @@ export function useMedicinePersistence({
       const activeMedicineNames = medicines
         .filter(m => m.isActive && (!isEditing || m.id !== medicineId))
         .map(m => m.name);
-      const allDrugNames = [...activeMedicineNames, formState.name.trim()];
+      const allDrugNames = [...activeMedicineNames, sanitizeMedicineName(formState.name) || ''];
 
       const interactionResult = await checkMultipleInteractions(allDrugNames);
 
