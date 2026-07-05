@@ -70,3 +70,31 @@ export function calculateBatchCount(
   if (totalOperations <= 0) return 0;
   return Math.ceil(totalOperations / batchLimit);
 }
+
+/**
+ * Sprint 9.1: Firestore path sabitleri (db'siz — pure helper).
+ * userId -> path builder'lari tek kaynaktan yonetir.
+ */
+export const SETTINGS_DOCUMENT_ID = 'userSettings';
+
+export const FIRESTORE_PATHS = {
+  USER_DOC: (userId: string) => `${COLLECTIONS.USERS}/${userId}`,
+  MEDICINES_COLLECTION: (userId: string) =>
+    `${COLLECTIONS.USERS}/${userId}/${COLLECTIONS.MEDICINES}`,
+  REMINDER_TIMES_COLLECTION: (userId: string) =>
+    `${COLLECTIONS.USERS}/${userId}/${COLLECTIONS.REMINDER_TIMES}`,
+  MEDICINE_LOGS_COLLECTION: (userId: string) =>
+    `${COLLECTIONS.USERS}/${userId}/${COLLECTIONS.MEDICINE_LOGS}`,
+  SETTINGS_DOC: (userId: string) =>
+    `${COLLECTIONS.USERS}/${userId}/${COLLECTIONS.SETTINGS}/${SETTINGS_DOCUMENT_ID}`,
+} as const;
+
+/**
+ * Collection path -> userId extract.
+ * "users/123/medicines" -> "123"
+ */
+export function extractUserIdFromPath(path: string): string | null {
+  const parts = path.split('/');
+  if (parts.length < 2) return null;
+  return parts[1] || null;
+}

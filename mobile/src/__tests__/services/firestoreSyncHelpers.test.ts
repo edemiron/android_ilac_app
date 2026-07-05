@@ -8,6 +8,9 @@ import {
   calculateBatchCount,
   FIRESTORE_BATCH_LIMIT,
   COLLECTIONS,
+  FIRESTORE_PATHS,
+  SETTINGS_DOCUMENT_ID,
+  extractUserIdFromPath,
 } from '../../services/firestoreSyncHelpers';
 
 describe('FIRESTORE_BATCH_LIMIT', () => {
@@ -94,5 +97,41 @@ describe('calculateBatchCount', () => {
   it('uses default limit when not provided', () => {
     expect(calculateBatchCount(501)).toBe(2); // 500 default
     expect(calculateBatchCount(1500)).toBe(3);
+  });
+});
+
+describe('Sprint 9.1: FIRESTORE_PATHS', () => {
+  it('builds user doc path', () => {
+    expect(FIRESTORE_PATHS.USER_DOC('user-1')).toBe('users/user-1');
+  });
+
+  it('builds medicines collection path', () => {
+    expect(FIRESTORE_PATHS.MEDICINES_COLLECTION('user-1')).toBe('users/user-1/medicines');
+  });
+
+  it('builds settings doc path with constant id', () => {
+    expect(FIRESTORE_PATHS.SETTINGS_DOC('user-1')).toBe('users/user-1/settings/userSettings');
+    expect(SETTINGS_DOCUMENT_ID).toBe('userSettings');
+  });
+
+  it('uses COLLECTIONS constants consistently', () => {
+    expect(FIRESTORE_PATHS.REMINDER_TIMES_COLLECTION('abc')).toBe(
+      `users/abc/${COLLECTIONS.REMINDER_TIMES}`
+    );
+  });
+});
+
+describe('Sprint 9.1: extractUserIdFromPath', () => {
+  it('extracts userId from user doc path', () => {
+    expect(extractUserIdFromPath('users/user-1/medicines')).toBe('user-1');
+  });
+
+  it('extracts userId from settings path', () => {
+    expect(extractUserIdFromPath('users/abc-123/settings/userSettings')).toBe('abc-123');
+  });
+
+  it('returns null for too-short path', () => {
+    expect(extractUserIdFromPath('users')).toBeNull();
+    expect(extractUserIdFromPath('')).toBeNull();
   });
 });
