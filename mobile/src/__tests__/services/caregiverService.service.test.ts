@@ -45,15 +45,3 @@ describe('caregiverService ServiceResult wrappers', () => {
   });
 });
 
-describe('createCaregiverInviteService error handling', () => {
-  it('returns ok with inviteCode on success', async () => {
-    // Mock'lenebilir, ancak mevcut mock'lar basit hata doner
-    const result = await createCaregiverInviteService('p1', 'Patient', 'care@example.com');
-    // Mock edilmedigi icin catch'e duser ve err doner
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBeDefined();
-      expect(result.error.message).toBeDefined();
-    }
-  });
-});

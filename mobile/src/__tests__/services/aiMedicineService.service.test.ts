@@ -49,3 +49,5 @@ describe('aiMedicineService ServiceResult wrappers', () => {
     expect(typeof getMedicineInfoAIService).toBe('function');
   });
 });
+
+
