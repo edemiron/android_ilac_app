@@ -75,7 +75,7 @@ describe('useAlarmQueue', () => {
 describe('usePendingAlarmTrigger', () => {
   it('does not trigger when pendingAlarm is null', () => {
     const onTrigger = jest.fn();
-    const isReady = jest.fn(() => true);
+    const isReady = jest.fn(() => true) as unknown as () => boolean;
 
     renderHook(() => usePendingAlarmTrigger(null, onTrigger, isReady));
 
@@ -84,7 +84,7 @@ describe('usePendingAlarmTrigger', () => {
 
   it('does not trigger when isReady returns false', () => {
     const onTrigger = jest.fn();
-    const isReady = jest.fn(() => false);
+    const isReady = jest.fn(() => false) as unknown as () => boolean;
     const pendingAlarm = {
       medicineId: 'med-1',
       reminderTimeId: 'rt-1',
@@ -98,7 +98,7 @@ describe('usePendingAlarmTrigger', () => {
 
   it('triggers when pendingAlarm is set and isReady returns true', () => {
     const onTrigger = jest.fn();
-    const isReady = jest.fn(() => true);
+    const isReady = jest.fn(() => true) as unknown as () => boolean;
     const pendingAlarm = {
       medicineId: 'med-1',
       reminderTimeId: 'rt-1',
@@ -112,11 +112,12 @@ describe('usePendingAlarmTrigger', () => {
   });
 
   it('re-triggers when pendingAlarm changes', () => {
-    const onTrigger: any = jest.fn();
-    const isReady: any = jest.fn(() => true);
+    const onTrigger: ReturnType<typeof jest.fn> = jest.fn();
+    const isReady = jest.fn(() => true) as unknown as () => boolean;
 
     const { rerender } = renderHook(
-      (props: any) => usePendingAlarmTrigger(props.data, onTrigger, isReady),
+      (props: { data: { medicineId: string; reminderTimeId: string; scheduledTime: string } }) =>
+        usePendingAlarmTrigger(props.data, onTrigger, isReady),
       {
         initialProps: {
           data: {

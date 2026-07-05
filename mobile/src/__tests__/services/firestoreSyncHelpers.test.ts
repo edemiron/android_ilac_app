@@ -2,6 +2,7 @@
  * firestoreSyncHelpers testleri.
  */
 
+import { Firestore } from 'firebase/firestore';
 jest.mock('../../config/firebase', () => ({
   db: {},
 }));
@@ -151,29 +152,25 @@ describe('Sprint 9.1: extractUserIdFromPath', () => {
 
 describe('Sprint 12.3: Generic Firestore ref builder', () => {
   it('buildMedicinesCollectionRef accepts mock db', () => {
-    // @ts-expect-error test fixture
-    const mockDb = {};
+    const mockDb = {} as unknown as Firestore;
     const ref = buildMedicinesCollectionRef(mockDb, 'user-1');
     expect(ref).toBeDefined();
   });
 
   it('buildReminderTimesCollectionRef accepts mock db', () => {
-    // @ts-expect-error test fixture
-    const mockDb = {};
+    const mockDb = {} as unknown as Firestore;
     const ref = buildReminderTimesCollectionRef(mockDb, 'user-1');
     expect(ref).toBeDefined();
   });
 
   it('buildMedicineLogsCollectionRef accepts mock db', () => {
-    // @ts-expect-error test fixture
-    const mockDb = {};
+    const mockDb = {} as unknown as Firestore;
     const ref = buildMedicineLogsCollectionRef(mockDb, 'user-1');
     expect(ref).toBeDefined();
   });
 
   it('buildSettingsDocRef accepts mock db', () => {
-    // @ts-expect-error test fixture
-    const mockDb = {};
+    const mockDb = {} as unknown as Firestore;
     const ref = buildSettingsDocRef(mockDb, 'user-1');
     expect(ref).toBeDefined();
   });

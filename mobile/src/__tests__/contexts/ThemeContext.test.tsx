@@ -30,6 +30,8 @@ import { render, act } from '@testing-library/react-native';
 import { ThemeProvider, useTheme, lightColors, darkColors } from '../../contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+type TestThemeData = { theme: string; isDark: boolean; colors: { primary: string } };
+
 const TestComponent = () => {
   const { theme, isDark, colors, setTheme } = useTheme();
   return (
@@ -76,7 +78,7 @@ describe('ThemeContext', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
 
-    expect(ref.current!.theme).toBe('system');
+    expect((ref.current as TestThemeData | null)?.theme).toBe('system');
   });
 
   it('computes isDark=false when system is light', async () => {
@@ -91,7 +93,7 @@ describe('ThemeContext', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
 
-    expect(ref.current!.isDark).toBe(false);
+    expect((ref.current as TestThemeData | null)?.isDark).toBe(false);
   });
 
   it('provides light colors by default', async () => {
@@ -106,7 +108,7 @@ describe('ThemeContext', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
 
-    expect(ref.current!.colors.primary).toBe(lightColors.primary);
+    expect((ref.current as TestThemeData | null)?.colors.primary).toBe(lightColors.primary);
   });
 
   it('throws error when useTheme is used outside ThemeProvider', () => {

@@ -6,10 +6,8 @@
  */
 
 import { createScopedLogger } from '../../utils/logger';
-import {
-  isLocalMedicineImageUri,
-  type SavedMedicineCloudData,
-} from '../../services/localMedicineImage';
+import { isLocalMedicineImageUri } from '../../services/localMedicineImage';
+import type { SavedMedicineCloudData } from '../../services/firestoreSync';
 import type { Medicine } from '../../types';
 
 const log = createScopedLogger('MedicineStoreSync');

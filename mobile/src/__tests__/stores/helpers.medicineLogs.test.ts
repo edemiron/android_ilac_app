@@ -64,7 +64,6 @@ describe('getMedicineLogStatusPriority', () => {
     expect(getMedicineLogStatusPriority('taken')).toBe(3);
     expect(getMedicineLogStatusPriority('skipped')).toBe(2);
     expect(getMedicineLogStatusPriority('missed')).toBe(1);
-    // @ts-expect-error test fixture
     expect(getMedicineLogStatusPriority('pending')).toBe(0);
   });
 });

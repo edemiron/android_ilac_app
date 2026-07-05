@@ -112,9 +112,7 @@ describe('scheduleSnoozeNotification', () => {
   };
 
   const baseParams: ScheduleSnoozeParams = {
-    // @ts-expect-error test fixture
     medicine: baseMedicine,
-    // @ts-expect-error test fixture
     reminderTime: baseReminder,
     snoozeId: 'snooze-1',
     originalScheduledTime: '2024-06-25T08:00:00Z',
@@ -194,7 +192,6 @@ describe('scheduleTestAlarmNotification', () => {
   it('enforces minimum 5 seconds delay', async () => {
     await scheduleTestAlarmNotification(0.01); // 0.6 seconds < 5
     const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
-    // @ts-expect-error test fixture
     const trigger = call[1];
     const triggerTime = new Date(trigger.timestamp);
     const now = Date.now();
@@ -247,7 +244,6 @@ describe('scheduleMedicineNotification', () => {
 
   it('returns null for invalid medicine (no id)', async () => {
     const result = await scheduleMedicineNotification(
-      // @ts-expect-error test fixture
       { ...mockMedicine, id: '' },
       mockReminder
     );
@@ -259,7 +255,6 @@ describe('scheduleMedicineNotification', () => {
     const result = await scheduleMedicineNotification(mockMedicine, {
       ...mockReminder,
       id: '',
-    // @ts-expect-error test fixture
     });
     expect(result).toBeNull();
   });
@@ -268,7 +263,6 @@ describe('scheduleMedicineNotification', () => {
     const result = await scheduleMedicineNotification(mockMedicine, {
       ...mockReminder,
       time: '',
-    // @ts-expect-error test fixture
     });
     expect(result).toBeNull();
   });
