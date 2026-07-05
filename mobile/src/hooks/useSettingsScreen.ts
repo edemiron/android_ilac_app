@@ -32,6 +32,7 @@ import {
   parseTimeToDate,
   togglePickerVisibility,
   closePickerVisibility,
+  isValidTimeFormat,
   type SettingsPickerKey,
   type TimeSettingKey,
 } from './useSettingsHelpers';
@@ -93,7 +94,12 @@ export function useSettingsScreen() {
 
       if (selectedDate) {
         const timeStr = format(selectedDate, 'HH:mm');
-        updateSettings({ [settingKey]: timeStr });
+        // Sprint 11.2: Sprint 10.2 validation helper'a delege
+        if (isValidTimeFormat(timeStr)) {
+          updateSettings({ [settingKey]: timeStr });
+        } else {
+          log.warn('Invalid time format from picker, update skipped', { settingKey, timeStr });
+        }
       }
     },
     [closePicker, updateSettings]
