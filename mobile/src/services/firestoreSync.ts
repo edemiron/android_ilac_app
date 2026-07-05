@@ -15,11 +15,13 @@ import { createScopedLogger } from '../utils/logger';
 // Sprint 7.2: DRY — stores/helpers/sanitize.ts'ten sanitizeString + sanitizeForFirestore
 // import ediliyor. firestoreSync.ts icindeki duplicate inline tanimlar silindi.
 import { sanitizeString, sanitizeForFirestore } from '../stores/helpers/sanitize';
+// Sprint 8.2: Batch + collection helpers ./firestoreSyncHelpers.ts'te.
+// Pure helper'lar (chunkArray, countBatchOperations, calculateBatchCount)
+// I/O olmadan test edilebilir.
+import { FIRESTORE_BATCH_LIMIT, COLLECTIONS } from './firestoreSyncHelpers';
 
 const log = createScopedLogger('FirestoreSync');
 
-// Firestore batch limiti
-const FIRESTORE_BATCH_LIMIT = 500;
 function sanitizeMedicine(medicine: Medicine): Medicine {
   return {
     ...medicine,
@@ -29,13 +31,6 @@ function sanitizeMedicine(medicine: Medicine): Medicine {
 }
 
 // Collection isimleri
-const COLLECTIONS = {
-  USERS: 'users',
-  MEDICINES: 'medicines',
-  REMINDER_TIMES: 'reminderTimes',
-  MEDICINE_LOGS: 'medicineLogs',
-  SETTINGS: 'settings',
-};
 
 // Kullanıcı doküman referansı
 // eslint-disable-next-line unused-imports/no-unused-vars
