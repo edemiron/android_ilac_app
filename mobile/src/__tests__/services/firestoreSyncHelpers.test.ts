@@ -20,6 +20,10 @@ import {
   FIRESTORE_PATHS,
   SETTINGS_DOCUMENT_ID,
   extractUserIdFromPath,
+  buildMedicinesCollectionRef,
+  buildReminderTimesCollectionRef,
+  buildMedicineLogsCollectionRef,
+  buildSettingsDocRef,
 } from '../../services/firestoreSyncHelpers';
 
 describe('FIRESTORE_BATCH_LIMIT', () => {
@@ -142,5 +146,31 @@ describe('Sprint 9.1: extractUserIdFromPath', () => {
   it('returns null for too-short path', () => {
     expect(extractUserIdFromPath('users')).toBeNull();
     expect(extractUserIdFromPath('')).toBeNull();
+  });
+});
+
+describe('Sprint 12.3: Generic Firestore ref builder', () => {
+  it('buildMedicinesCollectionRef accepts mock db', () => {
+    const mockDb = {} as any;
+    const ref = buildMedicinesCollectionRef(mockDb, 'user-1');
+    expect(ref).toBeDefined();
+  });
+
+  it('buildReminderTimesCollectionRef accepts mock db', () => {
+    const mockDb = {} as any;
+    const ref = buildReminderTimesCollectionRef(mockDb, 'user-1');
+    expect(ref).toBeDefined();
+  });
+
+  it('buildMedicineLogsCollectionRef accepts mock db', () => {
+    const mockDb = {} as any;
+    const ref = buildMedicineLogsCollectionRef(mockDb, 'user-1');
+    expect(ref).toBeDefined();
+  });
+
+  it('buildSettingsDocRef accepts mock db', () => {
+    const mockDb = {} as any;
+    const ref = buildSettingsDocRef(mockDb, 'user-1');
+    expect(ref).toBeDefined();
   });
 });

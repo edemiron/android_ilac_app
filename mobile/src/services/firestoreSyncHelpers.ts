@@ -147,3 +147,56 @@ export function getSettingsDocRef(userId: string) {
     SETTINGS_DOCUMENT_ID
   );
 }
+
+// =============================================================================
+// Sprint 12.3: Generic Firestore ref abstraction (test edilebilir).
+// Bu fonksiyonlar db instance'a bagimli degil — collection/doc mock'lanabilir.
+// Sprint 11.1'de test'te Firebase mock ile auth init hatasi vardi; bu generic
+// wrapper'lar mock-friendly API saglar.
+// =============================================================================
+
+/**
+ * Generic collection reference builder (db instance olmadan test edilebilir).
+ * dbIstance: firestore db instance (mock-friendly).
+ */
+export interface FirestoreRefBuilder {
+  collection: typeof firestoreCollection;
+  doc: typeof firestoreDoc;
+}
+
+import type { Firestore } from 'firebase/firestore';
+
+/**
+ * Collection reference (Sprint 12.3 generic abstraction).
+ * dbInstance: Firestore db (mock-friendly).
+ */
+export function buildMedicinesCollectionRef(dbInstance: Firestore, userId: string) {
+  return firestoreCollection(dbInstance, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINES);
+}
+
+/**
+ * Reminder times collection reference (Sprint 12.3).
+ */
+export function buildReminderTimesCollectionRef(dbInstance: Firestore, userId: string) {
+  return firestoreCollection(dbInstance, COLLECTIONS.USERS, userId, COLLECTIONS.REMINDER_TIMES);
+}
+
+/**
+ * Medicine logs collection reference (Sprint 12.3).
+ */
+export function buildMedicineLogsCollectionRef(dbInstance: Firestore, userId: string) {
+  return firestoreCollection(dbInstance, COLLECTIONS.USERS, userId, COLLECTIONS.MEDICINE_LOGS);
+}
+
+/**
+ * Settings document reference (Sprint 12.3).
+ */
+export function buildSettingsDocRef(dbInstance: Firestore, userId: string) {
+  return firestoreDoc(
+    dbInstance,
+    COLLECTIONS.USERS,
+    userId,
+    COLLECTIONS.SETTINGS,
+    SETTINGS_DOCUMENT_ID
+  );
+}
