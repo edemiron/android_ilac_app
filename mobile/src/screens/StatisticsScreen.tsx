@@ -30,7 +30,6 @@ import { createScopedLogger } from '../utils/logger';
 import { Section } from './StatisticsScreen/components/Section';
 import { StatRow } from './StatisticsScreen/components/StatRow';
 import type { Period } from './StatisticsScreen/helpers';
-import { buildChartData, buildPieData, findTopMissedTimes, isValidYMD } from './StatisticsScreen/chartHelpers';
 import { getAdherenceColor } from './StatisticsScreen/helpers';
 
 const screenWidth = Dimensions.get('window').width;

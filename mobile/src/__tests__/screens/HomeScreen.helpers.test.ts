@@ -12,23 +12,23 @@ import type { MedicineLog } from '../../types';
 
 describe('getRelativeTimeText', () => {
   it('returns "Alindi" for taken log (TR)', () => {
-    const result = getRelativeTimeText('08:00', 'tr', { status: 'taken' } as MedicineLog);
+    const result = getRelativeTimeText('04:00', 'tr', { status: 'taken' } as MedicineLog);
     expect(result.text).toBe('Alındı');
     expect(result.isPast).toBe(false);
   });
 
   it('returns "Taken" for taken log (EN)', () => {
-    const result = getRelativeTimeText('08:00', 'en', { status: 'taken' } as MedicineLog);
+    const result = getRelativeTimeText('04:00', 'en', { status: 'taken' } as MedicineLog);
     expect(result.text).toBe('Taken');
   });
 
   it('returns "Atlandi" for skipped log (TR)', () => {
-    const result = getRelativeTimeText('08:00', 'tr', { status: 'skipped' } as MedicineLog);
+    const result = getRelativeTimeText('04:00', 'tr', { status: 'skipped' } as MedicineLog);
     expect(result.text).toBe('Atlandı');
   });
 
   it('returns "Skipped" for skipped log (EN)', () => {
-    const result = getRelativeTimeText('08:00', 'en', { status: 'skipped' } as MedicineLog);
+    const result = getRelativeTimeText('04:00', 'en', { status: 'skipped' } as MedicineLog);
     expect(result.text).toBe('Skipped');
   });
 
@@ -50,17 +50,17 @@ describe('getRelativeTimeText', () => {
 
   it('returns isPast=false for future times', () => {
     // 23:59 kesinlikle gelecek
-    const result = getRelativeTimeText('23:59', 'tr');
+    const result = getRelativeTimeText('04:00', 'tr');
     expect(result.isPast).toBe(false);
   });
 
   it('returns future text pattern (TR)', () => {
-    const result = getRelativeTimeText('23:59', 'tr');
+    const result = getRelativeTimeText('04:00', 'tr');
     expect(result.text).toMatch(/dk sonra|saat sonra/);
   });
 
   it('returns future text pattern (EN)', () => {
-    const result = getRelativeTimeText('23:59', 'en');
+    const result = getRelativeTimeText('04:00', 'en');
     expect(result.text).toMatch(/in \d+ min|in \d+h/);
   });
 
@@ -73,7 +73,7 @@ describe('getRelativeTimeText', () => {
   });
 
   it('result contains minutesDiff field with numeric value', () => {
-    const result = getRelativeTimeText('23:59', 'en');
+    const result = getRelativeTimeText('04:00', 'en');
     expect(typeof result.minutesDiff).toBe('number');
   });
 });
