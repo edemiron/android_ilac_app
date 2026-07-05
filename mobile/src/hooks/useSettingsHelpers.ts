@@ -112,3 +112,108 @@ export function generateRandomMedicines(count: number): Array<{
     instruction: pickRandomItem(TEST_INSTRUCTIONS),
   }));
 }
+
+// =============================================================================
+// Sprint 10.2: Settings validation helper'lari.
+// Theme, language, snooze duration gibi ayar degerleri icin tip-guvenli
+// validation. UI/Form state'den gelen raw string/number input'u temizler.
+// =============================================================================
+
+/**
+ * Tema degerini validate et. 'light' | 'dark' | 'auto' disinda deger
+ * reddedilir, default 'auto' doner.
+ */
+export function validateTheme(theme: unknown): 'light' | 'dark' | 'auto' {
+  if (theme === 'light' || theme === 'dark' || theme === 'auto') {
+    return theme;
+  }
+  return 'auto';
+}
+
+/**
+ * Dil degerini validate et. 'tr' | 'en' disinda degerler icin default 'tr'.
+ */
+export function validateLanguage(language: unknown): 'tr' | 'en' {
+  if (language === 'tr' || language === 'en') {
+    return language;
+  }
+  return 'tr';
+}
+
+/**
+ * Snooze duration degerini sinirla (1-60 dakika arasi).
+ * Gecersiz degerler default 5.
+ */
+export function validateSnoozeDuration(minutes: unknown, defaultValue: number = 5): number {
+  if (typeof minutes !== 'number' || !Number.isFinite(minutes)) {
+    return defaultValue;
+  }
+  if (minutes < 1) return 1;
+  if (minutes > 60) return 60;
+  return Math.floor(minutes);
+}
+
+/**
+ * Max snooze count degerini sinirla (1-10).
+ */
+export function validateMaxSnoozeCount(count: unknown, defaultValue: number = 3): number {
+  if (typeof count !== 'number' || !Number.isFinite(count)) {
+    return defaultValue;
+  }
+  if (count < 1) return 1;
+  if (count > 10) return 10;
+  return Math.floor(count);
+}
+
+/**
+ * Volume degerini 0-100 araliginda sinirla.
+ */
+export function validateVolume(volume: unknown, defaultValue: number = 80): number {
+  if (typeof volume !== 'number' || !Number.isFinite(volume)) {
+    return defaultValue;
+  }
+  if (volume < 0) return 0;
+  if (volume > 100) return 100;
+  return Math.floor(volume);
+}
+
+/**
+ * Wake up / sleep time HH:mm formatinda mi?
+ */
+export function isValidTimeFormat(time: unknown): boolean {
+  if (typeof time !== 'string') return false;
+  return /^\d{2}:\d{2}$/.test(time) && isValidClockTimeLocal(time);
+}
+
+/**
+ * Local time-range validator (00:00-23:59) — inline (Sprint 10.2).
+ */
+function isValidClockTimeLocal(time: string): boolean {
+  const parts = time.split(':').map(Number);
+  const hours = parts[0] ?? 0;
+  const minutes = parts[1] ?? 0;
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return false;
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+}
+
+/**
+ * Sanitize: settings objesinden sadece known field'lari al.
+ * Bilinmeyen field'lar discard edilir.
+ */
+export function sanitizeSettings<T extends Record<string, unknown>>(
+  input: unknown,
+  knownFields: (keyof T)[],
+  defaults: T
+): T {
+  if (typeof input !== 'object' || input == null) {
+    return defaults;
+  }
+  const result = { ...defaults };
+  for (const key of knownFields) {
+    const value = (input as Record<string, unknown>)[key as string];
+    if (value !== undefined) {
+      result[key] = value as T[keyof T];
+    }
+  }
+  return result;
+}

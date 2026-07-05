@@ -13,6 +13,13 @@ import {
   TEST_MEDICINE_DOSES,
   TEST_INSTRUCTIONS,
   SETTING_TO_PICKER_MAP,
+  validateTheme,
+  validateLanguage,
+  validateSnoozeDuration,
+  validateMaxSnoozeCount,
+  validateVolume,
+  isValidTimeFormat,
+  sanitizeSettings,
 } from '../../hooks/useSettingsHelpers';
 
 describe('parseTimeToDate', () => {
@@ -116,5 +123,120 @@ describe('SETTING_TO_PICKER_MAP', () => {
     expect(SETTING_TO_PICKER_MAP.sleepTime).toBe('showSleepPicker');
     expect(SETTING_TO_PICKER_MAP.quietHoursStart).toBe('showQuietStartPicker');
     expect(SETTING_TO_PICKER_MAP.quietHoursEnd).toBe('showQuietEndPicker');
+  });
+});
+
+describe('Sprint 10.2: validateTheme', () => {
+  it('accepts valid theme values', () => {
+    expect(validateTheme('light')).toBe('light');
+    expect(validateTheme('dark')).toBe('dark');
+    expect(validateTheme('auto')).toBe('auto');
+  });
+
+  it('returns "auto" for invalid values', () => {
+    expect(validateTheme('rainbow')).toBe('auto');
+    expect(validateTheme(null)).toBe('auto');
+    expect(validateTheme(undefined)).toBe('auto');
+    expect(validateTheme(123)).toBe('auto');
+  });
+});
+
+describe('Sprint 10.2: validateLanguage', () => {
+  it('accepts tr and en', () => {
+    expect(validateLanguage('tr')).toBe('tr');
+    expect(validateLanguage('en')).toBe('en');
+  });
+
+  it('returns "tr" for invalid values', () => {
+    expect(validateLanguage('de')).toBe('tr');
+    expect(validateLanguage(null)).toBe('tr');
+  });
+});
+
+describe('Sprint 10.2: validateSnoozeDuration', () => {
+  it('returns value within 1-60 range', () => {
+    expect(validateSnoozeDuration(5)).toBe(5);
+    expect(validateSnoozeDuration(30)).toBe(30);
+  });
+
+  it('clamps to 1 if too small', () => {
+    expect(validateSnoozeDuration(0)).toBe(1);
+    expect(validateSnoozeDuration(-5)).toBe(1);
+  });
+
+  it('clamps to 60 if too large', () => {
+    expect(validateSnoozeDuration(120)).toBe(60);
+    expect(validateSnoozeDuration(1000)).toBe(60);
+  });
+
+  it('uses default for invalid input', () => {
+    expect(validateSnoozeDuration('abc' as any)).toBe(5);
+    expect(validateSnoozeDuration(NaN)).toBe(5);
+    expect(validateSnoozeDuration(null as any)).toBe(5);
+  });
+});
+
+describe('Sprint 10.2: validateMaxSnoozeCount', () => {
+  it('returns value within 1-10 range', () => {
+    expect(validateMaxSnoozeCount(3)).toBe(3);
+    expect(validateMaxSnoozeCount(7)).toBe(7);
+  });
+
+  it('clamps out-of-range values', () => {
+    expect(validateMaxSnoozeCount(0)).toBe(1);
+    expect(validateMaxSnoozeCount(20)).toBe(10);
+  });
+});
+
+describe('Sprint 10.2: validateVolume', () => {
+  it('returns value within 0-100 range', () => {
+    expect(validateVolume(80)).toBe(80);
+    expect(validateVolume(0)).toBe(0);
+  });
+
+  it('clamps out-of-range values', () => {
+    expect(validateVolume(-10)).toBe(0);
+    expect(validateVolume(150)).toBe(100);
+  });
+});
+
+describe('Sprint 10.2: isValidTimeFormat', () => {
+  it('accepts HH:mm', () => {
+    expect(isValidTimeFormat('08:00')).toBe(true);
+    expect(isValidTimeFormat('23:59')).toBe(true);
+  });
+
+  it('rejects invalid formats', () => {
+    expect(isValidTimeFormat('8:00')).toBe(false);
+    expect(isValidTimeFormat('25:00')).toBe(false);
+    expect(isValidTimeFormat('not-a-time')).toBe(false);
+    expect(isValidTimeFormat(null)).toBe(false);
+  });
+});
+
+describe('Sprint 10.2: sanitizeSettings', () => {
+  it('keeps only known fields', () => {
+    const result = sanitizeSettings(
+      { theme: 'dark', volume: 50, unknown: 'foo' },
+      ['theme', 'volume'],
+      { theme: 'auto' as const, volume: 80 }
+    );
+    expect(result.theme).toBe('dark');
+    expect(result.volume).toBe(50);
+    expect(result).not.toHaveProperty('unknown');
+  });
+
+  it('returns defaults for non-object input', () => {
+    expect(sanitizeSettings(null, ['a'], { a: 1 })).toEqual({ a: 1 });
+    expect(sanitizeSettings('string', ['a'], { a: 1 })).toEqual({ a: 1 });
+  });
+
+  it('uses defaults for missing fields', () => {
+    const result = sanitizeSettings({}, ['theme', 'volume'], {
+      theme: 'auto' as const,
+      volume: 80,
+    });
+    expect(result.theme).toBe('auto');
+    expect(result.volume).toBe(80);
   });
 });
