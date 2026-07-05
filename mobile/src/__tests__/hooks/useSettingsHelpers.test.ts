@@ -77,9 +77,9 @@ describe('togglePickerVisibility', () => {
 
 describe('closePickerVisibility', () => {
   it('sets picker visibility to false', () => {
-    const result = closePickerVisibility(
+    const result: any = closePickerVisibility(
       { showWakeUpPicker: true, showSleepPicker: true },
-      'showWakeUpPicker'
+      'showWakeUpPicker' as any
     );
     expect(result.showWakeUpPicker).toBe(false);
     expect(result.showSleepPicker).toBe(true); // other untouched

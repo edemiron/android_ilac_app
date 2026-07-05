@@ -13,6 +13,8 @@ const baseMedicine: Medicine = {
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
   color: '#FF6B6B',
+  frequency: 1,
+  startDate: '2024-01-01',
 };
 
 const baseReminder: ReminderTime = {
