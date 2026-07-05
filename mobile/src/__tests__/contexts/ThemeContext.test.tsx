@@ -45,7 +45,15 @@ const TestComponent = () => {
 };
 
 // Test component that uses ref to expose values
-const TestComponentWithRef = ({ ref }: { ref: React.MutableRefObject<any> }) => {
+const TestComponentWithRef = ({
+  ref,
+}: {
+  ref: React.MutableRefObject<{
+    theme: string;
+    isDark: boolean;
+    colors: { primary: string };
+  } | null>;
+}) => {
   const themeData = useTheme();
   ref.current = themeData;
   return null;
@@ -68,7 +76,7 @@ describe('ThemeContext', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
 
-    expect((ref.current as any).theme).toBe('system');
+    expect(ref.current!.theme).toBe('system');
   });
 
   it('computes isDark=false when system is light', async () => {
@@ -83,7 +91,7 @@ describe('ThemeContext', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
 
-    expect((ref.current as any).isDark).toBe(false);
+    expect(ref.current!.isDark).toBe(false);
   });
 
   it('provides light colors by default', async () => {
@@ -98,7 +106,7 @@ describe('ThemeContext', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
 
-    expect((ref.current as any).colors.primary).toBe(lightColors.primary);
+    expect(ref.current!.colors.primary).toBe(lightColors.primary);
   });
 
   it('throws error when useTheme is used outside ThemeProvider', () => {

@@ -146,8 +146,8 @@ describe('trimMedicineFields', () => {
   it('preserves non-trimmed fields like id/barcode', () => {
     // trimMedicineFields only handles name/genericName/manufacturer/dosage;
     // id ve barcode gibi ID alanlari oldugu gibi korunuyor.
-    const input = { id: 'med-1', barcode: '  12345  ' };
-    const result = trimMedicineFields(input as any);
+    const input: any = { id: 'med-1', barcode: '  12345  ' };
+    const result = trimMedicineFields(input);
     expect(result.id).toBe('med-1');
     expect(result.barcode).toBe('  12345  ');
   });
