@@ -531,3 +531,99 @@ export async function cancelInvite(inviteCode: string): Promise<{ success: boole
     return { success: false };
   }
 }
+
+// ============================================================================
+// Sprint 9.3: ServiceResult<T> wrapper alternatifleri — geriye donuk uyumluluk
+// korunarak yeni API ekleniyor. Eski fonksiyonlar (Promise<T | null>, vb.)
+// oldugu gibi kalmaya devam ediyor; yeni Service fonksiyonlari ServiceResult<T> doner.
+// ============================================================================
+
+import { withServiceResult, type ServiceResult } from './types';
+
+/**
+ * Bakici daveti olustur — ServiceResult<T> wrapper.
+ * Eski API `{success, inviteCode?, error?}` doner; yeni wrapper basari
+ * durumunda inviteCode payload'i doner.
+ */
+export async function createCaregiverInviteService(
+  patientId: string,
+  patientName: string,
+  caregiverEmail: string,
+  permissions: {
+    canViewSchedule: boolean;
+    canViewHistory: boolean;
+    canReceiveAlerts: boolean;
+  } = {
+    canViewSchedule: true,
+    canViewHistory: true,
+    canReceiveAlerts: true,
+  }
+): Promise<ServiceResult<{ inviteCode: string }>> {
+  try {
+    const result = await createCaregiverInvite(patientId, patientName, caregiverEmail, permissions);
+    if (result.success && result.inviteCode) {
+      return { ok: true, data: { inviteCode: result.inviteCode } };
+    }
+    return {
+      ok: false,
+      error: {
+        code: 'API_ERROR',
+        message: result.error || 'Davet olusturulamadi',
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: {
+        code: 'UNKNOWN',
+        message: e instanceof Error ? e.message : 'Bilinmeyen hata',
+      },
+    };
+  }
+}
+
+/**
+ * Davet kabul et — ServiceResult<T> wrapper.
+ */
+export async function acceptCaregiverInviteService(
+  inviteCode: string,
+  caregiverId: string,
+  caregiverName: string,
+  caregiverFcmToken?: string
+): Promise<ServiceResult<{ success: boolean }>> {
+  try {
+    const result = await acceptCaregiverInvite(
+      inviteCode,
+      caregiverId,
+      caregiverName,
+      caregiverFcmToken
+    );
+    if (result.success) {
+      return { ok: true, data: { success: true } };
+    }
+    return {
+      ok: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: result.error || 'Davet kabul edilemedi',
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: {
+        code: 'UNKNOWN',
+        message: e instanceof Error ? e.message : 'Bilinmeyen hata',
+      },
+    };
+  }
+}
+
+/**
+ * Kullanicinin bakici iliskilerini getir — ServiceResult<T> wrapper.
+ */
+export async function getCaregiversService(
+  patientId: string
+): Promise<ServiceResult<CaregiverRelationship[]>> {
+  return withServiceResult(() => getCaregivers(patientId), { errorCode: 'API_ERROR' });
+}
