@@ -217,3 +217,39 @@ export function sanitizeSettings<T extends Record<string, unknown>>(
   }
   return result;
 }
+
+// =============================================================================
+// Sprint 12.2: useSettingsScreen i18n helper'lari helpers'a tasindi.
+// =============================================================================
+
+/**
+ * Tema lokalize label uret (TR/EN).
+ * 'light' -> 'Aydinlik', 'dark' -> 'Karanlik', 'system' -> 'Sistem'.
+ */
+export function getLocalizedThemeLabel(theme: string, language: 'tr' | 'en' = 'tr'): string {
+  const labels: Record<string, Record<string, string>> = {
+    tr: { light: 'Aydınlık', dark: 'Karanlık', system: 'Sistem' },
+    en: { light: 'Light', dark: 'Dark', system: 'System' },
+  };
+  return labels[language]?.[theme] ?? theme;
+}
+
+/**
+ * Dil lokalize label uret (TR/EN).
+ */
+export function getLocalizedLanguageLabel(language: 'tr' | 'en'): string {
+  return language === 'tr' ? 'Türkçe' : 'English';
+}
+
+/**
+ * HH:mm time string normalize (padded zero).
+ * "8:0" -> "08:00".
+ */
+export function normalizeTimeString(time: string): string {
+  if (typeof time !== 'string') return '';
+  const parts = time.split(':').map(Number);
+  const h = Number.isFinite(parts[0]) ? parts[0] : 0;
+  const m = Number.isFinite(parts[1]) ? parts[1] : 0;
+  if (Number.isNaN(h) || Number.isNaN(m)) return time;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}

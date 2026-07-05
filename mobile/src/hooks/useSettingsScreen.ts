@@ -33,6 +33,8 @@ import {
   togglePickerVisibility,
   closePickerVisibility,
   isValidTimeFormat,
+  getLocalizedThemeLabel,
+  getLocalizedLanguageLabel,
   type SettingsPickerKey,
   type TimeSettingKey,
 } from './useSettingsHelpers';
@@ -671,23 +673,13 @@ export function useSettingsScreen() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   }, []);
 
+  // Sprint 12.2: pure helper'lara delege.
   const getThemeLabel = useCallback(
-    (themeValue: ThemeMode) => {
-      switch (themeValue) {
-        case 'light':
-          return t('settings_theme_light');
-        case 'dark':
-          return t('settings_theme_dark');
-        case 'system':
-          return t('settings_theme_system');
-      }
-    },
-    [t]
+    (themeValue: ThemeMode) => getLocalizedThemeLabel(themeValue, language),
+    [language]
   );
 
-  const getLanguageLabel = useCallback((lang: Language) => {
-    return lang === 'tr' ? 'Türkçe' : 'English';
-  }, []);
+  const getLanguageLabel = useCallback((lang: Language) => getLocalizedLanguageLabel(lang), []);
 
   return {
     navigation,
