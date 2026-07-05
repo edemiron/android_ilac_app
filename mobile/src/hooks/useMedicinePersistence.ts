@@ -17,13 +17,13 @@ import { createScopedLogger } from '../utils/logger';
 import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInteraction';
 import { calculateMedicineTimes } from '../utils/timeCalculator';
 
-// Sprint 6.3: pure helper'lar ./useMedicineHelpers.ts'e tasindi.
-// Sprint 6.3 + 7.4 + 8.4: pure helper'lar ./useMedicineHelpers.ts'te tasindi.
-// Sprint 8.4: inline validation/sanitize logic helper'lara delege ediliyor.
+// Sprint 6.3 + 7.4 + 8.4 + 11.3: pure helper'lar ./useMedicineHelpers.ts'te.
+// Sprint 11.3: calculateMedicineTimes ciktilarini isValidClockTime ile filtrele.
 import {
   adjustTimesForConflicts,
   sanitizeMedicineName,
   sanitizeDosage,
+  isValidClockTime,
 } from './useMedicineHelpers';
 
 const log = createScopedLogger('MedicinePersistence');
@@ -84,7 +84,9 @@ export function useMedicinePersistence({
           frequency: formState.frequency,
           instruction: formState.instruction,
         });
-        newMedicineTimes = calculatedTimes.map(rt => rt.time);
+        // Sprint 11.3: invalid time degerlerini filtrele (calculateMedicineTimes
+        // edge case'lerinde bosluk/timezone bozuklugu olabilir)
+        newMedicineTimes = calculatedTimes.map(rt => rt.time).filter(t => isValidClockTime(t));
       }
 
       // Mevcut aktif ilaçların tüm saatlerini topla
