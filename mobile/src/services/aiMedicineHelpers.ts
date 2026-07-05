@@ -6,14 +6,14 @@
  * network/Firebase bagimliligi olmadan unit test edilebilir.
  */
 
-import type { GlobalMedicine, MedicineForm } from '../types';
-import type { AISearchResult } from './aiMedicineService';
+import type { GlobalMedicine, MedicineForm, AISearchResult } from '../types';
 
 /**
  * Prompt: barcode ile ilac arama.
  */
 export function createBarcodeSearchPrompt(barcode: string): string {
   return `
+Asagidaki barkod numarasina sahip ilaci bul ve bilgilerini JSON formatinda dondur.
 Asagidaki barkod numarasina sahip ilaci bul ve bilgilerini JSON formatinda dondur.
 
 Barkod: ${barcode}
@@ -235,3 +235,17 @@ export function trimMedicineFields(medicine: Partial<GlobalMedicine>): Partial<G
   if (typeof cleaned.dosage === 'string') cleaned.dosage = cleaned.dosage.trim();
   return cleaned;
 }
+
+/**
+ * Sprint 8.1: Eski API uyumluluk alias'lari.
+ * aiMedicineService.ts icindeki inline tanimlar silindikten sonra da
+ * eski import path'ler backward compat olarak kullanilabilsin.
+ */
+export const createSearchPrompt = createBarcodeSearchPrompt;
+export const createInfoPrompt = createMedicineInfoPrompt;
+export const parseProspectusResponse = parseNameSearchResponse;
+/**
+ * Eski API: parseAIResponse(response, barcode, source) -> parseBarcodeSearchResponse
+ * Source imzasiyla ayni (barcode-search response parser).
+ */
+export const parseAIResponse = parseBarcodeSearchResponse;

@@ -11,6 +11,11 @@ import {
   parseBarcodeSearchResponse,
   parseNameSearchResponse,
   trimMedicineFields,
+  // Sprint 8.1: Backward compat alias'lar
+  createSearchPrompt,
+  createInfoPrompt,
+  parseProspectusResponse,
+  parseAIResponse,
 } from '../../services/aiMedicineHelpers';
 
 describe('createBarcodeSearchPrompt', () => {
@@ -150,5 +155,30 @@ describe('trimMedicineFields', () => {
   it('handles empty input', () => {
     const result = trimMedicineFields({});
     expect(result).toEqual({});
+  });
+});
+
+describe('Sprint 8.1: Backward compat aliases', () => {
+  it('createSearchPrompt is alias for createBarcodeSearchPrompt', () => {
+    const prompt = createSearchPrompt('12345');
+    expect(prompt).toContain('12345');
+    expect(prompt).toBe(
+      require('../../services/aiMedicineHelpers').createBarcodeSearchPrompt('12345')
+    );
+  });
+
+  it('createInfoPrompt is alias for createMedicineInfoPrompt', () => {
+    const prompt = createInfoPrompt('Aspirin');
+    expect(prompt).toContain('Aspirin');
+  });
+
+  it('parseProspectusResponse is alias for parseNameSearchResponse', () => {
+    const result = parseProspectusResponse('{"found": false}', 'test');
+    expect(result.success).toBe(false);
+  });
+
+  it('parseAIResponse is alias for parseBarcodeSearchResponse', () => {
+    const result = parseAIResponse('{"found": false}', '12345', 'test');
+    expect(result.success).toBe(false);
   });
 });
