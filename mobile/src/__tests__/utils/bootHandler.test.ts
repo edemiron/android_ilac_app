@@ -59,6 +59,7 @@ describe('bootHandler', () => {
         reminders: 3,
         snoozes: 1,
         timestamp: '2024-06-25T10:00:00Z',
+        trigger: '2024-06-25T10:00:00Z',
       };
       await saveBootRecoveryResult(result);
 
@@ -81,6 +82,7 @@ describe('bootHandler', () => {
         reminders: 5,
         snoozes: 2,
         timestamp: '2024-06-25T10:00:00Z',
+        trigger: '2024-06-25T10:00:00Z',
       };
       await saveBootRecoveryResult(saved);
 
@@ -101,6 +103,7 @@ describe('bootHandler', () => {
         reminders: 1,
         snoozes: 0,
         timestamp: '2024-06-25T10:00:00Z',
+        trigger: '2024-06-25T10:00:00Z',
       });
 
       await clearBootRecoveryResult();

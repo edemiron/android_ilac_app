@@ -55,7 +55,7 @@ describe('crashlyticsService', () => {
 
   describe('init', () => {
     it('skips initialization in development (__DEV__ is true)', async () => {
-      global.__DEV__ = true;
+      (global as any).__DEV__ = true;
       await crashlyticsService.init();
       expect(crashlyticsMock.setUserId).not.toHaveBeenCalled();
     });

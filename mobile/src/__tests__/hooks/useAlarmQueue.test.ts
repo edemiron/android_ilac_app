@@ -112,11 +112,11 @@ describe('usePendingAlarmTrigger', () => {
   });
 
   it('re-triggers when pendingAlarm changes', () => {
-    const onTrigger = jest.fn();
-    const isReady = jest.fn(() => true);
+    const onTrigger: any = jest.fn();
+    const isReady: any = jest.fn(() => true);
 
     const { rerender } = renderHook(
-      ({ data }) => usePendingAlarmTrigger(data, onTrigger, isReady),
+      (props: any) => usePendingAlarmTrigger(props.data, onTrigger, isReady),
       {
         initialProps: {
           data: {

@@ -197,7 +197,7 @@ describe('MedicineStore advanced', () => {
         },
       };
 
-      store.importData(validData as Parameters<typeof store.importData>[0]);
+      store.importData(validData as unknown as Parameters<typeof store.importData>[0]);
 
       const state = useMedicineStore.getState();
       expect(state.medicines.find(m => m.id === 'import-1')).toBeDefined();
