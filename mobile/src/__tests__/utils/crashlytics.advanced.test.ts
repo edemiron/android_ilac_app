@@ -55,7 +55,8 @@ describe('crashlyticsService', () => {
 
   describe('init', () => {
     it('skips initialization in development (__DEV__ is true)', async () => {
-      (global as any).__DEV__ = true;
+      // @ts-expect-error test fixture
+      (global).__DEV__ = true;
       await crashlyticsService.init();
       expect(crashlyticsMock.setUserId).not.toHaveBeenCalled();
     });

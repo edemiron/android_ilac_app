@@ -45,9 +45,12 @@ describe('isValidPin', () => {
   });
 
   it('rejects non-string values', () => {
-    expect(isValidPin(1234 as any)).toBe(false);
-    expect(isValidPin(null as any)).toBe(false);
-    expect(isValidPin(undefined as any)).toBe(false);
+    // @ts-expect-error test fixture
+    expect(isValidPin(1234)).toBe(false);
+    // @ts-expect-error test fixture
+    expect(isValidPin(null)).toBe(false);
+    // @ts-expect-error test fixture
+    expect(isValidPin(undefined)).toBe(false);
   });
 });
 

@@ -80,7 +80,7 @@ describe('getExpiryDetails', () => {
 });
 
 describe('getMedicineFormIcon', () => {
-  const baseMedicine = {
+  const baseMedicine : any = {
     id: 'med-1',
     name: 'Aspirin',
     dosage: '500mg',
@@ -90,7 +90,7 @@ describe('getMedicineFormIcon', () => {
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
     startDate: '2024-01-01',
-  } as any;
+  };
 
   it('returns MCI icon for tablet form', () => {
     expect(getMedicineFormIcon({ ...baseMedicine, form: 'tablet' })).toEqual({

@@ -42,13 +42,15 @@ describe('getAlarmNotificationId', () => {
 
 describe('buildAlarmNotificationId (3-parametreli)', () => {
   it('combines medicine.id + reminderTime.id with alarm prefix', () => {
-    expect(buildAlarmNotificationId({ id: 'med-1' } as any, { id: 'rt-1' } as any)).toBe(
+    // @ts-expect-error test fixture
+    expect(buildAlarmNotificationId({ id: 'med-1' }, { id: 'rt-1' })).toBe(
       'alarm-med-1-rt-1'
     );
   });
 
   it('matches getAlarmNotificationId output', () => {
-    expect(buildAlarmNotificationId({ id: 'med-1' } as any, { id: 'rt-1' } as any)).toBe(
+    // @ts-expect-error test fixture
+    expect(buildAlarmNotificationId({ id: 'med-1' }, { id: 'rt-1' })).toBe(
       getAlarmNotificationId('med-1', 'rt-1')
     );
   });
@@ -112,7 +114,8 @@ describe('extractDisplayedMedicineId', () => {
     expect(
       extractDisplayedMedicineId({
         notification: { data: { medicineId: 'med-1' } },
-      } as any)
+      // @ts-expect-error test fixture
+      })
     ).toBe('med-1');
   });
 
@@ -121,14 +124,16 @@ describe('extractDisplayedMedicineId', () => {
   });
 
   it('returns undefined when data is missing', () => {
-    expect(extractDisplayedMedicineId({ notification: {} } as any)).toBeUndefined();
+    // @ts-expect-error test fixture
+    expect(extractDisplayedMedicineId({ notification: {} })).toBeUndefined();
   });
 
   it('returns undefined when medicineId is not a string', () => {
     expect(
       extractDisplayedMedicineId({
         notification: { data: { medicineId: 42 } },
-      } as any)
+      // @ts-expect-error test fixture
+      })
     ).toBeUndefined();
   });
 });
