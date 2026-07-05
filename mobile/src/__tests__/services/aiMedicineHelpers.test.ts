@@ -182,3 +182,11 @@ describe('Sprint 8.1: Backward compat aliases', () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe('Sprint 16.4: parseNameSearchResponse alias', () => {
+  it('parseProspectusResponse = parseNameSearchResponse (referans equality)', () => {
+    // Sprint 8.1 backward-compat alias
+    const { parseProspectusResponse, parseNameSearchResponse } = require('../../services/aiMedicineHelpers');
+    expect(parseProspectusResponse).toBe(parseNameSearchResponse);
+  });
+});
