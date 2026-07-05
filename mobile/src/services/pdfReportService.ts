@@ -3,6 +3,9 @@ import { Medicine, MedicineLog, UserSettings } from '../types';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { createScopedLogger } from '../utils/logger';
+// Sprint 9.4: Pure helper'lar ./pdfReportHelpers.ts'e tasindi.
+// I/O bagimliligi olmadan test edilebilir.
+import { fixTurkishCharacters, escapeHtml, escapeSvgText } from './pdfReportHelpers';
 import Share from 'react-native-share';
 import { Platform } from 'react-native';
 
@@ -90,82 +93,6 @@ const translations = {
     noData: 'No records for this period',
   },
 };
-
-function decodeUnicodeEscapes(str: string): string {
-  if (!str) return str;
-  return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
-}
-
-// Türkçe karakter düzeltme - API'lerden gelen ASCII metinleri düzelt
-const TURKISH_CORRECTIONS: Record<string, string> = {
-  GOZ: 'GÖZ',
-  SURUP: 'ŞURUP',
-  KAPSUL: 'KAPSÜL',
-  SUSPANSIYON: 'SÜSPANSİYON',
-  EMULSIYON: 'EMÜLSİYON',
-  FITIL: 'FİTİL',
-  SASE: 'SAŞE',
-  GRANUL: 'GRANÜL',
-  COZUCU: 'ÇÖZÜCÜ',
-  COZELTI: 'ÇÖZELTİ',
-  ENJEKSIYON: 'ENJEKSİYON',
-  INHALER: 'İNHALER',
-  ILAC: 'İLAÇ',
-  OZEL: 'ÖZEL',
-  URUN: 'ÜRÜN',
-  ICIN: 'İÇİN',
-  AGIZ: 'AĞIZ',
-  TOPIKAL: 'TOPİKAL',
-  OFTALMIK: 'OFTALMİK',
-  goz: 'göz',
-  surup: 'şurup',
-  kapsul: 'kapsül',
-  suspansiyon: 'süspansiyon',
-  emulsiyon: 'emülsiyon',
-  sase: 'saşe',
-  granul: 'granül',
-  cozucu: 'çözücü',
-  cozelti: 'çözelti',
-  ilac: 'ilaç',
-  ozel: 'özel',
-  urun: 'ürün',
-  icin: 'için',
-  agiz: 'ağız',
-};
-
-function fixTurkishCharacters(text: string): string {
-  if (!text) return text;
-  let result = decodeUnicodeEscapes(text);
-  for (const [wrong, correct] of Object.entries(TURKISH_CORRECTIONS)) {
-    const regex = new RegExp(`\\b${wrong}\\b`, 'g');
-    result = result.replace(regex, correct);
-  }
-  return result;
-}
-
-/**
- * HTML/SVG metin icerigi icin escape. Kullanici girdisi (med.name, dosage, note)
- * dogrudan template icine yerlestirildiginde XSS / PHI exfiltrasyon riski olusturur.
- * react-native-html-to-pdf arka planda HTML/SVG parser calistirdigindan
- * <image href="http://evil.com/..."> gibi payload'lar saglik verisi sizintisina yol acabilir.
- */
-function escapeHtml(text: string | null | undefined): string {
-  if (text == null) return '';
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/**
- * SVG <text> elementi icin ek guvenlik: yeni satirlari bosluga cevirir,
- * boylece cizgi baslangici komutlari (orn. </text> ile erken kapatma) engellenir.
- */
-function escapeSvgText(text: string | null | undefined): string {
-  return escapeHtml(text).replace(/[\r\n]+/g, ' ');
-}
 
 function generateHTMLReport(data: ReportData, options: ReportOptions): string {
   const t = translations[options.language];
