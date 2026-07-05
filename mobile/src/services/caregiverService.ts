@@ -28,7 +28,7 @@ import { createScopedLogger } from '../utils/logger';
 // Sprint 7.3: Pure helper'lar ./caregiverHelpers.ts'e tasindi.
 // generateInviteCode + isValidInviteCode inline tanimlar kaldirildi,
 // re-export ile public API korunuyor.
-import { generateInviteCode, isValidInviteCode, isValidFcmToken } from './caregiverHelpers';
+import { generateInviteCode, isValidInviteCode, isValidFcmToken, formatCaregiverNotification } from './caregiverHelpers';
 export { generateInviteCode, isValidInviteCode };
 import type { CaregiverRelationship, CaregiverInvite, PatientInfo } from '../types';
 
@@ -472,11 +472,20 @@ export async function notifyCaregivers(
         continue;
       }
 
+      // Sprint 12.4: content builder helper'a delege
+      // notifyCaregivers tek dil (TR) destekliyor; ileride multi-language
+      // ihtiyacinda caregiver profile.language kullanilabilir.
+      const content = formatCaregiverNotification(
+        notification.type,
+        notification.medicineName
+      );
+
       // Cloud Functions üzerinden bildirim gönder
       // Alternatif: Client-side FCM API (sınırlı)
       log.info('Bakıcı bildirimi', {
         caregiverId: relationship.caregiverId,
         notification,
+        content,
       });
 
       // Not: Production'da Cloud Functions kullanılmalı

@@ -11,6 +11,7 @@ import {
   isValidFcmToken,
   normalizeCaregiverStatus,
   hasCaregiverPermission,
+  formatCaregiverNotification,
   INVITE_CODE_CHARS,
   INVITE_CODE_LENGTH,
 } from '../../services/caregiverHelpers';
@@ -194,5 +195,49 @@ describe('hasCaregiverPermission', () => {
 
   it('returns false for undefined permissions', () => {
     expect(hasCaregiverPermission(undefined, 'canReceiveAlerts')).toBe(false);
+  });
+});
+
+describe('Sprint 12.4: formatCaregiverNotification', () => {
+  it('formats missed notification in TR', () => {
+    const result = formatCaregiverNotification('missed', 'Aspirin', 'tr');
+    expect(result.title).toBe('⏰ İlaç zamanı geçti');
+    expect(result.body).toContain('Aspirin');
+    expect(result.body).toContain('zamanında almadı');
+    expect(result.type).toBe('missed');
+  });
+
+  it('formats missed notification in EN', () => {
+    const result = formatCaregiverNotification('missed', 'Aspirin', 'en');
+    expect(result.title).toBe('⏰ Medication missed');
+    expect(result.body).toContain('Aspirin');
+    expect(result.body).toContain('did not take');
+  });
+
+  it('formats taken notification', () => {
+    const tr = formatCaregiverNotification('taken', 'Parol', 'tr');
+    expect(tr.title).toContain('alındı');
+    const en = formatCaregiverNotification('taken', 'Parol', 'en');
+    expect(en.title).toContain('taken');
+  });
+
+  it('formats skipped notification', () => {
+    const tr = formatCaregiverNotification('skipped', 'X', 'tr');
+    expect(tr.title).toContain('atlandı');
+  });
+
+  it('formats snoozed notification', () => {
+    const en = formatCaregiverNotification('snoozed', 'X', 'en');
+    expect(en.title).toContain('snoozed');
+  });
+
+  it('returns correct type field', () => {
+    expect(formatCaregiverNotification('taken', 'X', 'tr').type).toBe('taken');
+    expect(formatCaregiverNotification('snoozed', 'X', 'en').type).toBe('snoozed');
+  });
+
+  it('defaults to TR language when omitted', () => {
+    const result = formatCaregiverNotification('missed', 'X');
+    expect(result.title).toContain('İlaç');
   });
 });

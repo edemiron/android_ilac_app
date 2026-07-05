@@ -57,7 +57,48 @@ export function isInviteExpired(expiresAt: Date | string, now: Date = new Date()
 }
 
 /**
- * FCM token validation.
+ * Caregiver bildirim icerigi (TR/EN) — pure helper (I/O bagimsiz).
+ * Sprint 12.4: notifyCaregivers'in content builder logic'i.
+ */
+export interface CaregiverNotificationContent {
+  title: string;
+  body: string;
+  type: 'missed' | 'skipped' | 'taken' | 'snoozed';
+}
+
+const NOTIFICATION_TEMPLATES = {
+  tr: {
+    missed: { title: '⏰ İlaç zamanı geçti', bodySuffix: 'ilacını zamanında almadı.' },
+    skipped: { title: '⏭️ İlaç atlandı', bodySuffix: 'ilacını atladı.' },
+    taken: { title: '✅ İlaç alındı', bodySuffix: 'ilacını aldı.' },
+    snoozed: { title: '⏸️ İlaç ertelendi', bodySuffix: 'ilacını erteledi.' },
+  },
+  en: {
+    missed: { title: '⏰ Medication missed', bodySuffix: 'did not take their medication on time.' },
+    skipped: { title: '⏭️ Medication skipped', bodySuffix: 'skipped their medication.' },
+    taken: { title: '✅ Medication taken', bodySuffix: 'took their medication.' },
+    snoozed: { title: '⏸️ Medication snoozed', bodySuffix: 'snoozed their medication.' },
+  },
+} as const;
+
+/**
+ * Caregiver bildirim icerigi olustur (TR/EN lokalize).
+ */
+export function formatCaregiverNotification(
+  type: 'missed' | 'skipped' | 'taken' | 'snoozed',
+  medicineName: string,
+  language: 'tr' | 'en' = 'tr'
+): CaregiverNotificationContent {
+  const template = NOTIFICATION_TEMPLATES[language][type];
+  return {
+    title: template.title,
+    body: `${medicineName} ${template.bodySuffix}`,
+    type,
+  };
+}
+
+/**
+ * Validate FCM token.
  * Firebase Cloud Messaging token'lar uzun alfanumerik string'lerdir.
  * Minimum uzunluk 50, max 250 (FCM spec).
  */
