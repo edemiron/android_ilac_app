@@ -35,10 +35,8 @@ import type { CaregiverRelationship, CaregiverInvite, PatientInfo } from '../typ
 const log = createScopedLogger('CaregiverService');
 
 // Firestore collection names
-const CAREGIVERS_COLLECTION = 'caregivers';
 const INVITES_COLLECTION = 'caregiverInvites';
 const RELATIONSHIPS_COLLECTION = 'caregiverRelationships';
-const PATIENTS_COLLECTION = 'patients';
 
 // Davet kodu geçerlilik süresi (7 gün)
 const INVITE_EXPIRY_DAYS = 7;
@@ -461,8 +459,8 @@ export async function notifyCaregivers(
     }
 
     // FCM üzerinden bildirim gönder
-    const { getMessaging, getToken } = await import('firebase/messaging');
-    const messaging = getMessaging();
+    // Not: Production'da Cloud Functions kullanılmalı
+    // Şimdilik log ile bırakıyoruz
 
     // Her bakıcıya bildirim gönder
     for (const doc of snapshot.docs) {

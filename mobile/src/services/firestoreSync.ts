@@ -22,13 +22,17 @@ import { sanitizeString, sanitizeForFirestore } from '../stores/helpers/sanitize
 // path-only helpers eklendi.
 // Sprint 10.1: Firestore referans builder'lari (getMedicinesRef vb.)
 // firestoreSyncHelpers'a tasindi.
+// Sprint 13.2: Generic ref migration — getMedicinesRef gibi
+// singleton-db wrapper'lar, build*CollectionRef(db, userId) generic
+// abstraction ile degistirildi (test edilebilirlik + reusable).
 import {
   FIRESTORE_BATCH_LIMIT,
-  getMedicinesRef,
-  getReminderTimesRef,
-  getMedicineLogsRef,
-  getSettingsDocRef,
+  buildMedicinesCollectionRef,
+  buildReminderTimesCollectionRef,
+  buildMedicineLogsCollectionRef,
+  buildSettingsDocRef,
 } from './firestoreSyncHelpers';
+import { db as firestoreDb } from '../config/firebase';
 
 const log = createScopedLogger('FirestoreSync');
 
@@ -73,7 +77,7 @@ async function executeBatches(
  * Bu veri kaybı riskini ortadan kaldırır
  */
 export async function syncMedicinesToCloud(userId: string, medicines: Medicine[]): Promise<void> {
-  const medicinesRef = getMedicinesRef(userId);
+  const medicinesRef = buildMedicinesCollectionRef(firestoreDb, userId);
 
   // Mevcut verileri çek
   const existingSnapshot = await getDocs(medicinesRef);
@@ -136,7 +140,7 @@ export async function saveMedicineToCloud(
   userId: string,
   medicine: Medicine
 ): Promise<SavedMedicineCloudData> {
-  const docRef = doc(getMedicinesRef(userId), medicine.id);
+  const docRef = doc(buildMedicinesCollectionRef(firestoreDb, userId), medicine.id);
   const updatedAt = new Date().toISOString();
   await setDoc(docRef, {
     ...sanitizeForFirestore(medicine as unknown as Record<string, unknown>),
@@ -159,13 +163,13 @@ export async function saveMedicineToCloud(
 
 // İlaç sil
 export async function deleteMedicineFromCloud(userId: string, medicineId: string): Promise<void> {
-  const docRef = doc(getMedicinesRef(userId), medicineId);
+  const docRef = doc(buildMedicinesCollectionRef(firestoreDb, userId), medicineId);
   await deleteDoc(docRef);
 }
 
 // Tüm ilaçları getir
 export async function getMedicinesFromCloud(userId: string): Promise<Medicine[]> {
-  const medicinesRef = getMedicinesRef(userId);
+  const medicinesRef = buildMedicinesCollectionRef(firestoreDb, userId);
   const snapshot = await getDocs(medicinesRef);
 
   // Türkçe karakter encoding sorunlarını düzelt
@@ -187,7 +191,7 @@ export async function syncReminderTimesToCloud(
   userId: string,
   reminderTimes: ReminderTime[]
 ): Promise<void> {
-  const timesRef = getReminderTimesRef(userId);
+  const timesRef = buildReminderTimesCollectionRef(firestoreDb, userId);
 
   // Mevcut verileri çek
   const existingSnapshot = await getDocs(timesRef);
@@ -225,7 +229,7 @@ export async function syncReminderTimesToCloud(
 
 // Tüm hatırlatma zamanlarını getir
 export async function getReminderTimesFromCloud(userId: string): Promise<ReminderTime[]> {
-  const timesRef = getReminderTimesRef(userId);
+  const timesRef = buildReminderTimesCollectionRef(firestoreDb, userId);
   const snapshot = await getDocs(timesRef);
 
   return snapshot.docs.map(doc => ({
@@ -241,7 +245,7 @@ export async function getReminderTimesFromCloud(userId: string): Promise<Reminde
  * STRATEJI: Son 30 gün + sadece değişenler
  */
 export async function syncMedicineLogsToCloud(userId: string, logs: MedicineLog[]): Promise<void> {
-  const logsRef = getMedicineLogsRef(userId);
+  const logsRef = buildMedicineLogsCollectionRef(firestoreDb, userId);
 
   // Son 30 günlük logları filtrele
   const thirtyDaysAgo = new Date();
@@ -284,13 +288,13 @@ export async function syncMedicineLogsToCloud(userId: string, logs: MedicineLog[
 
 // Tek bir log kaydet
 export async function saveMedicineLogToCloud(userId: string, log: MedicineLog): Promise<void> {
-  const docRef = doc(getMedicineLogsRef(userId), log.id);
+  const docRef = doc(buildMedicineLogsCollectionRef(firestoreDb, userId), log.id);
   await setDoc(docRef, sanitizeForFirestore(log as unknown as Record<string, unknown>));
 }
 
 // Tüm logları getir
 export async function getMedicineLogsFromCloud(userId: string): Promise<MedicineLog[]> {
-  const logsRef = getMedicineLogsRef(userId);
+  const logsRef = buildMedicineLogsCollectionRef(firestoreDb, userId);
   const snapshot = await getDocs(logsRef);
 
   return snapshot.docs.map(doc => ({
@@ -303,7 +307,7 @@ export async function getMedicineLogsFromCloud(userId: string): Promise<Medicine
 
 // Ayarları kaydet
 export async function syncSettingsToCloud(userId: string, settings: UserSettings): Promise<void> {
-  const docRef = getSettingsDocRef(userId);
+  const docRef = buildSettingsDocRef(firestoreDb, userId);
   await setDoc(docRef, {
     ...settings,
     updatedAt: Timestamp.now(),
@@ -312,7 +316,7 @@ export async function syncSettingsToCloud(userId: string, settings: UserSettings
 
 // Ayarları getir
 export async function getSettingsFromCloud(userId: string): Promise<UserSettings | null> {
-  const docRef = getSettingsDocRef(userId);
+  const docRef = buildSettingsDocRef(firestoreDb, userId);
   const snapshot = await getDoc(docRef);
 
   if (snapshot.exists()) {
@@ -483,19 +487,19 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
  */
 export async function deleteAllUserData(userId: string): Promise<void> {
   // İlaçları sil
-  const medicines = await getDocs(getMedicinesRef(userId));
+  const medicines = await getDocs(buildMedicinesCollectionRef(firestoreDb, userId));
   await deleteDocumentsInBatches(medicines.docs);
 
   // Zamanları sil
-  const times = await getDocs(getReminderTimesRef(userId));
+  const times = await getDocs(buildReminderTimesCollectionRef(firestoreDb, userId));
   await deleteDocumentsInBatches(times.docs);
 
   // Logları sil
-  const logs = await getDocs(getMedicineLogsRef(userId));
+  const logs = await getDocs(buildMedicineLogsCollectionRef(firestoreDb, userId));
   await deleteDocumentsInBatches(logs.docs);
 
   // Ayarları sil
-  await deleteDoc(getSettingsDocRef(userId));
+  await deleteDoc(buildSettingsDocRef(firestoreDb, userId));
 }
 
 /**

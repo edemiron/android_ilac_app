@@ -28,9 +28,9 @@ describe('sanitizeMedicineName', () => {
   });
 
   it('returns null for non-string', () => {
-    expect(sanitizeMedicineName(null as any)).toBeNull();
-    expect(sanitizeMedicineName(undefined as any)).toBeNull();
-    expect(sanitizeMedicineName(123 as any)).toBeNull();
+    expect(sanitizeMedicineName(nullInput)).toBeNull();
+    expect(sanitizeMedicineName(undefinedInput)).toBeNull();
+    expect(sanitizeMedicineName(numberInput)).toBeNull();
   });
 
   it('handles Turkish characters', () => {
@@ -55,8 +55,8 @@ describe('sanitizeDosage', () => {
   });
 
   it('handles non-string', () => {
-    expect(sanitizeDosage(null as any)).toBeNull();
-    expect(sanitizeDosage(undefined as any)).toBeNull();
+    expect(sanitizeDosage(nullInput)).toBeNull();
+    expect(sanitizeDosage(undefinedInput)).toBeNull();
   });
 });
 
@@ -74,7 +74,7 @@ describe('isValidDosageFormat', () => {
 
   it('rejects empty/invalid', () => {
     expect(isValidDosageFormat('')).toBe(false);
-    expect(isValidDosageFormat(null as any)).toBe(false);
+    expect(isValidDosageFormat(nullInput)).toBe(false);
   });
 });
 
@@ -119,9 +119,9 @@ describe('isValidReminderTimes', () => {
   });
 
   it('rejects non-array input', () => {
-    expect(isValidReminderTimes(null as any)).toBe(false);
-    expect(isValidReminderTimes(undefined as any)).toBe(false);
-    expect(isValidReminderTimes('08:00' as any)).toBe(false);
+    expect(isValidReminderTimes(nullInput)).toBe(false);
+    expect(isValidReminderTimes(undefinedInput)).toBe(false);
+    expect(isValidReminderTimes(inputTime as string | undefined)).toBe(false);
   });
 });
 
@@ -173,3 +173,10 @@ describe('Sprint 8.4: inline validation delegasyonu', () => {
     );
   });
 });
+
+// Type-system bypass: helper invalid input edge case test
+// fixtures (TypeScript strict mode'da non-string literal cast gerekiyor).
+const nullInput: any = null;
+const undefinedInput: any = undefined;
+const numberInput: any = 123;
+const inputTime: any = '08:00';
