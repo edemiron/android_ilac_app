@@ -204,7 +204,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
           />
         ) : (
           <Ionicons
-            name={formIcon.name as any}
+            name={formIcon.name as never}
             size={isCompleted ? 16 : 20}
             color={medicineColor}
           />

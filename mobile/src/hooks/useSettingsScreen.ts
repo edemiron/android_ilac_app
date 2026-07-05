@@ -517,7 +517,7 @@ export function useSettingsScreen() {
             body: `${medicine.dosage} almanin zamani!\n⏰ ${notifTimeStr}`,
             android: {
               channelId: CHANNELS.ALARM,
-              category: 'alarm' as any,
+              category: 'alarm' as never,
               importance: 4, // HIGH
               visibility: 1, // PUBLIC
               ongoing: true,

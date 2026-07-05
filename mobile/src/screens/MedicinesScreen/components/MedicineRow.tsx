@@ -181,7 +181,7 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
                   <MaterialCommunityIcons name={iconInfo.name} size={18} color={medicine.color} />
                 );
               }
-              return <Ionicons name={iconInfo.name as any} size={18} color={medicine.color} />;
+              return <Ionicons name={iconInfo.name as never} size={18} color={medicine.color} />;
             })()
           )}
         </View>

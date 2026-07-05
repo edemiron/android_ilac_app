@@ -48,7 +48,7 @@ describe('sanitizeMedicineData', () => {
   });
 
   it('skips non-string fields', () => {
-    const input = { name: 42 as any, dosage: undefined };
+    const input = { name: 42 as unknown, dosage: undefined };
     const result = sanitizeMedicineData(input);
     expect(result.name).toBe(42); // unchanged (not a string)
     expect(result.dosage).toBeUndefined();
