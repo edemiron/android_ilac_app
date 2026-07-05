@@ -468,3 +468,45 @@ async function getInfoWithOpenAI(
 }
 
 // ============ YANIT PARSE ============
+
+// ============================================================================
+// Sprint 10.4: ServiceResult<T> wrapper alternatifleri — geriye donuk uyumluluk
+// korunarak yeni API ekleniyor. Eski fonksiyonlar (Promise<AISearchResult>)
+// oldugu gibi kalmaya devam ediyor; yeni Service fonksiyonlari ServiceResult<T> doner.
+// ============================================================================
+
+import { withServiceResult, type ServiceResult } from './types';
+
+/**
+ * Barkod ile AI arama — ServiceResult<T> wrapper.
+ */
+export async function searchMedicineByBarcodeAIService(
+  barcode: string
+): Promise<ServiceResult<AISearchResult>> {
+  return withServiceResult(() => searchMedicineByBarcodeAI(barcode), {
+    errorCode: 'API_ERROR',
+  });
+}
+
+/**
+ * Isim ile AI arama — ServiceResult<T> wrapper.
+ */
+export async function searchMedicineByNameAIService(
+  name: string
+): Promise<ServiceResult<AISearchResult>> {
+  return withServiceResult(() => searchMedicineByNameAI(name), {
+    errorCode: 'NOT_FOUND',
+  });
+}
+
+/**
+ * Ilac bilgisi getir — ServiceResult<T> wrapper.
+ */
+export async function getMedicineInfoAIService(
+  medicineName: string,
+  dosage?: string
+): Promise<ServiceResult<AISearchResult>> {
+  return withServiceResult(() => getMedicineInfoAI(medicineName, dosage), {
+    errorCode: 'API_ERROR',
+  });
+}
