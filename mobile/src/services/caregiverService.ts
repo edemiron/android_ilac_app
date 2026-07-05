@@ -28,7 +28,7 @@ import { createScopedLogger } from '../utils/logger';
 // Sprint 7.3: Pure helper'lar ./caregiverHelpers.ts'e tasindi.
 // generateInviteCode + isValidInviteCode inline tanimlar kaldirildi,
 // re-export ile public API korunuyor.
-import { generateInviteCode, isValidInviteCode } from './caregiverHelpers';
+import { generateInviteCode, isValidInviteCode, isValidFcmToken } from './caregiverHelpers';
 export { generateInviteCode, isValidInviteCode };
 import type { CaregiverRelationship, CaregiverInvite, PatientInfo } from '../types';
 
@@ -398,6 +398,14 @@ export async function updateCaregiverFcmToken(
   caregiverId: string,
   fcmToken: string
 ): Promise<void> {
+  if (!isValidFcmToken(fcmToken)) {
+    log.warn('Gecersiz FCM token format, guncelleme atlandi', {
+      caregiverId,
+      tokenLength: fcmToken?.length,
+    });
+    return;
+  }
+
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 

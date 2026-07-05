@@ -8,6 +8,9 @@ import {
   isValidCaregiverEmail,
   calculateInviteExpiry,
   isInviteExpired,
+  isValidFcmToken,
+  normalizeCaregiverStatus,
+  hasCaregiverPermission,
   INVITE_CODE_CHARS,
   INVITE_CODE_LENGTH,
 } from '../../services/caregiverHelpers';
@@ -131,5 +134,65 @@ describe('isInviteExpired', () => {
 
   it('handles ISO string input', () => {
     expect(isInviteExpired('2026-07-01T12:00:00Z', new Date('2026-07-04T12:00:00Z'))).toBe(true);
+  });
+});
+
+describe('Sprint 8.3: isValidFcmToken', () => {
+  it('accepts valid 50+ char alphanumeric tokens', () => {
+    const validToken = 'a'.repeat(150) + ':xyz_-';
+    expect(isValidFcmToken(validToken)).toBe(true);
+  });
+
+  it('rejects too short tokens', () => {
+    expect(isValidFcmToken('short')).toBe(false);
+  });
+
+  it('rejects too long tokens', () => {
+    const longToken = 'a'.repeat(300);
+    expect(isValidFcmToken(longToken)).toBe(false);
+  });
+
+  it('rejects tokens with invalid characters', () => {
+    const invalid = 'a'.repeat(100) + '@invalid';
+    expect(isValidFcmToken(invalid)).toBe(false);
+  });
+
+  it('rejects null/undefined', () => {
+    expect(isValidFcmToken(null)).toBe(false);
+    expect(isValidFcmToken(undefined)).toBe(false);
+    expect(isValidFcmToken('')).toBe(false);
+  });
+});
+
+describe('normalizeCaregiverStatus', () => {
+  it('returns valid statuses as-is', () => {
+    expect(normalizeCaregiverStatus('pending')).toBe('pending');
+    expect(normalizeCaregiverStatus('active')).toBe('active');
+    expect(normalizeCaregiverStatus('paused')).toBe('paused');
+    expect(normalizeCaregiverStatus('removed')).toBe('removed');
+  });
+
+  it('returns "unknown" for invalid statuses', () => {
+    expect(normalizeCaregiverStatus('invalid')).toBe('unknown');
+    expect(normalizeCaregiverStatus(null)).toBe('unknown');
+    expect(normalizeCaregiverStatus(undefined)).toBe('unknown');
+  });
+});
+
+describe('hasCaregiverPermission', () => {
+  it('returns true for granted permission', () => {
+    expect(hasCaregiverPermission({ canReceiveAlerts: true }, 'canReceiveAlerts')).toBe(true);
+  });
+
+  it('returns false for denied permission', () => {
+    expect(hasCaregiverPermission({ canReceiveAlerts: false }, 'canReceiveAlerts')).toBe(false);
+  });
+
+  it('returns false for missing permission key', () => {
+    expect(hasCaregiverPermission({}, 'canReceiveAlerts')).toBe(false);
+  });
+
+  it('returns false for undefined permissions', () => {
+    expect(hasCaregiverPermission(undefined, 'canReceiveAlerts')).toBe(false);
   });
 });

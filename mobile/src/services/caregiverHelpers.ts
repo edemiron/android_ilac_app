@@ -55,3 +55,46 @@ export function isInviteExpired(expiresAt: Date | string, now: Date = new Date()
   const expiry = typeof expiresAt === 'string' ? new Date(expiresAt) : expiresAt;
   return expiry.getTime() <= now.getTime();
 }
+
+/**
+ * FCM token validation.
+ * Firebase Cloud Messaging token'lar uzun alfanumerik string'lerdir.
+ * Minimum uzunluk 50, max 250 (FCM spec).
+ */
+export function isValidFcmToken(token: string | null | undefined): boolean {
+  if (typeof token !== 'string') return false;
+  if (token.length < 50 || token.length > 250) return false;
+  return /^[A-Za-z0-9_\-:]+$/.test(token);
+}
+
+/**
+ * Caregiver relationship durumunu normalize et.
+ * 'pending'|'active'|'paused'|'removed' disinda degerler 'unknown' doner.
+ */
+export type CaregiverStatusNormalized = 'pending' | 'active' | 'paused' | 'removed' | 'unknown';
+
+export function normalizeCaregiverStatus(
+  status: string | null | undefined
+): CaregiverStatusNormalized {
+  switch (status) {
+    case 'pending':
+    case 'active':
+    case 'paused':
+    case 'removed':
+      return status;
+    default:
+      return 'unknown';
+  }
+}
+
+/**
+ * Caregiver bildirim tercihi acenta mi (verilen tip) kontrol et.
+ * permission: 'viewSchedule' | 'viewHistory' | 'receiveAlerts'
+ */
+export function hasCaregiverPermission(
+  permissions: Record<string, boolean> | undefined,
+  permission: 'canViewSchedule' | 'canViewHistory' | 'canReceiveAlerts'
+): boolean {
+  if (!permissions) return false;
+  return permissions[permission] === true;
+}
