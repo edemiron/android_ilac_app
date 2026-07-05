@@ -17,13 +17,16 @@ import {
 import { useSettingsScreen } from '../hooks/useSettingsScreen';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
+import { createScopedLogger } from '../utils/logger';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const DEV_MODE_TAP_COUNT = 5;
-const DEV_MODE_TAP_TIMEOUT = 3000;
+// Sprint 11.4: Pure helper'lar ./SettingsScreen/helpers.ts'te tasindi.
+import { DEV_MODE_TAP_COUNT, isDevModeTapExpired } from './SettingsScreen/helpers';
+
+const log = createScopedLogger('SettingsScreen');
 
 export default function SettingsScreen() {
   const {
@@ -82,7 +85,7 @@ export default function SettingsScreen() {
   const handleVersionPress = useCallback(() => {
     const now = Date.now();
 
-    if (now - lastTapTimeRef.current > DEV_MODE_TAP_TIMEOUT) {
+    if (isDevModeTapExpired(lastTapTimeRef.current, now)) {
       tapCountRef.current = 0;
     }
 
