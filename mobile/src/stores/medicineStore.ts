@@ -71,6 +71,9 @@ import {
   withTakenAt,
   buildAlarmNotificationId,
   findReminderTimeById,
+  filterReminderTimesByMedicine,
+  filterActiveMedicines,
+  hasActiveMedicineById,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -807,8 +810,8 @@ export const useMedicineStore = create<MedicineState>()(
 
         // CustomTimes varsa yeniden hesaplama yapma
         if (medicine.customTimes && medicine.customTimes.length > 0) {
-          // Sadece customTimes'ı kullanarak zamanları güncelle
-          const otherTimes = reminderTimes.filter(rt => rt.medicineId !== medicineId);
+          // Sadece customTimes'ı kullanarak zamanları güncelle — Sprint 29.1: helper'a delege
+          const otherTimes = filterReminderTimesByMedicine(reminderTimes, medicineId, true);
           const newTimes = medicine.customTimes.map((time, index) => ({
             id: `${medicineId}_${index}`,
             medicineId,
@@ -1205,7 +1208,8 @@ export const useMedicineStore = create<MedicineState>()(
           const triggerTime = parseSnoozeTriggerTime(s.triggerTime);
           const isStale = !triggerTime || triggerTime.getTime() + staleThreshold < now.getTime();
 
-          const medicineExists = medicines.some(m => m.id === s.medicineId && m.isActive);
+          // Sprint 29.2: pure helper'a delege edildi (hasActiveMedicineById)
+          const medicineExists = hasActiveMedicineById(medicines, s.medicineId);
           const reminderTimeExists = reminderTimes.some(
             reminderTime =>
               reminderTime.id === s.reminderTimeId &&
@@ -1411,18 +1415,20 @@ export const useMedicineStore = create<MedicineState>()(
 
         const result: { medicine: Medicine; reminderTime: ReminderTime; log?: MedicineLog }[] = [];
 
-        medicines
-          .filter(m => m.isActive)
-          .forEach(medicine => {
-            const times = reminderTimes.filter(rt => rt.medicineId === medicine.id && rt.isEnabled);
+        // Sprint 29.2: pure helper'a delege edildi (filterActiveMedicines)
+        filterActiveMedicines(medicines).forEach(medicine => {
+          // Sprint 29.1: pure helper'a delege edildi (filterReminderTimesByMedicine)
+          const times = filterReminderTimesByMedicine(reminderTimes, medicine.id).filter(
+            rt => rt.isEnabled
+          );
 
-            times.forEach(reminderTime => {
-              const scheduledTime = `${today}T${reminderTime.time}:00`;
-              const log = todayLogMap.get(buildMedicineLogSlotKey(reminderTime.id, scheduledTime));
+          times.forEach(reminderTime => {
+            const scheduledTime = `${today}T${reminderTime.time}:00`;
+            const log = todayLogMap.get(buildMedicineLogSlotKey(reminderTime.id, scheduledTime));
 
-              result.push({ medicine, reminderTime, log });
-            });
+            result.push({ medicine, reminderTime, log });
           });
+        });
 
         // Zamana göre sırala
         result.sort((a, b) => a.reminderTime.time.localeCompare(b.reminderTime.time));
@@ -1621,8 +1627,9 @@ export const useMedicineStore = create<MedicineState>()(
  * Aktif ilaçları getir.
  * useShallow ile shallow equality: aynı ilaç listesi olduğunda re-render tetiklenmez.
  */
+// Sprint 29.2: pure helper'a delege edildi (filterActiveMedicines)
 export function useActiveMedicines(): Medicine[] {
-  return useMedicineStore(useShallow(state => state.medicines.filter(m => m.isActive)));
+  return useMedicineStore(useShallow(state => filterActiveMedicines(state.medicines)));
 }
 
 /**

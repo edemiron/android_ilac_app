@@ -460,6 +460,49 @@ export function findReminderTimeById<T extends { id: string }>(
 }
 
 /**
+ * Belirli medicineId'ye ait reminder time'lari filtreler. regenerateReminderTimes
+ * icindeki inline `reminderTimes.filter(rt => rt.medicineId === medicineId)` /
+ * `reminderTimes.filter(rt => rt.medicineId !== medicineId)` pattern'i helper'a cikarildi.
+ */
+export function filterReminderTimesByMedicine<T extends { medicineId: string }>(
+  reminderTimes: T[],
+  medicineId: string,
+  exclude: boolean = false
+): T[] {
+  return reminderTimes.filter(rt => {
+    const match = rt.medicineId === medicineId;
+    return exclude ? !match : match;
+  });
+}
+
+/**
+ * Aktif ilaclari filtreler. medicineStore.ts'te `useActiveMedicines` ve
+ * `state.medicines.filter(m => m.isActive)` pattern'i icin.
+ */
+export function filterActiveMedicines<T extends { isActive: boolean }>(medicines: T[]): T[] {
+  return medicines.filter(m => m.isActive);
+}
+
+/**
+ * Pasif ilaclari filtreler. medicineStore.ts'te `state.medicines.filter(m => !m.isActive)`
+ * pattern'i icin.
+ */
+export function filterInactiveMedicines<T extends { isActive: boolean }>(medicines: T[]): T[] {
+  return medicines.filter(m => !m.isActive);
+}
+
+/**
+ * Belirli medicine'a ait aktif ilac var mi kontrol eder. medicineStore.ts'te
+ * `medicines.some(m => m.id === ... && m.isActive)` pattern'i icin.
+ */
+export function hasActiveMedicineById<T extends { id: string; isActive: boolean }>(
+  medicines: T[],
+  medicineId: string
+): boolean {
+  return medicines.some(m => m.id === medicineId && m.isActive);
+}
+
+/**
  * MedicineLog base object olusturur. _createMedicineLog icindeki inline
  * baseLog + takenAt ekleme pattern'i helper'a cikarildi.
  */
