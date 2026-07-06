@@ -235,7 +235,6 @@ describe('MedicineStore advanced', () => {
 
   describe('deactivateAllSnoozesForMedicine', () => {
     it('does not error when no snoozes exist', () => {
-      const store = useMedicineStore.getState();
       // deactiveAllSnoozesForMedicine is not exposed at top-level wrapper,
       // but it should not throw when called via snoozes slice
       useSnoozesForMedicine('med-1');

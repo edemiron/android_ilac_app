@@ -54,7 +54,7 @@ export default function HomeScreen() {
 
   // Tab State
   const [activeTab, setActiveTab] = useState<FilterTab>('pending');
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const { user } = useAuth();
   const { canAddMedicine } = useSubscription();
   const { showAlert, showSuccess, showError } = useAlert();
@@ -78,12 +78,14 @@ export default function HomeScreen() {
   const getAdherenceRate = useMedicineStore(state => state.getAdherenceRate);
   const getCurrentStreak = useMedicineStore(state => state.getCurrentStreak);
   const createSnooze = useMedicineStore(state => state.createSnooze);
-  const getMedicineById = useMedicineStore(state => state.getMedicineById);
   const getLowStockMedicines = useMedicineStore(state => state.getLowStockMedicines);
   const snoozes = useMedicineStore(state => state.snoozes);
 
   // Stok uyarısı - memoize edildi
-  const lowStockMedicines = useMemo(() => getLowStockMedicines(), [medicines]);
+  const lowStockMedicines = useMemo(
+    () => getLowStockMedicines(),
+    [medicines, getLowStockMedicines]
+  );
 
   // Son kullanma tarihi uyarısı kontrolü
   useEffect(() => {
@@ -152,44 +154,19 @@ export default function HomeScreen() {
     return () => subscription.remove();
   }, [medicines, reminderTimes, medicineLogs, settings.persistentNotificationEnabled]);
 
-  const handleAddMedicine = () => {
-    const { allowed, reason } = canAddMedicine(medicines.length);
-
-    if (!allowed) {
-      showAlert({
-        type: 'warning',
-        title: language === 'tr' ? 'İlaç Limiti' : 'Medicine Limit',
-        message: reason,
-        buttons: [
-          { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
-          {
-            text: language === 'tr' ? "Premium'a Geç" : 'Go Premium',
-            onPress: () => navigation.navigate('Premium'),
-          },
-        ],
-      });
-      return;
-    }
-
-    navigation.navigate('AddMedicine', {});
-  };
-
   // useMemo ile hesaplamaları optimize et
   // NOT: getTodayReminders dependency'den çıkarıldı çünkü zaten medicines, reminderTimes, medicineLogs var
   const todayReminders = useMemo(() => {
     return getTodayReminders();
-  }, [medicines, reminderTimes, medicineLogs]);
+  }, [medicines, reminderTimes, medicineLogs, getTodayReminders]);
 
   // adherenceRate ve currentStreak de memoize edildi - performans için
-  const adherenceRate = useMemo(
+  const _adherenceRate = useMemo(
     () => getAdherenceRate(7),
     [medicines, reminderTimes, medicineLogs, getAdherenceRate]
   );
 
-  const currentStreak = useMemo(
-    () => getCurrentStreak(),
-    [medicines, reminderTimes, medicineLogs, getCurrentStreak]
-  );
+  const currentStreak = useMemo(() => getCurrentStreak(), [getCurrentStreak]);
 
   const today = format(new Date(), 'dd MMMM yyyy, EEEE', { locale: dateLocale });
   const currentTime = format(new Date(), 'HH:mm');
@@ -274,7 +251,7 @@ export default function HomeScreen() {
             ? `${reminder.medicine.name} ${minutes} dakika sonra hatırlatılacak.`
             : `${reminder.medicine.name} will be reminded in ${minutes} minutes.`
         );
-      } catch (error) {
+      } catch (_error) {
         showError(
           language === 'tr' ? 'Hata' : 'Error',
           language === 'tr' ? 'Erteleme başarısız oldu.' : 'Failed to snooze.'
@@ -307,7 +284,7 @@ export default function HomeScreen() {
       : 'Hello';
 
   // Saat dilimine göre selamlama ikonu
-  const getGreetingIcon = () => {
+  const _getGreetingIcon = () => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) return '🌅'; // Sabah
     if (hour >= 12 && hour < 17) return '☀️'; // Öğlen

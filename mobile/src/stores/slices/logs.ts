@@ -120,8 +120,8 @@ export const useLogsStore = create<LogsSlice>()(
         set({ medicineLogs: logs });
       },
 
-      hasLogFor: (reminderTimeId, date) => {
-        const dateStr = date.split('T')[0]; // YYYY-MM-DD
+      hasLogFor: (_reminderTimeId, date) => {
+        const _dateStr = date.split('T')[0]; // YYYY-MM-DD
         return undefined; // State disindan erisim gerekli; TODO Sprint 4
       },
 

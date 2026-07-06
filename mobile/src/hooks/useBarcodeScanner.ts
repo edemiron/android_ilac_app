@@ -139,7 +139,7 @@ export function useBarcodeScanner(options: UseBarcodeHookOptions = {}): UseBarco
         });
       }
     },
-    [scanned, handleSearchProgress, showNotFoundAlert, navigation, showAlert]
+    [scanned, handleSearchProgress, showNotFoundAlert, navigation, showAlert, mode]
   );
 
   const checkDuplicateBarcode = useCallback((): {

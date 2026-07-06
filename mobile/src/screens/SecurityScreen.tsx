@@ -171,7 +171,7 @@ export default function SecurityScreen() {
       });
       triggerHaptic(enabled ? 'success' : 'light');
     },
-    [hasPin, biometricAvailable, settings, language]
+    [hasPin, biometricAvailable, settings, language, updateSettings]
   );
 
   const handleToggleBiometric = useCallback(
@@ -203,7 +203,7 @@ export default function SecurityScreen() {
       });
       triggerHaptic(enabled ? 'success' : 'light');
     },
-    [biometricAvailable, hasPin, settings, language]
+    [biometricAvailable, hasPin, settings, language, updateSettings]
   );
 
   const handleCreatePin = async () => {
@@ -611,7 +611,7 @@ export default function SecurityScreen() {
 
         <View style={styles.timeoutContainer}>
           // eslint-disable-next-line unused-imports/no-unused-vars
-          {[0, 1, 5, 15, 30].map((minutes, index) => (
+          {[0, 1, 5, 15, 30].map(minutes => (
             <TouchableOpacity
               key={minutes}
               style={[

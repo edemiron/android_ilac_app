@@ -50,17 +50,17 @@ describe('getRelativeTimeText', () => {
 
   it('returns isPast=false for future times', () => {
     // 23:59 kesinlikle gelecek
-    const result = getRelativeTimeText('04:00', 'tr');
+    const result = getRelativeTimeText('23:59', 'tr');
     expect(result.isPast).toBe(false);
   });
 
   it('returns future text pattern (TR)', () => {
-    const result = getRelativeTimeText('04:00', 'tr');
+    const result = getRelativeTimeText('23:59', 'tr');
     expect(result.text).toMatch(/dk sonra|saat sonra/);
   });
 
   it('returns future text pattern (EN)', () => {
-    const result = getRelativeTimeText('04:00', 'en');
+    const result = getRelativeTimeText('23:59', 'en');
     expect(result.text).toMatch(/in \d+ min|in \d+h/);
   });
 

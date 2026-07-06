@@ -25,7 +25,7 @@ export default function MedicineProspectusScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const { medicineId, medicineName, dosage } = route.params;
-  
+
   const { colors, isDark } = useTheme();
   // eslint-disable-next-line unused-imports/no-unused-vars
   const { t, language } = useLanguage();
@@ -37,7 +37,7 @@ export default function MedicineProspectusScreen() {
 
   const fetchProspectus = async () => {
     setError(null);
-    
+
     try {
       // Önce veritabanından prospektüs kontrol et
       if (medicineId) {
@@ -52,7 +52,7 @@ export default function MedicineProspectusScreen() {
 
       // Veritabanında yoksa AI'dan getir
       const result = await getMedicineInfoAI(medicineName, dosage);
-      
+
       if (result.success && result.medicine?.prospectus) {
         setProspectus(result.medicine.prospectus);
       } else {
@@ -69,7 +69,7 @@ export default function MedicineProspectusScreen() {
 
   useEffect(() => {
     fetchProspectus();
-  }, [medicineId, medicineName]);
+  }, [medicineId, medicineName, fetchProspectus]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -92,16 +92,12 @@ export default function MedicineProspectusScreen() {
             {content.map((item, index) => (
               <View key={index} style={styles.listItem}>
                 <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                <Text style={[styles.listItemText, { color: colors.textSecondary }]}>
-                  {item}
-                </Text>
+                <Text style={[styles.listItemText, { color: colors.textSecondary }]}>{item}</Text>
               </View>
             ))}
           </View>
         ) : (
-          <Text style={[styles.sectionContent, { color: colors.textSecondary }]}>
-            {content}
-          </Text>
+          <Text style={[styles.sectionContent, { color: colors.textSecondary }]}>{content}</Text>
         )}
       </View>
     );
@@ -133,9 +129,7 @@ export default function MedicineProspectusScreen() {
           <Text style={[styles.errorText, { color: colors.text }]}>
             {language === 'tr' ? 'Prospektüs Yüklenemedi' : 'Could Not Load Prospectus'}
           </Text>
-          <Text style={[styles.errorDescription, { color: colors.textSecondary }]}>
-            {error}
-          </Text>
+          <Text style={[styles.errorDescription, { color: colors.textSecondary }]}>{error}</Text>
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: colors.primary }]}
             onPress={handleRefresh}
@@ -172,7 +166,7 @@ export default function MedicineProspectusScreen() {
         <View style={[styles.aiWarning, { backgroundColor: colors.card }]}>
           <Text style={styles.aiWarningIcon}>🤖</Text>
           <Text style={[styles.aiWarningText, { color: colors.textSecondary }]}>
-            {language === 'tr' 
+            {language === 'tr'
               ? 'Bu bilgiler AI tarafından sağlanmıştır. Kesin bilgi için doktorunuza veya eczacınıza danışın.'
               : 'This information is AI-generated. Consult your doctor or pharmacist for accurate information.'}
           </Text>
@@ -203,11 +197,7 @@ export default function MedicineProspectusScreen() {
           '🚫'
         )}
 
-        {renderSection(
-          language === 'tr' ? 'Uyarılar' : 'Warnings',
-          prospectus?.warnings,
-          '❗'
-        )}
+        {renderSection(language === 'tr' ? 'Uyarılar' : 'Warnings', prospectus?.warnings, '❗')}
 
         {renderSection(
           language === 'tr' ? 'İlaç Etkileşimleri' : 'Drug Interactions',
@@ -238,8 +228,8 @@ export default function MedicineProspectusScreen() {
             </View>
             <View style={styles.ingredientsContainer}>
               {prospectus.activeIngredients.map((ingredient, index) => (
-                <View 
-                  key={index} 
+                <View
+                  key={index}
                   style={[styles.ingredientChip, { backgroundColor: colors.primary + '20' }]}
                 >
                   <Text style={[styles.ingredientName, { color: colors.primary }]}>
@@ -260,159 +250,160 @@ export default function MedicineProspectusScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors, _isDark: boolean) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  // Loading
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 20,
-  },
-  loadingSubtext: {
-    fontSize: 14,
-    marginTop: 8,
-  },
-  // Error
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  errorIcon: {
-    fontSize: 60,
-    marginBottom: 20,
-  },
-  errorText: {
-    fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  errorDescription: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 10,
-    marginBottom: 30,
-  },
-  retryButton: {
-    paddingHorizontal: 30,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // Header
-  header: {
-    padding: 24,
-    paddingTop: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  medicineName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  medicineDosage: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 4,
-  },
-  // AI Warning
-  aiWarning: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    margin: 16,
-    padding: 12,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF9800',
-  },
-  aiWarningIcon: {
-    fontSize: 18,
-    marginRight: 10,
-  },
-  aiWarningText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  // Section
-  section: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 16,
-    padding: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionIcon: {
-    fontSize: 20,
-    marginRight: 10,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  sectionContent: {
-    fontSize: 15,
-    lineHeight: 24,
-  },
-  // List
-  listContainer: {
-    gap: 8,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  bullet: {
-    fontSize: 16,
-    marginRight: 8,
-    marginTop: 2,
-  },
-  listItemText: {
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  // Ingredients
-  ingredientsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  ingredientChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  ingredientName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  ingredientAmount: {
-    fontSize: 12,
-  },
-});
+const createStyles = (colors: ThemeColors, _isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    // Loading
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 40,
+    },
+    loadingText: {
+      fontSize: 18,
+      fontWeight: '600',
+      marginTop: 20,
+    },
+    loadingSubtext: {
+      fontSize: 14,
+      marginTop: 8,
+    },
+    // Error
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 40,
+    },
+    errorIcon: {
+      fontSize: 60,
+      marginBottom: 20,
+    },
+    errorText: {
+      fontSize: 20,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    errorDescription: {
+      fontSize: 14,
+      textAlign: 'center',
+      marginTop: 10,
+      marginBottom: 30,
+    },
+    retryButton: {
+      paddingHorizontal: 30,
+      paddingVertical: 14,
+      borderRadius: 12,
+    },
+    retryButtonText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    // Header
+    header: {
+      padding: 24,
+      paddingTop: 16,
+      borderBottomLeftRadius: 24,
+      borderBottomRightRadius: 24,
+    },
+    medicineName: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      color: '#FFFFFF',
+    },
+    medicineDosage: {
+      fontSize: 18,
+      color: 'rgba(255, 255, 255, 0.8)',
+      marginTop: 4,
+    },
+    // AI Warning
+    aiWarning: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      margin: 16,
+      padding: 12,
+      borderRadius: 12,
+      borderLeftWidth: 4,
+      borderLeftColor: '#FF9800',
+    },
+    aiWarningIcon: {
+      fontSize: 18,
+      marginRight: 10,
+    },
+    aiWarningText: {
+      flex: 1,
+      fontSize: 12,
+      lineHeight: 18,
+    },
+    // Section
+    section: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      borderRadius: 16,
+      padding: 16,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    sectionIcon: {
+      fontSize: 20,
+      marginRight: 10,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+    },
+    sectionContent: {
+      fontSize: 15,
+      lineHeight: 24,
+    },
+    // List
+    listContainer: {
+      gap: 8,
+    },
+    listItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+    },
+    bullet: {
+      fontSize: 16,
+      marginRight: 8,
+      marginTop: 2,
+    },
+    listItemText: {
+      flex: 1,
+      fontSize: 15,
+      lineHeight: 22,
+    },
+    // Ingredients
+    ingredientsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    ingredientChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    ingredientName: {
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    ingredientAmount: {
+      fontSize: 12,
+    },
+  });

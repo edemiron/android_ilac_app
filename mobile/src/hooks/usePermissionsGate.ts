@@ -33,7 +33,7 @@ export function usePermissionsGate(): UsePermissionsGateResult {
       try {
         const shown = await AsyncStorage.getItem(PERMISSIONS_SHOWN_KEY);
         setShowPermissions(shown !== 'true');
-      } catch (error) {
+      } catch (_error) {
         setShowPermissions(true);
       }
     };

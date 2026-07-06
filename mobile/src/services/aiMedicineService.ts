@@ -198,7 +198,7 @@ async function searchWithGemini(
 
 // ============ OPENAİ İLE ARAMA ============
 
-async function searchWithOpenAI(
+async function _searchWithOpenAI(
   barcode: string,
   apiKey: string,
   model: string = 'gpt-4o-mini'

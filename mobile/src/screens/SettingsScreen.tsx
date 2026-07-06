@@ -26,7 +26,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // Sprint 11.4: Pure helper'lar ./SettingsScreen/helpers.ts'te tasindi.
 import { DEV_MODE_TAP_COUNT, isDevModeTapExpired } from './SettingsScreen/helpers';
 
-const log = createScopedLogger('SettingsScreen');
+const _log = createScopedLogger('SettingsScreen');
 
 export default function SettingsScreen() {
   const {

@@ -22,6 +22,12 @@ import {
   FREQUENCY_OPTIONS,
 } from '../types/addMedicine.types';
 import { createScopedLogger } from '../utils/logger';
+import {
+  parseDosageAmount,
+  parseMedicineForm,
+  getInitialAutoTimes,
+  buildDosageString,
+} from './useAddMedicineHelpers';
 
 const log = createScopedLogger('AddMedicine');
 
@@ -58,34 +64,8 @@ export function useAddMedicine() {
   // Yeni ilaç için otomatik renk belirle
   const initialColor = existingMedicine?.color || getNextAvailableColor();
 
-  // Mevcut ilaçtan form ve miktar ayrıştır
-  const parseDosageAmount = (dosage: string): string => {
-    const m = dosage.match(/^([\d.]+)/);
-    return m ? m[1] : '1';
-  };
-  const parseMedicineForm = (dosage: string): import('../types').MedicineForm => {
-    const lower = dosage.toLowerCase();
-    if (lower.includes('tablet')) return 'tablet';
-    if (lower.includes('kaps')) return 'capsule';
-    if (lower.includes('ml') || lower.includes('şurup') || lower.includes('syrup')) return 'syrup';
-    if (lower.includes('damla') || lower.includes('drop')) return 'drops';
-    if (lower.includes('enjeksiyon') || lower.includes('injection') || lower.includes('iğne')) return 'injection';
-    return 'tablet';
-  };
-
   // Yeni ilaç için başlangıç saatlerini oluştur (08:00-21:00 arası eşit dağılım)
-  const getInitialAutoTimes = (count: number): string[] => {
-    if (count <= 0) return [];
-    const startMinutes = 8 * 60;
-    const endMinutes = 21 * 60;
-    const step = count === 1 ? 0 : (endMinutes - startMinutes) / (count - 1);
-    return Array.from({ length: count }, (_, i) => {
-      const totalMins = Math.round(startMinutes + step * i);
-      const h = Math.floor(totalMins / 60).toString().padStart(2, '0');
-      const m = (totalMins % 60).toString().padStart(2, '0');
-      return `${h}:${m}`;
-    });
-  };
+  // Sprint 19.3: getInitialAutoTimes helpers.ts'e taşındı
 
   // Başlangıç frekansı
   const initialFrequency = existingMedicine?.frequency || 3;
@@ -94,18 +74,25 @@ export function useAddMedicine() {
     name: existingMedicine?.name || routeParams.prefillName || routeParams.scannedName || '',
     dosage:
       existingMedicine?.dosage || routeParams.prefillDosage || routeParams.scannedDosage || '',
-    dosageAmount: existingMedicine?.dosageAmount ||
-      parseDosageAmount(existingMedicine?.dosage || routeParams.prefillDosage || routeParams.scannedDosage || '1'),
-    medicineForm: existingMedicine?.form ||
-      parseMedicineForm(existingMedicine?.dosage || routeParams.prefillDosage || routeParams.scannedDosage || ''),
+    dosageAmount:
+      existingMedicine?.dosageAmount ||
+      parseDosageAmount(
+        existingMedicine?.dosage || routeParams.prefillDosage || routeParams.scannedDosage || '1'
+      ),
+    medicineForm:
+      existingMedicine?.form ||
+      parseMedicineForm(
+        existingMedicine?.dosage || routeParams.prefillDosage || routeParams.scannedDosage || ''
+      ),
     frequency: existingMedicine?.frequency || 3,
     instruction: existingMedicine?.instructions || 'any_time',
     selectedColor: initialColor,
     category: existingMedicine?.category,
     imageUri: existingMedicine?.imageUri,
-    customTimes: existingMedicine?.customTimes && existingMedicine.customTimes.length > 0
-      ? existingMedicine.customTimes
-      : getInitialAutoTimes(initialFrequency),
+    customTimes:
+      existingMedicine?.customTimes && existingMedicine.customTimes.length > 0
+        ? existingMedicine.customTimes
+        : getInitialAutoTimes(initialFrequency),
     useCustomTimes: true, // Her zaman chip modunda başlar
     // Stok takibi
     stockEnabled: existingMedicine?.stockEnabled ?? false,
@@ -144,10 +131,14 @@ export function useAddMedicine() {
     setFormState(prev => {
       const updates: Partial<AddMedicineFormState> = {};
 
-      if (routeParams.prefillName && prev.name !== routeParams.prefillName) updates.name = routeParams.prefillName;
-      if (routeParams.prefillDosage && prev.dosage !== routeParams.prefillDosage) updates.dosage = routeParams.prefillDosage;
-      if (routeParams.scannedName && prev.name !== routeParams.scannedName) updates.name = routeParams.scannedName;
-      if (routeParams.scannedDosage && prev.dosage !== routeParams.scannedDosage) updates.dosage = routeParams.scannedDosage;
+      if (routeParams.prefillName && prev.name !== routeParams.prefillName)
+        updates.name = routeParams.prefillName;
+      if (routeParams.prefillDosage && prev.dosage !== routeParams.prefillDosage)
+        updates.dosage = routeParams.prefillDosage;
+      if (routeParams.scannedName && prev.name !== routeParams.scannedName)
+        updates.name = routeParams.scannedName;
+      if (routeParams.scannedDosage && prev.dosage !== routeParams.scannedDosage)
+        updates.dosage = routeParams.scannedDosage;
 
       // routeParams'tan gelen barcode değeri varsa, ve prev.barcode null/boş ise ya da gerçekten değer değişmişse ez
       if (routeParams.barcode && prev.barcode !== routeParams.barcode) {
@@ -238,30 +229,21 @@ export function useAddMedicine() {
     []
   );
 
-  // Form tipi isim haritası
-  const formLabels: Record<import('../types').MedicineForm, string> = {
-    tablet: 'tablet', capsule: 'kapsül', syrup: 'ml', drops: 'damla',
-    injection: 'enjeksiyon', cream: 'krem', spray: 'sprey', patch: 'bant',
-    suppository: 'fitil', powder: 'sayet', other: 'birim',
-  };
-
   // Miktar veya form değişince dosage string'ini de güncelle
   const handleDosageAmountChange = useCallback((amount: string) => {
     setFormState(prev => ({
       ...prev,
       dosageAmount: amount,
-      dosage: `${amount} ${formLabels[prev.medicineForm] || 'tablet'}`.trim(),
+      dosage: buildDosageString(amount, prev.medicineForm),
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleMedicineFormChange = useCallback((form: import('../types').MedicineForm) => {
     setFormState(prev => ({
       ...prev,
       medicineForm: form,
-      dosage: `${prev.dosageAmount || '1'} ${formLabels[form] || 'tablet'}`.trim(),
+      dosage: buildDosageString(prev.dosageAmount || '1', form),
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Frekans seçilince otomatik saatleri uygula
@@ -374,7 +356,8 @@ export function useAddMedicine() {
                 {
                   text: language === 'tr' ? 'İptal' : 'Cancel',
                   style: 'cancel',
-                  onPress: () => reject(new Error('Kullanıcı etkileşim uyarısı nedeniyle kaydı iptal etti')),
+                  onPress: () =>
+                    reject(new Error('Kullanıcı etkileşim uyarısı nedeniyle kaydı iptal etti')),
                 },
                 {
                   text: language === 'tr' ? 'Yine de Kaydet' : 'Save Anyway',
@@ -386,9 +369,9 @@ export function useAddMedicine() {
                     } catch (e) {
                       reject(e);
                     }
-                  }
-                }
-              ]
+                  },
+                },
+              ],
             });
           });
         }

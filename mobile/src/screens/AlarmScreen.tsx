@@ -191,7 +191,7 @@ export default function AlarmScreen() {
     pulse.start();
 
     return () => pulse.stop();
-  }, []);
+  }, [pulseAnim]);
 
   // Alarm durdurma fonksiyonu - useEffect'lerden önce tanımlanmalı
   const stopAlarm = useCallback(async () => {

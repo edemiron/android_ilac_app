@@ -33,11 +33,8 @@ jest.mock('react-native-tts', () => {
 const mockSpeak = jest.requireMock('react-native-tts').speak as jest.Mock;
 const mockStop = jest.requireMock('react-native-tts').stop as jest.Mock;
 const mockSetDefaultLanguage = jest.requireMock('react-native-tts').setDefaultLanguage as jest.Mock;
-const mockSetDefaultRate = jest.requireMock('react-native-tts').setDefaultRate as jest.Mock;
-const mockSetDefaultPitch = jest.requireMock('react-native-tts').setDefaultPitch as jest.Mock;
 const mockVoices = jest.requireMock('react-native-tts').voices as jest.Mock;
 const mockAddEventListener = jest.requireMock('react-native-tts').addEventListener as jest.Mock;
-const mockRemoveAllListeners = jest.requireMock('react-native-tts').removeAllListeners as jest.Mock;
 
 // Import after mocks
 import {

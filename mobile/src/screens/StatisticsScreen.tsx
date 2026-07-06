@@ -199,7 +199,7 @@ export default function StatisticsScreen() {
     },
   };
 
-  const getColor = (rate: number) => getAdherenceColor(rate, colors);
+  const _getColor = (rate: number) => getAdherenceColor(rate, colors);
 
   const handleGeneratePDF = async (days: 7 | 30 | 90) => {
     try {

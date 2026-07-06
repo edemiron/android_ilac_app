@@ -17,9 +17,7 @@ export interface SnoozesSlice {
   snoozes: Snooze[];
 
   /** Yeni snooze olustur */
-  createSnooze: (
-    snooze: Omit<Snooze, 'id' | 'isActive' | 'createdAt'>
-  ) => string;
+  createSnooze: (snooze: Omit<Snooze, 'id' | 'isActive' | 'createdAt'>) => string;
 
   /** Snooze deaktif et (tamamlandi veya iptal edildi) */
   deactivateSnooze: (id: string) => void;
@@ -61,9 +59,7 @@ export const useSnoozesStore = create<SnoozesSlice>()(
 
       deactivateSnooze: id => {
         set(state => ({
-          snoozes: state.snoozes.map(s =>
-            s.id === id ? { ...s, isActive: false } : s
-          ),
+          snoozes: state.snoozes.map(s => (s.id === id ? { ...s, isActive: false } : s)),
         }));
         log.debug('Snooze deactivated', { id });
       },
@@ -74,7 +70,7 @@ export const useSnoozesStore = create<SnoozesSlice>()(
         }));
       },
 
-      getActiveSnoozeForMedicine: medicineId => {
+      getActiveSnoozeForMedicine: _medicineId => {
         // Bu getter set disindan state'e erisemedigi icin burada undefined doner
         // TODO Sprint 4'te closure ile duzeltilecek
         return undefined;

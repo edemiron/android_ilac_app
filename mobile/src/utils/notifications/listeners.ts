@@ -83,7 +83,7 @@ export function setupNotificationListeners(
             const arr: { key: string; ts: number }[] = JSON.parse(raw);
             handled = arr.some(a => a.key === alarmKey && Date.now() - a.ts < 5 * 60 * 1000);
           }
-        } catch (_e) {
+        } catch (_) {
           /* ignore */
         }
 
@@ -99,7 +99,7 @@ export function setupNotificationListeners(
         // pending-alarm'i temizle — checkInitialNotification ile cakismayi engelle
         try {
           await AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
-        } catch (_e) {
+        } catch (_) {
           /* ignore */
         }
 

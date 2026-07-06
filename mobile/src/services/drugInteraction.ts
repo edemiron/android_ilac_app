@@ -345,7 +345,7 @@ export async function checkMultipleInteractions(
     }
 
     // Duplicate Therapy Kontrolünü Sonuçlara Ekle
-    for (const [cui, duplicates] of Object.entries(cuiToDrugMap)) {
+    for (const [_cui, duplicates] of Object.entries(cuiToDrugMap)) {
       if (duplicates.length > 1) {
         // İkiden fazla aynı etken madde bulundu
         for (let i = 0; i < duplicates.length; i++) {

@@ -18,7 +18,7 @@ const sampleDaily: DailyStat[] = [
 
 describe('buildChartData', () => {
   it('returns all days for weekly', () => {
-    const result = buildChartData(sampleDaily, 'weekly', d => 'L');
+    const result = buildChartData(sampleDaily, 'weekly', () => 'L');
     expect(result.labels).toHaveLength(3);
     expect(result.data).toEqual([80, 100, 50]);
   });
@@ -29,7 +29,7 @@ describe('buildChartData', () => {
       adherenceRate: i * 10,
       total: 1,
     }));
-    const result = buildChartData(many, 'monthly', d => 'X');
+    const result = buildChartData(many, 'monthly', () => 'X');
     expect(result.labels).toHaveLength(2);
     expect(result.data).toEqual([0, 50]);
   });

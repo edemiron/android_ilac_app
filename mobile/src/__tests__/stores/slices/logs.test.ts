@@ -18,7 +18,7 @@ describe('LogsSlice', () => {
     });
 
     it('uses provided medicineId', () => {
-      const id = useLogsStore.getState().logMedicineTaken('rt-1', '2024-06-25T08:00:00Z', {
+      useLogsStore.getState().logMedicineTaken('rt-1', '2024-06-25T08:00:00Z', {
         medicineId: 'med-1',
       });
       const { medicineLogs } = useLogsStore.getState();

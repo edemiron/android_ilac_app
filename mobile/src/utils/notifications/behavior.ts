@@ -17,7 +17,7 @@ import {
 } from './channels';
 import type { Medicine, UserSettings } from '../../types';
 
-const log = createScopedLogger('NotificationBehavior');
+const _log = createScopedLogger('NotificationBehavior');
 
 export type NotificationSettingsInput = UserSettings | boolean | undefined;
 

@@ -32,9 +32,7 @@ export function buildChartData(
   formatLabel: (date: Date) => string
 ): { labels: string[]; data: number[] } {
   const isWeekly = selectedPeriod === 'weekly';
-  const filtered = isWeekly
-    ? dailyStats
-    : dailyStats.filter((_, i) => i % 5 === 0);
+  const filtered = isWeekly ? dailyStats : dailyStats.filter((_, i) => i % 5 === 0);
 
   return {
     labels: filtered.map(d => formatLabel(d.date)),
@@ -105,16 +103,6 @@ export function findTopMissedTimes(
     .sort((a, b) => b[1].missed - a[1].missed)
     .slice(0, maxSuggestions)
     .map(([time, stats]) => ({ time, missedCount: stats.missed }));
-}
-
-/**
- * YYYY-MM-DD formatinda tarih string.
- */
-function formatYMD(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
 }
 
 /**

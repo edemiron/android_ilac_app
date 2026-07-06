@@ -116,7 +116,7 @@ export function useAlarmNavigation(options: UseAlarmNavigationOptions): UseAlarm
          * External isAlarmAlreadyHandled ise `medId-rtId-yyyy-MM-dd`
          * gün-precision key bekler. Adapter burada köprü yapar.
          */
-        isAlarmHandled: async (alarmKey: string) => {
+        isAlarmHandled: async (_alarmKey: string) => {
           return await options.isAlarmAlreadyHandled(
             data.medicineId,
             data.reminderTimeId,
@@ -174,9 +174,10 @@ export function useAlarmNavigation(options: UseAlarmNavigationOptions): UseAlarm
 
   // Component unmount'ta tum timer'lari temizle
   useEffect(() => {
+    const timers = alarmKeyCleanupTimersRef.current;
     return () => {
-      alarmKeyCleanupTimersRef.current.forEach(timer => clearTimeout(timer));
-      alarmKeyCleanupTimersRef.current.clear();
+      timers.forEach(timer => clearTimeout(timer));
+      timers.clear();
     };
   }, []);
 

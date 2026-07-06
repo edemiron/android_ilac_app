@@ -96,7 +96,7 @@ export async function checkAllPermissions(): Promise<PermissionStatus> {
         hasActivity: !!powerInfo.activity,
         activity: powerInfo.activity,
       });
-    } catch (e) {
+    } catch (_e) {
       log.debug('Power Manager bilgisi alinamadi');
     }
   }
@@ -127,7 +127,7 @@ export async function openFullScreenIntentSettings(): Promise<void> {
   if (Platform.OS === 'android' && Platform.Version >= 34) {
     try {
       await Linking.sendIntent('android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT');
-    } catch (error) {
+    } catch (_error) {
       // Fallback: Uygulama ayarlarini ac
       await notifee.openNotificationSettings();
     }
@@ -191,7 +191,7 @@ export async function openDndSettings(): Promise<void> {
   if (Platform.OS === 'android') {
     try {
       await Linking.sendIntent('android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS');
-    } catch (error) {
+    } catch (_error) {
       // Fallback: Genel ayarlari ac
       await Linking.openSettings();
     }

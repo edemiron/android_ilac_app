@@ -89,7 +89,7 @@ export function hasAlarmBeenLoggedToday(
 
 async function dismissCurrentNotification(
   data: AlarmNavigationData,
-  dependencies: AlarmNavigationDependencies
+  _dependencies: AlarmNavigationDependencies
 ): Promise<void> {
   const notificationId = getNotificationIdForAlarmData(data);
   if (notificationId) {
