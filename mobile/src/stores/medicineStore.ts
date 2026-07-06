@@ -51,6 +51,9 @@ import {
   calculateAdherenceRate,
   calculateCurrentStreak,
   filterLowStockMedicines,
+  countActiveSnoozes,
+  uniqueNotificationIds,
+  getActiveSnoozesForReminder,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -860,9 +863,8 @@ export const useMedicineStore = create<MedicineState>()(
       _cleanupNotifications: (medicineId: string, reminderTimeId: string) => {
         const { snoozes } = get();
 
-        const activeSnoozes = snoozes.filter(
-          s => s.medicineId === medicineId && s.reminderTimeId === reminderTimeId && s.isActive
-        );
+        // Sprint 22.2: pure helper'a delege edildi
+        const activeSnoozes = getActiveSnoozesForReminder(snoozes, medicineId, reminderTimeId);
 
         const notificationId = `alarm-${medicineId}-${reminderTimeId}`;
         cancelNotification(notificationId).catch(err =>
@@ -1100,14 +1102,13 @@ export const useMedicineStore = create<MedicineState>()(
       ) => {
         const { snoozes, settings } = get();
 
-        // Sadece aktif snoozeleri say - düzeltme: isActive kontrolü eklendi
-        const activeSnoozeCount = snoozes.filter(
-          s =>
-            s.medicineId === medicineId &&
-            s.reminderTimeId === reminderTimeId &&
-            s.originalScheduledTime === originalScheduledTime &&
-            s.isActive // DÜZELTME: Sadece aktif olanları say
-        ).length;
+        // Sadece aktif snoozeleri say - Sprint 22.2: pure helper'a delege
+        const activeSnoozeCount = countActiveSnoozes(
+          snoozes,
+          medicineId,
+          reminderTimeId,
+          originalScheduledTime
+        );
 
         const newSnoozeCount = activeSnoozeCount + 1;
 
@@ -1240,9 +1241,11 @@ export const useMedicineStore = create<MedicineState>()(
             };
           }
 
-          const cancelledNotificationIds = Array.from(
-            new Set([...driftReport.orphanTriggerIds, ...driftReport.legacySnoozeNotificationIds])
-          );
+          // Sprint 22.2: pure helper'a delege edildi (uniqueNotificationIds)
+          const cancelledNotificationIds = uniqueNotificationIds([
+            ...driftReport.orphanTriggerIds,
+            ...driftReport.legacySnoozeNotificationIds,
+          ]);
 
           await Promise.allSettled(
             cancelledNotificationIds.map(notificationId => cancelNotification(notificationId))

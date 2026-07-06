@@ -143,3 +143,49 @@ export function filterLowStockMedicines(medicines: Medicine[]): Medicine[] {
     return (m.stockCount ?? 0) <= threshold;
   });
 }
+
+/**
+ * Belirli bir (medicineId, reminderTimeId, originalScheduledTime) icin
+ * aktif snooze sayisini hesapla. createSnooze icin kullanilir; max snooze
+ * kontrolu oncesi mevcut sayiya ihtiyac duyar.
+ */
+export function countActiveSnoozes(
+  snoozes: {
+    medicineId: string;
+    reminderTimeId: string;
+    originalScheduledTime: string;
+    isActive: boolean;
+  }[],
+  medicineId: string,
+  reminderTimeId: string,
+  originalScheduledTime: string
+): number {
+  return snoozes.filter(
+    s =>
+      s.medicineId === medicineId &&
+      s.reminderTimeId === reminderTimeId &&
+      s.originalScheduledTime === originalScheduledTime &&
+      s.isActive
+  ).length;
+}
+
+/**
+ * Notification ID'leri uniq hale getir (kume ile deduplication).
+ * runNotificationSelfHeal icindeki orphan + legacy snooze ID birlestirmesi
+ * tekrar onlemek icin kullanilir.
+ */
+export function uniqueNotificationIds(ids: string[]): string[] {
+  return Array.from(new Set(ids));
+}
+
+/**
+ * Bugun icin verilen (medicineId, reminderTime) ikilisinin aktif snooze listesini getir.
+ * _cleanupNotifications helper'i icin kullanilir.
+ */
+export function getActiveSnoozesForReminder<
+  T extends { medicineId: string; reminderTimeId: string; isActive: boolean },
+>(snoozes: T[], medicineId: string, reminderTimeId: string): T[] {
+  return snoozes.filter(
+    s => s.medicineId === medicineId && s.reminderTimeId === reminderTimeId && s.isActive
+  );
+}

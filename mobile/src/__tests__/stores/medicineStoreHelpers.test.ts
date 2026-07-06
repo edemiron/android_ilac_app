@@ -9,12 +9,15 @@ import {
   calculateAdherenceRate,
   calculateCurrentStreak,
   filterLowStockMedicines,
+  countActiveSnoozes,
+  uniqueNotificationIds,
+  getActiveSnoozesForReminder,
   getActiveMedicineIds,
   getActiveReminderCount,
   getDateString,
   getTimeString,
 } from '../../stores/medicineStoreHelpers';
-import type { Medicine, MedicineLog, ReminderTime } from '../../types';
+import type { Medicine, MedicineLog, ReminderTime, Snooze } from '../../types';
 
 const NOW = new Date('2026-07-06T15:30:00Z');
 const NOW_PLUS_1H = new Date('2026-07-07T15:30:00Z');
@@ -189,3 +192,71 @@ describe('filterLowStockMedicines', () => {
 
 // NOW_PLUS_1H exported to prevent lint unused warning
 void NOW_PLUS_1H;
+
+describe('countActiveSnoozes', () => {
+  const snooze = (overrides: Partial<Snooze>): Snooze => ({
+    id: 'sn-1',
+    medicineId: 'm1',
+    reminderTimeId: 'rt1',
+    originalScheduledTime: '2026-07-06T08:00:00Z',
+    triggerTime: '2026-07-06T08:00:00Z',
+    notificationId: 'notif-1',
+    isActive: true,
+    createdAt: '2026-07-06T08:00:00Z',
+    ...overrides,
+  });
+
+  it('counts only active snoozes matching all three keys', () => {
+    const snoozes = [
+      snooze({}),
+      snooze({ id: 'sn-2', originalScheduledTime: '2026-07-06T08:30:00Z' }), // farkli time
+      snooze({ id: 'sn-3', isActive: false }), // inactive
+      snooze({ id: 'sn-4', medicineId: 'm2' }), // farkli medicine
+      snooze({ id: 'sn-5', reminderTimeId: 'rt2' }), // farkli reminder
+    ];
+    expect(countActiveSnoozes(snoozes, 'm1', 'rt1', '2026-07-06T08:00:00Z')).toBe(1);
+  });
+
+  it('returns 0 for empty list', () => {
+    expect(countActiveSnoozes([], 'm1', 'rt1', '2026-07-06T08:00:00Z')).toBe(0);
+  });
+});
+
+describe('uniqueNotificationIds', () => {
+  it('removes duplicates', () => {
+    expect(uniqueNotificationIds(['a', 'b', 'a', 'c', 'b'])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('returns empty for empty input', () => {
+    expect(uniqueNotificationIds([])).toEqual([]);
+  });
+
+  it('preserves order', () => {
+    expect(uniqueNotificationIds(['c', 'a', 'b'])).toEqual(['c', 'a', 'b']);
+  });
+});
+
+describe('getActiveSnoozesForReminder', () => {
+  const s = (overrides: Partial<Snooze>): Snooze => ({
+    id: 'sn',
+    medicineId: 'm1',
+    reminderTimeId: 'rt1',
+    originalScheduledTime: '2026-07-06T08:00:00Z',
+    triggerTime: '2026-07-06T08:00:00Z',
+    notificationId: 'n',
+    isActive: true,
+    createdAt: '2026-07-06T08:00:00Z',
+    ...overrides,
+  });
+
+  it('returns only active matching snoozes', () => {
+    const snoozes = [
+      s({}),
+      s({ id: 's2', isActive: false }),
+      s({ id: 's3', reminderTimeId: 'rt2' }),
+    ];
+    const result = getActiveSnoozesForReminder(snoozes, 'm1', 'rt1');
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('sn');
+  });
+});
