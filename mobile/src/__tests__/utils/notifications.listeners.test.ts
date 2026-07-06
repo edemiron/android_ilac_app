@@ -46,7 +46,7 @@ describe('notifications/listeners', () => {
   let onAlarmPress: jest.Mock;
   let onAction: jest.Mock;
   let unsubscribe: jest.Mock;
-  let foregroundHandler: (event: any) => Promise<void>;
+  let foregroundHandler: (event: unknown) => Promise<void>;
 
   beforeEach(() => {
     jest.clearAllMocks();

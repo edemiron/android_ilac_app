@@ -378,8 +378,11 @@ export function useAddMedicine() {
       }
 
       await persistSave(formState);
-    } catch (error: any) {
-      if (error.message === 'Kullanıcı etkileşim uyarısı nedeniyle kaydı iptal etti') {
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'Kullanıcı etkileşim uyarısı nedeniyle kaydı iptal etti'
+      ) {
         return; // Sessizce iptal et
       }
       log.error('Ilac kaydedilirken hata', error);

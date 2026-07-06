@@ -55,7 +55,7 @@ describe('sanitizeMedicineData', () => {
   });
 
   it('returns input object unchanged if no string fields present', () => {
-    const input : any = { id: 'med-1' };
+    const input = { id: 'med-1' } as unknown as { id: string; name?: string; dosage?: string };
     const result = sanitizeMedicineData(input);
     expect(result).toEqual(input);
   });

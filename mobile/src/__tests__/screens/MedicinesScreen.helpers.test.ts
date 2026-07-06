@@ -80,7 +80,7 @@ describe('getExpiryDetails', () => {
 });
 
 describe('getMedicineFormIcon', () => {
-  const baseMedicine : any = {
+  const baseMedicine = {
     id: 'med-1',
     name: 'Aspirin',
     dosage: '500mg',

@@ -23,10 +23,10 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { useCaregiver } from '../hooks/useCaregiver';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, type ThemeColors } from '../contexts/ThemeContext';
 import { useAlert } from '../contexts/AlertContext';
 
-const createStyles = (colors: any, _isDark: boolean) =>
+const createStyles = (colors: ThemeColors, _isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,

@@ -176,7 +176,9 @@ describe('Sprint 8.4: inline validation delegasyonu', () => {
 
 // Type-system bypass: helper invalid input edge case test
 // fixtures (TypeScript strict mode'da non-string literal cast gerekiyor).
-const nullInput: any = null;
-const undefinedInput: any = undefined;
-const numberInput: any = 123;
-const inputTime: any = '08:00';
+// ESLint no-explicit-any uyarısından kaçınmak için `unknown` kullanırız
+// (runtime'da helper'lar type guard yaparak handle eder).
+const nullInput = null as unknown as string;
+const undefinedInput = undefined as unknown as string;
+const numberInput = 123 as unknown as string;
+const inputTime = '08:00' as unknown as number;

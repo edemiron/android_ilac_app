@@ -219,7 +219,7 @@ describe('scheduleTestAlarmNotification', () => {
 });
 
 describe('scheduleMedicineNotification', () => {
-  const mockMedicine: any = {
+  const mockMedicine: import('../../../types').Medicine = {
     id: 'med-1',
     name: 'Aspirin',
     dosage: '500mg',
@@ -231,7 +231,7 @@ describe('scheduleMedicineNotification', () => {
     startDate: '2024-01-01',
   };
 
-  const mockReminder: any = {
+  const mockReminder = {
     id: 'rt-1',
     medicineId: 'med-1',
     time: '08:00',
@@ -243,10 +243,7 @@ describe('scheduleMedicineNotification', () => {
   });
 
   it('returns null for invalid medicine (no id)', async () => {
-    const result = await scheduleMedicineNotification(
-      { ...mockMedicine, id: '' },
-      mockReminder
-    );
+    const result = await scheduleMedicineNotification({ ...mockMedicine, id: '' }, mockReminder);
     expect(result).toBeNull();
     expect(notifee.createTriggerNotification).not.toHaveBeenCalled();
   });

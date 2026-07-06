@@ -69,7 +69,9 @@ export default function MedicineProspectusScreen() {
 
   useEffect(() => {
     fetchProspectus();
-  }, [medicineId, medicineName, fetchProspectus]);
+    // fetchProspectus her render'da yeniden olusturulur — ref/cache gerekli
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [medicineId, medicineName]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);

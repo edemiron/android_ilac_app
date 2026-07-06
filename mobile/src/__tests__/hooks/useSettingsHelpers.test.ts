@@ -77,10 +77,10 @@ describe('togglePickerVisibility', () => {
 
 describe('closePickerVisibility', () => {
   it('sets picker visibility to false', () => {
-    const pickerKey: any = 'showWakeUpPicker';
-    const result: any = closePickerVisibility(
+    const pickerKey = 'showWakeUpPicker' as unknown;
+    const result = closePickerVisibility(
       { showWakeUpPicker: true, showSleepPicker: true },
-      pickerKey
+      pickerKey as never
     );
     expect(result.showWakeUpPicker).toBe(false);
     expect(result.showSleepPicker).toBe(true); // other untouched
@@ -172,8 +172,8 @@ describe('Sprint 10.2: validateSnoozeDuration', () => {
 
   it('uses default for invalid input', () => {
     // Type-system bypass: helper invalid input edge case test fixtures.
-    const stringInput: any = 'abc';
-    const nullInput: any = null;
+    const stringInput = 'abc' as unknown as number;
+    const nullInput = null as unknown as number;
     expect(validateSnoozeDuration(stringInput)).toBe(5);
     expect(validateSnoozeDuration(NaN)).toBe(5);
     expect(validateSnoozeDuration(nullInput)).toBe(5);

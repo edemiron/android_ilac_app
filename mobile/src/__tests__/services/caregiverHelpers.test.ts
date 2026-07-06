@@ -102,9 +102,9 @@ describe('isValidCaregiverEmail', () => {
   it('rejects non-string values', () => {
     // Type-system bypass: helper invalid input edge case test.
     // null/undefined/number/string dışı tipler reddedilir.
-    const nullInput: any = null;
-    const undefinedInput: any = undefined;
-    const numberInput: any = 123;
+    const nullInput = null as unknown as string;
+    const undefinedInput = undefined as unknown as string;
+    const numberInput = 123 as unknown as string;
     expect(isValidCaregiverEmail(nullInput)).toBe(false);
     expect(isValidCaregiverEmail(undefinedInput)).toBe(false);
     expect(isValidCaregiverEmail(numberInput)).toBe(false);

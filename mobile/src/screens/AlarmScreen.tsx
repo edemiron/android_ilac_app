@@ -137,6 +137,8 @@ export default function AlarmScreen() {
   const ttsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isStoppedRef = useRef<boolean>(false); // Alarm durduruldu mu?
   const isSnoozingRef = useRef<boolean>(false); // Snooze işlemi devam ediyor mu?
+  // processTake TDZ'den kaçınmak için ref üzerinden çağrılır.
+  const processTakeRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   // Barkod Doğrulama State
   const [showScanner, setShowScanner] = useState(false);
@@ -153,7 +155,7 @@ export default function AlarmScreen() {
           // Biraz bekletip işlemi tamamla
           setTimeout(() => {
             setShowScanner(false);
-            processTake();
+            processTakeRef.current();
           }, 1500);
         } else {
           setScannedMessage(
@@ -401,7 +403,7 @@ export default function AlarmScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicine, isTestMode, medicineId, settings.vibrationEnabled, language]);
 
-  const processTake = async () => {
+  const processTake = useCallback(async () => {
     // KRİTİK: scheduledTime'ı HomeScreen ile aynı formatta oluştur
     // getTodayReminders `l.scheduledTime.startsWith(today)` ile eşleştirir
     // toISOString() UTC verir, gece saatlerinde tarih uyuşmaz
@@ -432,7 +434,14 @@ export default function AlarmScreen() {
 
     dismissAlarm();
     navigation.goBack();
-  };
+    // processTake, dismissAlarm, navigation vb. runtime'da processTakeRef uzerinden erisilir
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // processTake her render'da stable bir ref'e atanır — TDZ'den kaçınmak icin
+  useEffect(() => {
+    processTakeRef.current = async () => processTake();
+  });
 
   const handleTake = async () => {
     await stopAlarm();

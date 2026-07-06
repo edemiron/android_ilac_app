@@ -135,6 +135,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       setSubscription(defaultSubscription);
       setIsLoading(false);
     }
+    // user?.uid dependency icin yeterli; refreshSubscription useCallback ile stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user?.uid, refreshSubscription]);
 
   const upgrade = async (billingPeriod: 'monthly' | 'yearly', transactionId?: string) => {

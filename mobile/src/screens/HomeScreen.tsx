@@ -56,7 +56,11 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<FilterTab>('pending');
   const { language } = useLanguage();
   const { user } = useAuth();
+  // canAddMedicine/showAlert — Sprint 19'da handleAddMedicine ile birlikte kaldirildi.
+  // Bu satirlar gelecekte premium gating veya alarm ekleme ozelliklerinde kullanilabilir.
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { canAddMedicine } = useSubscription();
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { showAlert, showSuccess, showError } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
   const [expiryModalVisible, setExpiryModalVisible] = useState(false);
@@ -82,10 +86,8 @@ export default function HomeScreen() {
   const snoozes = useMedicineStore(state => state.snoozes);
 
   // Stok uyarısı - memoize edildi
-  const lowStockMedicines = useMemo(
-    () => getLowStockMedicines(),
-    [medicines, getLowStockMedicines]
-  );
+  // getLowStockMedicines zaten medicines'i icinden okur (zustand state selector)
+  const lowStockMedicines = useMemo(() => getLowStockMedicines(), [getLowStockMedicines]);
 
   // Son kullanma tarihi uyarısı kontrolü
   useEffect(() => {
@@ -155,16 +157,15 @@ export default function HomeScreen() {
   }, [medicines, reminderTimes, medicineLogs, settings.persistentNotificationEnabled]);
 
   // useMemo ile hesaplamaları optimize et
-  // NOT: getTodayReminders dependency'den çıkarıldı çünkü zaten medicines, reminderTimes, medicineLogs var
+  // getTodayReminders/getAdherenceRate/getCurrentStreak zustand state selector — kendi içlerinde
+  // medicines/reminderTimes/medicineLogs okur, bu nedenle dependency gerekmez.
   const todayReminders = useMemo(() => {
     return getTodayReminders();
-  }, [medicines, reminderTimes, medicineLogs, getTodayReminders]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [medicines, reminderTimes, medicineLogs]);
 
   // adherenceRate ve currentStreak de memoize edildi - performans için
-  const _adherenceRate = useMemo(
-    () => getAdherenceRate(7),
-    [medicines, reminderTimes, medicineLogs, getAdherenceRate]
-  );
+  const _adherenceRate = useMemo(() => getAdherenceRate(7), [getAdherenceRate]);
 
   const currentStreak = useMemo(() => getCurrentStreak(), [getCurrentStreak]);
 

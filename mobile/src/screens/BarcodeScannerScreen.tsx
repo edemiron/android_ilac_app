@@ -8,6 +8,10 @@ import {
   Code,
 } from 'react-native-vision-camera';
 import { useNavigation, useIsFocused, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../types';
+
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
@@ -19,13 +23,16 @@ import {
   scannerStyles,
 } from '../components/barcodeScanner';
 
+type BarcodeNav = NativeStackNavigationProp<RootStackParamList, 'BarcodeScanner'>;
+type BarcodeRoute = RouteProp<RootStackParamList, 'BarcodeScanner'>;
+
 interface BarcodeScannerScreenProps {
   onScan?: (medicine: { name: string; dosage: string; barcode: string }) => void;
 }
 
 export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenProps) {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<BarcodeNav>();
+  const route = useRoute<BarcodeRoute>();
   const mode = route.params?.mode;
   const { t } = useLanguage();
   const { showAlert } = useAlert();

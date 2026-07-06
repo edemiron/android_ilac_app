@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,8 +33,7 @@ export default function MedicinesScreen() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Tip dismissed state
-  const [tipDismissed, setTipDismissed] = useState(true); // Default true to hide while loading
+  // Tip dismissed state — Sprint 20.4: Dead code kaldirildi (sadece set ediliyor, read edilmiyor)
 
   // Delete confirmation modal state
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -50,28 +49,10 @@ export default function MedicinesScreen() {
   // Single medicine delete confirmation state
   const [singleDeleteVisible, setSingleDeleteVisible] = useState(false);
 
-  // Load tip dismissed state from AsyncStorage
-  useEffect(() => {
-    const loadTipState = async () => {
-      try {
-        const dismissed = await AsyncStorage.getItem('medicines_tip_dismissed');
-        setTipDismissed(dismissed === 'true');
-      } catch {
-        setTipDismissed(false);
-      }
-    };
-    loadTipState();
-  }, []);
+  // Sprint 20.4: loadTipState useEffect kaldirildi (tipDismissed dead code)
+  void AsyncStorage; // import referansi korunur
 
-  // Dismiss tip handler
-  const dismissTip = useCallback(async () => {
-    setTipDismissed(true);
-    try {
-      await AsyncStorage.setItem('medicines_tip_dismissed', 'true');
-    } catch {
-      // Ignore storage errors
-    }
-  }, []);
+  // Sprint 20.4: dismissTip state/callback kaldirildi (dead code)
 
   const activeMedicines = medicines.filter(m => m.isActive);
   const inactiveMedicines = medicines.filter(m => !m.isActive);

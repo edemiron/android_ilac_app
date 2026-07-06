@@ -146,7 +146,7 @@ describe('trimMedicineFields', () => {
   it('preserves non-trimmed fields like id/barcode', () => {
     // trimMedicineFields only handles name/genericName/manufacturer/dosage;
     // id ve barcode gibi ID alanlari oldugu gibi korunuyor.
-    const input: any = { id: 'med-1', barcode: '  12345  ' };
+    const input = { id: 'med-1', barcode: '  12345  ' } as unknown as Record<string, string>;
     const result = trimMedicineFields(input);
     expect(result.id).toBe('med-1');
     expect(result.barcode).toBe('  12345  ');
@@ -186,7 +186,10 @@ describe('Sprint 8.1: Backward compat aliases', () => {
 describe('Sprint 16.4: parseNameSearchResponse alias', () => {
   it('parseProspectusResponse = parseNameSearchResponse (referans equality)', () => {
     // Sprint 8.1 backward-compat alias
-    const { parseProspectusResponse, parseNameSearchResponse } = require('../../services/aiMedicineHelpers');
+    const {
+      parseProspectusResponse,
+      parseNameSearchResponse,
+    } = require('../../services/aiMedicineHelpers');
     expect(parseProspectusResponse).toBe(parseNameSearchResponse);
   });
 });
