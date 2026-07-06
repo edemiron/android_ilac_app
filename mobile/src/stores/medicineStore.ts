@@ -48,6 +48,11 @@ import { getSyncQueue } from '../utils/syncQueue';
 import { markMissedReminders as calculateMissedReminders } from '../utils/missedReminders';
 import { validateSyncData } from '../utils/syncDataValidator';
 import {
+  calculateAdherenceRate,
+  calculateCurrentStreak,
+  filterLowStockMedicines,
+} from './medicineStoreHelpers';
+import {
   analyzeNotificationDrift,
   cancelAllNotifications,
   cancelNotification,
@@ -1409,107 +1414,23 @@ export const useMedicineStore = create<MedicineState>()(
       },
 
       // Uyum oranını hesapla
+      // Sprint 21.2: pure helper'a delege edildi (calculateAdherenceRate)
       getAdherenceRate: (days = 7) => {
         const { medicineLogs, medicines, reminderTimes } = get();
-        const normalizedLogs = normalizeMedicineLogsBySlot(medicineLogs);
-        const now = new Date();
-        // eslint-disable-next-line unused-imports/no-unused-vars
-        const today = format(now, 'yyyy-MM-dd');
-        const currentTime = format(now, 'HH:mm');
-        const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-        // Aktif ilaçların hatırlatma sayısını kontrol et
-        const activeMedicineIds = new Set(medicines.filter(m => m.isActive).map(m => m.id));
-
-        const activeReminderCount = reminderTimes.filter(
-          rt => activeMedicineIds.has(rt.medicineId) && rt.isEnabled
-        ).length;
-
-        // Aktif hatırlatma yoksa %100 dön (ilaç yok = sorun yok)
-        if (activeReminderCount === 0) return 100;
-
-        const recentLogs = normalizedLogs.filter(log => new Date(log.scheduledTime) >= startDate);
-
-        // Log yoksa: bugün için geçmiş zamanlı hatırlatma var mı kontrol et
-        if (recentLogs.length === 0) {
-          // Bugün için geçmiş zamanlı bir hatırlatma varsa %0 dön
-          const hasPastReminderToday = reminderTimes.some(rt => {
-            if (!activeMedicineIds.has(rt.medicineId) || !rt.isEnabled) return false;
-            return rt.time < currentTime;
-          });
-
-          // Geçmiş zamanlı hatırlatma varsa ama log yoksa = %0 uyum
-          // Henüz zamanı gelmemiş hatırlatmalar için = henüz veri yok, ama %100 yanıltıcı
-          // Bu durumda "N/A" veya farklı bir gösterim olabilir, ama sayısal olarak:
-          // - Geçmiş hatırlatma varsa ve log yoksa = 0%
-          // - Sadece gelecek hatırlatmalar varsa = 100% (henüz sorumluluk başlamadı)
-          return hasPastReminderToday ? 0 : 100;
-        }
-
-        const takenCount = recentLogs.filter(log => log.status === 'taken').length;
-        return Math.round((takenCount / recentLogs.length) * 100);
+        return calculateAdherenceRate(medicineLogs, medicines, reminderTimes, days);
       },
 
+      // Sprint 21.2: pure helper'a delege edildi (calculateCurrentStreak)
       getCurrentStreak: () => {
         const { medicineLogs, medicines, reminderTimes } = get();
-        const normalizedLogs = normalizeMedicineLogsBySlot(medicineLogs);
-
-        const activeMedicineIds = new Set(medicines.filter(m => m.isActive).map(m => m.id));
-
-        const activeReminderCount = reminderTimes.filter(
-          rt => activeMedicineIds.has(rt.medicineId) && rt.isEnabled
-        ).length;
-
-        if (activeReminderCount === 0) return 0;
-
-        // OPTİMİZASYON: MedicineLogs'u tarihe göre önceden indexle - O(n) yerine O(m)
-        // Bu, her gün için tüm diziyi taramak yerine, doğrudan o günün loglarına erişmemizi sağlar
-        const logsByDate = new Map<string, typeof normalizedLogs>();
-
-        for (const log of normalizedLogs) {
-          if (!activeMedicineIds.has(log.medicineId)) continue;
-
-          const dateStr = log.scheduledTime.slice(0, 10); // 'yyyy-MM-dd' formatı
-          if (!logsByDate.has(dateStr)) {
-            logsByDate.set(dateStr, []);
-          }
-          logsByDate.get(dateStr)!.push(log);
-        }
-
-        let streak = 0;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        for (let i = 0; i < 365; i++) {
-          const checkDate = new Date(today);
-          checkDate.setDate(checkDate.getDate() - i);
-          const dateStr = format(checkDate, 'yyyy-MM-dd');
-
-          // O(1) lookup - artık filter kullanmıyoruz!
-          const dayLogs = logsByDate.get(dateStr) || [];
-
-          if (dayLogs.length === 0) {
-            if (i === 0) continue; // Bugün için henüz log yoksa atla
-            break;
-          }
-
-          const allTaken = dayLogs.every(log => log.status === 'taken');
-          if (!allTaken) break;
-
-          streak++;
-        }
-
-        return streak;
+        return calculateCurrentStreak(medicineLogs, medicines, reminderTimes);
       },
 
       // Stok yönetimi fonksiyonları
+      // Sprint 21.2: pure helper'a delege edildi (filterLowStockMedicines)
       getLowStockMedicines: () => {
         const { medicines } = get();
-        return medicines.filter(m => {
-          if (!m.isActive || !m.stockEnabled) return false;
-          const threshold = m.stockThreshold ?? 5;
-          return (m.stockCount ?? 0) <= threshold;
-        });
+        return filterLowStockMedicines(medicines);
       },
 
       updateMedicineStock: (medicineId, newCount) => {
