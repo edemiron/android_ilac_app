@@ -189,3 +189,49 @@ export function getActiveSnoozesForReminder<
     s => s.medicineId === medicineId && s.reminderTimeId === reminderTimeId && s.isActive
   );
 }
+
+/**
+ * Su anki zamanin ISO string hali (lastSyncAt, updatedAt, createdAt icin).
+ * medicineStore.ts icinde 10+ yerde tekrar eden `new Date().toISOString()` yerine.
+ */
+export function nowISO(): string {
+  return new Date().toISOString();
+}
+
+/**
+ * Bir medicine listesinde, belirli ID ile eslesen ilacin partial guncellenmis
+ * halini uretir (updatedAt'i otomatik set eder). Redux/zustand `set(state => ...)`
+ * callback'leri icin kullanisli helper.
+ */
+export function updateMedicineInList<T extends { id: string; updatedAt: string }>(
+  medicines: T[],
+  id: string,
+  patch: Partial<Omit<T, 'id' | 'updatedAt'>>
+): T[] {
+  const now = nowISO();
+  return medicines.map(m => (m.id === id ? { ...m, ...patch, updatedAt: now } : m));
+}
+
+/**
+ * Yeni medicine eklemek icin standard createdAt + updatedAt zaman damgalari olustur.
+ */
+export function createMedicineTimestamps(): { createdAt: string; updatedAt: string } {
+  const now = nowISO();
+  return { createdAt: now, updatedAt: now };
+}
+
+/**
+ * syncToCloud / syncFromCloud / cloud batch islemlerinin ortak "success + lastSyncAt
+ * guncelleme" set islemi. Tekrarlanan 4-luk blok halinde inline yazilirdi.
+ */
+export function buildSyncSuccessPatch(now: string = nowISO()): {
+  isSyncing: false;
+  lastSyncAt: string;
+  syncError: null;
+} {
+  return {
+    isSyncing: false,
+    lastSyncAt: now,
+    syncError: null,
+  };
+}

@@ -54,6 +54,7 @@ import {
   countActiveSnoozes,
   uniqueNotificationIds,
   getActiveSnoozesForReminder,
+  updateMedicineInList,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -571,16 +572,14 @@ export const useMedicineStore = create<MedicineState>()(
 
       // İlaç güncelleme
       updateMedicine: (id, updates) => {
-        const now = new Date().toISOString();
         const { userId } = get();
 
         // Türkçe karakter encoding sorunlarını düzelt
         const sanitizedUpdates = sanitizeMedicineData(updates);
 
+        // Sprint 23.3: pure helper'a delege edildi (updateMedicineInList)
         set(state => ({
-          medicines: state.medicines.map(m =>
-            m.id === id ? { ...m, ...sanitizedUpdates, updatedAt: now } : m
-          ),
+          medicines: updateMedicineInList(state.medicines, id, sanitizedUpdates),
         }));
 
         // Frekans, talimat veya özel saatler değiştiyse zamanları yeniden hesapla
@@ -1438,12 +1437,11 @@ export const useMedicineStore = create<MedicineState>()(
 
       updateMedicineStock: (medicineId, newCount) => {
         const { userId } = get();
+        // Sprint 23.3: pure helper'a delege edildi
         set(state => ({
-          medicines: state.medicines.map(m =>
-            m.id === medicineId
-              ? { ...m, stockCount: Math.max(0, newCount), updatedAt: new Date().toISOString() }
-              : m
-          ),
+          medicines: updateMedicineInList(state.medicines, medicineId, {
+            stockCount: Math.max(0, newCount),
+          }),
         }));
 
         if (userId) {
@@ -1461,11 +1459,7 @@ export const useMedicineStore = create<MedicineState>()(
         const newStock = Math.max(0, currentStock - amount);
 
         set(state => ({
-          medicines: state.medicines.map(m =>
-            m.id === medicineId
-              ? { ...m, stockCount: newStock, updatedAt: new Date().toISOString() }
-              : m
-          ),
+          medicines: updateMedicineInList(state.medicines, medicineId, { stockCount: newStock }),
         }));
 
         // Az kaldı uyarısı için log

@@ -1,8 +1,7 @@
 /**
  * medicineStoreHelpers testleri.
  *
- * Sprint 21.3: medicineStore.ts icindeki pure hesaplama logic'i pure helper'lara
- * ayristirildi. Bu testler, store bagimliligi olmadan hesaplama mantigini dogrular.
+ * Sprint 21.3 + 23.3: medicineStore.ts icindeki pure helper'lar test ediliyor.
  */
 
 import {
@@ -16,11 +15,15 @@ import {
   getActiveReminderCount,
   getDateString,
   getTimeString,
+  nowISO,
+  updateMedicineInList,
+  buildSyncSuccessPatch,
+  createMedicineTimestamps,
 } from '../../stores/medicineStoreHelpers';
-import type { Medicine, MedicineLog, ReminderTime, Snooze } from '../../types';
+
+import { Medicine, MedicineLog, ReminderTime, Snooze } from '../../types';
 
 const NOW = new Date('2026-07-06T15:30:00Z');
-const NOW_PLUS_1H = new Date('2026-07-07T15:30:00Z');
 
 const baseMedicine = (id: string, active: boolean = true): Medicine => ({
   id,
@@ -55,21 +58,20 @@ const baseLog = (
   medicineId: string,
   rtId: string,
   scheduledISO: string,
-  status: 'taken' | 'skipped' | 'missed' = 'taken'
+  status: 'taken' | 'skipped' = 'taken'
 ): MedicineLog => ({
   id,
   medicineId,
   reminderTimeId: rtId,
   scheduledTime: scheduledISO,
   takenAt: status === 'taken' ? scheduledISO : undefined,
-  status: status as 'taken' | 'skipped',
+  status,
 });
 
 describe('getDateString / getTimeString', () => {
   it('formats date to yyyy-MM-dd', () => {
     expect(getDateString(NOW)).toBe('2026-07-06');
   });
-
   it('formats time to HH:mm', () => {
     expect(getTimeString(NOW)).toMatch(/^\d{2}:\d{2}$/);
   });
@@ -84,7 +86,6 @@ describe('getActiveMedicineIds', () => {
     expect(ids.has('m3')).toBe(true);
     expect(ids.has('m2')).toBe(false);
   });
-
   it('returns empty set for empty list', () => {
     expect(getActiveMedicineIds([]).size).toBe(0);
   });
@@ -96,8 +97,8 @@ describe('getActiveReminderCount', () => {
     const reminders = [
       baseReminder('rt1', 'm1', '08:00'),
       baseReminder('rt2', 'm1', '20:00'),
-      baseReminder('rt3', 'm2', '08:00'), // pasif ilac
-      { ...baseReminder('rt4', 'm1', '12:00'), isEnabled: false }, // disabled
+      baseReminder('rt3', 'm2', '08:00'),
+      { ...baseReminder('rt4', 'm1', '12:00'), isEnabled: false },
     ];
     expect(getActiveReminderCount(meds, reminders)).toBe(2);
   });
@@ -105,11 +106,8 @@ describe('getActiveReminderCount', () => {
 
 describe('calculateAdherenceRate', () => {
   it('returns 100 when no active reminders', () => {
-    const meds: Medicine[] = [];
-    const reminders: ReminderTime[] = [];
-    expect(calculateAdherenceRate([], meds, reminders, 7, NOW)).toBe(100);
+    expect(calculateAdherenceRate([], [], [], 7, NOW)).toBe(100);
   });
-
   it('returns percentage of taken logs in last N days', () => {
     const meds = [baseMedicine('m1')];
     const reminders = [baseReminder('rt1', 'm1')];
@@ -119,7 +117,6 @@ describe('calculateAdherenceRate', () => {
     ];
     expect(calculateAdherenceRate(logs, meds, reminders, 7, NOW)).toBe(50);
   });
-
   it('rounds to nearest integer', () => {
     const meds = [baseMedicine('m1')];
     const reminders = [baseReminder('rt1', 'm1')];
@@ -128,7 +125,6 @@ describe('calculateAdherenceRate', () => {
       baseLog('l2', 'm1', 'rt1', '2026-07-06T08:00:00Z', 'taken'),
       baseLog('l3', 'm1', 'rt1', '2026-07-04T08:00:00Z', 'skipped'),
     ];
-    // 2/3 = 0.667 → 67%
     expect(calculateAdherenceRate(logs, meds, reminders, 7, NOW)).toBe(67);
   });
 });
@@ -137,17 +133,14 @@ describe('calculateCurrentStreak', () => {
   it('returns 0 when no active reminders', () => {
     expect(calculateCurrentStreak([], [], [], NOW)).toBe(0);
   });
-
   it('returns 0 when no logs at all', () => {
     const meds = [baseMedicine('m1')];
     const reminders = [baseReminder('rt1', 'm1')];
     expect(calculateCurrentStreak([], meds, reminders, NOW)).toBe(0);
   });
-
   it('counts consecutive days with all logs taken', () => {
     const meds = [baseMedicine('m1')];
     const reminders = [baseReminder('rt1', 'm1')];
-    // 3 gun ust uste taken (bugun + dun + evvelsi gun)
     const logs: MedicineLog[] = [
       baseLog('l1', 'm1', 'rt1', '2026-07-06T08:00:00Z', 'taken'),
       baseLog('l2', 'm1', 'rt1', '2026-07-05T08:00:00Z', 'taken'),
@@ -155,7 +148,6 @@ describe('calculateCurrentStreak', () => {
     ];
     expect(calculateCurrentStreak(logs, meds, reminders, NOW)).toBe(3);
   });
-
   it('breaks streak on skipped log', () => {
     const meds = [baseMedicine('m1')];
     const reminders = [baseReminder('rt1', 'm1')];
@@ -179,19 +171,14 @@ describe('filterLowStockMedicines', () => {
     expect(filtered).toHaveLength(1);
     expect(filtered[0].id).toBe('m1');
   });
-
   it('uses default threshold 5 when not provided', () => {
     const m = { ...baseMedicine('m1'), stockEnabled: true, stockCount: 5 };
     expect(filterLowStockMedicines([m])).toHaveLength(1);
   });
-
   it('returns empty for empty list', () => {
     expect(filterLowStockMedicines([])).toEqual([]);
   });
 });
-
-// NOW_PLUS_1H exported to prevent lint unused warning
-void NOW_PLUS_1H;
 
 describe('countActiveSnoozes', () => {
   const snooze = (overrides: Partial<Snooze>): Snooze => ({
@@ -209,10 +196,10 @@ describe('countActiveSnoozes', () => {
   it('counts only active snoozes matching all three keys', () => {
     const snoozes = [
       snooze({}),
-      snooze({ id: 'sn-2', originalScheduledTime: '2026-07-06T08:30:00Z' }), // farkli time
-      snooze({ id: 'sn-3', isActive: false }), // inactive
-      snooze({ id: 'sn-4', medicineId: 'm2' }), // farkli medicine
-      snooze({ id: 'sn-5', reminderTimeId: 'rt2' }), // farkli reminder
+      snooze({ id: 'sn-2', originalScheduledTime: '2026-07-06T08:30:00Z' }),
+      snooze({ id: 'sn-3', isActive: false }),
+      snooze({ id: 'sn-4', medicineId: 'm2' }),
+      snooze({ id: 'sn-5', reminderTimeId: 'rt2' }),
     ];
     expect(countActiveSnoozes(snoozes, 'm1', 'rt1', '2026-07-06T08:00:00Z')).toBe(1);
   });
@@ -226,11 +213,9 @@ describe('uniqueNotificationIds', () => {
   it('removes duplicates', () => {
     expect(uniqueNotificationIds(['a', 'b', 'a', 'c', 'b'])).toEqual(['a', 'b', 'c']);
   });
-
   it('returns empty for empty input', () => {
     expect(uniqueNotificationIds([])).toEqual([]);
   });
-
   it('preserves order', () => {
     expect(uniqueNotificationIds(['c', 'a', 'b'])).toEqual(['c', 'a', 'b']);
   });
@@ -258,5 +243,57 @@ describe('getActiveSnoozesForReminder', () => {
     const result = getActiveSnoozesForReminder(snoozes, 'm1', 'rt1');
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('sn');
+  });
+});
+
+// Sprint 23.3: Yeni pure helper testleri
+describe('nowISO', () => {
+  it('returns valid ISO string', () => {
+    expect(nowISO()).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  });
+});
+
+describe('updateMedicineInList', () => {
+  it('updates matching medicine and refreshes updatedAt', () => {
+    const list = [
+      { id: 'm1', name: 'A', updatedAt: '2026-01-01T00:00:00Z', stockCount: 5 },
+      { id: 'm2', name: 'B', updatedAt: '2026-01-01T00:00:00Z', stockCount: 3 },
+    ];
+    const result = updateMedicineInList(list, 'm1', { stockCount: 0 });
+    expect(result[0].stockCount).toBe(0);
+    expect(result[1]).toEqual(list[1]);
+    expect(result[0].updatedAt > list[0].updatedAt).toBe(true);
+  });
+
+  it('returns unchanged list when id not found', () => {
+    const list = [{ id: 'm1', updatedAt: 'x' }];
+    const result = updateMedicineInList(list, 'nope', { stockCount: 0 });
+    expect(result).toEqual(list);
+  });
+});
+
+describe('createMedicineTimestamps', () => {
+  it('returns equal createdAt and updatedAt', () => {
+    const ts = createMedicineTimestamps();
+    expect(ts.createdAt).toBe(ts.updatedAt);
+  });
+  it('returns valid ISO strings', () => {
+    const ts = createMedicineTimestamps();
+    expect(ts.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe('buildSyncSuccessPatch', () => {
+  it('returns success state shape', () => {
+    const patch = buildSyncSuccessPatch('2026-07-06T12:00:00Z');
+    expect(patch).toEqual({
+      isSyncing: false,
+      lastSyncAt: '2026-07-06T12:00:00Z',
+      syncError: null,
+    });
+  });
+  it('uses nowISO by default when no arg given', () => {
+    const patch = buildSyncSuccessPatch();
+    expect(typeof patch.lastSyncAt).toBe('string');
   });
 });
