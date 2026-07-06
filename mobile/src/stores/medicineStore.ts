@@ -55,6 +55,9 @@ import {
   uniqueNotificationIds,
   getActiveSnoozesForReminder,
   updateMedicineInList,
+  getMedicineStoreStorageKeysForRemoval,
+  buildSelfHealNoDriftResult,
+  buildSelfHealRepairContext,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -1232,12 +1235,8 @@ export const useMedicineStore = create<MedicineState>()(
                 cleanedStaleSnoozeCount: cleanedStaleSnoozes,
               },
             });
-            return {
-              ...driftReport,
-              repaired: cleanedStaleSnoozes > 0,
-              cancelledNotificationIds: [],
-              snoozeNotificationUpdates: [],
-            };
+            // Sprint 24.3: pure helper'a delege edildi
+            return buildSelfHealNoDriftResult(driftReport, cleanedStaleSnoozes);
           }
 
           // Sprint 22.2: pure helper'a delege edildi (uniqueNotificationIds)
@@ -1258,19 +1257,20 @@ export const useMedicineStore = create<MedicineState>()(
             }));
           });
 
+          // Sprint 24.3: pure helper'a delege edildi (buildSelfHealRepairContext)
           void recordDiagnosticEvent({
             scope: 'self-heal',
             level: 'info',
             message: 'Notification self-heal repaired drift',
-            context: {
-              missingCount: driftReport.missingNotificationIds.length,
-              configDriftCount: driftReport.configDriftIds.length,
-              orphanCount: driftReport.orphanTriggerIds.length,
-              legacySnoozeCount: driftReport.legacySnoozeNotificationIds.length,
-              cancelledCount: cancelledNotificationIds.length,
-              cleanedStaleSnoozeCount: cleanedStaleSnoozes,
-              snoozeUpdateCount: snoozeNotificationUpdates.length,
-            },
+            context: buildSelfHealRepairContext(
+              driftReport.missingNotificationIds,
+              driftReport.configDriftIds,
+              driftReport.orphanTriggerIds,
+              driftReport.legacySnoozeNotificationIds,
+              cancelledNotificationIds.length,
+              cleanedStaleSnoozes,
+              snoozeNotificationUpdates.length
+            ),
           });
 
           return {
@@ -1517,11 +1517,8 @@ export const useMedicineStore = create<MedicineState>()(
           }
 
           // 4. AsyncStorage'ı temizle (persist middleware için kritik)
-          await AsyncStorage.multiRemove([
-            'medicine-store',
-            'medicine-store-sync-queue',
-            '@medicine_storage',
-          ]);
+          // Sprint 24.2: pure helper'a delege edildi
+          await AsyncStorage.multiRemove([...getMedicineStoreStorageKeysForRemoval()]);
           log.debug('AsyncStorage temizlendi');
 
           // 5. Local state'i temizle

@@ -235,3 +235,77 @@ export function buildSyncSuccessPatch(now: string = nowISO()): {
     syncError: null,
   };
 }
+
+/**
+ * AsyncStorage key listesi — clearAllData icin gerekli 3 storage key.
+ * Inline array olarak inline yazilirdi; helper'a cikarildi.
+ */
+export const MEDICINE_STORE_STORAGE_KEYS = [
+  'medicine-store',
+  'medicine-store-sync-queue',
+  '@medicine_storage',
+] as const;
+
+/**
+ * Notification self-heal "no drift" durumunda donecek sonuc. Pure data shape.
+ * recordDiagnosticEvent + return shape'i bu helper'a delege edildi.
+ */
+export function buildSelfHealNoDriftResult<T extends object>(
+  driftReport: T,
+  cleanedStaleSnoozeCount: number
+): T & {
+  repaired: boolean;
+  cancelledNotificationIds: string[];
+  snoozeNotificationUpdates: unknown[];
+} {
+  return {
+    ...driftReport,
+    repaired: cleanedStaleSnoozeCount > 0,
+    cancelledNotificationIds: [],
+    snoozeNotificationUpdates: [],
+  };
+}
+
+/**
+ * Drift repair sonrasi diagnostic event context'i olusturur. Tum ID listelerinin
+ * length'i + cancel count + cleaned snooze count + update count.
+ */
+export function buildSelfHealRepairContext(
+  missingIds: readonly string[],
+  configDriftIds: readonly string[],
+  orphanIds: readonly string[],
+  legacyIds: readonly string[],
+  cancelledCount: number,
+  cleanedStaleSnoozeCount: number,
+  snoozeUpdateCount: number
+): {
+  missingCount: number;
+  configDriftCount: number;
+  orphanCount: number;
+  legacySnoozeCount: number;
+  cancelledCount: number;
+  cleanedStaleSnoozeCount: number;
+  snoozeUpdateCount: number;
+} {
+  return {
+    missingCount: missingIds.length,
+    configDriftCount: configDriftIds.length,
+    orphanCount: orphanIds.length,
+    legacySnoozeCount: legacyIds.length,
+    cancelledCount,
+    cleanedStaleSnoozeCount,
+    snoozeUpdateCount,
+  };
+}
+
+/**
+ * AsyncStorage.multiRemove icin verilen key listesinin Promise.all wrapper'i.
+ * clearAllData icindeki try/catch zincirini bu helper basitlestirir.
+ *
+ * NOT: Bu helper Promise doner; hata durumunda reject eder. Side-effect
+ * (AsyncStorage.multiRemove) burada delegate edildi, pure logic (key list)
+ * MEDICINE_STORE_STORAGE_KEYS icinde zaten pure.
+ */
+export function getMedicineStoreStorageKeysForRemoval(): readonly string[] {
+  return MEDICINE_STORE_STORAGE_KEYS;
+}
