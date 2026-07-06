@@ -309,3 +309,49 @@ export function buildSelfHealRepairContext(
 export function getMedicineStoreStorageKeysForRemoval(): readonly string[] {
   return MEDICINE_STORE_STORAGE_KEYS;
 }
+
+/**
+ * clearAllData icindeki step 5 state reset blogu (7 alan). Pure data shape helper'i.
+ * DEFAULT_USER_SETTINGS ve DEFAULT_ALARM_STATE'a baska dosyalardan referans olur,
+ * bu nedenle sadece helper ile 7 alanlik obje literali temizlenir.
+ */
+export function buildEmptyMedicineStoreState(): {
+  medicines: never[];
+  reminderTimes: never[];
+  medicineLogs: never[];
+  snoozes: never[];
+  alarmState: 'PLACEHOLDER_REPLACE_AT_CALLSITE';
+  settings: 'PLACEHOLDER_REPLACE_AT_CALLSITE';
+  lastSyncAt: null;
+} {
+  // alarmState ve settings runtime'da DEFAULT_USER_SETTINGS/DEFAULT_ALARM_STATE
+  // ile replace edilir. Bu placeholder'lar type-level kontrat icindir.
+  return {
+    medicines: [] as never[],
+    reminderTimes: [] as never[],
+    medicineLogs: [] as never[],
+    snoozes: [] as never[],
+    alarmState: 'PLACEHOLDER_REPLACE_AT_CALLSITE' as 'PLACEHOLDER_REPLACE_AT_CALLSITE',
+    settings: 'PLACEHOLDER_REPLACE_AT_CALLSITE' as 'PLACEHOLDER_REPLACE_AT_CALLSITE',
+    lastSyncAt: null,
+  };
+}
+
+/**
+ * importData icindeki 4-alanset state'i (medicines, reminderTimes, medicineLogs,
+ * settings + lastSyncAt). Pure data shape helper.
+ */
+export function buildValidatedSyncState<TMedicine, TReminder, TLog, TSettings>(data: {
+  medicines: TMedicine[];
+  reminderTimes: TReminder[];
+  medicineLogs: TLog[];
+  settings: TSettings;
+}) {
+  return {
+    medicines: data.medicines,
+    reminderTimes: data.reminderTimes,
+    medicineLogs: data.medicineLogs,
+    settings: data.settings,
+    lastSyncAt: nowISO(),
+  };
+}
