@@ -387,3 +387,94 @@ export function filterMedicinesByIds<T extends { id: string }>(
   const idSet = new Set(ids);
   return medicines.filter(m => !idSet.has(m.id));
 }
+
+/**
+ * ID ile eslesen snooze'u deaktif eder. deactivateSnooze/deactivateSnoozesForMedicine
+ * icin inline `snoozes.map(s => s.id === snoozeId ? {...s, isActive: false} : s)`
+ * pattern'i helper'a cikarildi.
+ */
+export function deactivateSnoozeById<T extends { id: string; isActive: boolean }>(
+  snoozes: T[],
+  snoozeId: string
+): T[] {
+  return snoozes.map(s => (s.id === snoozeId ? { ...s, isActive: false } : s));
+}
+
+/**
+ * Belirli bir medicine'a ait tum snooze'lari deaktif eder.
+ * Inline `snoozes.map(s => s.medicineId === medicineId ? {...s, isActive: false} : s)`
+ * pattern'i helper'a cikarildi.
+ */
+export function deactivateSnoozesForMedicine<T extends { medicineId: string; isActive: boolean }>(
+  snoozes: T[],
+  medicineId: string
+): T[] {
+  return snoozes.map(s => (s.medicineId === medicineId ? { ...s, isActive: false } : s));
+}
+
+/**
+ * Belirli (medicineId, reminderTimeId) icin aktif snooze bulur.
+ * getActiveSnooze wrapper'i icin kullanilir.
+ */
+export function findActiveSnoozeForReminder<
+  T extends { medicineId: string; reminderTimeId: string; isActive: boolean },
+>(snoozes: T[], medicineId: string, reminderTimeId: string): T | undefined {
+  return snoozes.find(
+    s => s.medicineId === medicineId && s.reminderTimeId === reminderTimeId && s.isActive
+  );
+}
+
+/**
+ * Notification ID ile eslesen aktif snooze bulur.
+ * getSnoozeByNotificationId wrapper'i icin.
+ */
+export function findActiveSnoozeByNotificationId<
+  T extends { notificationId: string; isActive: boolean },
+>(snoozes: T[], notificationId: string): T | undefined {
+  return snoozes.find(s => s.notificationId === notificationId && s.isActive);
+}
+
+/**
+ * Belirli bir ilaca ait ReminderTime listesini saat siralamasina gore getirir.
+ * getReminderTimesForMedicine wrapper'i icin.
+ */
+export function getReminderTimesForMedicinePure<T extends { medicineId: string; time: string }>(
+  reminderTimes: T[],
+  medicineId: string
+): T[] {
+  return reminderTimes
+    .filter(rt => rt.medicineId === medicineId)
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+
+/**
+ * MedicineLog base object olusturur. _createMedicineLog icindeki inline
+ * baseLog + takenAt ekleme pattern'i helper'a cikarildi.
+ */
+export function buildMedicineLogBase(
+  medicineId: string,
+  reminderTimeId: string,
+  scheduledTime: string,
+  status: 'taken' | 'skipped',
+  note?: string
+): Omit<import('../types').MedicineLog, 'takenAt'> {
+  return {
+    id: '', // Caller override eder (generateId())
+    medicineId,
+    reminderTimeId,
+    scheduledTime,
+    status,
+    note,
+  };
+}
+
+/**
+ * 'taken' durumunda takenAt ekler; diger statusler icin base'i doner.
+ */
+export function withTakenAt<T extends { takenAt?: string }>(
+  base: T,
+  status: 'taken' | 'skipped',
+  now: string = nowISO()
+): T {
+  return status === 'taken' ? { ...base, takenAt: now } : base;
+}

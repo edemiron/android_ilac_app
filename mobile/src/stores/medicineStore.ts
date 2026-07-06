@@ -62,6 +62,13 @@ import {
   buildValidatedSyncState,
   findMedicineById,
   removeMedicineById,
+  deactivateSnoozeById,
+  deactivateSnoozesForMedicine,
+  findActiveSnoozeForReminder,
+  findActiveSnoozeByNotificationId,
+  getReminderTimesForMedicinePure,
+  buildMedicineLogBase,
+  withTakenAt,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -853,17 +860,16 @@ export const useMedicineStore = create<MedicineState>()(
           );
         }
 
-        const baseLog = {
-          id: generateId(),
-          medicineId: actualMedicineId,
+        const baseLog = buildMedicineLogBase(
+          actualMedicineId,
           reminderTimeId,
           scheduledTime,
           status,
-          note,
-        };
+          note
+        );
 
-        // 'taken' durumunda takenAt ekle
-        return status === 'taken' ? { ...baseLog, takenAt: new Date().toISOString() } : baseLog;
+        // 'taken' durumunda takenAt ekle — Sprint 27.2: pure helper'a delege
+        return withTakenAt({ ...baseLog, id: generateId() }, status);
       },
 
       // Ortak bildirim temizleme fonksiyonu
@@ -1156,29 +1162,29 @@ export const useMedicineStore = create<MedicineState>()(
       },
 
       deactivateSnooze: snoozeId => {
+        // Sprint 27.1: pure helper'a delege edildi
         set(state => ({
-          snoozes: state.snoozes.map(s => (s.id === snoozeId ? { ...s, isActive: false } : s)),
+          snoozes: deactivateSnoozeById(state.snoozes, snoozeId),
         }));
         log.debug('Snooze deaktif edildi', { snoozeId });
       },
 
       deactivateSnoozesForMedicine: medicineId => {
+        // Sprint 27.1: pure helper'a delege edildi
         set(state => ({
-          snoozes: state.snoozes.map(s =>
-            s.medicineId === medicineId ? { ...s, isActive: false } : s
-          ),
+          snoozes: deactivateSnoozesForMedicine(state.snoozes, medicineId),
         }));
         log.debug('Ilaca ait tum snoozelar deaktif edildi', { medicineId });
       },
 
+      // Sprint 27.1: pure helper'a delege edildi
       getActiveSnooze: (medicineId, reminderTimeId) => {
-        return get().snoozes.find(
-          s => s.medicineId === medicineId && s.reminderTimeId === reminderTimeId && s.isActive
-        );
+        return findActiveSnoozeForReminder(get().snoozes, medicineId, reminderTimeId);
       },
 
+      // Sprint 27.1: pure helper'a delege edildi
       getSnoozeByNotificationId: notificationId => {
-        return get().snoozes.find(s => s.notificationId === notificationId && s.isActive);
+        return findActiveSnoozeByNotificationId(get().snoozes, notificationId);
       },
 
       cleanupStaleSnoozes: async () => {
@@ -1377,10 +1383,9 @@ export const useMedicineStore = create<MedicineState>()(
       getMedicineById: id => findMedicineById(get().medicines, id),
 
       // İlaca ait zamanları getir
+      // Sprint 27.3: pure helper'a delege edildi
       getReminderTimesForMedicine: medicineId => {
-        return get()
-          .reminderTimes.filter(rt => rt.medicineId === medicineId)
-          .sort((a, b) => a.time.localeCompare(b.time));
+        return getReminderTimesForMedicinePure(get().reminderTimes, medicineId);
       },
 
       // Bugünkü hatırlatmaları getir
