@@ -448,6 +448,18 @@ export function getReminderTimesForMedicinePure<T extends { medicineId: string; 
 }
 
 /**
+ * ID ile eslesen ReminderTime bulur. _createMedicineLog icindeki inline
+ * `reminderTimes.find(rt => rt.id === reminderTimeId)` pattern'i helper'a cikarildi.
+ */
+export function findReminderTimeById<T extends { id: string }>(
+  reminderTimes: T[],
+  reminderTimeId: string | null | undefined
+): T | undefined {
+  if (!reminderTimeId) return undefined;
+  return reminderTimes.find(rt => rt.id === reminderTimeId);
+}
+
+/**
  * MedicineLog base object olusturur. _createMedicineLog icindeki inline
  * baseLog + takenAt ekleme pattern'i helper'a cikarildi.
  */
@@ -477,4 +489,12 @@ export function withTakenAt<T extends { takenAt?: string }>(
   now: string = nowISO()
 ): T {
   return status === 'taken' ? { ...base, takenAt: now } : base;
+}
+
+/**
+ * Alarm/notification ID template helper. `_cleanupNotifications` icindeki inline
+ * `alarm-${medicineId}-${reminderTimeId}` template literal helper'a cikarildi.
+ */
+export function buildAlarmNotificationId(medicineId: string, reminderTimeId: string): string {
+  return `alarm-${medicineId}-${reminderTimeId}`;
 }

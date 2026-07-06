@@ -69,6 +69,8 @@ import {
   getReminderTimesForMedicinePure,
   buildMedicineLogBase,
   withTakenAt,
+  buildAlarmNotificationId,
+  findReminderTimeById,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -798,7 +800,8 @@ export const useMedicineStore = create<MedicineState>()(
       // Zamanları yeniden hesapla
       regenerateReminderTimes: medicineId => {
         const { medicines, settings, reminderTimes } = get();
-        const medicine = medicines.find(m => m.id === medicineId);
+        // Sprint 28.2: pure helper'a delege edildi
+        const medicine = findMedicineById(medicines, medicineId);
 
         if (!medicine) return;
 
@@ -839,7 +842,8 @@ export const useMedicineStore = create<MedicineState>()(
         note?: string
       ): MedicineLog | null => {
         const { reminderTimes } = get();
-        const reminderTime = reminderTimes.find(rt => rt.id === reminderTimeId);
+        // Sprint 28.3: pure helper'a delege edildi (findReminderTimeById)
+        const reminderTime = findReminderTimeById(reminderTimes, reminderTimeId);
         const actualMedicineId = reminderTime?.medicineId || medicineIdFallback;
 
         if (!actualMedicineId) {
@@ -879,7 +883,8 @@ export const useMedicineStore = create<MedicineState>()(
         // Sprint 22.2: pure helper'a delege edildi
         const activeSnoozes = getActiveSnoozesForReminder(snoozes, medicineId, reminderTimeId);
 
-        const notificationId = `alarm-${medicineId}-${reminderTimeId}`;
+        // Sprint 28.1: pure helper'a delege edildi
+        const notificationId = buildAlarmNotificationId(medicineId, reminderTimeId);
         cancelNotification(notificationId).catch(err =>
           log.error('Failed to cancel notification', err)
         );
@@ -931,7 +936,8 @@ export const useMedicineStore = create<MedicineState>()(
         if (!medicineLog) return;
 
         // 4. Caregiver notification (mevcut kod)
-        const medicine = medicines.find(m => m.id === medicineLog.medicineId);
+        // Sprint 28.2: pure helper'a delege edildi (findMedicineById)
+        const medicine = findMedicineById(medicines, medicineLog.medicineId);
         if (userId && medicine) {
           import('../services/caregiverNotificationService').then(
             ({ notifyCaregiversAboutMedicineStatus }) => {
@@ -1014,7 +1020,8 @@ export const useMedicineStore = create<MedicineState>()(
 
         if (!medicineLog) return;
 
-        const medicine = medicines.find(m => m.id === medicineLog.medicineId);
+        // Sprint 28.2: pure helper'a delege edildi (findMedicineById)
+        const medicine = findMedicineById(medicines, medicineLog.medicineId);
 
         // Bakıcı bildirimi gönder
         if (userId && medicine) {
@@ -1459,7 +1466,8 @@ export const useMedicineStore = create<MedicineState>()(
 
       decrementStock: (medicineId, amount = 1) => {
         const { medicines, userId } = get();
-        const medicine = medicines.find(m => m.id === medicineId);
+        // Sprint 28.2: pure helper'a delege edildi
+        const medicine = findMedicineById(medicines, medicineId);
 
         if (!medicine || !medicine.stockEnabled) return;
 
