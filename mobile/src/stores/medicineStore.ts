@@ -74,6 +74,7 @@ import {
   filterReminderTimesByMedicine,
   filterActiveMedicines,
   hasActiveMedicineById,
+  deactivateSnoozesIntersectingWith,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -967,9 +968,8 @@ export const useMedicineStore = create<MedicineState>()(
         // 7. medicineStore.ts'in legacy state'i + snoozes — wrapper'da kalır
         set(state => ({
           medicineLogs: normalizedLogs,
-          snoozes: state.snoozes.map(s =>
-            activeSnoozes.some(as => as.id === s.id) ? { ...s, isActive: false } : s
-          ),
+          // Sprint 30.1: pure helper'a delege edildi
+          snoozes: deactivateSnoozesIntersectingWith(state.snoozes, activeSnoozes),
         }));
 
         log.debug('Ilac alindi, bildirimler iptal edildi', {
@@ -1048,11 +1048,10 @@ export const useMedicineStore = create<MedicineState>()(
         // medicineLogs — slice bulk replace + legacy state sync
         const normalizedLogs = normalizeMedicineLogsBySlot([...medicineLogs, medicineLog]);
         _useLogsStore.getState().replaceMedicineLogs(normalizedLogs);
+        // Sprint 30.1: pure helper'a delege edildi
         set(state => ({
           medicineLogs: normalizedLogs,
-          snoozes: state.snoozes.map(s =>
-            activeSnoozes.some(as => as.id === s.id) ? { ...s, isActive: false } : s
-          ),
+          snoozes: deactivateSnoozesIntersectingWith(state.snoozes, activeSnoozes),
         }));
 
         log.debug('Ilac atlandi, bildirimler iptal edildi', {

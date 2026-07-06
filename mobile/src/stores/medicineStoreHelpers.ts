@@ -503,6 +503,46 @@ export function hasActiveMedicineById<T extends { id: string; isActive: boolean 
 }
 
 /**
+ * Belirli bir sart karsilanmissa ilk eslesen ilaci bulur, aksi null doner.
+ * Generic findXxxById family'ye ek olarak hata-yok method (bos array uzerinden de
+ * null doner). 2-3 yerde `medicines.find(m => m.id === ...) ?? null` pattern'i
+ * icin kullanilabilir.
+ */
+export function findMedicineOrNull<T extends { id: string }>(
+  medicines: T[],
+  id: string | null | undefined
+): T | null {
+  if (!id) return null;
+  return medicines.find(m => m.id === id) ?? null;
+}
+
+/**
+ * Belirli bir sart icin count verir. Kisa generic helper.
+ * `medicines.filter(...).length` veya `arr.reduce((acc, ...) => ...)` pattern'i
+ * icin kullanilabilir.
+ */
+export function countWhere<T>(items: T[], predicate: (item: T) => boolean): number {
+  let count = 0;
+  for (const item of items) {
+    if (predicate(item)) count++;
+  }
+  return count;
+}
+
+/**
+ * Iki liste arasinda ID eslesen ogeleri deaktif eder. set state'lerinde
+ * `state.snoozes.map(s => activeSnoozes.some(as => as.id === s.id) ? {...s, isActive: false} : s)`
+ * pattern'i icin helper'a cikarildi.
+ */
+export function deactivateSnoozesIntersectingWith<T extends { id: string; isActive: boolean }>(
+  snoozes: T[],
+  activeSnoozes: T[]
+): T[] {
+  const activeIds = new Set(activeSnoozes.map(s => s.id));
+  return snoozes.map(s => (activeIds.has(s.id) ? { ...s, isActive: false } : s));
+}
+
+/**
  * MedicineLog base object olusturur. _createMedicineLog icindeki inline
  * baseLog + takenAt ekleme pattern'i helper'a cikarildi.
  */
