@@ -8,7 +8,7 @@
  */
 
 import { format } from 'date-fns';
-import type { Medicine, MedicineLog, ReminderTime } from '../types';
+import type { AlarmState, Medicine, MedicineLog, ReminderTime, UserSettings } from '../types';
 import { normalizeMedicineLogsBySlot } from './helpers/medicineLogs';
 
 /**
@@ -315,24 +315,25 @@ export function getMedicineStoreStorageKeysForRemoval(): readonly string[] {
  * DEFAULT_USER_SETTINGS ve DEFAULT_ALARM_STATE'a baska dosyalardan referans olur,
  * bu nedenle sadece helper ile 7 alanlik obje literali temizlenir.
  */
-export function buildEmptyMedicineStoreState(): {
+export function buildEmptyMedicineStoreState(
+  defaultAlarmState: AlarmState,
+  defaultUserSettings: UserSettings
+): {
   medicines: never[];
   reminderTimes: never[];
   medicineLogs: never[];
   snoozes: never[];
-  alarmState: 'PLACEHOLDER_REPLACE_AT_CALLSITE';
-  settings: 'PLACEHOLDER_REPLACE_AT_CALLSITE';
+  alarmState: AlarmState;
+  settings: UserSettings;
   lastSyncAt: null;
 } {
-  // alarmState ve settings runtime'da DEFAULT_USER_SETTINGS/DEFAULT_ALARM_STATE
-  // ile replace edilir. Bu placeholder'lar type-level kontrat icindir.
   return {
     medicines: [] as never[],
     reminderTimes: [] as never[],
     medicineLogs: [] as never[],
     snoozes: [] as never[],
-    alarmState: 'PLACEHOLDER_REPLACE_AT_CALLSITE' as 'PLACEHOLDER_REPLACE_AT_CALLSITE',
-    settings: 'PLACEHOLDER_REPLACE_AT_CALLSITE' as 'PLACEHOLDER_REPLACE_AT_CALLSITE',
+    alarmState: defaultAlarmState,
+    settings: defaultUserSettings,
     lastSyncAt: null,
   };
 }
@@ -354,4 +355,35 @@ export function buildValidatedSyncState<TMedicine, TReminder, TLog, TSettings>(d
     settings: data.settings,
     lastSyncAt: nowISO(),
   };
+}
+
+/**
+ * ID ile eslesen ilaci listeden bulur. 7+ yerde tekrar eden inline
+ * `medicines.find(m => m.id === id)` pattern'i helper'a cikarildi.
+ */
+export function findMedicineById<T extends { id: string }>(
+  medicines: T[],
+  id: string | null | undefined
+): T | undefined {
+  if (!id) return undefined;
+  return medicines.find(m => m.id === id);
+}
+
+/**
+ * ID ile eslesen ilaci listeden cikarir. deleteMedicine icin inline
+ * `state.medicines.filter(m => m.id !== id)` pattern'i.
+ */
+export function removeMedicineById<T extends { id: string }>(medicines: T[], id: string): T[] {
+  return medicines.filter(m => m.id !== id);
+}
+
+/**
+ * ID listesine gore ilaclari filtreler (bulk delete / toplu silme).
+ */
+export function filterMedicinesByIds<T extends { id: string }>(
+  medicines: T[],
+  ids: readonly string[]
+): T[] {
+  const idSet = new Set(ids);
+  return medicines.filter(m => !idSet.has(m.id));
 }

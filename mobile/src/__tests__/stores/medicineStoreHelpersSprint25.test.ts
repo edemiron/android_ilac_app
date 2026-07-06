@@ -10,10 +10,24 @@ import {
   buildEmptyMedicineStoreState,
   buildValidatedSyncState,
 } from '../../stores/medicineStoreHelpers';
+import type { AlarmState, UserSettings } from '../../types';
+
+const mockAlarm: AlarmState = { isActive: false };
+const mockSettings = {
+  snoozeEnabled: false,
+  snoozeDuration: 5,
+  maxSnoozeCount: 3,
+  persistentNotificationEnabled: false,
+  notificationsEnabled: true,
+  alarmSound: 'default',
+  vibrationEnabled: true,
+  language: 'tr',
+  theme: 'light',
+} as unknown as UserSettings;
 
 describe('buildEmptyMedicineStoreState', () => {
   it('returns empty arrays', () => {
-    const state = buildEmptyMedicineStoreState();
+    const state = buildEmptyMedicineStoreState(mockAlarm, mockSettings);
     expect(state.medicines).toEqual([]);
     expect(state.reminderTimes).toEqual([]);
     expect(state.medicineLogs).toEqual([]);
@@ -21,8 +35,14 @@ describe('buildEmptyMedicineStoreState', () => {
   });
 
   it('returns lastSyncAt as null', () => {
-    const state = buildEmptyMedicineStoreState();
+    const state = buildEmptyMedicineStoreState(mockAlarm, mockSettings);
     expect(state.lastSyncAt).toBeNull();
+  });
+
+  it('passes alarmState and settings through', () => {
+    const state = buildEmptyMedicineStoreState(mockAlarm, mockSettings);
+    expect(state.alarmState).toBe(mockAlarm);
+    expect(state.settings).toBe(mockSettings);
   });
 });
 

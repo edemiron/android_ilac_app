@@ -58,6 +58,10 @@ import {
   getMedicineStoreStorageKeysForRemoval,
   buildSelfHealNoDriftResult,
   buildSelfHealRepairContext,
+  buildEmptyMedicineStoreState,
+  buildValidatedSyncState,
+  findMedicineById,
+  removeMedicineById,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -659,8 +663,9 @@ export const useMedicineStore = create<MedicineState>()(
 
         get().deactivateSnoozesForMedicine(id);
 
+        // Sprint 26.3: pure helper'a delege edildi (removeMedicineById)
         set(state => ({
-          medicines: state.medicines.filter(m => m.id !== id),
+          medicines: removeMedicineById(state.medicines, id),
           reminderTimes: state.reminderTimes.filter(rt => rt.medicineId !== id),
           medicineLogs: state.medicineLogs.filter(log => log.medicineId !== id),
           snoozes: state.snoozes.filter(s => s.medicineId !== id),
@@ -1368,10 +1373,8 @@ export const useMedicineStore = create<MedicineState>()(
         });
       },
 
-      // ID ile ilaç getir
-      getMedicineById: id => {
-        return get().medicines.find(m => m.id === id);
-      },
+      // ID ile ilaç getir — Sprint 26.3: pure helper'a delege edildi
+      getMedicineById: id => findMedicineById(get().medicines, id),
 
       // İlaca ait zamanları getir
       getReminderTimesForMedicine: medicineId => {
@@ -1521,16 +1524,8 @@ export const useMedicineStore = create<MedicineState>()(
           await AsyncStorage.multiRemove([...getMedicineStoreStorageKeysForRemoval()]);
           log.debug('AsyncStorage temizlendi');
 
-          // 5. Local state'i temizle
-          set({
-            medicines: [],
-            reminderTimes: [],
-            medicineLogs: [],
-            snoozes: [],
-            alarmState: DEFAULT_ALARM_STATE,
-            settings: DEFAULT_USER_SETTINGS,
-            lastSyncAt: null,
-          });
+          // 5. Local state'i temizle — Sprint 26.1: pure helper'a delege edildi
+          set(buildEmptyMedicineStoreState(DEFAULT_ALARM_STATE, DEFAULT_USER_SETTINGS));
 
           // 6. Slice state'lerini de temizle (Sprint 4 devami)
           _useMedicinesStore.getState().clearAllMedicines();
@@ -1554,14 +1549,16 @@ export const useMedicineStore = create<MedicineState>()(
 
         const validatedData = validationResult.data;
 
+        // Sprint 26.2: pure helper'a delege edildi
         set({
-          medicines: validatedData.medicines,
-          reminderTimes: validatedData.reminderTimes,
-          medicineLogs: validatedData.medicineLogs,
-          // Sprint 1: cast — ValidatedSyncData'dan gelen settings tüm
-          // UserSettings alanlarını içermeyebilir (defaultSyncData).
-          settings: validatedData.settings as UserSettings,
-          lastSyncAt: new Date().toISOString(),
+          ...buildValidatedSyncState({
+            medicines: validatedData.medicines,
+            reminderTimes: validatedData.reminderTimes,
+            medicineLogs: validatedData.medicineLogs,
+            // Sprint 1: cast — ValidatedSyncData'dan gelen settings tüm
+            // UserSettings alanlarını içermeyebilir (defaultSyncData).
+            settings: validatedData.settings as UserSettings,
+          }),
         });
 
         void rescheduleActiveNotificationsFromState(get(), updates => {
