@@ -1,15 +1,45 @@
 /**
  * medicineStore pure helper'lari.
  *
- * Sprint 21.2: medicineStore.ts (1737 satir) icindeki hesaplama logic'i pure
- * fonksiyonlara ayristirildi. State/hook bagimliligi yok, test edilebilir.
+ * Sprint 21-33 boyunca 40+ pure helper cikarildi. Tum fonksiyonlar store'dan
+ * bagimsiz calisir; state parametre olarak alir ve test edilebilir.
  *
- * Not: Bu fonksiyonlar store'dan bagimsiz calisir; state parametre olarak alir.
+ * KATEGORILER (Sprint 33 organizasyon):
+ * - Date/Time: getDateString, getTimeString, nowISO
+ * - Adherence: calculateAdherenceRate, calculateCurrentStreak, filterLowStockMedicines,
+ *   getActiveMedicineIds, getActiveReminderCount
+ * - CRUD: findMedicineById, findMedicineOrNull, updateMedicineInList, removeMedicineById,
+ *   filterMedicinesByIds
+ * - Snooze: countActiveSnoozes, getActiveSnoozesForReminder, findActiveSnoozeForReminder,
+ *   findActiveSnoozeByNotificationId, deactivateSnoozeById, deactivateSnoozesForMedicine,
+ *   deactivateSnoozesIntersectingWith
+ * - Filter: filterReminderTimesByMedicine, filterActiveMedicines, filterInactiveMedicines,
+ *   hasActiveMedicineById, hasActiveReminderTime, findReminderTimeById,
+ *   getReminderTimesForMedicinePure
+ * - Builder: createMedicineTimestamps, buildSyncSuccessPatch, buildEmptyMedicineStoreState,
+ *   buildValidatedSyncState, buildMedicineLogBase, withTakenAt, buildAlarmNotificationId,
+ *   buildSelfHealNoDriftResult, buildSelfHealRepairContext
+ * - Utility: uniqueNotificationIds, countWhere, getMedicineStoreStorageKeysForRemoval,
+ *   MEDICINE_STORE_STORAGE_KEYS
+ *
+ * Gelecekte (Sprint 34+) bu helper'lar alt modullere bolunebilir:
+ * - helpers/adherence.ts (Date/Time + Adherence)
+ * - helpers/crud.ts (CRUD + Filter)
+ * - helpers/snoozes.ts (Snooze)
+ * - helpers/builders.ts (Builder)
+ * - helpers/utility.ts (Utility)
+ *
+ * Bu dosya tek dosyada kalmaya devam ederken, alt modul refactoring
+ * buyuk-riskli oldugundan Sprint 34'te ayri branch'te denenebilir.
  */
 
 import { format } from 'date-fns';
 import type { AlarmState, Medicine, MedicineLog, ReminderTime, UserSettings } from '../types';
 import { normalizeMedicineLogsBySlot } from './helpers/medicineLogs';
+
+// =====================================================================
+// DATE / TIME HELPERS
+// =====================================================================
 
 /**
  * Belirli bir tarih icin yyyy-MM-dd formatinda string.
