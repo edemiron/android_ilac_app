@@ -1095,7 +1095,8 @@ export const useMedicineStore = create<MedicineState>()(
                 log.error('Failed to save missed log to cloud', err)
               );
 
-              const medicine = medicines.find(item => item.id === missedLog.medicineId);
+              // Sprint 32: pure helper'a delege edildi (findMedicineById)
+              const medicine = findMedicineById(medicines, missedLog.medicineId);
               if (!medicine) {
                 continue;
               }
