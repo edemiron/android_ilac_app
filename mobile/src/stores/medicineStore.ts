@@ -677,10 +677,10 @@ export const useMedicineStore = create<MedicineState>()(
 
         get().deactivateSnoozesForMedicine(id);
 
-        // Sprint 26.3: pure helper'a delege edildi (removeMedicineById)
+        // Sprint 26.3 + 36.1: pure helper'a delege edildi
         set(state => ({
           medicines: removeMedicineById(state.medicines, id),
-          reminderTimes: state.reminderTimes.filter(rt => rt.medicineId !== id),
+          reminderTimes: filterReminderTimesByMedicine(state.reminderTimes, id, true),
           medicineLogs: state.medicineLogs.filter(log => log.medicineId !== id),
           snoozes: state.snoozes.filter(s => s.medicineId !== id),
         }));
@@ -826,8 +826,8 @@ export const useMedicineStore = create<MedicineState>()(
           return;
         }
 
-        // Eski zamanları kaldır
-        const otherTimes = reminderTimes.filter(rt => rt.medicineId !== medicineId);
+        // Eski zamanları kaldır — Sprint 36.1: pure helper'a delege edildi
+        const otherTimes = filterReminderTimesByMedicine(reminderTimes, medicineId, true);
 
         // Yeni zamanları hesapla
         const newTimes = calculateMedicineTimes(medicineId, {
