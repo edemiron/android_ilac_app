@@ -75,6 +75,7 @@ import {
   filterActiveMedicines,
   hasActiveMedicineById,
   deactivateSnoozesIntersectingWith,
+  hasActiveReminderTime,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -1209,11 +1210,11 @@ export const useMedicineStore = create<MedicineState>()(
 
           // Sprint 29.2: pure helper'a delege edildi (hasActiveMedicineById)
           const medicineExists = hasActiveMedicineById(medicines, s.medicineId);
-          const reminderTimeExists = reminderTimes.some(
-            reminderTime =>
-              reminderTime.id === s.reminderTimeId &&
-              reminderTime.medicineId === s.medicineId &&
-              reminderTime.isEnabled
+          // Sprint 31.1: pure helper'a delege edildi (hasActiveReminderTime)
+          const reminderTimeExists = hasActiveReminderTime(
+            reminderTimes,
+            s.reminderTimeId,
+            s.medicineId
           );
 
           return isStale || !medicineExists || !reminderTimeExists;

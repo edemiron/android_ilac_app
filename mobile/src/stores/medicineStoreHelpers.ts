@@ -543,6 +543,18 @@ export function deactivateSnoozesIntersectingWith<T extends { id: string; isActi
 }
 
 /**
+ * Belirli (id, medicineId) eslesen ve aktif ReminderTime var mi kontrol eder.
+ * cleanupStaleSnoozes icindeki inline 3-key check pattern'i helper'a cikarildi.
+ */
+export function hasActiveReminderTime<
+  T extends { id: string; medicineId: string; isEnabled: boolean },
+>(reminderTimes: T[], reminderTimeId: string, medicineId: string): boolean {
+  return reminderTimes.some(
+    rt => rt.id === reminderTimeId && rt.medicineId === medicineId && rt.isEnabled
+  );
+}
+
+/**
  * MedicineLog base object olusturur. _createMedicineLog icindeki inline
  * baseLog + takenAt ekleme pattern'i helper'a cikarildi.
  */
