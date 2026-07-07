@@ -733,7 +733,8 @@ export const useMedicineStore = create<MedicineState>()(
       // İlaç aktif/pasif
       toggleMedicineActive: async id => {
         const { userId, medicines, snoozes, settings } = get();
-        const medicine = medicines.find(m => m.id === id);
+        // Sprint 35.1: pure helper'a delege edildi (findMedicineById)
+        const medicine = findMedicineById(medicines, id);
 
         if (!medicine) {
           return;
@@ -767,7 +768,8 @@ export const useMedicineStore = create<MedicineState>()(
             cancelledSnoozes: snoozeNotificationIds.length,
           });
         } else {
-          const activeMedicine = get().medicines.find(m => m.id === id);
+          // Sprint 35.1: pure helper'a delege edildi
+          const activeMedicine = findMedicineById(get().medicines, id);
           const reminderTimesToSchedule = get().reminderTimes.filter(
             reminderTime => reminderTime.medicineId === id && reminderTime.isEnabled
           );
