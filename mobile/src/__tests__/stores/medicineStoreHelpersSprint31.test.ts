@@ -34,3 +34,28 @@ describe('hasActiveReminderTime', () => {
     expect(hasActiveReminderTime([], 'rt1', 'm1')).toBe(false);
   });
 });
+
+// Sprint 43.1: buildCaregiverNotificationArgs helper test (Sprint 42'den eklendi)
+import { buildCaregiverNotificationArgs } from '../../stores/medicineStoreHelpers';
+
+describe('buildCaregiverNotificationArgs', () => {
+  it('returns tuple with name, scheduledTime, name, missed for missed status', () => {
+    const med = { name: 'Aspirin' };
+    const log = { scheduledTime: '08:00' };
+    expect(buildCaregiverNotificationArgs(med, log)).toEqual([
+      'Aspirin',
+      '08:00',
+      'Aspirin',
+      'missed',
+    ]);
+  });
+
+  it('preserves medicine name + log scheduledTime', () => {
+    expect(buildCaregiverNotificationArgs({ name: 'X' }, { scheduledTime: '20:00' })).toEqual([
+      'X',
+      '20:00',
+      'X',
+      'missed',
+    ]);
+  });
+});
