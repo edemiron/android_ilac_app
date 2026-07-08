@@ -207,3 +207,15 @@ export const MEDICINE_STORE_STORAGE_KEYS = [
 export function getMedicineStoreStorageKeysForRemoval(): readonly string[] {
   return MEDICINE_STORE_STORAGE_KEYS;
 }
+
+/**
+ * Caregiver notification batch args olusturur. markMissedReminders icindeki
+ * inline notifyCaregiversAboutMedicineStatus cagrilari (3 yerde) helper'a
+ * cikarildi. Status 'missed' tek deger — type-safe.
+ */
+export function buildCaregiverNotificationArgs<
+  TMedicine extends { name: string },
+  TLog extends { scheduledTime: string },
+>(medicine: TMedicine, missedLog: TLog): [string, string, string, 'missed'] {
+  return [medicine.name, missedLog.scheduledTime, medicine.name, 'missed'];
+}
