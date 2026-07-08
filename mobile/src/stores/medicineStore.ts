@@ -666,7 +666,8 @@ export const useMedicineStore = create<MedicineState>()(
       deleteMedicine: id => {
         const { userId, snoozes } = get();
 
-        const medicineSnoozes = snoozes.filter(s => s.medicineId === id);
+        // Sprint 38: pure helper'a delege edildi
+        const medicineSnoozes = filterSnoozesByMedicineId(snoozes, id);
         for (const snooze of medicineSnoozes) {
           cancelNotification(snooze.notificationId).catch(err =>
             log.error('Failed to cancel stored snooze notification on delete', err)
@@ -752,9 +753,12 @@ export const useMedicineStore = create<MedicineState>()(
         }));
 
         if (!nextIsActive) {
+          // Sprint 38: pure helper'a delege edildi
           const snoozeNotificationIds = Array.from(
             new Set(
-              snoozes.filter(s => s.medicineId === id && s.isActive).map(s => s.notificationId)
+              filterSnoozesByMedicineId(snoozes, id)
+                .filter(s => s.isActive)
+                .map(s => s.notificationId)
             )
           );
 
