@@ -92,3 +92,14 @@ export function deactivateSnoozesIntersectingWith<T extends { id: string; isActi
   const activeIds = new Set(activeSnoozes.map(s => s.id));
   return snoozes.map(s => (activeIds.has(s.id) ? { ...s, isActive: false } : s));
 }
+
+/**
+ * Belirli ID set'inden hariç tutulan (exclude) snooze'lari filtreler.
+ * Set-based O(N+M). cleanupStaleSnoozes step 7 inline pattern'i helper'a cikarildi.
+ */
+export function filterSnoozesExcluding<T extends { id: string }>(
+  snoozes: T[],
+  excludeIds: ReadonlySet<string>
+): T[] {
+  return snoozes.filter(s => !excludeIds.has(s.id));
+}

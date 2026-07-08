@@ -14,6 +14,7 @@ import {
   deactivateSnoozeById,
   deactivateSnoozesForMedicine,
   deactivateSnoozesIntersectingWith,
+  filterSnoozesExcluding,
   findActiveSnoozeForReminder,
   findActiveSnoozeByNotificationId,
   getActiveSnoozesForReminder,
@@ -164,5 +165,29 @@ describe('Sprint 35.2: helpers/builders.ts alt modulu', () => {
   it('createMedicineTimestamps equal createdAt + updatedAt', () => {
     const ts = createMedicineTimestamps();
     expect(ts.createdAt).toBe(ts.updatedAt);
+  });
+
+  // Sprint 40.2: filterSnoozesExcluding helper test
+  describe('filterSnoozesExcluding (Sprint 40.2)', () => {
+    const snoozes = [
+      { id: 's1', isActive: true },
+      { id: 's2', isActive: true },
+      { id: 's3', isActive: true },
+    ];
+
+    it('removes snoozes matching excludeIds Set', () => {
+      const exclude = new Set(['s1', 's3']);
+      const result = filterSnoozesExcluding(snoozes, exclude);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('s2');
+    });
+
+    it('returns full list when excludeIds is empty', () => {
+      expect(filterSnoozesExcluding(snoozes, new Set())).toHaveLength(3);
+    });
+
+    it('handles empty snoozes list', () => {
+      expect(filterSnoozesExcluding([], new Set(['s1']))).toEqual([]);
+    });
   });
 });

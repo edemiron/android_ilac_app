@@ -78,6 +78,7 @@ import {
   hasActiveReminderTime,
   filterMedicineLogsByMedicineId,
   filterSnoozesByMedicineId,
+  filterSnoozesExcluding,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -1244,8 +1245,9 @@ export const useMedicineStore = create<MedicineState>()(
         }
 
         const staleIds = new Set(staleSnoozes.map(s => s.id));
+        // Sprint 40.2: pure helper'a delege edildi
         set(state => ({
-          snoozes: state.snoozes.filter(s => !staleIds.has(s.id)),
+          snoozes: filterSnoozesExcluding(state.snoozes, staleIds),
         }));
 
         log.debug('Stale snooze temizligi tamamlandi', { cleanedCount: staleSnoozes.length });
