@@ -76,6 +76,8 @@ import {
   hasActiveMedicineById,
   deactivateSnoozesIntersectingWith,
   hasActiveReminderTime,
+  filterMedicineLogsByMedicineId,
+  filterSnoozesByMedicineId,
 } from './medicineStoreHelpers';
 import {
   analyzeNotificationDrift,
@@ -677,12 +679,12 @@ export const useMedicineStore = create<MedicineState>()(
 
         get().deactivateSnoozesForMedicine(id);
 
-        // Sprint 26.3 + 36.1: pure helper'a delege edildi
+        // Sprint 26.3 + 37.1: pure helper'a delege edildi
         set(state => ({
           medicines: removeMedicineById(state.medicines, id),
           reminderTimes: filterReminderTimesByMedicine(state.reminderTimes, id, true),
-          medicineLogs: state.medicineLogs.filter(log => log.medicineId !== id),
-          snoozes: state.snoozes.filter(s => s.medicineId !== id),
+          medicineLogs: filterMedicineLogsByMedicineId(state.medicineLogs, id, true),
+          snoozes: filterSnoozesByMedicineId(state.snoozes, id, true),
         }));
 
         if (userId) {

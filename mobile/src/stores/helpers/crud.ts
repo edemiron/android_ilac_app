@@ -142,5 +142,35 @@ export function getReminderTimesForMedicinePure<T extends { medicineId: string; 
     .sort((a, b) => a.time.localeCompare(b.time));
 }
 
+/**
+ * Belirli medicine'a ait MedicineLog'lari filtreler. exclude=true ile ters
+ * filtreleme. deleteMedicine icindeki inline pattern'i helper'a cikarildi.
+ */
+export function filterMedicineLogsByMedicineId<T extends { medicineId: string }>(
+  medicineLogs: T[],
+  medicineId: string,
+  exclude: boolean = false
+): T[] {
+  return medicineLogs.filter(log => {
+    const match = log.medicineId === medicineId;
+    return exclude ? !match : match;
+  });
+}
+
+/**
+ * Belirli medicine'a ait Snooze'lari filtreler. exclude=true ile ters.
+ * cleanupStaleSnoozes, _cleanupNotifications icindeki inline pattern icin.
+ */
+export function filterSnoozesByMedicineId<T extends { medicineId: string }>(
+  snoozes: T[],
+  medicineId: string,
+  exclude: boolean = false
+): T[] {
+  return snoozes.filter(s => {
+    const match = s.medicineId === medicineId;
+    return exclude ? !match : match;
+  });
+}
+
 // Re-export for compatibility
 export type { Medicine, ReminderTime };
