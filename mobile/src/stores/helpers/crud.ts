@@ -48,6 +48,19 @@ export function updateMedicineInList<T extends { id: string; updatedAt: string }
 }
 
 /**
+ * Bir ReminderTime listesinde, belirli ID ile eslesen ogeye partial patch uygular.
+ * Generic constraint ile id field zorunlu. inline updateReminderTime pattern'i
+ * helper'a cikarildi.
+ */
+export function updateReminderTimeInList<T extends { id: string }>(
+  reminderTimes: T[],
+  id: string,
+  patch: Partial<Omit<T, 'id'>>
+): T[] {
+  return reminderTimes.map(rt => (rt.id === id ? { ...rt, ...patch } : rt));
+}
+
+/**
  * ID ile eslesen ilaci listeden cikarir.
  */
 export function removeMedicineById<T extends { id: string }>(medicines: T[], id: string): T[] {

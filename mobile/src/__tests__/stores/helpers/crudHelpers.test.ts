@@ -14,6 +14,7 @@ import {
   filterActiveMedicines,
   filterInactiveMedicines,
   updateMedicineInList,
+  updateReminderTimeInList,
   removeMedicineById,
   findMedicineById,
   findMedicineOrNull,
@@ -159,5 +160,27 @@ describe('Sprint 36.2: getReminderTimesForMedicinePure sort', () => {
     const result = getReminderTimesForMedicinePure(reminderTimes, 'm1');
     expect(result[0].time).toBe('08:00');
     expect(result[1].time).toBe('20:00');
+  });
+});
+
+// Sprint 41.1: updateReminderTimeInList helper test
+describe('updateReminderTimeInList (Sprint 41.1)', () => {
+  const reminderTimes = [
+    { id: 'rt1', medicineId: 'm1', time: '08:00' },
+    { id: 'rt2', medicineId: 'm1', time: '12:00' },
+  ];
+
+  it('patches matching reminder time', () => {
+    const result = updateReminderTimeInList(reminderTimes, 'rt1', { time: '09:00' });
+    expect(result[0].time).toBe('09:00');
+    expect(result[1]).toEqual(reminderTimes[1]);
+  });
+
+  it('returns unchanged when id not found', () => {
+    expect(updateReminderTimeInList(reminderTimes, 'nope', { time: 'x' })).toEqual(reminderTimes);
+  });
+
+  it('handles empty list', () => {
+    expect(updateReminderTimeInList([], 'rt1', { time: 'x' })).toEqual([]);
   });
 });

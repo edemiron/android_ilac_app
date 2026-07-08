@@ -78,6 +78,7 @@ import {
   hasActiveReminderTime,
   filterMedicineLogsByMedicineId,
   filterSnoozesByMedicineId,
+  updateReminderTimeInList,
   filterSnoozesExcluding,
 } from './medicineStoreHelpers';
 import {
@@ -807,7 +808,8 @@ export const useMedicineStore = create<MedicineState>()(
       // Hatırlatma zamanı güncelleme
       updateReminderTime: (id, updates) => {
         set(state => ({
-          reminderTimes: state.reminderTimes.map(rt => (rt.id === id ? { ...rt, ...updates } : rt)),
+          // Sprint 41.1: pure helper'a delege edildi
+          reminderTimes: updateReminderTimeInList(state.reminderTimes, id, updates),
         }));
       },
 
