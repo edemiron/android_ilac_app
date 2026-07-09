@@ -118,19 +118,19 @@ describe('buildMedicineLogBase', () => {
 
 describe('withTakenAt', () => {
   it('adds takenAt for taken status', () => {
-    const r = withTakenAt({ id: 'l1' }, 'taken', '2026-07-06');
-    expect(r.takenAt).toBe('2026-07-06');
+    const r = withTakenAt({ id: 'l1' } as never, 'taken', '2026-07-06');
+    expect((r as { takenAt?: string }).takenAt).toBe('2026-07-06');
   });
 
   it('does not add for skipped', () => {
-    const r = withTakenAt({ id: 'l1' }, 'skipped', '2026-07-06');
-    expect(r.takenAt).toBeUndefined();
+    const r = withTakenAt({ id: 'l1' } as never, 'skipped', '2026-07-06');
+    expect((r as { takenAt?: string }).takenAt).toBeUndefined();
   });
 
   it('uses nowISO by default when no now provided', () => {
-    const r = withTakenAt({ id: 'l1' }, 'taken');
-    expect(typeof r.takenAt).toBe('string');
-    expect(r.takenAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const r = withTakenAt({ id: 'l1' } as never, 'taken');
+    expect(typeof (r as { takenAt?: string }).takenAt).toBe('string');
+    expect((r as { takenAt?: string }).takenAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });
 

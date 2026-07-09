@@ -50,7 +50,6 @@ const baseReminder = (id: string, medicineId: string, time: string = '08:00'): R
   medicineId,
   time,
   isEnabled: true,
-  frequency: 1,
 });
 
 const baseLog = (
@@ -181,13 +180,14 @@ describe('filterLowStockMedicines', () => {
 });
 
 describe('countActiveSnoozes', () => {
-  const snooze = (overrides: Partial<Snooze>): Snooze => ({
+  const snooze = (overrides: Partial<Snooze> = {}): Snooze => ({
     id: 'sn-1',
     medicineId: 'm1',
     reminderTimeId: 'rt1',
     originalScheduledTime: '2026-07-06T08:00:00Z',
     triggerTime: '2026-07-06T08:00:00Z',
     notificationId: 'notif-1',
+    snoozeCount: 0,
     isActive: true,
     createdAt: '2026-07-06T08:00:00Z',
     ...overrides,
@@ -222,13 +222,14 @@ describe('uniqueNotificationIds', () => {
 });
 
 describe('getActiveSnoozesForReminder', () => {
-  const s = (overrides: Partial<Snooze>): Snooze => ({
+  const s = (overrides: Partial<Snooze> = {}): Snooze => ({
     id: 'sn',
     medicineId: 'm1',
     reminderTimeId: 'rt1',
     originalScheduledTime: '2026-07-06T08:00:00Z',
     triggerTime: '2026-07-06T08:00:00Z',
     notificationId: 'n',
+    snoozeCount: 0,
     isActive: true,
     createdAt: '2026-07-06T08:00:00Z',
     ...overrides,

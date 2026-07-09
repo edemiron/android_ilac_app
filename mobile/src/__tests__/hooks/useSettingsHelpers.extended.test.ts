@@ -62,6 +62,6 @@ describe('Sprint 12.2: normalizeTimeString', () => {
   });
 
   it('returns empty string for undefined (typeof check)', () => {
-    expect(normalizeTimeString(undefined as unknown)).toBe('');
+    expect(normalizeTimeString(undefined as unknown as string)).toBe('');
   });
 });

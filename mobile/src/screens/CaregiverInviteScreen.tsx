@@ -104,7 +104,7 @@ const createStyles = (colors: ThemeColors) =>
       elevation: 5,
     },
     acceptButtonDisabled: {
-      backgroundColor: colors.disabled,
+      backgroundColor: colors.textMuted,
     },
     acceptButtonText: {
       fontSize: 18,

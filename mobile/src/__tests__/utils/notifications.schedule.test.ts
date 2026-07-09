@@ -219,7 +219,7 @@ describe('scheduleTestAlarmNotification', () => {
 });
 
 describe('scheduleMedicineNotification', () => {
-  const mockMedicine: import('../../../types').Medicine = {
+  const mockMedicine: import('../../types').Medicine = {
     id: 'med-1',
     name: 'Aspirin',
     dosage: '500mg',

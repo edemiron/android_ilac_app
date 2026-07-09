@@ -6,6 +6,7 @@
  */
 
 import type { AlarmState, MedicineLog, UserSettings } from '../../types';
+import type { RescheduledSnoozeNotification } from './reschedule';
 import { nowISO } from './dateTime';
 
 // =====================================================================
@@ -104,12 +105,12 @@ export function buildMedicineLogBase(
 /**
  * 'taken' durumunda takenAt ekler; diger statusler icin base'i doner.
  */
-export function withTakenAt<T extends { takenAt?: string }>(
+export function withTakenAt<T extends object>(
   base: T,
   status: 'taken' | 'skipped',
   now: string = nowISO()
-): T {
-  return status === 'taken' ? { ...base, takenAt: now } : base;
+): T & { takenAt?: string } {
+  return status === 'taken' ? { ...base, takenAt: now } : (base as T & { takenAt?: string });
 }
 
 /**
@@ -129,7 +130,7 @@ export function buildSelfHealNoDriftResult<T extends object>(
 ): T & {
   repaired: boolean;
   cancelledNotificationIds: string[];
-  snoozeNotificationUpdates: unknown[];
+  snoozeNotificationUpdates: RescheduledSnoozeNotification[];
 } {
   return {
     ...driftReport,

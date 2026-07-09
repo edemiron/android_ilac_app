@@ -181,6 +181,7 @@ describe('updateReminderTimeInList (Sprint 41.1)', () => {
   });
 
   it('handles empty list', () => {
-    expect(updateReminderTimeInList([], 'rt1', { time: 'x' })).toEqual([]);
+    const empty: { id: string; medicineId: string; time: string }[] = [];
+    expect(updateReminderTimeInList(empty, 'rt1', { time: 'x' })).toEqual([]);
   });
 });

@@ -34,7 +34,7 @@ import {
   MEDICINE_STORE_STORAGE_KEYS,
   getMedicineStoreStorageKeysForRemoval,
 } from '../../../stores/helpers/builders';
-import type { AlarmState, UserSettings } from '../../types';
+import type { AlarmState, UserSettings } from '../../../types';
 
 describe('Sprint 35.2: helpers/snoozes.ts alt modulu', () => {
   const snoozes = [

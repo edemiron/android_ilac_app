@@ -127,13 +127,13 @@ describe('buildMedicineLogBase', () => {
 
 describe('withTakenAt', () => {
   it('adds takenAt when status is taken', () => {
-    const result = withTakenAt({ id: 'l1' }, 'taken', '2026-07-06T08:00:00Z');
-    expect(result.takenAt).toBe('2026-07-06T08:00:00Z');
+    const result = withTakenAt({ id: 'l1' } as never, 'taken', '2026-07-06T08:00:00Z');
+    expect((result as { takenAt?: string }).takenAt).toBe('2026-07-06T08:00:00Z');
   });
 
   it('does not add takenAt for skipped', () => {
-    const result = withTakenAt({ id: 'l1' }, 'skipped', '2026-07-06T08:00:00Z');
-    expect(result.takenAt).toBeUndefined();
+    const result = withTakenAt({ id: 'l1' } as never, 'skipped', '2026-07-06T08:00:00Z');
+    expect((result as { takenAt?: string }).takenAt).toBeUndefined();
   });
 
   it('uses nowISO by default', () => {

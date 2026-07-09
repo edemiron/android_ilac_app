@@ -119,9 +119,9 @@ describe('isValidReminderTimes', () => {
   });
 
   it('rejects non-array input', () => {
-    expect(isValidReminderTimes(nullInput)).toBe(false);
-    expect(isValidReminderTimes(undefinedInput)).toBe(false);
-    expect(isValidReminderTimes(inputTime as unknown)).toBe(false);
+    expect(isValidReminderTimes(nullInput as unknown as string[])).toBe(false);
+    expect(isValidReminderTimes(undefinedInput as unknown as string[])).toBe(false);
+    expect(isValidReminderTimes(inputTime as unknown as string[])).toBe(false);
   });
 });
 

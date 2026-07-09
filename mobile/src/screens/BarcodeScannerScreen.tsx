@@ -87,7 +87,7 @@ export default function BarcodeScannerScreen({ onScan }: BarcodeScannerScreenPro
   };
 
   const handleGoHome = () => {
-    navigation.navigate('Main');
+    navigation.navigate('Main' as never);
   };
 
   const handleGoBack = () => {
