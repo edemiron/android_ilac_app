@@ -153,7 +153,7 @@ describe('mergeSettingsWithUndefined', () => {
     language: 'tr',
     notificationSound: 'default',
     vibrationEnabled: true,
-    alarmSound: 'chime',
+    alarmSound: 'default',
     alarmVolume: 80,
     snoozeDuration: 5,
     maxSnoozeCount: 3,
@@ -184,7 +184,7 @@ describe('mergeSettingsWithUndefined', () => {
   });
 
   it('overrides local with cloud values', () => {
-    const cloud = { language: 'en', vibrationEnabled: false };
+    const cloud: Partial<UserSettings> = { language: 'en', vibrationEnabled: false };
     const result = mergeSettingsWithUndefined(local, cloud);
     expect(result.language).toBe('en');
     expect(result.vibrationEnabled).toBe(false);
@@ -192,7 +192,7 @@ describe('mergeSettingsWithUndefined', () => {
   });
 
   it('skips undefined cloud values (Firestore compat)', () => {
-    const cloud = { language: 'en', vibrationEnabled: undefined };
+    const cloud: Partial<UserSettings> = { language: 'en', vibrationEnabled: undefined };
     const result = mergeSettingsWithUndefined(local, cloud);
     expect(result.language).toBe('en');
     expect(result.vibrationEnabled).toBe(true); // local preserved

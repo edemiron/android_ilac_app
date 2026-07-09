@@ -75,3 +75,38 @@ export function buildDosageString(amount: string, form: MedicineForm): string {
   const unit = FORM_LABELS_TR[form] || 'tablet';
   return `${amount || '1'} ${unit}`.trim();
 }
+
+/**
+ * Sprint 48: pickFirstDefined — verilen sirayla degerlerden ilk non-null/undefined olani doner.
+ * Form initial state kullanimi icin optimize edildi: existing > routeParams > default.
+ * Pure helper — test edilebilir, generic constraint.
+ */
+export function pickFirstDefined<T>(...values: (T | null | undefined)[]): T | undefined {
+  for (const value of values) {
+    if (value !== null && value !== undefined && value !== '') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Sprint 48: extractRoutePrefills — AddMedicineRouteParams'tan prefill degerlerini cikarir.
+ * Existing medicine, route prefill'ler, scanned data — oncelik sirasiyla ilk non-empty.
+ */
+export interface RoutePrefillSource {
+  existingName?: string;
+  existingDosage?: string;
+  prefillName?: string;
+  prefillDosage?: string;
+  scannedName?: string;
+  scannedDosage?: string;
+}
+
+export function extractRoutePrefills(source: RoutePrefillSource): { name: string; dosage: string } {
+  return {
+    name: pickFirstDefined(source.existingName, source.prefillName, source.scannedName) || '',
+    dosage:
+      pickFirstDefined(source.existingDosage, source.prefillDosage, source.scannedDosage) || '',
+  };
+}

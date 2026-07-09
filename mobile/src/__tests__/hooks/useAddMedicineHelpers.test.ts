@@ -10,6 +10,8 @@ import {
   getInitialAutoTimes,
   buildDosageString,
   FORM_LABELS_TR,
+  pickFirstDefined,
+  extractRoutePrefills,
 } from '../../hooks/useAddMedicineHelpers';
 
 describe('parseDosageAmount', () => {
@@ -97,5 +99,82 @@ describe('buildDosageString', () => {
   it('FORM_LABELS_TR contains tablet and capsule', () => {
     expect(FORM_LABELS_TR.tablet).toBe('tablet');
     expect(FORM_LABELS_TR.capsule).toBe('kapsül');
+  });
+});
+
+// Sprint 48: pickFirstDefined + extractRoutePrefills helper'lari
+describe('pickFirstDefined', () => {
+  it('returns the first non-null/undefined/empty value', () => {
+    expect(pickFirstDefined('a', 'b', 'c')).toBe('a');
+    expect(pickFirstDefined(null, 'b', 'c')).toBe('b');
+    expect(pickFirstDefined(undefined, 'b', 'c')).toBe('b');
+    expect(pickFirstDefined('', 'b', 'c')).toBe('b');
+  });
+
+  it('returns undefined when all values are null/undefined/empty', () => {
+    expect(pickFirstDefined()).toBeUndefined();
+    expect(pickFirstDefined(null, undefined, '')).toBeUndefined();
+  });
+
+  it('handles zero and false (keeps them as defined)', () => {
+    expect(pickFirstDefined(0, 1)).toBe(0);
+    expect(pickFirstDefined(false, true)).toBe(false);
+  });
+
+  it('preserves type via generic constraint', () => {
+    const result: string | undefined = pickFirstDefined<string>(undefined, 'hello');
+    expect(result).toBe('hello');
+  });
+});
+
+describe('extractRoutePrefills', () => {
+  it('returns empty strings when no source values', () => {
+    expect(extractRoutePrefills({})).toEqual({ name: '', dosage: '' });
+  });
+
+  it('uses existing values when present', () => {
+    expect(
+      extractRoutePrefills({
+        existingName: 'Aspirin',
+        existingDosage: '500mg',
+      })
+    ).toEqual({ name: 'Aspirin', dosage: '500mg' });
+  });
+
+  it('falls back to prefill when no existing', () => {
+    expect(
+      extractRoutePrefills({
+        prefillName: 'Parol',
+        prefillDosage: '200mg',
+      })
+    ).toEqual({ name: 'Parol', dosage: '200mg' });
+  });
+
+  it('falls back to scanned when no existing or prefill', () => {
+    expect(
+      extractRoutePrefills({
+        scannedName: 'Voltaren',
+        scannedDosage: '50mg',
+      })
+    ).toEqual({ name: 'Voltaren', dosage: '50mg' });
+  });
+
+  it('uses priority: existing > prefill > scanned', () => {
+    expect(
+      extractRoutePrefills({
+        existingName: 'Existing',
+        prefillName: 'Prefill',
+        scannedName: 'Scanned',
+      })
+    ).toEqual({ name: 'Existing', dosage: '' });
+  });
+
+  it('mixes fields independently (name vs dosage)', () => {
+    expect(
+      extractRoutePrefills({
+        existingName: 'A',
+        prefillDosage: 'X',
+      })
+    ).toEqual({ name: 'A', dosage: 'X' });
   });
 });
