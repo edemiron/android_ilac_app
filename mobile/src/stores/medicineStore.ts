@@ -93,6 +93,12 @@ import {
 import { createScopedLogger } from '../utils/logger';
 import { updateWidgetData } from '../services/widgetService';
 import {
+  mergeMedicineLogsById,
+  mergeMedicinesByUpdatedAt,
+  mergeReminderTimesById,
+  mergeSettingsWithUndefined,
+} from './helpers/sync';
+import {
   uploadAllDataToCloud,
   downloadAllDataFromCloud,
   saveMedicineToCloud,
@@ -385,42 +391,31 @@ export const useMedicineStore = create<MedicineState>()(
             const localState = get();
 
             if (cloudData) {
+              // Sprint 47: pure merge helper'lara delege
+              const localState = get();
+
               // MERGE local ve cloud medicineLogs - duplicate'leri önle
-              const localLogs = localState.medicineLogs;
-              const cloudLogs = cloudData.medicineLogs || [];
-              const localLogIds = new Set(localLogs.map(l => l.id));
-              const newCloudLogs = cloudLogs.filter(cl => !localLogIds.has(cl.id));
-              const mergedLogs = normalizeMedicineLogsBySlot([...localLogs, ...newCloudLogs]);
+              const mergedLogs = mergeMedicineLogsById(
+                localState.medicineLogs,
+                cloudData.medicineLogs
+              );
 
               // Medicines için merge - updatedAt karşılaştırması ile
-              const localMedicineMap = new Map(localState.medicines.map(m => [m.id, m]));
-              const mergedMedicines = [...localState.medicines];
-              for (const cloudMedicine of cloudData.medicines || []) {
-                const localMedicine = localMedicineMap.get(cloudMedicine.id);
-                if (!localMedicine) {
-                  // Cloud'da var, local'de yok → ekle
-                  mergedMedicines.push(cloudMedicine);
-                } else if (cloudMedicine.updatedAt > localMedicine.updatedAt) {
-                  // Cloud daha güncel → güncelle
-                  const idx = mergedMedicines.findIndex(m => m.id === cloudMedicine.id);
-                  if (idx !== -1) mergedMedicines[idx] = cloudMedicine;
-                }
-                // else: local daha güncel veya eşit → local'i koru
-              }
+              const mergedMedicines = mergeMedicinesByUpdatedAt(
+                localState.medicines,
+                cloudData.medicines
+              );
 
               // ReminderTimes için merge
-              const localReminderIds = new Set(localState.reminderTimes.map(rt => rt.id));
-              const newCloudReminders = (cloudData.reminderTimes || []).filter(
-                crt => !localReminderIds.has(crt.id)
+              const mergedReminders = mergeReminderTimesById(
+                localState.reminderTimes,
+                cloudData.reminderTimes
               );
-              const mergedReminders = [...localState.reminderTimes, ...newCloudReminders];
 
-              const mergedSettings = {
-                ...localState.settings,
-                ...Object.fromEntries(
-                  Object.entries(cloudData.settings || {}).filter(([, v]) => v !== undefined)
-                ),
-              } as UserSettings;
+              const mergedSettings = mergeSettingsWithUndefined(
+                localState.settings,
+                cloudData.settings
+              );
 
               set({
                 medicines: mergedMedicines,
