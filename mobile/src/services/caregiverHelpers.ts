@@ -139,3 +139,37 @@ export function hasCaregiverPermission(
   if (!permissions) return false;
   return permissions[permission] === true;
 }
+
+// ============================================================================
+// Sprint 49: inline logic extraction
+// ============================================================================
+
+/**
+ * Sprint 49: Caregiver list'ten FCM token'a sahip olanlari filtrele.
+ * notifyCaregivers icindeki inline `if (!relationship.caregiverFcmToken) continue`
+ * pattern'i pure helper'a cikarildi.
+ */
+export interface CaregiverWithToken {
+  caregiverFcmToken?: string | null;
+  caregiverId: string;
+}
+
+export function filterCaregiversWithFcmToken<T extends CaregiverWithToken>(caregivers: T[]): T[] {
+  return caregivers.filter(c => isValidFcmToken(c.caregiverFcmToken));
+}
+
+/**
+ * Sprint 49: Pending invitation'lari filtrele (expiresAt > now kontrolu).
+ * getPendingInvites icindeki inline status + expiry kontrolu pure helper'a cikarildi.
+ */
+export interface InvitationWithExpiry {
+  status: string;
+  expiresAt: string | Date;
+}
+
+export function filterNonExpiredInvites<T extends InvitationWithExpiry>(
+  invites: T[],
+  now: Date = new Date()
+): T[] {
+  return invites.filter(inv => inv.status === 'pending' && !isInviteExpired(inv.expiresAt, now));
+}

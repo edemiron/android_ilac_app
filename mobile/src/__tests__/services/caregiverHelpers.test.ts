@@ -12,6 +12,8 @@ import {
   normalizeCaregiverStatus,
   hasCaregiverPermission,
   formatCaregiverNotification,
+  filterCaregiversWithFcmToken,
+  filterNonExpiredInvites,
   INVITE_CODE_CHARS,
   INVITE_CODE_LENGTH,
 } from '../../services/caregiverHelpers';
@@ -244,5 +246,95 @@ describe('Sprint 12.4: formatCaregiverNotification', () => {
   it('defaults to TR language when omitted', () => {
     const result = formatCaregiverNotification('missed', 'X');
     expect(result.title).toContain('İlaç');
+  });
+});
+
+// Sprint 49: inline logic pure helper tests
+describe('filterCaregiversWithFcmToken', () => {
+  // FCM tokens are typically 150+ characters
+  const validToken = 'A'.repeat(60); // 60-char valid token
+
+  it('keeps only caregivers with valid FCM token', () => {
+    const caregivers = [
+      { caregiverId: 'c1', caregiverFcmToken: validToken },
+      { caregiverId: 'c2', caregiverFcmToken: null },
+      { caregiverId: 'c3', caregiverFcmToken: undefined },
+      { caregiverId: 'c4', caregiverFcmToken: '' },
+      { caregiverId: 'c5', caregiverFcmToken: 'short' }, // < 50 chars
+    ];
+    const result = filterCaregiversWithFcmToken(caregivers);
+    expect(result).toHaveLength(1);
+    expect(result[0].caregiverId).toBe('c1');
+  });
+
+  it('returns empty array when all tokens invalid', () => {
+    const caregivers = [
+      { caregiverId: 'c1', caregiverFcmToken: null },
+      { caregiverId: 'c2', caregiverFcmToken: '' },
+    ];
+    expect(filterCaregiversWithFcmToken(caregivers)).toEqual([]);
+  });
+
+  it('handles empty input', () => {
+    expect(filterCaregiversWithFcmToken([])).toEqual([]);
+  });
+
+  it('preserves additional fields (generic typing)', () => {
+    const caregivers = [
+      {
+        caregiverId: 'c1',
+        caregiverFcmToken: validToken,
+        role: 'admin' as const,
+        status: 'active' as const,
+      },
+    ];
+    const result = filterCaregiversWithFcmToken(caregivers);
+    expect(result[0].role).toBe('admin');
+    expect(result[0].status).toBe('active');
+  });
+});
+
+describe('filterNonExpiredInvites', () => {
+  const now = new Date('2026-07-09T12:00:00Z');
+
+  it('keeps pending + non-expired invites', () => {
+    const invites = [
+      { id: 'i1', status: 'pending', expiresAt: '2026-07-15T00:00:00Z' },
+      { id: 'i2', status: 'pending', expiresAt: new Date('2026-07-10T00:00:00Z') },
+    ];
+    const result = filterNonExpiredInvites(invites, now);
+    expect(result).toHaveLength(2);
+  });
+
+  it('filters out expired invites', () => {
+    const invites = [
+      { id: 'i1', status: 'pending', expiresAt: '2026-07-08T00:00:00Z' }, // expired
+      { id: 'i2', status: 'pending', expiresAt: '2026-07-15T00:00:00Z' }, // valid
+    ];
+    const result = filterNonExpiredInvites(invites, now);
+    expect(result.map(i => i.id)).toEqual(['i2']);
+  });
+
+  it('filters out non-pending status', () => {
+    const invites = [
+      { id: 'i1', status: 'accepted', expiresAt: '2026-07-15T00:00:00Z' },
+      { id: 'i2', status: 'pending', expiresAt: '2026-07-15T00:00:00Z' },
+      { id: 'i3', status: 'cancelled', expiresAt: '2026-07-15T00:00:00Z' },
+    ];
+    const result = filterNonExpiredInvites(invites, now);
+    expect(result.map(i => i.id)).toEqual(['i2']);
+  });
+
+  it('handles both string and Date expiresAt', () => {
+    const invites = [
+      { id: 'i1', status: 'pending', expiresAt: new Date('2026-07-15T00:00:00Z') },
+      { id: 'i2', status: 'pending', expiresAt: '2026-07-15T00:00:00Z' },
+    ];
+    const result = filterNonExpiredInvites(invites, now);
+    expect(result).toHaveLength(2);
+  });
+
+  it('handles empty input', () => {
+    expect(filterNonExpiredInvites([], now)).toEqual([]);
   });
 });
