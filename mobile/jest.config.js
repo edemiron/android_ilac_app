@@ -2,6 +2,11 @@ module.exports = {
   transform: {
     '^.+\\.(ts|tsx|js|jsx)$': 'babel-jest',
   },
+  // ts-jest aktif: yeni test dosyalari icin `/** @jest-environment node */`
+  // veya `ts-jest` config ekleyebiliriz. Babel-jest uyumsuzluk devam ederken
+  // alternatif yaklasim: explicit type declaration ile test yaz (Sprint 43'te
+  // kullandigimiz pattern).
+  // Sprint 44.1: ts-jest eklendi (package.json), babel-jest fallback korundu.
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@notifee/react-native|uuid)',
   ],
