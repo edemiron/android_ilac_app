@@ -58,6 +58,7 @@ import {
 import { useMedicineStore } from './src/stores/medicineStore';
 import { generateId } from './src/utils/idGenerator';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { UserProfileProvider } from './src/hooks/useUserProfile';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
@@ -1038,15 +1039,17 @@ export default function App() {
     <SafeAreaProvider>
       <ErrorBoundary componentName="App">
         <ThemeProvider>
-          <LanguageProvider>
-            <AuthProvider>
-              <SubscriptionProvider>
-                <AlertProvider>
-                  <AppContent />
-                </AlertProvider>
-              </SubscriptionProvider>
-            </AuthProvider>
-          </LanguageProvider>
+          <UserProfileProvider>
+            <LanguageProvider>
+              <AuthProvider>
+                <SubscriptionProvider>
+                  <AlertProvider>
+                    <AppContent />
+                  </AlertProvider>
+                </SubscriptionProvider>
+              </AuthProvider>
+            </LanguageProvider>
+          </UserProfileProvider>
         </ThemeProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

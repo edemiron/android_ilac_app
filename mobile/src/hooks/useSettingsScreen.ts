@@ -68,6 +68,7 @@ export function useSettingsScreen() {
     showSleepPicker: false,
     showThemePicker: false,
     showLanguagePicker: false,
+    showLayoutPicker: false,
     showSnoozePicker: false,
     showSnoozeCountPicker: false,
     showVolumePicker: false,

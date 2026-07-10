@@ -17,6 +17,7 @@ import {
 import { useSettingsScreen } from '../hooks/useSettingsScreen';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
+import { useUserProfile, LayoutVariant } from '../hooks/useUserProfile';
 import { createScopedLogger } from '../utils/logger';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -69,6 +70,7 @@ export default function SettingsScreen() {
   // eslint-disable-next-line unused-imports/no-unused-vars
   const { t } = useLanguage();
   const { showInfo } = useAlert();
+  const { setLayout } = useUserProfile();
   const [isDevMode, setIsDevMode] = useState(false);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
@@ -144,8 +146,10 @@ export default function SettingsScreen() {
         <AppearanceSection
           showThemePicker={pickerState.showThemePicker}
           showLanguagePicker={pickerState.showLanguagePicker}
+          showLayoutPicker={pickerState.showLayoutPicker}
           onThemePress={() => togglePicker('showThemePicker')}
           onLanguagePress={() => togglePicker('showLanguagePicker')}
+          onLayoutPress={() => togglePicker('showLayoutPicker')}
           onThemeSelect={themeValue => {
             setTheme(themeValue);
             closePicker('showThemePicker');
@@ -154,8 +158,30 @@ export default function SettingsScreen() {
             setLanguage(lang);
             closePicker('showLanguagePicker');
           }}
+          onLayoutSelect={async (layout: LayoutVariant) => {
+            await setLayout(layout);
+            closePicker('showLayoutPicker');
+          }}
           getThemeLabel={getThemeLabel}
           getLanguageLabel={getLanguageLabel}
+          getLayoutLabel={(layout: LayoutVariant) =>
+            layout === 'A'
+              ? language === 'tr'
+                ? 'Sade'
+                : 'Simple'
+              : language === 'tr'
+                ? 'Detaylı'
+                : 'Detailed'
+          }
+          getLayoutDescription={(layout: LayoutVariant) =>
+            layout === 'A'
+              ? language === 'tr'
+                ? 'Büyük butonlar, yaşlılar için ideal'
+                : 'Large buttons, ideal for elderly'
+              : language === 'tr'
+                ? 'Detaylı bilgi, gençler için ideal'
+                : 'Detailed info, ideal for younger users'
+          }
         />
 
         <NotificationSection

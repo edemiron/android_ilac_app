@@ -99,6 +99,14 @@ jest.mock('../../contexts/AlertContext', () => ({
   }),
 }));
 
+jest.mock('../../hooks/useUserProfile', () => ({
+  useUserProfile: () => ({
+    profile: { layout: 'A', updatedAt: new Date().toISOString() },
+    setLayout: jest.fn(),
+    isLoading: false,
+  }),
+}));
+
 // Mock the settings components to simple text
 jest.mock('../../components/settings', () => ({
   PremiumCard: () => null,

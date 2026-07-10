@@ -23,6 +23,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { useUserProfile } from '../hooks/useUserProfile';
 import { InlineAdBanner } from '../components/common/AdBanner';
 import { scheduleSnoozeNotification } from '../utils/notifications';
 import { formatTimeDisplay } from '../utils/timeCalculator';
@@ -43,6 +44,7 @@ import { CircularProgress } from '../components/common/CircularProgress';
 import { CurrentDoseCard } from './HomeScreen/components/CurrentDoseCard';
 import { TimelineItem } from './HomeScreen/components/TimelineItem';
 import type { TodayReminder } from './HomeScreen/types';
+import { HomeScreenLayoutSwitcher } from '../components/layouts/HomeScreenLayoutSwitcher';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -51,6 +53,7 @@ type FilterTab = 'all' | 'pending' | 'taken' | 'missed';
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
+  const { profile, isLoading: profileLoading } = useUserProfile();
 
   // Tab State
   const [activeTab, setActiveTab] = useState<FilterTab>('pending');
@@ -391,6 +394,23 @@ export default function HomeScreen() {
     },
     [isSlotExpanded]
   );
+
+  // Sprint 58: Layout B için erken return — kart bazlı MD3 görünüm
+  if (!profileLoading && profile.layout === 'B') {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <HomeScreenLayoutSwitcher
+          reminder={currentReminder}
+          reminders={todayReminders}
+          adherence={_adherenceRate}
+          streak={currentStreak}
+          onTake={() => currentReminder && handleTake(currentReminder.reminderTime.id)}
+          onSnooze={minutes => currentReminder && handleSnooze(currentReminder, minutes)}
+          onSkip={() => currentReminder && handleSkip(currentReminder.reminderTime.id)}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>

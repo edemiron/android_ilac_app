@@ -34,6 +34,7 @@ export type SettingsPickerKey =
   | 'showSleepPicker'
   | 'showThemePicker'
   | 'showLanguagePicker'
+  | 'showLayoutPicker'
   | 'showSnoozePicker'
   | 'showSnoozeCountPicker'
   | 'showVolumePicker'
