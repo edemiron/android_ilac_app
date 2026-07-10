@@ -191,5 +191,38 @@ describe('Sprint 46: slice combine refactor', () => {
       settingsSlice.setUserId('user-abc-123');
       expect(mockSet).toHaveBeenCalledWith({ userId: 'user-abc-123' });
     });
+
+    it('Sprint 47.2: medicines slice getter delegasyonu', () => {
+      // getMedicineById + getNextAvailableColor slice factory uzerinden
+      // delegasyon testleri. medicineStore.ts'teki inline impl
+      // factory tarafindan override edilir.
+      const mockSet = jest.fn();
+      const mockGet = jest.fn().mockReturnValue({
+        medicines: [
+          {
+            id: 'm1',
+            name: 'Aspirin',
+            color: '#FF6B6B',
+            isActive: true,
+            frequency: 1,
+            dosage: '100mg',
+            instructions: 'any_time',
+            startDate: '2024-01-01',
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+          },
+        ],
+        reminderTimes: [],
+      });
+
+      const medicinesSlice = createMedicinesSlice(mockSet, mockGet);
+
+      // getMedicineById delegasyonu
+      expect(medicinesSlice.getMedicineById('m1')?.name).toBe('Aspirin');
+      expect(medicinesSlice.getMedicineById('nonexistent')).toBeUndefined();
+
+      // getReminderTimesForMedicine delegasyonu
+      expect(medicinesSlice.getReminderTimesForMedicine('m1')).toEqual([]);
+    });
   });
 });
