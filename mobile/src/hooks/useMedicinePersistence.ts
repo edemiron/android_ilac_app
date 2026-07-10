@@ -413,10 +413,14 @@ export function useMedicinePersistence({
       }
 
       // İlaç etkileşim kontrolü
+      // Sprint 49: Async duplicate therapy check sadece mevcut ilaçlar arasında yapılır.
+      // Yeni ilaç + mevcut ilaç keyword eşleşmesi sync checkInteractions'ta zaten kontrol ediliyor.
+      // Yeni ilacı RxCUI API'ye göndermek false-positive duplicate therapy uyarısı çıkarabiliyor
+      // (RxNorm fuzzy match bilinmeyen isimleri yakın ilaçlara eşleştirebiliyor).
       const activeMedicineNames = medicines
         .filter(m => m.isActive && (!isEditing || m.id !== medicineId))
         .map(m => m.name);
-      const allDrugNames = [...activeMedicineNames, sanitizeMedicineName(formState.name) || ''];
+      const allDrugNames = activeMedicineNames; // Yeni ilaç hariç — sadece mevcut ilaçlar
 
       const interactionResult = await checkMultipleInteractions(allDrugNames);
 

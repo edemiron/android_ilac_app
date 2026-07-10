@@ -1,0 +1,63 @@
+{
+  "project_info": {
+    "project_number": "506876057044",
+    "project_id": "ilachatirlatici-15a71",
+    "storage_bucket": "ilachatirlatici-15a71.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:506876057044:android:5d2d26ddbe32c8c4d53241",
+        "android_client_info": {
+          "package_name": "com.ilachatirlatici"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "506876057044-61gujph23tf9gf0366ohpsi3pdp70phi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ilachatirlatici",
+            "certificate_hash": "786e76ad1d29bf97b5599733a8897b6ca3f174b9"
+          }
+        },
+        {
+          "client_id": "506876057044-q7q2a8a82b0glbdor5efrvbuoeomq9si.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ilachatirlatici",
+            "certificate_hash": "1afcea5b3a78aa094b8bec68d546a8e00306396e"
+          }
+        },
+        {
+          "client_id": "506876057044-r3gmgf6cob4aecm530nlda2urfg30l6b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ilachatirlatici",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKUg-0PsR-awOb-b3RjyrDo9UmNfsD45A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
