@@ -133,6 +133,7 @@ describe('Sprint 46: slice combine refactor', () => {
       expect(combined).toHaveProperty('medicineLogs');
       expect(combined).toHaveProperty('snoozes');
       expect(combined).toHaveProperty('settings');
+      expect(combined).toHaveProperty('userId');
 
       // Initial degerler
       expect(combined.medicines).toEqual([]);
@@ -140,6 +141,7 @@ describe('Sprint 46: slice combine refactor', () => {
       expect(combined.medicineLogs).toEqual([]);
       expect(combined.snoozes).toEqual([]);
       expect(combined.settings).toBeDefined();
+      expect(combined.userId).toBeNull();
     });
 
     it('4 slice factory birlikte kullanildiginda tum action type tanimli', () => {
@@ -176,6 +178,18 @@ describe('Sprint 46: slice combine refactor', () => {
       // Settings action'lari
       expect(typeof combined.updateSettings).toBe('function');
       expect(typeof combined.setSettings).toBe('function');
+      expect(typeof combined.setUserId).toBe('function');
+    });
+
+    it('Sprint 47.1: userId + setUserId slice delegasyonu', () => {
+      // Bu test Sprint 47'de medicineStore.ts'ten settings slice'a
+      // migrate edilen userId + setUserId'nin calistigini dogrular.
+      const mockSet = jest.fn();
+      const settingsSlice = createSettingsSlice(mockSet);
+
+      // setUserId delegasyonu
+      settingsSlice.setUserId('user-abc-123');
+      expect(mockSet).toHaveBeenCalledWith({ userId: 'user-abc-123' });
     });
   });
 });
