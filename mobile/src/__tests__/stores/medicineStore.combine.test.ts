@@ -78,6 +78,26 @@ describe('Sprint 46: slice combine refactor', () => {
       expect(slice.settings).toBeDefined();
       expect(slice.settings).toHaveProperty('language');
     });
+
+    it('Sprint 47: initial userId null', () => {
+      const setMock = jest.fn();
+      const slice = createSettingsSlice(setMock as never);
+      expect(slice.userId).toBeNull();
+    });
+
+    it('Sprint 47: setUserId set state', () => {
+      const setMock = jest.fn();
+      const slice = createSettingsSlice(setMock as never);
+      slice.setUserId('user-123');
+      expect(setMock).toHaveBeenCalledWith({ userId: 'user-123' });
+    });
+
+    it('Sprint 47: setUserId null logout', () => {
+      const setMock = jest.fn();
+      const slice = createSettingsSlice(setMock as never);
+      slice.setUserId(null);
+      expect(setMock).toHaveBeenCalledWith({ userId: null });
+    });
   });
 
   // Combine testi: zustand combine ile 4 slice'i birlestir

@@ -3,6 +3,8 @@
  *
  * Hem isolated `useSettingsStore` (geriye uyumlu) hem de `createSettingsSlice`
  * factory (combine için) export eder.
+ *
+ * Sprint 47: userId + setUserId eklendi (medicineStore.ts'ten migrate).
  */
 
 import { create } from 'zustand';
@@ -15,12 +17,15 @@ import type { UserSettings } from '../../types';
 const log = createScopedLogger('SettingsSlice');
 
 /**
- * Settings slice interface — sadece settings alanini ve onunla ilgili
- * action'lari icerir. Diger slice'lar (medicines, logs, snoozes) ayri
- * dosyalarda olacak.
+ * Settings slice interface — settings alani + sync ile ilgili action'lar.
+ * Sprint 47'de userId + setUserId eklendi (medicineStore.ts'ten migrate).
  */
 export interface SettingsSlice {
   settings: UserSettings;
+  userId: string | null;
+
+  /** Kullanici ID'sini ayarla (Firebase Auth user) */
+  setUserId: (userId: string | null) => void;
 
   /** Settings'i tamamen degistir (sync sonrasi) */
   setSettings: (settings: UserSettings) => void;
@@ -45,6 +50,11 @@ export function createSettingsSlice(
 ): SettingsSlice {
   return {
     settings: DEFAULT_USER_SETTINGS,
+    userId: null,
+
+    setUserId: userId => {
+      set({ userId });
+    },
 
     setSettings: settings => {
       log.debug('setSettings', { keys: Object.keys(settings) });
