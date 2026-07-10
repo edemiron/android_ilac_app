@@ -109,7 +109,7 @@
         "privacyPolicyUrl": "REPLACE_WITH_ENV_PRIVACY_POLICY_URL"
       },
       "firebase": {
-        "apiKey": "AIzaSyAvZEax0Hc4Be7JXblIL3dzovgPO-f0XUE",
+        "apiKey": "AIzaSyAHpY_bOKu1GqFB_Yr4cXk3FSpd8kynfb4",
         "authDomain": "ilachatirlatici-15a71.firebaseapp.com",
         "projectId": "ilachatirlatici-15a71",
         "storageBucket": "ilachatirlatici-15a71.firebasestorage.app",
@@ -119,8 +119,8 @@
         "aiProvider": "gemini"
       },
       "google": {
-        "androidClientId": "REPLACE_WITH_ENV_GOOGLE_ANDROID_CLIENT_ID",
-        "webClientId": "REPLACE_WITH_ENV_GOOGLE_WEB_CLIENT_ID"
+        "androidClientId": "506876057044-61gujph23tf9gf0366ohpsi3pdp70phi.apps.googleusercontent.com",
+        "webClientId": "506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com"
       }
     }
   }

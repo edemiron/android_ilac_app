@@ -1,7 +1,8 @@
 /**
- * Logs slice — medicineLogs state + log/undo logic.
+ * Logs slice factory — Sprint 46 (combine refactor).
  *
- * Sprint 4 (medicineStore slice mimarisi) kapsaminda ucuncu slice.
+ * Hem isolated `useLogsStore` (geriye uyumlu) hem de `createLogsSlice`
+ * factory (combine için) export eder.
  */
 
 import { create } from 'zustand';
@@ -56,83 +57,95 @@ export interface LogsSlice {
 }
 
 /**
+ * Sprint 46: Logs slice factory.
+ *
+ * combine() ile diger slice'lara dahil etmek icin `(set, get) => slice` formunda.
+ */
+export function createLogsSlice(
+  set: (partial: Partial<LogsSlice> | ((s: LogsSlice) => Partial<LogsSlice>)) => void,
+  get: () => LogsSlice
+): LogsSlice {
+  return {
+    medicineLogs: [],
+
+    logMedicineTaken: (reminderTimeId, scheduledTime, options) => {
+      const id = generateId();
+      const newLog: MedicineLog = {
+        id,
+        reminderTimeId,
+        medicineId: options?.medicineId ?? '',
+        scheduledTime,
+        status: 'taken',
+        takenAt: new Date().toISOString(),
+        note: options?.note,
+      };
+      set(state => ({ medicineLogs: [...state.medicineLogs, newLog] }));
+      log.debug('Medicine taken logged', { reminderTimeId, id });
+      return id;
+    },
+
+    logMedicineSkipped: (reminderTimeId, scheduledTime, options) => {
+      const id = generateId();
+      const newLog: MedicineLog = {
+        id,
+        reminderTimeId,
+        medicineId: options?.medicineId ?? '',
+        scheduledTime,
+        status: 'skipped',
+        note: options?.note,
+      };
+      set(state => ({ medicineLogs: [...state.medicineLogs, newLog] }));
+      log.debug('Medicine skipped logged', { reminderTimeId, id });
+      return id;
+    },
+
+    logMedicineMissed: (reminderTimeId, scheduledTime, options) => {
+      const id = generateId();
+      const newLog: MedicineLog = {
+        id,
+        reminderTimeId,
+        medicineId: options?.medicineId ?? '',
+        scheduledTime,
+        status: 'missed',
+      };
+      set(state => ({ medicineLogs: [...state.medicineLogs, newLog] }));
+      log.debug('Medicine missed logged', { reminderTimeId, id });
+      return id;
+    },
+
+    deleteLog: logId => {
+      set(state => ({
+        medicineLogs: state.medicineLogs.filter(l => l.id !== logId),
+      }));
+    },
+
+    // Sprint 4 devami: bulk replace — medicineStore wrapper normalize
+    // edilmis listeyi (slot-bazli) tek seferde yerlestirmek icin kullanir.
+    replaceMedicineLogs: (logs: MedicineLog[]) => {
+      set({ medicineLogs: logs });
+    },
+
+    hasLogFor: (reminderTimeId, date) => {
+      const { medicineLogs } = get();
+      const dateStr = date.split('T')[0]; // YYYY-MM-DD
+      return medicineLogs.find(
+        l => l.reminderTimeId === reminderTimeId && l.scheduledTime.startsWith(dateStr)
+      );
+    },
+
+    clearAllLogs: () => {
+      set({ medicineLogs: [] });
+    },
+  };
+}
+
+/**
  * Logs slice icin basit Zustand store.
  */
 export const useLogsStore = create<LogsSlice>()(
-  persist(
-    set => ({
-      medicineLogs: [],
-
-      logMedicineTaken: (reminderTimeId, scheduledTime, options) => {
-        const id = generateId();
-        const newLog: MedicineLog = {
-          id,
-          reminderTimeId,
-          medicineId: options?.medicineId ?? '',
-          scheduledTime,
-          status: 'taken',
-          takenAt: new Date().toISOString(),
-          note: options?.note,
-        };
-        set(state => ({ medicineLogs: [...state.medicineLogs, newLog] }));
-        log.debug('Medicine taken logged', { reminderTimeId, id });
-        return id;
-      },
-
-      logMedicineSkipped: (reminderTimeId, scheduledTime, options) => {
-        const id = generateId();
-        const newLog: MedicineLog = {
-          id,
-          reminderTimeId,
-          medicineId: options?.medicineId ?? '',
-          scheduledTime,
-          status: 'skipped',
-          note: options?.note,
-        };
-        set(state => ({ medicineLogs: [...state.medicineLogs, newLog] }));
-        log.debug('Medicine skipped logged', { reminderTimeId, id });
-        return id;
-      },
-
-      logMedicineMissed: (reminderTimeId, scheduledTime, options) => {
-        const id = generateId();
-        const newLog: MedicineLog = {
-          id,
-          reminderTimeId,
-          medicineId: options?.medicineId ?? '',
-          scheduledTime,
-          status: 'missed',
-        };
-        set(state => ({ medicineLogs: [...state.medicineLogs, newLog] }));
-        log.debug('Medicine missed logged', { reminderTimeId, id });
-        return id;
-      },
-
-      deleteLog: logId => {
-        set(state => ({
-          medicineLogs: state.medicineLogs.filter(l => l.id !== logId),
-        }));
-      },
-
-      // Sprint 4 devami: bulk replace — medicineStore wrapper normalize
-      // edilmis listeyi (slot-bazli) tek seferde yerlestirmek icin kullanir.
-      replaceMedicineLogs: (logs: MedicineLog[]) => {
-        set({ medicineLogs: logs });
-      },
-
-      hasLogFor: (_reminderTimeId, date) => {
-        const _dateStr = date.split('T')[0]; // YYYY-MM-DD
-        return undefined; // State disindan erisim gerekli; TODO Sprint 4
-      },
-
-      clearAllLogs: () => {
-        set({ medicineLogs: [] });
-      },
-    }),
-    {
-      name: 'ilac-app-logs-storage',
-      storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
-    }
-  )
+  persist((set, get) => createLogsSlice(set, get), {
+    name: 'ilac-app-logs-storage',
+    storage: createJSONStorage(() => AsyncStorage),
+    version: 1,
+  })
 );

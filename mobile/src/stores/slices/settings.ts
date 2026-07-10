@@ -1,13 +1,8 @@
 /**
- * Settings slice — UserSettings state + sync.
+ * Settings slice factory — Sprint 46 (combine refactor).
  *
- * Sprint 4 (medicineStore slice mimarisi) kapsaminda ilk slice.
- * Bu slice tek basina calisabilir (ayri Zustand store) — medicineStore
- * ile combine() ile compose edilebilir.
- *
- * NOT: Bu dosya SU AN PLANLAMA asamasinda — mevcut medicineStore.ts
- * hala tek-store. Sprint 4'ün tamamlanmasi icin bu slice medicineStore'a
- * entegre edilecek veya combine() ile birlestirilecek.
+ * Hem isolated `useSettingsStore` (geriye uyumlu) hem de `createSettingsSlice`
+ * factory (combine için) export eder.
  */
 
 import { create } from 'zustand';
@@ -41,6 +36,41 @@ export interface SettingsSlice {
 }
 
 /**
+ * Sprint 46: Settings slice factory.
+ *
+ * combine() ile diger slice'lara dahil etmek icin `(set) => slice` formunda.
+ */
+export function createSettingsSlice(
+  set: (partial: Partial<SettingsSlice> | ((s: SettingsSlice) => Partial<SettingsSlice>)) => void
+): SettingsSlice {
+  return {
+    settings: DEFAULT_USER_SETTINGS,
+
+    setSettings: settings => {
+      log.debug('setSettings', { keys: Object.keys(settings) });
+      set({ settings });
+    },
+
+    updateSettings: updates => {
+      set(state => ({
+        settings: { ...state.settings, ...updates },
+      }));
+    },
+
+    resetSettings: () => {
+      log.warn('resetSettings — default settings applied');
+      set({ settings: createDefaultUserSettings() });
+    },
+
+    applyCloudSettings: cloudSettings => {
+      set(state => ({
+        settings: { ...state.settings, ...cloudSettings },
+      }));
+    },
+  };
+}
+
+/**
  * Settings slice icin basit Zustand store.
  *
  * Davranis: mevcut medicineStore'daki settings ile ayni mantikta,
@@ -48,38 +78,11 @@ export interface SettingsSlice {
  * ile combine() ile birlestirilebilir.
  */
 export const useSettingsStore = create<SettingsSlice>()(
-  persist(
-    set => ({
-      settings: DEFAULT_USER_SETTINGS,
-
-      setSettings: settings => {
-        log.debug('setSettings', { keys: Object.keys(settings) });
-        set({ settings });
-      },
-
-      updateSettings: updates => {
-        set(state => ({
-          settings: { ...state.settings, ...updates },
-        }));
-      },
-
-      resetSettings: () => {
-        log.warn('resetSettings — default settings applied');
-        set({ settings: createDefaultUserSettings() });
-      },
-
-      applyCloudSettings: cloudSettings => {
-        set(state => ({
-          settings: { ...state.settings, ...cloudSettings },
-        }));
-      },
-    }),
-    {
-      name: 'ilac-app-settings-storage',
-      storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
-    }
-  )
+  persist(set => createSettingsSlice(set), {
+    name: 'ilac-app-settings-storage',
+    storage: createJSONStorage(() => AsyncStorage),
+    version: 1,
+  })
 );
 
 /**

@@ -14,27 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "506876057044-61gujph23tf9gf0366ohpsi3pdp70phi.apps.googleusercontent.com",
+          "client_id": "506876057044-jbkr1a1eo9r5p3i0pu9qjof7mvm8q4c9.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.ilachatirlatici",
-            "certificate_hash": "786e76ad1d29bf97b5599733a8897b6ca3f174b9"
-          }
-        },
-        {
-          "client_id": "506876057044-q7q2a8a82b0glbdor5efrvbuoeomq9si.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.ilachatirlatici",
-            "certificate_hash": "1afcea5b3a78aa094b8bec68d546a8e00306396e"
-          }
-        },
-        {
-          "client_id": "506876057044-r3gmgf6cob4aecm530nlda2urfg30l6b.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.ilachatirlatici",
-            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+            "certificate_hash": "badf423c0d30bcf4ee727e8c948a45b6672a5dde"
           }
         },
         {
@@ -44,7 +28,7 @@
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyAKUg-0PsR-awOb-b3RjyrDo9UmNfsD45A"
+          "current_key": "AIzaSyAHpY_bOKu1GqFB_Yr4cXk3FSpd8kynfb4"
         }
       ],
       "services": {

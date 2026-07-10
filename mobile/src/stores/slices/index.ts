@@ -20,6 +20,10 @@
  *    - combine() ile 4 slice tek store'a birlestirilir
  *    - Tum hook'lar ve testler ayni anda guncellenir
  *
+ * Sprint 46'da factory pattern eklendi: her slice'in hem isolated store'u
+ * (geriye uyumlu) hem de createXxxSlice(set, get) factory fonksiyonu var.
+ * medicineStore.combined.ts'te combine ornegi bulunabilir.
+ *
  * NOT: Sprint 4'ün bu oturumunda SADECE slice mimarisinin TEMELI atildi:
  *   - types/index.ts'e imageStoragePath, imageMimeType, imageSize,
  *     imageUpdatedAt, note alanlari eklendi (medicineStore.ts'in
@@ -28,7 +32,7 @@
  *   - 4 slice dosyasi olusturuldu (medicines, logs, snoozes, settings)
  *   - medicineStore.ts MEDICINE_COLORS'u constants'tan re-export ediyor
  *
- * Davranis: degismez (ayni test baseline: 295 pass).
+ * Davranis: degismez (ayni test baseline: 1269 pass).
  *
  * Ileride yapilmasi gerekenler (sonraki sprint'ler):
  * - medicineStore.ts action'larini slice'lara migrate et
@@ -36,13 +40,13 @@
  * - Testleri yeni yapida guncelle
  */
 
-export { useMedicinesStore } from './medicines';
+export { useMedicinesStore, createMedicinesSlice } from './medicines';
 export type { MedicinesSlice } from './medicines';
-export { useLogsStore } from './logs';
+export { useLogsStore, createLogsSlice } from './logs';
 export type { LogsSlice } from './logs';
-export { useSnoozesStore } from './snoozes';
+export { useSnoozesStore, createSnoozesSlice } from './snoozes';
 export type { SnoozesSlice } from './snoozes';
-export { useSettingsStore } from './settings';
+export { useSettingsStore, createSettingsSlice } from './settings';
 export type { SettingsSlice } from './settings';
 
 export const SLICE_ARCHITECTURE_PLAN = {
