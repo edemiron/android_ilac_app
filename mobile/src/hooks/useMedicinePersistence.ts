@@ -14,7 +14,6 @@ import { useAlert } from '../contexts/AlertContext';
 import { AddMedicineFormState } from '../types/addMedicine.types';
 import { TranslationKey } from '../contexts/LanguageContext';
 import { createScopedLogger } from '../utils/logger';
-import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInteraction';
 import { calculateMedicineTimes } from '../utils/timeCalculator';
 
 // Sprint 6.3 + 7.4 + 8.4 + 11.3: pure helper'lar ./useMedicineHelpers.ts'te.
@@ -410,67 +409,6 @@ export function useMedicinePersistence({
           });
           return false;
         }
-      }
-
-      // İlaç etkileşim kontrolü
-      // Sprint 49: Async duplicate therapy check sadece mevcut ilaçlar arasında yapılır.
-      // Yeni ilaç + mevcut ilaç keyword eşleşmesi sync checkInteractions'ta zaten kontrol ediliyor.
-      // Yeni ilacı RxCUI API'ye göndermek false-positive duplicate therapy uyarısı çıkarabiliyor
-      // (RxNorm fuzzy match bilinmeyen isimleri yakın ilaçlara eşleştirebiliyor).
-      const activeMedicineNames = medicines
-        .filter(m => m.isActive && (!isEditing || m.id !== medicineId))
-        .map(m => m.name);
-      const allDrugNames = activeMedicineNames; // Yeni ilaç hariç — sadece mevcut ilaçlar
-
-      const interactionResult = await checkMultipleInteractions(allDrugNames);
-
-      if (interactionResult.hasInteractions) {
-        const interactionMessages = interactionResult.interactions
-          .map(
-            (i: { severity: string; drug1: string; drug2: string; description: string }) =>
-              `${getSeverityIcon(i.severity as never)} ${i.drug1} + ${i.drug2}\n${i.description}`
-          )
-          .join('\n\n');
-
-        return new Promise<boolean>(resolve => {
-          showAlert({
-            type: 'warning',
-            title:
-              language === 'tr'
-                ? '⚠️ İlaç Etkileşimi Tespit Edildi'
-                : '⚠️ Drug Interaction Detected',
-            message: `${interactionMessages}\n\n${language === 'tr' ? 'Yine de eklemek istiyor musunuz?' : 'Do you still want to add this medicine?'}`,
-            buttons: [
-              {
-                text: t('cancel'),
-                style: 'cancel',
-                onPress: () => resolve(false),
-              },
-              {
-                text: language === 'tr' ? 'Yine de Ekle' : 'Add Anyway',
-                style: 'destructive',
-                onPress: async () => {
-                  // İlaç etkileşimi kabul edildi, şimdi saat çakışmasını kontrol et
-                  const timeConflictResult = await checkTimeConflict(formState);
-                  if (!timeConflictResult.proceed) {
-                    resolve(false);
-                    return;
-                  }
-                  // Otomatik düzenleme yapıldıysa güncellenmiş formState ile kaydet
-                  const finalFormState = timeConflictResult.adjustedTimes
-                    ? {
-                        ...formState,
-                        customTimes: timeConflictResult.adjustedTimes,
-                        useCustomTimes: true,
-                      }
-                    : formState;
-                  const result = await saveMedicine(finalFormState);
-                  resolve(result);
-                },
-              },
-            ],
-          });
-        });
       }
 
       // Saat çakışma kontrolü
