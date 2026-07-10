@@ -2,7 +2,8 @@
  * HomeScreen — CurrentDoseCard bileşeni.
  *
  * Sprint 4.2: HomeScreen.tsx (1962 satir) içinden ayrıldı.
- * Bugünkü pending reminder için "Al / Ertele / Atla" aksiyonları sunar.
+ * Sprint 55: MD3 uyumlu — accessibilityLabel + accessibilityHint + accessibilityRole
+ * 3 butona eklendi (Take / Snooze / Skip), minHeight 48 touch target.
  */
 
 import React, { useState } from 'react';
@@ -87,6 +88,17 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
           <TouchableOpacity
             style={[styles.actionBtn, styles.takeBtn, { backgroundColor: colors.primary }]}
             onPress={onTake}
+            accessibilityRole="button"
+            accessibilityLabel={
+              language === 'tr'
+                ? `${reminder.medicine.name} ilacini aldım olarak işaretle`
+                : `Mark ${reminder.medicine.name} as taken`
+            }
+            accessibilityHint={
+              language === 'tr'
+                ? 'Bu dozu tamamlandı olarak kaydeder'
+                : 'Marks this dose as completed'
+            }
           >
             <Ionicons name="checkmark" size={20} color="#FFFFFF" />
             <Text style={styles.takeBtnText}>{language === 'tr' ? 'Aldım' : 'Taken'}</Text>
@@ -102,6 +114,17 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
               },
             ]}
             onPress={() => setShowSnoozeOptions(true)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              language === 'tr'
+                ? `${reminder.medicine.name} erteleme seçeneklerini aç`
+                : `Open snooze options for ${reminder.medicine.name}`
+            }
+            accessibilityHint={
+              language === 'tr'
+                ? 'Bu dozu 5, 10, 15 veya 30 dakika erteler'
+                : 'Snoozes this dose for 5, 10, 15 or 30 minutes'
+            }
           >
             <Ionicons name="time-outline" size={18} color={isDark ? '#F59E0B' : '#D97706'} />
             <Text style={[styles.snoozeBtnText, { color: isDark ? '#F59E0B' : '#D97706' }]}>
@@ -119,6 +142,15 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
               },
             ]}
             onPress={onSkip}
+            accessibilityRole="button"
+            accessibilityLabel={
+              language === 'tr'
+                ? `${reminder.medicine.name} dozunu atla`
+                : `Skip ${reminder.medicine.name} dose`
+            }
+            accessibilityHint={
+              language === 'tr' ? 'Bu dozu atlandı olarak kaydeder' : 'Marks this dose as skipped'
+            }
           >
             <Ionicons
               name="close-circle-outline"
@@ -234,6 +266,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     marginHorizontal: 4,
+    minHeight: 48, // Sprint 55: WCAG 2.5.5 touch target minimum
   },
   takeBtn: {},
   takeBtnText: {

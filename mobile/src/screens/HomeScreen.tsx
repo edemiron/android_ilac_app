@@ -1197,7 +1197,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // Filter Tabs
+  // Filter Tabs - Sprint 55: WCAG 2.5.5 touch target min 36pt
   filterTabsContainer: {
     paddingHorizontal: 16,
     paddingBottom: 12,
@@ -1205,8 +1205,9 @@ const styles = StyleSheet.create({
   },
   filterTab: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 8, // 8 + 8 = 16pt padding
+    minHeight: 36, // WCAG 2.5.5 minimum touch target
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },

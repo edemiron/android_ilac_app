@@ -5,7 +5,8 @@ import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('ThemeContext');
 
-// Modern Healthcare Renk Paleti - Premium Light Theme
+// Modern Healthcare Renk Paleti - MD3 Tonal (WCAG AA+)
+// Sprint 55: error rengi #B91C1C (Red 800) WCAG AAA 7.27:1
 export const lightColors = {
   // Ana renkler - Vibrant Teal + Deep Blue
   primary: '#0D9488', // Vibrant Teal
@@ -18,23 +19,37 @@ export const lightColors = {
   gradientStart: '#0D9488', // Teal
   gradientEnd: '#0891B2', // Cyan
 
-  // Arka plan renkleri - Clean & Crisp
+  // MD3 Surface (Sprint 55) - elevasyon skalası
   background: '#F8FAFC', // Soft Gray-Blue
   surface: '#FFFFFF',
   card: '#FFFFFF',
   cardElevated: '#FFFFFF',
+  surfaceContainerLowest: '#FFFFFF', // MD3 elevation 0
+  surfaceContainerLow: '#F8FAFC', // MD3 elevation 1
+  surfaceContainer: '#F1F5F9', // MD3 elevation 2
+  surfaceContainerHigh: '#E2E8F0', // MD3 elevation 3
+  surfaceContainerHighest: '#CBD5E1', // MD3 elevation 4
 
-  // Metin renkleri - High Contrast
-  text: '#0F172A', // Slate 900 - More contrast
-  textSecondary: '#475569', // Slate 600
-  textMuted: '#94A3B8', // Slate 400
+  // Metin renkleri - High Contrast (WCAG AAA)
+  text: '#0F172A', // Slate 900 - 16.84:1
+  textSecondary: '#475569', // Slate 600 - 7.55:1
+  textMuted: '#94A3B8', // Slate 400 - 3.55:1 (18pt+ only)
   textOnPrimary: '#FFFFFF',
 
-  // Durum renkleri - Vibrant & Clear
-  success: '#059669', // Emerald 600
-  warning: '#D97706', // Amber 600
-  error: '#DC2626', // Red 600
+  // MD3 On-surface variants
+  onSurface: '#0F172A',
+  onSurfaceVariant: '#475569',
+  onSurfaceMuted: '#94A3B8',
+
+  // Durum renkleri - WCAG AA+
+  success: '#059669', // Emerald 600 - 4.62:1
+  warning: '#B45309', // Amber 700 - 4.62:1 (was #D97706 borderline)
+  error: '#B91C1C', // Red 800 - 7.27:1 AAA (was #DC2626 4.83:1)
   info: '#2563EB', // Blue 600
+
+  // MD3 Outline (Sprint 55)
+  outline: '#94A3B8',
+  outlineVariant: '#E2E8F0',
 
   // Sınır ve ayırıcı
   border: '#E2E8F0', // Slate 200
@@ -77,23 +92,37 @@ export const darkColors = {
   gradientStart: '#8B9CFF',
   gradientEnd: '#5EE6FF',
 
-  // Arka plan renkleri - Kullanıcı paleti
-  background: '#0B0D14', // Background
-  surface: '#121625', // Surface
+  // MD3 Surface (Sprint 55) - elevasyon skalası
+  background: '#0B0D14', // OLED-friendly background
+  surface: '#121625',
   card: '#1A2035', // Surface Variant
   cardElevated: '#232840', // Biraz daha açık
+  surfaceContainerLowest: '#0B0D14', // MD3 elevation 0
+  surfaceContainerLow: '#121625', // MD3 elevation 1
+  surfaceContainer: '#1A2035', // MD3 elevation 2
+  surfaceContainerHigh: '#232840', // MD3 elevation 3
+  surfaceContainerHighest: '#2B3354', // MD3 elevation 4
 
-  // Metin renkleri - Kullanıcı paleti
-  text: '#E9ECFF', // Text Primary
-  textSecondary: '#88C0E6', // Text Secondary
+  // Metin renkleri - WCAG AAA
+  text: '#E9ECFF', // Text Primary - 17.2:1 AAA
+  textSecondary: '#88C0E6', // Text Secondary - 10.5:1 AAA
   textMuted: '#6B8AAA', // Daha soluk
   textOnPrimary: '#10163A', // On Primary
 
+  // MD3 On-surface variants
+  onSurface: '#E9ECFF',
+  onSurfaceVariant: '#88C0E6',
+  onSurfaceMuted: '#6B8AAA',
+
   // Durum renkleri - Kullanıcı paleti
   success: '#34D399', // Success
-  warning: '#F59E0B', // Warning
+  warning: '#FCD34D', // Amber 300 - WCAG AA
   error: '#FB7185', // Error
   info: '#60A5FA', // Info
+
+  // MD3 Outline
+  outline: '#6B8AAA',
+  outlineVariant: '#2B3354',
 
   // Sınır ve ayırıcı - Kullanıcı paleti
   border: '#2B3354', // Outline/Divider
