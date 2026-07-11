@@ -28,6 +28,7 @@ import {
   LowStockCard,
   StatTile,
   MiniChart,
+  EmptyState,
   type MiniChartDatum,
 } from '../common';
 import type { TodayReminder } from '../../screens/HomeScreen/types';
@@ -203,20 +204,18 @@ export function HomeScreenLayoutB({
       )}
 
       {/* Empty state */}
-      {reminders.length === 0 && onAddPress && (
-        <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-            {tr ? 'Bugün için ilaç yok' : 'No medicine for today'}
-          </Text>
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.primary }]}
-            onPress={onAddPress}
-            accessibilityRole="button"
-            accessibilityLabel={tr ? 'Yeni ilaç ekle' : 'Add new medicine'}
-          >
-            <Text style={styles.addBtnText}>+ {tr ? 'İlaç Ekle' : 'Add'}</Text>
-          </TouchableOpacity>
-        </View>
+      {reminders.length === 0 && (
+        <EmptyState
+          variant="illustration"
+          title={tr ? 'Bugün için ilaç yok' : 'No medicine for today'}
+          message={
+            tr
+              ? 'Yeni ilaç ekleyerek başla. İlacını zamanında almanı hatırlatalım.'
+              : 'Get started by adding a new medicine. We will remind you on time.'
+          }
+          actionLabel={onAddPress ? `+ ${tr ? 'İlaç Ekle' : 'Add'}` : undefined}
+          onAction={onAddPress}
+        />
       )}
 
       {/* InlineAdBanner (non-premium) */}
