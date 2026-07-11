@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createScopedLogger } from '../utils/logger';
+import { useAccent } from './AccentContext';
 
 const log = createScopedLogger('ThemeContext');
 
@@ -212,7 +213,15 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // Gerçek karanlık mod durumunu hesapla
   const isDark = theme === 'system' ? systemColorScheme === 'dark' : theme === 'dark';
 
-  const colors = isDark ? darkColors : lightColors;
+  // Sprint 63: Accent palette'ten primary rengi al
+  const { palette } = useAccent();
+  const baseColors = isDark ? darkColors : lightColors;
+  const colors = {
+    ...baseColors,
+    primary: isDark ? palette.darkPrimary : palette.lightPrimary,
+    primaryDark: isDark ? palette.darkPrimary : palette.lightPrimary,
+    primaryLight: isDark ? palette.lightPrimary : palette.lightPrimary,
+  };
 
   if (!isLoaded) {
     return null; // veya loading spinner

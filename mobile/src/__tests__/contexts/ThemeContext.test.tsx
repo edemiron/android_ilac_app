@@ -24,6 +24,19 @@ jest.mock('../../utils/logger', () => ({
   }),
 }));
 
+jest.mock('../../contexts/AccentContext', () => ({
+  useAccent: () => ({
+    palette: {
+      id: 'mint',
+      nameTr: 'Nane',
+      nameEn: 'Mint',
+      lightPrimary: '#14B8A6',
+      darkPrimary: '#2DD4BF',
+      preview: '#14B8A6',
+    },
+  }),
+}));
+
 import React from 'react';
 import { Text } from 'react-native';
 import { render, act } from '@testing-library/react-native';
@@ -108,7 +121,7 @@ describe('ThemeContext', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
 
-    expect((ref.current as TestThemeData | null)?.colors.primary).toBe(lightColors.primary);
+    expect((ref.current as TestThemeData | null)?.colors.primary).toBe('#14B8A6'); // mint accent light
   });
 
   it('throws error when useTheme is used outside ThemeProvider', () => {

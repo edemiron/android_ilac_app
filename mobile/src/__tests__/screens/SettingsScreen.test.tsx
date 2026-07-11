@@ -101,24 +101,44 @@ jest.mock('../../contexts/AlertContext', () => ({
 
 jest.mock('../../hooks/useUserProfile', () => ({
   useUserProfile: () => ({
-    profile: { layout: 'A', updatedAt: new Date().toISOString() },
+    profile: { layout: 'A', accentColor: 'mint', version: 2, updatedAt: new Date().toISOString() },
     setLayout: jest.fn(),
+    setAccentColor: jest.fn(),
     isLoading: false,
   }),
 }));
 
 // Mock the settings components to simple text
-jest.mock('../../components/settings', () => ({
-  PremiumCard: () => null,
-  DailyScheduleSection: () => null,
-  AppearanceSection: () => null,
-  NotificationSection: () => null,
-  DevTestSection: () => null,
-  QuietHoursSection: () => null,
-  AdditionalFeaturesSection: () => null,
-  AccountSection: () => null,
-  AboutSection: () => null,
-  createSettingsStyles: () => ({}),
+jest.mock('../../components/settings', () => {
+  const simpleMock = () => null;
+  return {
+    PremiumCard: simpleMock,
+    DailyScheduleSection: simpleMock,
+    AppearanceSection: simpleMock,
+    AccentColorSection: simpleMock,
+    NotificationSection: simpleMock,
+    DevTestSection: simpleMock,
+    QuietHoursSection: simpleMock,
+    AdditionalFeaturesSection: simpleMock,
+    AccountSection: simpleMock,
+    AboutSection: simpleMock,
+    createSettingsStyles: () => ({}),
+  };
+});
+
+jest.mock('../../components/settings/AccentColorSection', () => ({
+  AccentColorSection: () => null,
+}));
+
+jest.mock('../../contexts/AccentContext', () => ({
+  useAccent: () => ({
+    palette: {
+      id: 'mint',
+      lightPrimary: '#14B8A6',
+      darkPrimary: '#2DD4BF',
+      preview: '#14B8A6',
+    },
+  }),
 }));
 
 import SettingsScreen from '../../screens/SettingsScreen';

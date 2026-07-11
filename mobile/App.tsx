@@ -62,6 +62,7 @@ import { useMedicineStore } from './src/stores/medicineStore';
 import { generateId } from './src/utils/idGenerator';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { UserProfileProvider } from './src/hooks/useUserProfile';
+import { AccentProvider } from './src/contexts/AccentContext';
 import { OnboardingProvider, useOnboarding } from './src/hooks/useOnboarding';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
@@ -1068,17 +1069,19 @@ export default function App() {
       <ErrorBoundary componentName="App">
         <ThemeProvider>
           <UserProfileProvider>
-            <OnboardingProvider>
-              <LanguageProvider>
-                <AuthProvider>
-                  <SubscriptionProvider>
-                    <AlertProvider>
-                      <AppContent />
-                    </AlertProvider>
-                  </SubscriptionProvider>
-                </AuthProvider>
-              </LanguageProvider>
-            </OnboardingProvider>
+            <AccentProvider>
+              <OnboardingProvider>
+                <LanguageProvider>
+                  <AuthProvider>
+                    <SubscriptionProvider>
+                      <AlertProvider>
+                        <AppContent />
+                      </AlertProvider>
+                    </SubscriptionProvider>
+                  </AuthProvider>
+                </LanguageProvider>
+              </OnboardingProvider>
+            </AccentProvider>
           </UserProfileProvider>
         </ThemeProvider>
       </ErrorBoundary>

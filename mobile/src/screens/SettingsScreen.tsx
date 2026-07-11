@@ -18,6 +18,7 @@ import { useSettingsScreen } from '../hooks/useSettingsScreen';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
 import { useUserProfile, LayoutVariant } from '../hooks/useUserProfile';
+import { AccentColorSection } from '../components/settings/AccentColorSection';
 import { createScopedLogger } from '../utils/logger';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -183,6 +184,8 @@ export default function SettingsScreen() {
                 : 'Large buttons, ideal for elderly'
           }
         />
+
+        <AccentColorSection />
 
         <NotificationSection
           settings={settings}
