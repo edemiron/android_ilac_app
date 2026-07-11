@@ -10,6 +10,7 @@ interface CircularProgressProps {
   trackColor?: string;
   textColor?: string;
   backgroundColor?: string;
+  accessibilityLabel?: string;
 }
 
 /**
@@ -25,6 +26,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   trackColor = '#E8F4F4',
   textColor,
   backgroundColor = '#F0F9F9',
+  accessibilityLabel,
 }) => {
   // Yüzdeyi 0-100 arasında sınırla
   const clampedPercentage = Math.min(100, Math.max(0, percentage));
@@ -38,7 +40,13 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   const center = size / 2;
 
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
+    <View
+      style={[styles.container, { width: size, height: size }]}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityValue={{ now: Math.round(clampedPercentage), min: 0, max: 100 }}
+      accessibilityLabel={accessibilityLabel ?? `${Math.round(clampedPercentage)} percent`}
+    >
       {/* Arka plan daire (iç alan) */}
       <View
         style={[
