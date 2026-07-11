@@ -46,6 +46,9 @@ import {
 
 // Lazy load BarcodeScannerScreen - vision-camera is HEAVY and slows startup by ~5s
 const BarcodeScannerScreen = lazy(() => import('./src/screens/BarcodeScannerScreen'));
+
+// Sprint 60: Lazy load OnboardingScreen
+const OnboardingScreen = lazy(() => import('./src/screens/OnboardingScreen'));
 import { RootStackParamList, MainTabParamList, AuthStackParamList } from './src/types';
 import {
   setupNotificationListeners,
@@ -59,6 +62,7 @@ import { useMedicineStore } from './src/stores/medicineStore';
 import { generateId } from './src/utils/idGenerator';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { UserProfileProvider } from './src/hooks/useUserProfile';
+import { OnboardingProvider, useOnboarding } from './src/hooks/useOnboarding';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
@@ -436,6 +440,22 @@ function LazyBarcodeScannerScreen(props: any) {
   );
 }
 
+// Sprint 60: Lazy Onboarding wrapper
+function LazyOnboardingScreen() {
+  const { colors } = useTheme();
+  return (
+    <Suspense
+      fallback={
+        <View style={[loadingStyles.container, { backgroundColor: colors.background }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      }
+    >
+      <OnboardingScreen />
+    </Suspense>
+  );
+}
+
 // Main App Content with Navigation
 function AppContent() {
   const navigationRef = useRef<any>(null);
@@ -490,6 +510,9 @@ function AppContent() {
 
   // İzin ekranı gate (App.tsx'ten çıkartıldı, usePermissionsGate hook'una taşındı)
   const { showPermissions, handlePermissionsComplete } = usePermissionsGate();
+
+  // Sprint 60: Onboarding gate — yeni kullanıcılar için 4 slide akış
+  const { isLoading: onboardingLoading, isCompleted: onboardingCompleted } = useOnboarding();
 
   // Güvenlik kapısı (App.tsx'ten çıkartıldı, useSecurityGate hook'una taşındı)
   const {
@@ -919,6 +942,11 @@ function AppContent() {
   };
 
   // Giriş yapılmışsa ana uygulamayı göster
+  // Sprint 60: Onboarding gate — yeni kullanıcılar için
+  if (!onboardingLoading && !onboardingCompleted) {
+    return <LazyOnboardingScreen />;
+  }
+
   return (
     <NavigationContainer
       ref={navigationRef}
@@ -1040,15 +1068,17 @@ export default function App() {
       <ErrorBoundary componentName="App">
         <ThemeProvider>
           <UserProfileProvider>
-            <LanguageProvider>
-              <AuthProvider>
-                <SubscriptionProvider>
-                  <AlertProvider>
-                    <AppContent />
-                  </AlertProvider>
-                </SubscriptionProvider>
-              </AuthProvider>
-            </LanguageProvider>
+            <OnboardingProvider>
+              <LanguageProvider>
+                <AuthProvider>
+                  <SubscriptionProvider>
+                    <AlertProvider>
+                      <AppContent />
+                    </AlertProvider>
+                  </SubscriptionProvider>
+                </AuthProvider>
+              </LanguageProvider>
+            </OnboardingProvider>
           </UserProfileProvider>
         </ThemeProvider>
       </ErrorBoundary>
