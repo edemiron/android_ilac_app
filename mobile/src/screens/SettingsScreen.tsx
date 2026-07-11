@@ -167,20 +167,20 @@ export default function SettingsScreen() {
           getLayoutLabel={(layout: LayoutVariant) =>
             layout === 'A'
               ? language === 'tr'
-                ? 'Sade'
-                : 'Simple'
-              : language === 'tr'
                 ? 'Detaylı'
                 : 'Detailed'
+              : language === 'tr'
+                ? 'Sade'
+                : 'Simple'
           }
           getLayoutDescription={(layout: LayoutVariant) =>
             layout === 'A'
               ? language === 'tr'
-                ? 'Büyük butonlar, yaşlılar için ideal'
-                : 'Large buttons, ideal for elderly'
-              : language === 'tr'
                 ? 'Detaylı bilgi, gençler için ideal'
                 : 'Detailed info, ideal for younger users'
+              : language === 'tr'
+                ? 'Büyük butonlar, yaşlılar için ideal'
+                : 'Large buttons, ideal for elderly'
           }
         />
 

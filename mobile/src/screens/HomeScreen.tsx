@@ -395,7 +395,7 @@ export default function HomeScreen() {
     [isSlotExpanded]
   );
 
-  // Sprint 58: Layout B için erken return — kart bazlı MD3 görünüm
+  // Sprint 58: Layout B (Sade) için erken return — minimal Switcher görünümü
   if (!profileLoading && profile.layout === 'B') {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
