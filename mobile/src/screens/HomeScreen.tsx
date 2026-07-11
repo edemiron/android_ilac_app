@@ -63,6 +63,7 @@ export default function HomeScreen() {
   // Bu satirlar gelecekte premium gating veya alarm ekleme ozelliklerinde kullanilabilir.
   // eslint-disable-next-line unused-imports/no-unused-vars
   const { canAddMedicine } = useSubscription();
+  const { isPremium } = useSubscription();
   // eslint-disable-next-line unused-imports/no-unused-vars
   const { showAlert, showSuccess, showError } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
@@ -395,7 +396,7 @@ export default function HomeScreen() {
     [isSlotExpanded]
   );
 
-  // Sprint 58: Layout B (Sade) için erken return — minimal Switcher görünümü
+  // Sprint 58.5: Layout B (Detaylı) için erken return — 7 MD3 kart
   if (!profileLoading && profile.layout === 'B') {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -404,9 +405,15 @@ export default function HomeScreen() {
           reminders={todayReminders}
           adherence={_adherenceRate}
           streak={currentStreak}
+          completedCount={completedCount}
+          totalCount={totalCount}
+          remainingCount={remainingCount}
+          lowStockMedicines={lowStockMedicines}
+          isPremium={isPremium}
           onTake={() => currentReminder && handleTake(currentReminder.reminderTime.id)}
           onSnooze={minutes => currentReminder && handleSnooze(currentReminder, minutes)}
           onSkip={() => currentReminder && handleSkip(currentReminder.reminderTime.id)}
+          onAddPress={() => navigation.navigate('AddMedicine' as never)}
         />
       </SafeAreaView>
     );

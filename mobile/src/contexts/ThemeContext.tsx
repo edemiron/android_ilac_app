@@ -12,7 +12,10 @@ export const lightColors = {
   primary: '#0D9488', // Vibrant Teal
   primaryDark: '#0F766E', // Dark Teal
   primaryLight: '#14B8A6', // Light Teal
+  primaryContainer: '#CCFBF1', // Teal 100 - Sprint 58.5 tonlu kartlar için
+  onPrimaryContainer: '#0F766E', // Teal 700 - WCAG AA
   secondary: '#2563EB', // Royal Blue
+  secondaryContainer: '#DBEAFE', // Blue 100
   accent: '#7C3AED', // Vibrant Purple
 
   // Gradient renkler - Premium Feel
@@ -85,7 +88,10 @@ export const darkColors = {
   primary: '#8B9CFF', // Soft mor-mavi
   primaryDark: '#6B7CDF', // Koyu mor-mavi
   primaryLight: '#ABB8FF', // Açık mor-mavi
+  primaryContainer: '#1F2A4D', // Koyu mor-mavi container - Sprint 58.5
+  onPrimaryContainer: '#ABB8FF', // Açık mor-mavi - WCAG AA
   secondary: '#5EE6FF', // Cyan
+  secondaryContainer: '#0E2A3A', // Koyu cyan container
   accent: '#D0A6FF', // Açık mor (Tertiary)
 
   // Gradient renkler
