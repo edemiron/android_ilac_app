@@ -1,10 +1,11 @@
 /**
- * useUserProfile — Sprint 58 + 63.
+ * useUserProfile — Sprint 58 + 63 + 64.
  *
- * Kullanıcı deneyim seviyesi (A: sade / B: detaylı), accent palette seçimi.
+ * Kullanıcı deneyim seviyesi (A: sade / B: detaylı), accent palette, haptics.
  * AsyncStorage'da saklanır, ThemeContext pattern'i uygulanır.
  *
  * Sprint 63: accentColor + version migration (v1 → v2).
+ * Sprint 64: hapticsEnabled + version migration (v2 → v3).
  */
 
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
@@ -24,16 +25,18 @@ export type LayoutVariant = 'A' | 'B';
 export interface UserProfile {
   layout: LayoutVariant;
   accentColor: AccentId;
+  hapticsEnabled: boolean;
   version: number;
   updatedAt: string;
 }
 
 const PROFILE_STORAGE_KEY = '@app_user_profile';
-const PROFILE_VERSION = 2; // v1 = layout only, v2 = layout + accent
+const PROFILE_VERSION = 3; // v1 = layout, v2 = +accent, v3 = +haptics
 
 const DEFAULT_PROFILE: UserProfile = {
   layout: 'A',
   accentColor: DEFAULT_ACCENT,
+  hapticsEnabled: true,
   version: PROFILE_VERSION,
   updatedAt: new Date().toISOString(),
 };
@@ -42,6 +45,7 @@ interface UserProfileContextValue {
   profile: UserProfile;
   setLayout: (layout: LayoutVariant) => Promise<void>;
   setAccentColor: (color: AccentId) => Promise<void>;
+  setHapticsEnabled: (enabled: boolean) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -52,21 +56,32 @@ interface ProviderProps {
 }
 
 /**
- * v1 (layout only) → v2 (layout + accent) migration.
+ * v1 (layout) → v2 (+accent) → v3 (+haptics) migration.
  * Bilinmeyen accent id'leri default'a düşer (graceful fallback).
  */
-function migrateProfile(parsed: Partial<UserProfile> & { accentColor?: string }): UserProfile {
+function migrateProfile(
+  parsed: Partial<UserProfile> & { accentColor?: string; hapticsEnabled?: boolean }
+): UserProfile {
   const v = parsed.version ?? 1;
   if (v < 2) {
     return {
       ...DEFAULT_PROFILE,
       ...parsed,
       accentColor: DEFAULT_ACCENT,
+      hapticsEnabled: true,
       version: PROFILE_VERSION,
       updatedAt: parsed.updatedAt ?? new Date().toISOString(),
     } as UserProfile;
   }
-  // v2+ — accent validation
+  if (v < 3) {
+    return {
+      ...DEFAULT_PROFILE,
+      ...parsed,
+      hapticsEnabled: parsed.hapticsEnabled ?? true,
+      version: PROFILE_VERSION,
+    } as UserProfile;
+  }
+  // v3+ — accent + haptics validation
   const accent = parsed.accentColor;
   const validAccent: AccentId =
     accent && accent in ACCENT_PALETTES ? (accent as AccentId) : DEFAULT_ACCENT;
@@ -74,6 +89,7 @@ function migrateProfile(parsed: Partial<UserProfile> & { accentColor?: string })
     ...DEFAULT_PROFILE,
     ...parsed,
     accentColor: validAccent,
+    hapticsEnabled: parsed.hapticsEnabled ?? true,
     version: PROFILE_VERSION,
   } as UserProfile;
 }
@@ -134,8 +150,17 @@ export function UserProfileProvider({ children }: ProviderProps) {
     [updateProfile]
   );
 
+  const setHapticsEnabled = useCallback(
+    async (enabled: boolean) => {
+      await updateProfile({ hapticsEnabled: enabled });
+    },
+    [updateProfile]
+  );
+
   return (
-    <UserProfileContext.Provider value={{ profile, setLayout, setAccentColor, isLoading }}>
+    <UserProfileContext.Provider
+      value={{ profile, setLayout, setAccentColor, setHapticsEnabled, isLoading }}
+    >
       {children}
     </UserProfileContext.Provider>
   );

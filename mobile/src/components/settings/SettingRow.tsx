@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SettingIcon } from './SettingIcon';
 import { SettingRowProps } from './types';
+import { useHaptics } from '../../hooks/useHaptics';
 import { useTheme } from '../../contexts/ThemeContext';
 import { createSettingsStyles } from './styles';
 
@@ -62,16 +63,14 @@ export const SettingRow: React.FC<SettingRowProps> = ({
 
   if (onPress) {
     return (
-      <TouchableOpacity
+      <HapticSettingRow
         onPress={onPress}
-        activeOpacity={0.7}
-        accessibilityLabel={label}
-        accessibilityHint={description || `${label} ayarını değiştirmek için dokunun`}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: chevronDirection === 'down' }}
+        label={label}
+        description={description}
+        chevronDirection={chevronDirection}
       >
         {content}
-      </TouchableOpacity>
+      </HapticSettingRow>
     );
   }
 
@@ -81,3 +80,38 @@ export const SettingRow: React.FC<SettingRowProps> = ({
     </View>
   );
 };
+
+/**
+ * HapticSettingRow — Sprint 64: light haptic on press.
+ */
+function HapticSettingRow({
+  onPress,
+  label,
+  description,
+  chevronDirection,
+  children,
+}: {
+  onPress: () => void;
+  label: string;
+  description?: string;
+  chevronDirection?: 'up' | 'down' | 'forward';
+  children: React.ReactNode;
+}) {
+  const haptics = useHaptics();
+  const handlePress = useCallback(() => {
+    haptics.light();
+    onPress();
+  }, [haptics, onPress]);
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      activeOpacity={0.7}
+      accessibilityLabel={label}
+      accessibilityHint={description || `${label} ayarını değiştirmek için dokunun`}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: chevronDirection === 'down' }}
+    >
+      {children}
+    </TouchableOpacity>
+  );
+}
