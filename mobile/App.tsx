@@ -1067,9 +1067,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary componentName="App">
-        <ThemeProvider>
-          <UserProfileProvider>
-            <AccentProvider>
+        <UserProfileProvider>
+          <AccentProvider>
+            <ThemeProvider>
               <OnboardingProvider>
                 <LanguageProvider>
                   <AuthProvider>
@@ -1081,9 +1081,9 @@ export default function App() {
                   </AuthProvider>
                 </LanguageProvider>
               </OnboardingProvider>
-            </AccentProvider>
-          </UserProfileProvider>
-        </ThemeProvider>
+            </ThemeProvider>
+          </AccentProvider>
+        </UserProfileProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );
