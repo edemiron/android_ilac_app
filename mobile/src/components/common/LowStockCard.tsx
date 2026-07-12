@@ -21,6 +21,7 @@ export interface LowStockMedicine {
 interface LowStockCardProps {
   medicines: Medicine[] | LowStockMedicine[];
   onPress?: () => void;
+  onDismiss?: () => void;
 }
 
 function toLowStock(m: Medicine | LowStockMedicine): LowStockMedicine {
@@ -33,7 +34,7 @@ function toLowStock(m: Medicine | LowStockMedicine): LowStockMedicine {
   };
 }
 
-export function LowStockCard({ medicines, onPress }: LowStockCardProps) {
+export function LowStockCard({ medicines, onPress, onDismiss }: LowStockCardProps) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
 
@@ -52,14 +53,14 @@ export function LowStockCard({ medicines, onPress }: LowStockCardProps) {
   const subtitleColor = isDark ? '#FDE68A' : '#B45309';
 
   return (
-    <TouchableOpacity
-      style={[styles.container, { backgroundColor: bgColor }]}
-      onPress={onPress}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={(language === 'tr' ? 'Stok azalıyor: ' : 'Low stock: ') + subtitle}
-    >
-      <View style={styles.content}>
+    <View style={[styles.container, { backgroundColor: bgColor }]}>
+      <TouchableOpacity
+        style={styles.content}
+        onPress={onPress}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={(language === 'tr' ? 'Stok azalıyor: ' : 'Low stock: ') + subtitle}
+      >
         <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
           <Ionicons name="alert-circle" size={24} color={iconColor} />
         </View>
@@ -71,9 +72,20 @@ export function LowStockCard({ medicines, onPress }: LowStockCardProps) {
             {subtitle}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={iconColor} />
-      </View>
-    </TouchableOpacity>
+        {!onDismiss && <Ionicons name="chevron-forward" size={20} color={iconColor} />}
+      </TouchableOpacity>
+      {onDismiss && (
+        <TouchableOpacity
+          style={styles.dismissBtn}
+          onPress={onDismiss}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={language === 'tr' ? 'Stok uyarısını kapat' : 'Dismiss stock alert'}
+        >
+          <Ionicons name="close-circle" size={22} color={iconColor} />
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
@@ -83,10 +95,17 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderRadius: 16,
     padding: 16,
+    position: 'relative',
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  dismissBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    padding: 4,
   },
   iconBox: {
     width: 44,

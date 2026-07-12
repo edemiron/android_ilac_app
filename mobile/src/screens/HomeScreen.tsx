@@ -39,6 +39,8 @@ const log = createScopedLogger('HomeScreen');
 import { refreshWidget } from '../services/widgetService';
 import { useAlert } from '../contexts/AlertContext';
 import { CircularProgress } from '../components/common/CircularProgress';
+import { LowStockCard } from '../components/common/LowStockCard';
+import { useLowStockDismiss, computeLowStockHash } from '../hooks/useLowStockDismiss';
 
 // Sprint 4.2: HomeScreen.tsx (1962 -> ~1400 satir) modularizasyonu.
 // Component'ler ve helper'lar screens/HomeScreen/* altinda.
@@ -93,6 +95,14 @@ export default function HomeScreen() {
   // Stok uyarısı - memoize edildi
   // getLowStockMedicines zaten medicines'i icinden okur (zustand state selector)
   const lowStockMedicines = useMemo(() => getLowStockMedicines(), [getLowStockMedicines]);
+
+  // Sprint 65A: Stok uyarısı persistent dismiss — hash ile auto-invalidation
+  const { checkDismissed, dismiss: dismissLowStock } = useLowStockDismiss();
+  const lowStockHash = useMemo(
+    () => computeLowStockHash(lowStockMedicines.map(m => ({ id: m.id, stockCount: m.stockCount }))),
+    [lowStockMedicines]
+  );
+  const isLowStockDismissed = checkDismissed(lowStockHash);
 
   // Son kullanma tarihi uyarısı kontrolü
   useEffect(() => {
@@ -578,34 +588,13 @@ export default function HomeScreen() {
           </LinearGradient>
         )}
 
-        {/* Stok Uyarısı */}
-        {lowStockMedicines.length > 0 && (
-          <TouchableOpacity
-            style={[styles.lowStockCard, { backgroundColor: isDark ? '#422006' : '#FEF3C7' }]}
+        {/* Stok Uyarısı (Sprint 65A: persistent dismiss) */}
+        {lowStockMedicines.length > 0 && !isLowStockDismissed && (
+          <LowStockCard
+            medicines={lowStockMedicines}
             onPress={() => navigation.navigate('Medicines' as never)}
-          >
-            <View style={styles.lowStockContent}>
-              <View
-                style={[
-                  styles.lowStockIconBox,
-                  { backgroundColor: isDark ? '#78350F' : '#FDE68A' },
-                ]}
-              >
-                <Ionicons name="alert-circle" size={24} color={isDark ? '#FCD34D' : '#D97706'} />
-              </View>
-              <View style={styles.lowStockTextContainer}>
-                <Text style={[styles.lowStockTitle, { color: isDark ? '#FCD34D' : '#92400E' }]}>
-                  {language === 'tr' ? 'Stok Azalıyor!' : 'Low Stock!'}
-                </Text>
-                <Text style={[styles.lowStockSubtitle, { color: isDark ? '#FDE68A' : '#B45309' }]}>
-                  {lowStockMedicines
-                    .map(m => `${m.name} (${m.stockCount} ${m.stockUnit || 'adet'})`)
-                    .join(', ')}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={isDark ? '#FCD34D' : '#D97706'} />
-            </View>
-          </TouchableOpacity>
+            onDismiss={() => dismissLowStock(lowStockHash)}
+          />
         )}
 
         {currentReminder && (

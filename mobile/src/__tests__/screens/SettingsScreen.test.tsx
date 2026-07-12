@@ -141,6 +141,17 @@ jest.mock('../../contexts/AccentContext', () => ({
   }),
 }));
 
+jest.mock('../../hooks/useLowStockDismiss', () => ({
+  useLowStockDismiss: () => ({
+    isLoading: false,
+    isDismissed: false,
+    dismissedAt: null,
+    checkDismissed: () => false,
+    dismiss: jest.fn(),
+    reset: jest.fn(),
+  }),
+}));
+
 import SettingsScreen from '../../screens/SettingsScreen';
 
 describe('SettingsScreen', () => {

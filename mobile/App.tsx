@@ -64,6 +64,7 @@ import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { UserProfileProvider } from './src/hooks/useUserProfile';
 import { AccentProvider } from './src/contexts/AccentContext';
 import { OnboardingProvider, useOnboarding } from './src/hooks/useOnboarding';
+import { LowStockDismissProvider } from './src/hooks/useLowStockDismiss';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
@@ -1070,17 +1071,19 @@ export default function App() {
         <UserProfileProvider>
           <AccentProvider>
             <ThemeProvider>
-              <OnboardingProvider>
-                <LanguageProvider>
-                  <AuthProvider>
-                    <SubscriptionProvider>
-                      <AlertProvider>
-                        <AppContent />
-                      </AlertProvider>
-                    </SubscriptionProvider>
-                  </AuthProvider>
-                </LanguageProvider>
-              </OnboardingProvider>
+              <LowStockDismissProvider>
+                <OnboardingProvider>
+                  <LanguageProvider>
+                    <AuthProvider>
+                      <SubscriptionProvider>
+                        <AlertProvider>
+                          <AppContent />
+                        </AlertProvider>
+                      </SubscriptionProvider>
+                    </AuthProvider>
+                  </LanguageProvider>
+                </OnboardingProvider>
+              </LowStockDismissProvider>
             </ThemeProvider>
           </AccentProvider>
         </UserProfileProvider>

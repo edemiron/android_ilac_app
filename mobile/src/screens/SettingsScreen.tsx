@@ -18,6 +18,7 @@ import { useSettingsScreen } from '../hooks/useSettingsScreen';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
 import { useUserProfile, LayoutVariant } from '../hooks/useUserProfile';
+import { useLowStockDismiss } from '../hooks/useLowStockDismiss';
 import { AccentColorSection } from '../components/settings/AccentColorSection';
 import { createScopedLogger } from '../utils/logger';
 
@@ -72,6 +73,17 @@ export default function SettingsScreen() {
   const { t } = useLanguage();
   const { showInfo } = useAlert();
   const { setLayout } = useUserProfile();
+  // Sprint 65A: Stok uyarısı reset
+  const { reset: resetLowStock, isDismissed: isLowStockDismissed } = useLowStockDismiss();
+  const handleResetLowStock = useCallback(async () => {
+    await resetLowStock();
+    showInfo(
+      language === 'tr' ? 'Stok Uyarıları Sıfırlandı' : 'Stock Alerts Reset',
+      language === 'tr'
+        ? 'Tüm dismiss edilmiş uyarılar tekrar gösterilecek.'
+        : 'All dismissed alerts will be shown again.'
+    );
+  }, [resetLowStock, showInfo, language]);
   const [isDevMode, setIsDevMode] = useState(false);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
@@ -232,6 +244,7 @@ export default function SettingsScreen() {
           onSecurityPress={() => navigation.navigate('Security')}
           onTtsPress={() => navigation.navigate('TtsSettings')}
           onCaregiverPress={() => navigation.navigate('Caregiver')}
+          onResetLowStockPress={isLowStockDismissed ? handleResetLowStock : undefined}
           ttsEnabled={settings.ttsEnabled}
         />
 
