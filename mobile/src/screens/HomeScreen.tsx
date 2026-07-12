@@ -28,6 +28,7 @@ import { InlineAdBanner } from '../components/common/AdBanner';
 import { scheduleSnoozeNotification } from '../utils/notifications';
 import { formatTimeDisplay } from '../utils/timeCalculator';
 import { getRelativeTimeText } from './HomeScreen/helpers';
+import { getUniqueMedicineCount } from '../stores/helpers/reminderStats';
 import {
   checkAndShowPersistentNotifications,
   dismissAllPersistentNotifications,
@@ -267,7 +268,7 @@ export default function HomeScreen() {
   );
 
   // İstatistikleri memoize et - her render'da yeniden hesaplamayı önle
-  const { completedCount, totalCount, remainingCount } = useMemo(() => {
+  const { completedCount, totalCount, remainingCount, uniqueMedicineCount } = useMemo(() => {
     const total = todayReminders.length;
     const completed = todayReminders.filter(r => r.log?.status === 'taken').length;
     const skipped = todayReminders.filter(r => r.log?.status === 'skipped').length;
@@ -275,6 +276,7 @@ export default function HomeScreen() {
       totalCount: total,
       completedCount: completed,
       remainingCount: total - completed - skipped,
+      uniqueMedicineCount: getUniqueMedicineCount(todayReminders),
     };
   }, [todayReminders]);
 
@@ -469,7 +471,9 @@ export default function HomeScreen() {
                   {totalCount} {language === 'tr' ? 'doz' : 'doses'}
                 </Text>
                 <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
-                  {language === 'tr' ? 'Bugün' : 'Today'}
+                  {language === 'tr'
+                    ? `Bugün · ${uniqueMedicineCount} ${uniqueMedicineCount === 1 ? 'ilaç' : 'ilaç'}`
+                    : `Today · ${uniqueMedicineCount} med`}
                 </Text>
               </View>
             </View>
@@ -515,7 +519,7 @@ export default function HomeScreen() {
                   {remainingCount}
                 </Text>
                 <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
-                  {language === 'tr' ? 'Kalan' : 'Left'}
+                  {language === 'tr' ? 'Bekleyen' : 'Pending'}
                 </Text>
               </View>
             </View>
@@ -525,7 +529,7 @@ export default function HomeScreen() {
           {currentReminder && (
             <View style={[styles.nextMedicineRow, { borderTopColor: colors.border }]}>
               <Text style={[styles.nextMedicineText, { color: colors.textMuted }]}>
-                {language === 'tr' ? 'Sonraki:' : 'Next:'}{' '}
+                {language === 'tr' ? 'Sonraki Doz:' : 'Next Dose:'}{' '}
                 <Text style={[styles.nextMedicineTime, { color: colors.text }]}>
                   {formatTimeDisplay(currentReminder.reminderTime.time)}
                 </Text>
