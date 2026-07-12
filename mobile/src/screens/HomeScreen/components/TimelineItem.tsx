@@ -218,7 +218,8 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
             { color: isCompleted ? colors.textMuted : colors.text },
             isCompleted && { fontSize: 13 },
           ]}
-          numberOfLines={1}
+          numberOfLines={2}
+          ellipsizeMode="tail"
         >
           {reminder.medicine.name}
         </Text>
@@ -294,6 +295,7 @@ const styles = StyleSheet.create({
   medicineName: {
     fontSize: 15,
     fontWeight: '600',
+    lineHeight: 20,
   },
   medicineDetails: {
     fontSize: 12,

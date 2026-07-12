@@ -75,7 +75,11 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
             <Ionicons name="medical" size={24} color={reminder.medicine.color} />
           </View>
           <View style={styles.currentDoseText}>
-            <Text style={[styles.currentDoseName, { color: colors.text }]} numberOfLines={1}>
+            <Text
+              style={[styles.currentDoseName, { color: colors.text }]}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
               {reminder.medicine.name}
             </Text>
             <Text style={[styles.currentDoseDosage, { color: colors.textMuted }]}>
@@ -249,6 +253,7 @@ const styles = StyleSheet.create({
   currentDoseName: {
     fontSize: 18,
     fontWeight: '700',
+    lineHeight: 22,
     marginBottom: 2,
   },
   currentDoseDosage: {
