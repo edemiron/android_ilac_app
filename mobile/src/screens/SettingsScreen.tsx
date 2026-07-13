@@ -73,9 +73,21 @@ export default function SettingsScreen() {
   const { t } = useLanguage();
   const { showInfo } = useAlert();
   const { setLayout } = useUserProfile();
-  // Sprint 65A: Stok uyarısı reset
-  const { reset: resetLowStock, isDismissed: isLowStockDismissed } = useLowStockDismiss();
+  // Sprint 65A: Stok uyarısı reset (row her zaman görünür, dismiss durumu handle'da kontrol edilir)
+  const {
+    reset: resetLowStock,
+    isDismissed: isLowStockDismissed,
+    isLoading: lowStockDismissLoading,
+  } = useLowStockDismiss();
   const handleResetLowStock = useCallback(async () => {
+    if (!isLowStockDismissed) {
+      // Hiç dismiss edilmemiş, no-op toast
+      showInfo(
+        language === 'tr' ? 'Zaten Aktif' : 'Already Active',
+        language === 'tr' ? 'Dismiss edilmiş stok uyarısı yok.' : 'No dismissed stock alerts.'
+      );
+      return;
+    }
     await resetLowStock();
     showInfo(
       language === 'tr' ? 'Stok Uyarıları Sıfırlandı' : 'Stock Alerts Reset',
@@ -83,7 +95,7 @@ export default function SettingsScreen() {
         ? 'Tüm dismiss edilmiş uyarılar tekrar gösterilecek.'
         : 'All dismissed alerts will be shown again.'
     );
-  }, [resetLowStock, showInfo, language]);
+  }, [resetLowStock, showInfo, language, isLowStockDismissed]);
   const [isDevMode, setIsDevMode] = useState(false);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
@@ -244,7 +256,7 @@ export default function SettingsScreen() {
           onSecurityPress={() => navigation.navigate('Security')}
           onTtsPress={() => navigation.navigate('TtsSettings')}
           onCaregiverPress={() => navigation.navigate('Caregiver')}
-          onResetLowStockPress={isLowStockDismissed ? handleResetLowStock : undefined}
+          onResetLowStockPress={handleResetLowStock}
           ttsEnabled={settings.ttsEnabled}
         />
 
