@@ -1,6 +1,14 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -49,13 +57,54 @@ export default function MedicinesScreen() {
   // Single medicine delete confirmation state
   const [singleDeleteVisible, setSingleDeleteVisible] = useState(false);
 
+  // Sprint 68: search + filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterMode, setFilterMode] = useState<'all' | 'active' | 'inactive' | 'lowStock'>('all');
+
+  // Sprint 68: filtered + searched medicines list
+  const filteredMedicines = useMemo(() => {
+    let result = medicines;
+    // Filter by mode
+    if (filterMode === 'active') {
+      result = result.filter(m => m.isActive);
+    } else if (filterMode === 'inactive') {
+      result = result.filter(m => !m.isActive);
+    } else if (filterMode === 'lowStock') {
+      // Low stock: stockEnabled && (stockCount ?? 0) <= (stockThreshold ?? 0)
+      result = result.filter(m => m.stockEnabled && (m.stockCount ?? 0) <= (m.stockThreshold ?? 0));
+    }
+    // Filter by search query (case-insensitive name match)
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length > 0) {
+      result = result.filter(m => m.name.toLowerCase().includes(q));
+    }
+    return result;
+  }, [medicines, filterMode, searchQuery]);
+
   // Sprint 20.4: loadTipState useEffect kaldirildi (tipDismissed dead code)
   void AsyncStorage; // import referansi korunur
 
   // Sprint 20.4: dismissTip state/callback kaldirildi (dead code)
 
-  const activeMedicines = medicines.filter(m => m.isActive);
-  const inactiveMedicines = medicines.filter(m => !m.isActive);
+  // Sprint 68: search + filter mode uygulanmış listeler
+  const activeMedicines = useMemo(() => {
+    let list = medicines.filter(m => m.isActive);
+    if (filterMode === 'inactive') list = []; // aktif moddayken inactive gizle
+    if (filterMode === 'lowStock') {
+      list = list.filter(m => m.stockEnabled && (m.stockCount ?? 0) <= (m.stockThreshold ?? 0));
+    }
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length > 0) list = list.filter(m => m.name.toLowerCase().includes(q));
+    return list;
+  }, [medicines, filterMode, searchQuery]);
+
+  const inactiveMedicines = useMemo(() => {
+    let list = medicines.filter(m => !m.isActive);
+    if (filterMode === 'active' || filterMode === 'lowStock') list = []; // diğer modlarda inactive gizle
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length > 0) list = list.filter(m => m.name.toLowerCase().includes(q));
+    return list;
+  }, [medicines, filterMode, searchQuery]);
 
   // Toggle selection for a medicine
   const toggleSelection = useCallback((id: string) => {
@@ -201,6 +250,100 @@ export default function MedicinesScreen() {
           </View>
         </View>
       )}
+
+      {/* Sprint 68: search bar + filter chips */}
+      <View
+        style={[
+          styles.searchBarContainer,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <Ionicons
+          name="search-outline"
+          size={18}
+          color={colors.textMuted}
+          style={styles.searchIcon}
+        />
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder={language === 'tr' ? 'İlaç ara...' : 'Search medicines...'}
+          placeholderTextColor={colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          accessibilityLabel={language === 'tr' ? 'İlaç arama' : 'Search medicines'}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearchQuery('')}
+            accessibilityRole="button"
+            accessibilityLabel={language === 'tr' ? 'Aramayı temizle' : 'Clear search'}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Sprint 68: filter chips */}
+      <View style={styles.filterChipRow}>
+        {(['all', 'active', 'inactive', 'lowStock'] as const).map(mode => (
+          <TouchableOpacity
+            key={mode}
+            style={[
+              styles.filterChip,
+              {
+                backgroundColor: filterMode === mode ? colors.primary : colors.surfaceContainerLow,
+                borderColor: filterMode === mode ? colors.primary : colors.border,
+              },
+            ]}
+            onPress={() => {
+              setFilterMode(mode);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: filterMode === mode }}
+            accessibilityLabel={
+              mode === 'all'
+                ? language === 'tr'
+                  ? 'Tümü'
+                  : 'All'
+                : mode === 'active'
+                  ? language === 'tr'
+                    ? 'Aktif'
+                    : 'Active'
+                  : mode === 'inactive'
+                    ? language === 'tr'
+                      ? 'Pasif'
+                      : 'Inactive'
+                    : language === 'tr'
+                      ? 'Stok Az'
+                      : 'Low Stock'
+            }
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                { color: filterMode === mode ? '#FFFFFF' : colors.text },
+              ]}
+            >
+              {mode === 'all'
+                ? language === 'tr'
+                  ? 'Tümü'
+                  : 'All'
+                : mode === 'active'
+                  ? language === 'tr'
+                    ? 'Aktif'
+                    : 'Active'
+                  : mode === 'inactive'
+                    ? language === 'tr'
+                      ? 'Pasif'
+                      : 'Inactive'
+                    : language === 'tr'
+                      ? 'Stok Az'
+                      : 'Low Stock'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {medicines.length === 0 ? (
@@ -587,6 +730,42 @@ export default function MedicinesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  // Sprint 68: search + filter styles
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  filterChipRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
