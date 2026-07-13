@@ -194,18 +194,26 @@ export default function SettingsScreen() {
               ? language === 'tr'
                 ? 'Detaylı'
                 : 'Detailed'
-              : language === 'tr'
-                ? 'Sade'
-                : 'Simple'
+              : layout === 'B'
+                ? language === 'tr'
+                  ? 'Sade'
+                  : 'Simple'
+                : language === 'tr'
+                  ? 'Liste'
+                  : 'List'
           }
           getLayoutDescription={(layout: LayoutVariant) =>
             layout === 'A'
               ? language === 'tr'
                 ? 'Detaylı bilgi, gençler için ideal'
                 : 'Detailed info, ideal for younger users'
-              : language === 'tr'
-                ? 'Büyük butonlar, yaşlılar için ideal'
-                : 'Large buttons, ideal for elderly'
+              : layout === 'B'
+                ? language === 'tr'
+                  ? 'Büyük butonlar, yaşlılar için ideal'
+                  : 'Large buttons, ideal for elderly'
+                : language === 'tr'
+                  ? 'iOS Inset Grouped liste görünümü'
+                  : 'iOS Inset Grouped list view'
           }
         />
 

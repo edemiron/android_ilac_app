@@ -20,7 +20,7 @@ const log = createScopedLogger('useUserProfile');
  * - A: Sade / Minimal (default, yaşlılar için)
  * - B: Detaylı (Kart + Adherence, gençler için)
  */
-export type LayoutVariant = 'A' | 'B';
+export type LayoutVariant = 'A' | 'B' | 'C';
 
 export interface UserProfile {
   layout: LayoutVariant;
