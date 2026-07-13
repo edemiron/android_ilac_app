@@ -12,6 +12,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { ThemeColors } from '../../../contexts/ThemeContext';
+import { useHaptics } from '../../../hooks/useHaptics';
 import { formatTimeDisplay } from '../../../utils/timeCalculator';
 import { SOFT_RED, SOFT_RED_BG, type TodayReminder } from '../types';
 import { getRelativeTimeText } from '../helpers';
@@ -77,10 +78,17 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
 }) => {
   const { log } = reminder;
   const { isDark } = useTheme();
+  // Sprint 66C: success haptic on take action
+  const haptics = useHaptics();
   const isTaken = log?.status === 'taken';
   const isSkipped = log?.status === 'skipped';
   const { isPast, minutesDiff } = getRelativeTimeText(reminder.reminderTime.time, language, log);
   const isMissed = isPast && !isTaken && !isSkipped;
+
+  const handleTake = () => {
+    haptics.success();
+    onTakeNow();
+  };
 
   const [snoozeCountdown, setSnoozeCountdown] = useState('');
 
@@ -232,7 +240,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
         {isMissed ? (
           <TouchableOpacity
             style={[styles.takeNowBtn, { backgroundColor: colors.primary }]}
-            onPress={onTakeNow}
+            onPress={handleTake}
           >
             <Ionicons name="checkmark" size={16} color="#fff" />
             <Text style={styles.takeNowText}>{language === 'tr' ? 'Bugün Al' : 'Take Now'}</Text>
@@ -261,7 +269,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
               styles.quickTakeBtn,
               { backgroundColor: colors.primary + '18', borderColor: colors.primary },
             ]}
-            onPress={onTakeNow}
+            onPress={handleTake}
           >
             <Ionicons name="checkmark" size={18} color={colors.primary} />
           </TouchableOpacity>

@@ -40,6 +40,18 @@ jest.mock('../../contexts/LanguageContext', () => ({
   useLanguage: () => ({ language: 'tr' }),
 }));
 
+jest.mock('../../hooks/useHaptics', () => ({
+  useHaptics: () => ({
+    light: jest.fn(),
+    medium: jest.fn(),
+    heavy: jest.fn(),
+    selection: jest.fn(),
+    success: jest.fn(),
+    warning: jest.fn(),
+    error: jest.fn(),
+  }),
+}));
+
 describe('EmptyState', () => {
   it('renders illustration variant with title', () => {
     const { getByText, getByTestId } = render(<EmptyState title="Test başlık" testID="es" />);

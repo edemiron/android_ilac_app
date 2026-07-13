@@ -31,6 +31,18 @@ jest.mock('../../contexts/ThemeContext', () => ({
   }),
 }));
 
+jest.mock('../../hooks/useHaptics', () => ({
+  useHaptics: () => ({
+    light: jest.fn(),
+    medium: jest.fn(),
+    heavy: jest.fn(),
+    selection: jest.fn(),
+    success: jest.fn(),
+    warning: jest.fn(),
+    error: jest.fn(),
+  }),
+}));
+
 describe('ErrorState', () => {
   it('renders with title', () => {
     const { getByText, getByTestId } = render(<ErrorState title="Sunucu hatası" testID="err" />);

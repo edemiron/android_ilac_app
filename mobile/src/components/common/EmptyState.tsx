@@ -14,6 +14,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useHaptics } from '../../hooks/useHaptics';
 import { PillboxIllustration } from './PillboxIllustration';
 
 export type EmptyStateVariant = 'illustration' | 'icon' | 'simple';
@@ -43,6 +44,8 @@ export function EmptyState({
 }: EmptyStateProps) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
+  // Sprint 66B
+  const haptics = useHaptics();
 
   const renderVisual = () => {
     if (variant === 'illustration') {
@@ -83,7 +86,11 @@ export function EmptyState({
       {actionLabel && onAction && (
         <TouchableOpacity
           style={[styles.action, { backgroundColor: colors.primary, minHeight: 48 }]}
-          onPress={onAction}
+          onPress={() => {
+            // Sprint 66B: medium haptic on action
+            haptics.medium();
+            onAction();
+          }}
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
         >

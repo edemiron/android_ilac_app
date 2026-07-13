@@ -9,6 +9,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useHaptics } from '../../hooks/useHaptics';
 
 interface ErrorStateProps {
   title: string;
@@ -33,6 +34,8 @@ export function ErrorState({
   testID = 'error-state',
 }: ErrorStateProps) {
   const { colors, isDark } = useTheme();
+  // Sprint 66B: light haptic on retry
+  const haptics = useHaptics();
   const showRetry = !!retryLabel || !!onRetry;
   const retry = retryLabel ?? DEFAULT_RETRY_LABEL;
 
@@ -67,7 +70,11 @@ export function ErrorState({
       {showRetry && onRetry && (
         <TouchableOpacity
           style={[styles.retry, { backgroundColor: colors.primary, minHeight: 48 }]}
-          onPress={onRetry}
+          onPress={() => {
+            // Sprint 66B: light haptic on retry
+            haptics.light();
+            onRetry();
+          }}
           accessibilityRole="button"
           accessibilityLabel={retry}
         >
