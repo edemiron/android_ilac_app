@@ -9,25 +9,26 @@ import {
   Modal,
   AppState,
   AppStateStatus,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { format, differenceInMinutes, differenceInDays, startOfDay, parseISO } from 'date-fns';
+import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
 import { useMedicineStore } from '../stores/medicineStore';
-import { RootStackParamList, Medicine, ReminderTime, MedicineLog } from '../types';
-import { formatTimeDisplay } from '../utils/timeCalculator';
-import { useTheme, ThemeColors } from '../contexts/ThemeContext';
+import { RootStackParamList, Medicine } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { useUserProfile } from '../hooks/useUserProfile';
 import { InlineAdBanner } from '../components/common/AdBanner';
 import { scheduleSnoozeNotification } from '../utils/notifications';
+import { formatTimeDisplay } from '../utils/timeCalculator';
+import { getRelativeTimeText } from './HomeScreen/helpers';
+import { getUniqueMedicineCount } from '../stores/helpers/reminderStats';
 import {
   checkAndShowPersistentNotifications,
   dismissAllPersistentNotifications,
@@ -38,515 +39,35 @@ const log = createScopedLogger('HomeScreen');
 import { refreshWidget } from '../services/widgetService';
 import { useAlert } from '../contexts/AlertContext';
 import { CircularProgress } from '../components/common/CircularProgress';
+import { LowStockCard } from '../components/common/LowStockCard';
+import { useLowStockDismiss, computeLowStockHash } from '../hooks/useLowStockDismiss';
+
+// Sprint 4.2: HomeScreen.tsx (1962 -> ~1400 satir) modularizasyonu.
+// Component'ler ve helper'lar screens/HomeScreen/* altinda.
+import { CurrentDoseCard } from './HomeScreen/components/CurrentDoseCard';
+import { TimelineItem } from './HomeScreen/components/TimelineItem';
+import type { TodayReminder } from './HomeScreen/types';
+import { HomeScreenLayoutSwitcher } from '../components/layouts/HomeScreenLayoutSwitcher';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-interface TodayReminder {
-  medicine: Medicine;
-  reminderTime: ReminderTime;
-  log?: MedicineLog;
-}
-
-const SNOOZE_OPTIONS = [5, 10, 15, 30];
-
-const SOFT_RED = '#DC2626';
-const SOFT_RED_BG = '#FEF2F2';
-
-function getRelativeTimeText(
-  reminderTime: string,
-  language: string,
-  log?: MedicineLog
-): { text: string; isNow: boolean; isPast: boolean; minutesDiff: number } {
-  const now = new Date();
-  const currentTime = format(now, 'HH:mm');
-  const [rH, rM] = reminderTime.split(':').map(Number);
-  const reminderDate = new Date();
-  reminderDate.setHours(rH, rM, 0, 0);
-
-  const minutesDiff = differenceInMinutes(reminderDate, now);
-  const isPast = reminderTime < currentTime;
-  const isNow = Math.abs(minutesDiff) <= 2;
-
-  if (log?.status === 'taken') {
-    return {
-      text: language === 'tr' ? 'Alındı' : 'Taken',
-      isNow: false,
-      isPast: false,
-      minutesDiff,
-    };
-  }
-  if (log?.status === 'skipped') {
-    return {
-      text: language === 'tr' ? 'Atlandı' : 'Skipped',
-      isNow: false,
-      isPast: false,
-      minutesDiff,
-    };
-  }
-
-  if (isNow) {
-    return { text: language === 'tr' ? 'Şimdi' : 'Now', isNow: true, isPast: false, minutesDiff };
-  }
-
-  if (isPast) {
-    const absMinutes = Math.abs(minutesDiff);
-    if (absMinutes < 60) {
-      return {
-        text: language === 'tr' ? `${absMinutes} dk önce` : `${absMinutes} min ago`,
-        isNow: false,
-        isPast: true,
-        minutesDiff,
-      };
-    }
-    const hours = Math.floor(absMinutes / 60);
-    return {
-      text: language === 'tr' ? `${hours} saat önce` : `${hours}h ago`,
-      isNow: false,
-      isPast: true,
-      minutesDiff,
-    };
-  }
-
-  if (minutesDiff < 60) {
-    return {
-      text: language === 'tr' ? `${minutesDiff} dk sonra` : `in ${minutesDiff} min`,
-      isNow: false,
-      isPast: false,
-      minutesDiff,
-    };
-  }
-  const hours = Math.floor(minutesDiff / 60);
-  return {
-    text: language === 'tr' ? `${hours} saat sonra` : `in ${hours}h`,
-    isNow: false,
-    isPast: false,
-    minutesDiff,
-  };
-}
-
-interface CurrentDoseCardProps {
-  reminder: TodayReminder;
-  colors: ThemeColors;
-  isDark: boolean;
-  language: string;
-  onTake: () => void;
-  onSnooze: (minutes: number) => void;
-  onSkip: () => void;
-}
-
-const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
-  reminder,
-  colors,
-  isDark,
-  language,
-  onTake,
-  onSnooze,
-  onSkip,
-}) => {
-  const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
-  const {
-    text: relativeTime,
-    isNow,
-    isPast,
-  } = getRelativeTimeText(reminder.reminderTime.time, language, reminder.log);
-
-  const statusColor = isNow ? colors.primary : isPast ? SOFT_RED : colors.textSecondary;
-
-  return (
-    <>
-      <View
-        style={[
-          styles.currentDoseCard,
-          {
-            backgroundColor: colors.card,
-            shadowOpacity: isDark ? 0 : 0.08,
-            borderLeftColor: isPast ? SOFT_RED : colors.primary,
-            // Dark mode'da hafif border ile kart ayrımı
-            borderWidth: isDark ? 1 : 0,
-            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-          },
-        ]}
-      >
-        <View style={styles.currentDoseHeader}>
-          <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
-            <Text style={[styles.statusPillText, { color: statusColor }]}>{relativeTime}</Text>
-          </View>
-          <Text style={[styles.currentDoseTime, { color: colors.textSecondary }]}>
-            {formatTimeDisplay(reminder.reminderTime.time)}
-          </Text>
-        </View>
-
-        <View style={styles.currentDoseInfo}>
-          <View
-            style={[
-              styles.medicineIcon,
-              { backgroundColor: reminder.medicine.color + (isDark ? '50' : '20') },
-            ]}
-          >
-            <Ionicons name="medical" size={24} color={reminder.medicine.color} />
-          </View>
-          <View style={styles.currentDoseText}>
-            <Text style={[styles.currentDoseName, { color: colors.text }]} numberOfLines={1}>
-              {reminder.medicine.name}
-            </Text>
-            <Text style={[styles.currentDoseDosage, { color: colors.textMuted }]}>
-              {reminder.medicine.dosage}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.currentDoseActions}>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.takeBtn, { backgroundColor: colors.primary }]}
-            onPress={onTake}
-          >
-            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-            <Text style={styles.takeBtnText}>{language === 'tr' ? 'Aldım' : 'Taken'}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              styles.snoozeBtn,
-              {
-                borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FDE68A',
-                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB',
-              },
-            ]}
-            onPress={() => setShowSnoozeOptions(true)}
-          >
-            <Ionicons name="time-outline" size={18} color={isDark ? '#F59E0B' : '#D97706'} />
-            <Text style={[styles.snoozeBtnText, { color: isDark ? '#F59E0B' : '#D97706' }]}>
-              {language === 'tr' ? 'Ertele' : 'Snooze'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              styles.skipBtn,
-              {
-                borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FECACA',
-                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
-              },
-            ]}
-            onPress={onSkip}
-          >
-            <Ionicons
-              name="close-circle-outline"
-              size={18}
-              color={isDark ? '#EF4444' : '#DC2626'}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <Modal
-        visible={showSnoozeOptions}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSnoozeOptions(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSnoozeOptions(false)}
-        >
-          <View style={[styles.snoozeModal, { backgroundColor: colors.card }]}>
-            <Text style={[styles.snoozeModalTitle, { color: colors.text }]}>
-              {language === 'tr' ? 'Ne kadar erteleyelim?' : 'Snooze for how long?'}
-            </Text>
-            <View style={styles.snoozeOptionsGrid}>
-              {SNOOZE_OPTIONS.map(minutes => (
-                <TouchableOpacity
-                  key={minutes}
-                  style={[styles.snoozeOption, { backgroundColor: colors.background }]}
-                  onPress={() => {
-                    setShowSnoozeOptions(false);
-                    onSnooze(minutes);
-                  }}
-                >
-                  <Text style={[styles.snoozeOptionText, { color: colors.primary }]}>
-                    {minutes} {language === 'tr' ? 'dk' : 'min'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </>
-  );
-};
-
-interface TimelineItemProps {
-  reminder: TodayReminder;
-  colors: ThemeColors;
-  language: string;
-  onTakeNow: () => void;
-  isFirst: boolean;
-  hasActiveSnooze: boolean;
-  snoozeTriggerTime: string | null; // Snooze tetiklenme zamanı (ISO string)
-}
-
-const TimelineItem: React.FC<TimelineItemProps> = ({
-  reminder,
-  colors,
-  language,
-  onTakeNow,
-  isFirst,
-  hasActiveSnooze,
-  snoozeTriggerTime,
-}) => {
-  const { log } = reminder;
-  const { isDark } = useTheme();
-  const isTaken = log?.status === 'taken';
-  const isSkipped = log?.status === 'skipped';
-  const { isPast, minutesDiff } = getRelativeTimeText(reminder.reminderTime.time, language, log);
-  const isMissed = isPast && !isTaken && !isSkipped;
-
-  // Snooze geri sayım
-  const [snoozeCountdown, setSnoozeCountdown] = useState('');
-
-  useEffect(() => {
-    if (!hasActiveSnooze || !snoozeTriggerTime) {
-      setSnoozeCountdown('');
-      return;
-    }
-
-    const updateCountdown = () => {
-      const now = Date.now();
-      const target = new Date(snoozeTriggerTime).getTime();
-      const diffMs = target - now;
-
-      if (diffMs <= 0) {
-        setSnoozeCountdown('');
-        return;
-      }
-
-      const totalSeconds = Math.ceil(diffMs / 1000);
-      const mins = Math.floor(totalSeconds / 60);
-      const secs = totalSeconds % 60;
-      setSnoozeCountdown(`${mins}:${secs.toString().padStart(2, '0')}`);
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [hasActiveSnooze, snoozeTriggerTime]);
-
-  const getStatusBadge = () => {
-    if (isTaken) {
-      return {
-        text: language === 'tr' ? 'Alındı' : 'Taken',
-        color: isDark ? '#34D399' : '#059669', // Success yeşil
-        bg: isDark ? 'rgba(52, 211, 153, 0.25)' : '#DCFCE7',
-        icon: 'checkmark-circle' as const,
-      };
-    }
-    if (isSkipped) {
-      return {
-        text: language === 'tr' ? 'Atlandı' : 'Skipped',
-        color: isDark ? '#88C0E6' : colors.textMuted, // Text Secondary
-        bg: isDark ? 'rgba(136, 192, 230, 0.2)' : '#F3F4F6',
-        icon: 'close-circle' as const,
-      };
-    }
-    // Ertelendi durumu - aktif snooze varsa
-    if (hasActiveSnooze) {
-      const countdownText = snoozeCountdown
-        ? language === 'tr'
-          ? `Ertelendi ${snoozeCountdown}`
-          : `Snoozed ${snoozeCountdown}`
-        : language === 'tr'
-          ? 'Ertelendi'
-          : 'Snoozed';
-      return {
-        text: countdownText,
-        color: isDark ? '#F59E0B' : '#F59E0B', // Warning sarı
-        bg: isDark ? 'rgba(245, 158, 11, 0.25)' : '#FEF3C7',
-        icon: 'alarm' as const,
-      };
-    }
-    if (isMissed) {
-      const absMinutes = Math.abs(minutesDiff);
-      const missedText =
-        absMinutes < 60
-          ? language === 'tr'
-            ? `${absMinutes} dk geçti`
-            : `${absMinutes}m late`
-          : language === 'tr'
-            ? `${Math.floor(absMinutes / 60)} saat geçti`
-            : `${Math.floor(absMinutes / 60)}h late`;
-      return {
-        text: missedText,
-        color: isDark ? '#FB7185' : SOFT_RED, // Error pembe-kırmızı
-        bg: isDark ? 'rgba(251, 113, 133, 0.25)' : SOFT_RED_BG,
-        icon: 'alert-circle' as const,
-      };
-    }
-    return {
-      text: language === 'tr' ? 'Bekliyor' : 'Pending',
-      color: isDark ? '#8B9CFF' : colors.primary, // Primary mor-mavi
-      bg: isDark ? 'rgba(139, 156, 255, 0.2)' : colors.primary + '15',
-      icon: 'time' as const,
-    };
-  };
-
-  const status = getStatusBadge();
-  const isCompleted = isTaken || isSkipped;
-  // İlaç rengi
-  const medicineColor = reminder.medicine.color || colors.primary;
-  // Kontrast artırıldı: Light modda '45', dark modda '70'
-  const iconBgOpacity = isDark ? '70' : '45';
-
-  // İlaç form ikonu (MedicinesScreen ile aynı mantık)
-  const getHomeFormIcon = () => {
-    const med = reminder.medicine;
-    if (med.form) {
-      const map: Record<string, { lib: 'mci' | 'ion'; name: string }> = {
-        tablet: { lib: 'mci', name: 'pill' },
-        capsule: { lib: 'mci', name: 'pill-multiple' },
-        syrup: { lib: 'mci', name: 'bottle-tonic-outline' },
-        drops: { lib: 'mci', name: 'water-outline' },
-        injection: { lib: 'mci', name: 'needle' },
-        cream: { lib: 'mci', name: 'hand-back-right-outline' },
-        spray: { lib: 'mci', name: 'spray' },
-        other: { lib: 'mci', name: 'medical-bag' },
-      };
-      if (map[med.form]) return map[med.form];
-    }
-    const text = `${med.dosage || ''} ${med.stockUnit || ''}`.toLowerCase();
-    if (text.includes('tablet')) return { lib: 'mci' as const, name: 'pill' };
-    if (text.includes('kaps')) return { lib: 'mci' as const, name: 'pill-multiple' };
-    if (text.includes('ml') || text.includes('şurup'))
-      return { lib: 'mci' as const, name: 'bottle-tonic-outline' };
-    if (text.includes('damla')) return { lib: 'mci' as const, name: 'water-outline' };
-    if (text.includes('iğne') || text.includes('enjeksiyon'))
-      return { lib: 'mci' as const, name: 'needle' };
-    return { lib: 'ion' as const, name: 'medical' };
-  };
-
-  const decodeDosage = (raw: string) =>
-    raw?.replace(/u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))) ?? raw;
-
-  const formIcon = getHomeFormIcon();
-
-  return (
-    <View
-      style={[
-        styles.timelineItem,
-        {
-          backgroundColor: colors.card,
-          borderLeftColor: isCompleted ? colors.border : medicineColor,
-          // Alındı/Atlandı kartları: daha küçük ve soluk
-          opacity: isCompleted ? 0.55 : 1,
-          paddingVertical: isCompleted ? 8 : 12,
-          borderWidth: isDark ? 1 : 0,
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-        },
-      ]}
-    >
-      {/* Sol: İlaç İkonu / Fotoğrafı */}
-      <View
-        style={[
-          styles.medicineIconBox,
-          { backgroundColor: medicineColor + iconBgOpacity, overflow: 'hidden' },
-        ]}
-      >
-        {reminder.medicine.imageUri ? (
-          <Image source={{ uri: reminder.medicine.imageUri }} style={{ width: 40, height: 40 }} />
-        ) : formIcon.lib === 'mci' ? (
-          <MaterialCommunityIcons
-            name={formIcon.name}
-            size={isCompleted ? 16 : 20}
-            color={medicineColor}
-          />
-        ) : (
-          <Ionicons
-            name={formIcon.name as any}
-            size={isCompleted ? 16 : 20}
-            color={medicineColor}
-          />
-        )}
-      </View>
-
-      {/* Orta: İlaç Bilgisi */}
-      <View style={styles.medicineInfo}>
-        <Text
-          style={[
-            styles.medicineName,
-            { color: isCompleted ? colors.textMuted : colors.text },
-            isCompleted && { fontSize: 13 },
-          ]}
-          numberOfLines={1}
-        >
-          {reminder.medicine.name}
-        </Text>
-        <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
-          {formatTimeDisplay(reminder.reminderTime.time)} • {decodeDosage(reminder.medicine.dosage)}
-        </Text>
-      </View>
-
-      {/* Sağ: Durum Badge + Al Butonu */}
-      <View style={styles.medicineStatus}>
-        {isMissed ? (
-          // Geçmiş saat — "Bugün Al" butonu
-          <TouchableOpacity
-            style={[styles.takeNowBtn, { backgroundColor: colors.primary }]}
-            onPress={onTakeNow}
-          >
-            <Ionicons name="checkmark" size={16} color="#fff" />
-            <Text style={styles.takeNowText}>{language === 'tr' ? 'Bugün Al' : 'Take Now'}</Text>
-          </TouchableOpacity>
-        ) : isCompleted ? (
-          // Alındı veya Atlandı — sadece badge
-          <View
-            style={[styles.statusBadge, { backgroundColor: isTaken ? '#10B98115' : status.bg }]}
-          >
-            <Ionicons
-              name={isTaken ? 'checkmark-circle' : status.icon}
-              size={14}
-              color={isTaken ? '#10B981' : status.color}
-            />
-            <Text style={[styles.statusText, { color: isTaken ? '#10B981' : status.color }]}>
-              {status.text}
-            </Text>
-          </View>
-        ) : hasActiveSnooze ? (
-          // Ertelendi — badge
-          <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-            <Ionicons name={status.icon} size={14} color={status.color} />
-            <Text style={[styles.statusText, { color: status.color }]}>{status.text}</Text>
-          </View>
-        ) : (
-          // Bekliyor (gelecek saat) — kompakt yuvarlak "Aldım" ikonu
-          <TouchableOpacity
-            style={[
-              styles.quickTakeBtn,
-              { backgroundColor: colors.primary + '18', borderColor: colors.primary },
-            ]}
-            onPress={onTakeNow}
-          >
-            <Ionicons name="checkmark" size={18} color={colors.primary} />
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-};
 
 type FilterTab = 'all' | 'pending' | 'taken' | 'missed';
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
+  const { profile, isLoading: profileLoading } = useUserProfile();
 
   // Tab State
   const [activeTab, setActiveTab] = useState<FilterTab>('pending');
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const { user } = useAuth();
+  // canAddMedicine/showAlert — Sprint 19'da handleAddMedicine ile birlikte kaldirildi.
+  // Bu satirlar gelecekte premium gating veya alarm ekleme ozelliklerinde kullanilabilir.
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { canAddMedicine } = useSubscription();
+  const { isPremium } = useSubscription();
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { showAlert, showSuccess, showError } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
   const [expiryModalVisible, setExpiryModalVisible] = useState(false);
@@ -568,12 +89,20 @@ export default function HomeScreen() {
   const getAdherenceRate = useMedicineStore(state => state.getAdherenceRate);
   const getCurrentStreak = useMedicineStore(state => state.getCurrentStreak);
   const createSnooze = useMedicineStore(state => state.createSnooze);
-  const getMedicineById = useMedicineStore(state => state.getMedicineById);
   const getLowStockMedicines = useMedicineStore(state => state.getLowStockMedicines);
   const snoozes = useMedicineStore(state => state.snoozes);
 
   // Stok uyarısı - memoize edildi
-  const lowStockMedicines = useMemo(() => getLowStockMedicines(), [medicines]);
+  // getLowStockMedicines zaten medicines'i icinden okur (zustand state selector)
+  const lowStockMedicines = useMemo(() => getLowStockMedicines(), [getLowStockMedicines]);
+
+  // Sprint 65A: Stok uyarısı persistent dismiss — hash ile auto-invalidation
+  const { checkDismissed, dismiss: dismissLowStock } = useLowStockDismiss();
+  const lowStockHash = useMemo(
+    () => computeLowStockHash(lowStockMedicines.map(m => ({ id: m.id, stockCount: m.stockCount }))),
+    [lowStockMedicines]
+  );
+  const isLowStockDismissed = checkDismissed(lowStockHash);
 
   // Son kullanma tarihi uyarısı kontrolü
   useEffect(() => {
@@ -642,44 +171,18 @@ export default function HomeScreen() {
     return () => subscription.remove();
   }, [medicines, reminderTimes, medicineLogs, settings.persistentNotificationEnabled]);
 
-  const handleAddMedicine = () => {
-    const { allowed, reason } = canAddMedicine(medicines.length);
-
-    if (!allowed) {
-      showAlert({
-        type: 'warning',
-        title: language === 'tr' ? 'İlaç Limiti' : 'Medicine Limit',
-        message: reason,
-        buttons: [
-          { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
-          {
-            text: language === 'tr' ? "Premium'a Geç" : 'Go Premium',
-            onPress: () => navigation.navigate('Premium'),
-          },
-        ],
-      });
-      return;
-    }
-
-    navigation.navigate('AddMedicine', {});
-  };
-
   // useMemo ile hesaplamaları optimize et
-  // NOT: getTodayReminders dependency'den çıkarıldı çünkü zaten medicines, reminderTimes, medicineLogs var
+  // getTodayReminders/getAdherenceRate/getCurrentStreak zustand state selector — kendi içlerinde
+  // medicines/reminderTimes/medicineLogs okur, bu nedenle dependency gerekmez.
   const todayReminders = useMemo(() => {
     return getTodayReminders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicines, reminderTimes, medicineLogs]);
 
   // adherenceRate ve currentStreak de memoize edildi - performans için
-  const adherenceRate = useMemo(
-    () => getAdherenceRate(7),
-    [medicines, reminderTimes, medicineLogs, getAdherenceRate]
-  );
+  const _adherenceRate = useMemo(() => getAdherenceRate(7), [getAdherenceRate]);
 
-  const currentStreak = useMemo(
-    () => getCurrentStreak(),
-    [medicines, reminderTimes, medicineLogs, getCurrentStreak]
-  );
+  const currentStreak = useMemo(() => getCurrentStreak(), [getCurrentStreak]);
 
   const today = format(new Date(), 'dd MMMM yyyy, EEEE', { locale: dateLocale });
   const currentTime = format(new Date(), 'HH:mm');
@@ -764,7 +267,7 @@ export default function HomeScreen() {
             ? `${reminder.medicine.name} ${minutes} dakika sonra hatırlatılacak.`
             : `${reminder.medicine.name} will be reminded in ${minutes} minutes.`
         );
-      } catch (error) {
+      } catch (_error) {
         showError(
           language === 'tr' ? 'Hata' : 'Error',
           language === 'tr' ? 'Erteleme başarısız oldu.' : 'Failed to snooze.'
@@ -775,7 +278,7 @@ export default function HomeScreen() {
   );
 
   // İstatistikleri memoize et - her render'da yeniden hesaplamayı önle
-  const { completedCount, totalCount, remainingCount } = useMemo(() => {
+  const { completedCount, totalCount, remainingCount, uniqueMedicineCount } = useMemo(() => {
     const total = todayReminders.length;
     const completed = todayReminders.filter(r => r.log?.status === 'taken').length;
     const skipped = todayReminders.filter(r => r.log?.status === 'skipped').length;
@@ -783,21 +286,60 @@ export default function HomeScreen() {
       totalCount: total,
       completedCount: completed,
       remainingCount: total - completed - skipped,
+      uniqueMedicineCount: getUniqueMedicineCount(todayReminders),
     };
   }, [todayReminders]);
 
   const firstName = user?.displayName?.split(' ')[0] || '';
 
-  const greeting = firstName
-    ? language === 'tr'
-      ? `Merhaba, ${firstName}`
-      : `Hello, ${firstName}`
-    : language === 'tr'
-      ? 'Merhaba'
-      : 'Hello';
+  // Sprint 73B: Time-based greeting + dynamic date
+  const getTimeBasedGreeting = (): string => {
+    const hour = new Date().getHours();
+    if (language !== 'tr') {
+      if (hour >= 5 && hour < 12) return 'Good morning';
+      if (hour >= 12 && hour < 17) return 'Good afternoon';
+      if (hour >= 17 && hour < 22) return 'Good evening';
+      return 'Good night';
+    }
+    if (hour >= 5 && hour < 12) return 'Günaydın';
+    if (hour >= 12 && hour < 17) return 'İyi günler';
+    if (hour >= 17 && hour < 22) return 'İyi akşamlar';
+    return 'İyi geceler';
+  };
+
+  const getDynamicDate = (): string => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const dateKey = today.toDateString();
+    const tomorrowKey = tomorrow.toDateString();
+    if (language !== 'tr') {
+      if (dateKey === today.toDateString()) return 'Today';
+      if (tomorrowKey === today.toDateString()) return 'Tomorrow';
+      // "This week" check
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      if (today >= weekStart && today < new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)) {
+        return 'This week';
+      }
+      return format(today, 'EEE, d MMM', { locale: enUS });
+    }
+    if (dateKey === today.toDateString()) return 'Bugün';
+    if (tomorrowKey === today.toDateString()) return 'Yarın';
+    const weekStart2 = new Date(today);
+    weekStart2.setDate(today.getDate() - today.getDay());
+    if (today >= weekStart2 && today < new Date(weekStart2.getTime() + 7 * 24 * 60 * 60 * 1000)) {
+      return 'Bu hafta';
+    }
+    return format(today, 'd MMMM, EEEE', { locale: tr });
+  };
+
+  const timeGreeting = getTimeBasedGreeting();
+  const dynamicDate = getDynamicDate();
+  const greeting = firstName ? `${timeGreeting}, ${firstName}` : timeGreeting;
 
   // Saat dilimine göre selamlama ikonu
-  const getGreetingIcon = () => {
+  const _getGreetingIcon = () => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) return '🌅'; // Sabah
     if (hour >= 12 && hour < 17) return '☀️'; // Öğlen
@@ -904,6 +446,29 @@ export default function HomeScreen() {
     [isSlotExpanded]
   );
 
+  // Sprint 58.5: Layout B (Detaylı) için erken return — 7 MD3 kart
+  if (!profileLoading && profile.layout === 'B') {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <HomeScreenLayoutSwitcher
+          reminder={currentReminder}
+          reminders={todayReminders}
+          adherence={_adherenceRate}
+          streak={currentStreak}
+          completedCount={completedCount}
+          totalCount={totalCount}
+          remainingCount={remainingCount}
+          lowStockMedicines={lowStockMedicines}
+          isPremium={isPremium}
+          onTake={() => currentReminder && handleTake(currentReminder.reminderTime.id)}
+          onSnooze={minutes => currentReminder && handleSnooze(currentReminder, minutes)}
+          onSkip={() => currentReminder && handleSkip(currentReminder.reminderTime.id)}
+          onAddPress={() => navigation.navigate('AddMedicine' as never)}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -923,7 +488,7 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.heroDate, { color: colors.textMuted }]}>{today}</Text>
+              <Text style={[styles.heroDate, { color: colors.textMuted }]}>{dynamicDate}</Text>
             </View>
 
             {/* Uyum Oranı Circular Progress */}
@@ -954,7 +519,9 @@ export default function HomeScreen() {
                   {totalCount} {language === 'tr' ? 'doz' : 'doses'}
                 </Text>
                 <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
-                  {language === 'tr' ? 'Bugün' : 'Today'}
+                  {language === 'tr'
+                    ? `Bugün · ${uniqueMedicineCount} ${uniqueMedicineCount === 1 ? 'ilaç' : 'ilaç'}`
+                    : `Today · ${uniqueMedicineCount} med`}
                 </Text>
               </View>
             </View>
@@ -1000,7 +567,7 @@ export default function HomeScreen() {
                   {remainingCount}
                 </Text>
                 <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
-                  {language === 'tr' ? 'Kalan' : 'Left'}
+                  {language === 'tr' ? 'Bekleyen' : 'Pending'}
                 </Text>
               </View>
             </View>
@@ -1010,7 +577,7 @@ export default function HomeScreen() {
           {currentReminder && (
             <View style={[styles.nextMedicineRow, { borderTopColor: colors.border }]}>
               <Text style={[styles.nextMedicineText, { color: colors.textMuted }]}>
-                {language === 'tr' ? 'Sonraki:' : 'Next:'}{' '}
+                {language === 'tr' ? 'Sonraki Doz:' : 'Next Dose:'}{' '}
                 <Text style={[styles.nextMedicineTime, { color: colors.text }]}>
                   {formatTimeDisplay(currentReminder.reminderTime.time)}
                 </Text>
@@ -1059,34 +626,13 @@ export default function HomeScreen() {
           </LinearGradient>
         )}
 
-        {/* Stok Uyarısı */}
-        {lowStockMedicines.length > 0 && (
-          <TouchableOpacity
-            style={[styles.lowStockCard, { backgroundColor: isDark ? '#422006' : '#FEF3C7' }]}
+        {/* Stok Uyarısı (Sprint 65A: persistent dismiss) */}
+        {lowStockMedicines.length > 0 && !isLowStockDismissed && (
+          <LowStockCard
+            medicines={lowStockMedicines}
             onPress={() => navigation.navigate('Medicines' as never)}
-          >
-            <View style={styles.lowStockContent}>
-              <View
-                style={[
-                  styles.lowStockIconBox,
-                  { backgroundColor: isDark ? '#78350F' : '#FDE68A' },
-                ]}
-              >
-                <Ionicons name="alert-circle" size={24} color={isDark ? '#FCD34D' : '#D97706'} />
-              </View>
-              <View style={styles.lowStockTextContainer}>
-                <Text style={[styles.lowStockTitle, { color: isDark ? '#FCD34D' : '#92400E' }]}>
-                  {language === 'tr' ? 'Stok Azalıyor!' : 'Low Stock!'}
-                </Text>
-                <Text style={[styles.lowStockSubtitle, { color: isDark ? '#FDE68A' : '#B45309' }]}>
-                  {lowStockMedicines
-                    .map(m => `${m.name} (${m.stockCount} ${m.stockUnit || 'adet'})`)
-                    .join(', ')}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={isDark ? '#FCD34D' : '#D97706'} />
-            </View>
-          </TouchableOpacity>
+            onDismiss={() => dismissLowStock(lowStockHash)}
+          />
         )}
 
         {currentReminder && (
@@ -1709,7 +1255,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // Filter Tabs
+  // Filter Tabs - Sprint 55: WCAG 2.5.5 touch target min 36pt
   filterTabsContainer: {
     paddingHorizontal: 16,
     paddingBottom: 12,
@@ -1717,8 +1263,9 @@ const styles = StyleSheet.create({
   },
   filterTab: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 8, // 8 + 8 = 16pt padding
+    minHeight: 36, // WCAG 2.5.5 minimum touch target
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -1,5 +1,6 @@
 /**
  * Test Factory Functions
+ // @ts-expect-error test fixture
  * Type-safe test data generators to avoid `as any` casts
  */
 import { Medicine, ReminderTime, MedicineLog } from '../../types';

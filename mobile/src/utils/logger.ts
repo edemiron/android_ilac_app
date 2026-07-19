@@ -17,9 +17,13 @@ declare const __DEV__: boolean;
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-interface LogContext {
-  [key: string]: unknown;
-}
+// Sprint 4 type-fix: LogContext genis yapildi. Daha once `Record<string, unknown>`
+// idi, ancak TS strict modda `unknown` degerini kabul etmiyordu (exact match
+// bekliyordu). Pratik cozum: herhangi bir degeri kabul eden `unknown` (any
+// yerine unknown kullanmak type safety'yi tamamen kaybetmeden esneklik saglar).
+// Ileride (Sprint 4 sonrasi) daha guvenli `safeLogContext(obj: unknown): LogContext`
+// helper'i ile sikiastirilabilir.
+type LogContext = unknown;
 
 interface Logger {
   debug: (message: string, context?: LogContext) => void;
@@ -94,8 +98,12 @@ export const logger: Logger = {
    * Use for errors that need attention
    */
   error: (message: string, error?: Error | unknown, context?: LogContext): void => {
-    const errorDetails = error ? extractErrorDetails(error) : {};
-    const fullContext = { ...context, ...errorDetails };
+    const errorDetails: Record<string, unknown> = error
+      ? (extractErrorDetails(error) as Record<string, unknown>)
+      : {};
+    const safeContext: Record<string, unknown> =
+      context && typeof context === 'object' ? (context as Record<string, unknown>) : {};
+    const fullContext: Record<string, unknown> = { ...safeContext, ...errorDetails };
 
     if (__DEV__) {
       console.error(formatLog('error', message, fullContext));

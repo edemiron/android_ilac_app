@@ -1,13 +1,15 @@
 /**
  * Security Service - PIN ve Biyometrik Kimlik Doğrulama
  * Sağlık verileri için güvenlik katmanı
+ *
+ * Sprint 4.4: Pure crypto helper'lar ./security/pinCrypto.ts'e tasindi.
+ * Bu dosya barrel olarak davranmaya devam ediyor; tum public API korunuyor.
  */
 
 import * as LocalAuthentication from 'expo-local-authentication';
 import { createScopedLogger } from './logger';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
 import { recordDiagnosticEvent } from './diagnosticTelemetry';
 
 const log = createScopedLogger('Security');
@@ -16,6 +18,17 @@ const SECURITY_STORAGE_KEY = '@security_settings';
 // Expo SecureStore keys may only contain alphanumeric characters, ".", "-", and "_".
 const PIN_HASH_KEY = 'security.pin.hash';
 const SALT_STORAGE_KEY = 'security.pin.salt';
+
+// Sprint 4.4: Pure PIN crypto helpers re-export ediliyor.
+// isValidPin burada inline tanimli (pattern detection iceren zengin hali);
+// diger pure helper'lar ./security/pinCrypto.ts'den geliyor.
+export {
+  constantTimeEqual,
+  generateSalt,
+  hashPinWithSalt,
+  generatePinHash,
+} from './security/pinCrypto';
+import { constantTimeEqual, hashPinWithSalt, generatePinHash } from './security/pinCrypto';
 
 export interface SecurityCheckResult {
   success: boolean;
@@ -145,63 +158,12 @@ export async function authenticateWithBiometrics(
 }
 
 /**
- * PIN hash'le (PBKDF2-benzeri SHA-256 zinciri ile güvenli saklama için)
- * Salt + key stretching kullanarak brute-force saldırılarına karşı koruma sağlar.
- *
- * NOT: Gerçek PBKDF2-HMAC-SHA256 native bir modül gerektirir (örn. react-native-keychain
- * veya özel native module). Bu implementasyon SHA-256 zincirleme yaparak benzer
- * key-stretching etkisi sağlar. 2026 itibarıyla Expo Crypto native PBKDF2 sunmamaktadır.
- *
- * Upgrade path: react-native-quick-crypto veya react-native-bcrypt entegrasyonu
- * yapılırsa bu fonksiyon native PBKDF2-HMAC-SHA256 ile değiştirilmelidir.
+ * Pin hash migrate path. Native PBKDF2 mevcutsa upgrade gerekli.
  */
-const PIN_HASH_ROUNDS = 10_000; // JS ortamında makul; modern cihazda ~500ms-1s
-const PIN_HASH_ALGO = Crypto.CryptoDigestAlgorithm.SHA256;
 const FAILED_ATTEMPTS_KEY = '@security_failed_attempts';
 const LOCKOUT_TIME_KEY = '@security_lockout_until';
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 dakika
-
-/**
- * Rastgele salt oluştur
- */
-async function generateSalt(): Promise<string> {
-  const randomBytes = await Crypto.getRandomBytesAsync(32);
-  return Array.from(randomBytes, b => b.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * PIN hash'le (SHA-256 zinciri ile key stretching)
- * Not: "PBKDF2" kelimesi yanıltıcıydı — gerçek PBKDF2-HMAC-SHA256 native modül gerektirir.
- * Burada PIN_HASH_ROUNDS kadar ardışık SHA-256 hash uygulayarak benzer güvenlik sağlanır.
- */
-async function hashPinWithSalt(pin: string, salt: string): Promise<string> {
-  try {
-    let hash = `${pin}|${salt}`;
-    for (let i = 0; i < PIN_HASH_ROUNDS; i++) {
-      hash = await Crypto.digestStringAsync(PIN_HASH_ALGO, hash, {
-        encoding: Crypto.CryptoEncoding.HEX,
-      });
-    }
-    return hash;
-  } catch (error) {
-    log.error('PIN hash hatası', error);
-    throw new Error('Security module unavailable');
-  }
-}
-
-/**
- * Constant-time string karşılaştırma (timing attack'e karşı).
- * Hex hash'ler için; uzunluklar eşit değilse false döner.
- */
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return diff === 0;
-}
 
 /**
  * Eski (100 round) hash'lerden yeni (10k round) hash'e migrate et.
@@ -226,9 +188,7 @@ async function migratePinHashIfNeeded(
  * Salt oluşturur ve PBKDF2 ile hash'ler
  */
 export async function hashPin(pin: string): Promise<{ hash: string; salt: string }> {
-  const salt = await generateSalt();
-  const hash = await hashPinWithSalt(pin, salt);
-  return { hash, salt };
+  return generatePinHash(pin);
 }
 
 /**

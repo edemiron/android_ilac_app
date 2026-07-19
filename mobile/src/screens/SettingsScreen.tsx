@@ -17,13 +17,19 @@ import {
 import { useSettingsScreen } from '../hooks/useSettingsScreen';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
+import { useUserProfile, LayoutVariant } from '../hooks/useUserProfile';
+import { useLowStockDismiss } from '../hooks/useLowStockDismiss';
+import { AccentColorSection } from '../components/settings/AccentColorSection';
+import { createScopedLogger } from '../utils/logger';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const DEV_MODE_TAP_COUNT = 5;
-const DEV_MODE_TAP_TIMEOUT = 3000;
+// Sprint 11.4: Pure helper'lar ./SettingsScreen/helpers.ts'te tasindi.
+import { DEV_MODE_TAP_COUNT, isDevModeTapExpired } from './SettingsScreen/helpers';
+
+const _log = createScopedLogger('SettingsScreen');
 
 export default function SettingsScreen() {
   const {
@@ -66,6 +72,30 @@ export default function SettingsScreen() {
   // eslint-disable-next-line unused-imports/no-unused-vars
   const { t } = useLanguage();
   const { showInfo } = useAlert();
+  const { setLayout } = useUserProfile();
+  // Sprint 65A: Stok uyarısı reset (row her zaman görünür, dismiss durumu handle'da kontrol edilir)
+  const {
+    reset: resetLowStock,
+    isDismissed: isLowStockDismissed,
+    isLoading: lowStockDismissLoading,
+  } = useLowStockDismiss();
+  const handleResetLowStock = useCallback(async () => {
+    if (!isLowStockDismissed) {
+      // Hiç dismiss edilmemiş, no-op toast
+      showInfo(
+        language === 'tr' ? 'Zaten Aktif' : 'Already Active',
+        language === 'tr' ? 'Dismiss edilmiş stok uyarısı yok.' : 'No dismissed stock alerts.'
+      );
+      return;
+    }
+    await resetLowStock();
+    showInfo(
+      language === 'tr' ? 'Stok Uyarıları Sıfırlandı' : 'Stock Alerts Reset',
+      language === 'tr'
+        ? 'Tüm dismiss edilmiş uyarılar tekrar gösterilecek.'
+        : 'All dismissed alerts will be shown again.'
+    );
+  }, [resetLowStock, showInfo, language, isLowStockDismissed]);
   const [isDevMode, setIsDevMode] = useState(false);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
@@ -82,7 +112,7 @@ export default function SettingsScreen() {
   const handleVersionPress = useCallback(() => {
     const now = Date.now();
 
-    if (now - lastTapTimeRef.current > DEV_MODE_TAP_TIMEOUT) {
+    if (isDevModeTapExpired(lastTapTimeRef.current, now)) {
       tapCountRef.current = 0;
     }
 
@@ -141,8 +171,10 @@ export default function SettingsScreen() {
         <AppearanceSection
           showThemePicker={pickerState.showThemePicker}
           showLanguagePicker={pickerState.showLanguagePicker}
+          showLayoutPicker={pickerState.showLayoutPicker}
           onThemePress={() => togglePicker('showThemePicker')}
           onLanguagePress={() => togglePicker('showLanguagePicker')}
+          onLayoutPress={() => togglePicker('showLayoutPicker')}
           onThemeSelect={themeValue => {
             setTheme(themeValue);
             closePicker('showThemePicker');
@@ -151,9 +183,41 @@ export default function SettingsScreen() {
             setLanguage(lang);
             closePicker('showLanguagePicker');
           }}
+          onLayoutSelect={async (layout: LayoutVariant) => {
+            await setLayout(layout);
+            closePicker('showLayoutPicker');
+          }}
           getThemeLabel={getThemeLabel}
           getLanguageLabel={getLanguageLabel}
+          getLayoutLabel={(layout: LayoutVariant) =>
+            layout === 'A'
+              ? language === 'tr'
+                ? 'Detaylı'
+                : 'Detailed'
+              : layout === 'B'
+                ? language === 'tr'
+                  ? 'Sade'
+                  : 'Simple'
+                : language === 'tr'
+                  ? 'Liste'
+                  : 'List'
+          }
+          getLayoutDescription={(layout: LayoutVariant) =>
+            layout === 'A'
+              ? language === 'tr'
+                ? 'Detaylı bilgi, gençler için ideal'
+                : 'Detailed info, ideal for younger users'
+              : layout === 'B'
+                ? language === 'tr'
+                  ? 'Büyük butonlar, yaşlılar için ideal'
+                  : 'Large buttons, ideal for elderly'
+                : language === 'tr'
+                  ? 'iOS Inset Grouped liste görünümü'
+                  : 'iOS Inset Grouped list view'
+          }
         />
+
+        <AccentColorSection />
 
         <NotificationSection
           settings={settings}
@@ -200,6 +264,7 @@ export default function SettingsScreen() {
           onSecurityPress={() => navigation.navigate('Security')}
           onTtsPress={() => navigation.navigate('TtsSettings')}
           onCaregiverPress={() => navigation.navigate('Caregiver')}
+          onResetLowStockPress={handleResetLowStock}
           ttsEnabled={settings.ttsEnabled}
         />
 

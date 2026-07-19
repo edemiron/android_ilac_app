@@ -42,3 +42,17 @@ export const NOTIFICATION_IDS = {
   /** Boot recovery senkronizasyon bildirimi */
   ALARM_SYNC: 'alarm-sync-notification',
 } as const;
+
+// ===== MEDICINE COLORS =====
+// Varsayılan ilaç renk paleti — hem açık hem koyu modda iyi görünür.
+// Yeni ilaç eklerken otomatik sıradaki kullanılır.
+export const MEDICINE_COLORS = [
+  '#FF6B6B', // Kırmızı
+  '#4ECDC4', // Turkuaz
+  '#45B7D1', // Mavi
+  '#96CEB4', // Yeşil
+  '#FFD93D', // Sarı (daha canlı)
+  '#C9A0DC', // Mor (daha dengeli)
+  '#FF8C69', // Turuncu
+  '#98D8C8', // Mint
+] as const;

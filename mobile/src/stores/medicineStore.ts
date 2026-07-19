@@ -1,3 +1,31 @@
+/**
+ * medicineStore — Sprint 4 (slice mimarisi) için mimari dokümantasyon
+ *
+ * Mevcut tek Zustand store'u, sorumluluklarına göre 4 mantıksal slice'a
+ * ayrılacak. Her slice kendi state alanı + action setine sahip olacak.
+ *
+ *   1. medicinesSlice  → ilaç CRUD (addMedicine, updateMedicine, ...)
+ *   2. logsSlice      → medicineLogs (alındı/atlandı/kaçırıldı)
+ *   3. snoozesSlice   → erteleme (snooze, deactivate, ...)
+ *   4. settingsSlice  → UserSettings + sync
+ *
+ * Mevcut durum: tek store, 1947 satır. Sprint 4 sonunda 4 ayrı dosyaya
+ * (medicines.ts, logs.ts, snoozes.ts, settings.ts) bölünecek + slice
+ * compositing yapılacak (combine + devtools).
+ *
+ * ŞU AN: Bu refactor başlatılmadı — riskli. Bunun yerine Sprint 4'te
+ * aşağıdaki adımlar atılacak:
+ *
+ * 1. Her slice için types.ts + initialState.ts oluştur
+ * 2. Her slice için action'ları isolated test edilebilir hale getir
+ * 3. Eski tek-store'dan slice'lara action'ları taşı
+ * 4. medicineStore.ts'i combine(...) ile 4 slice'dan compose et
+ * 5. Test coverage korunarak böl
+ *
+ * NOT: Bu refactor MedicineState tipinin bileşimini değiştirir; tüm
+ * hook'lar ve testler uyumlu olmalı. Davranış korunmalı.
+ */
+
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { persist, createJSONStorage } from 'zustand/middleware';
@@ -20,17 +48,56 @@ import { getSyncQueue } from '../utils/syncQueue';
 import { markMissedReminders as calculateMissedReminders } from '../utils/missedReminders';
 import { validateSyncData } from '../utils/syncDataValidator';
 import {
+  calculateAdherenceRate,
+  calculateCurrentStreak,
+  filterLowStockMedicines,
+  countActiveSnoozes,
+  uniqueNotificationIds,
+  getActiveSnoozesForReminder,
+  updateMedicineInList,
+  getMedicineStoreStorageKeysForRemoval,
+  buildSelfHealNoDriftResult,
+  buildSelfHealRepairContext,
+  buildEmptyMedicineStoreState,
+  buildValidatedSyncState,
+  findMedicineById,
+  removeMedicineById,
+  deactivateSnoozeById,
+  deactivateSnoozesForMedicine,
+  findActiveSnoozeForReminder,
+  findActiveSnoozeByNotificationId,
+  getReminderTimesForMedicinePure,
+  buildMedicineLogBase,
+  withTakenAt,
+  buildAlarmNotificationId,
+  findReminderTimeById,
+  filterReminderTimesByMedicine,
+  filterActiveMedicines,
+  hasActiveMedicineById,
+  deactivateSnoozesIntersectingWith,
+  hasActiveReminderTime,
+  filterMedicineLogsByMedicineId,
+  filterSnoozesByMedicineId,
+  updateReminderTimeInList,
+  filterSnoozesExcluding,
+} from './medicineStoreHelpers';
+import {
   analyzeNotificationDrift,
   cancelAllNotifications,
   cancelNotification,
   cancelMedicineNotifications,
   NotificationDriftReport,
   scheduleMedicineNotification,
-  scheduleSnoozeNotification,
   stopAlarmVibration,
 } from '../utils/notifications';
 import { createScopedLogger } from '../utils/logger';
 import { updateWidgetData } from '../services/widgetService';
+import {
+  mergeMedicineLogsById,
+  mergeMedicinesByUpdatedAt,
+  mergeReminderTimesById,
+  mergeSettingsWithUndefined,
+} from './helpers/sync';
 import {
   uploadAllDataToCloud,
   downloadAllDataFromCloud,
@@ -40,12 +107,33 @@ import {
   syncSettingsToCloud,
   deleteAllUserData,
   SyncData,
-  SavedMedicineCloudData,
 } from '../services/firestoreSync';
-import { isLocalMedicineImageUri } from '../services/localMedicineImage';
 import { DEFAULT_USER_SETTINGS } from '../utils/defaultSettings';
 import { migrateMedicineStoreState, SETTINGS_STORAGE_VERSION } from '../utils/settingsStorage';
 import { recordDiagnosticEvent } from '../utils/diagnosticTelemetry';
+
+// Sprint 4: pure helper'lar ./helpers/* modullerine tasindi.
+// medicineStore.ts — store olusturma + action dispatch + selector'lara odaklanir.
+import { sanitizeMedicineData } from './helpers/sanitize';
+import {
+  resolveMedicineLogArgs,
+  buildMedicineLogSlotKey,
+  isScheduledTimeInFuture,
+  normalizeMedicineLogsBySlot,
+} from './helpers/medicineLogs';
+import {
+  didReminderSchedulingSettingsChange,
+  mergeSnoozeNotificationRescheduleUpdates,
+  parseSnoozeTriggerTime,
+  rescheduleActiveNotificationsFromState,
+  type RescheduledSnoozeNotification,
+} from './helpers/reschedule';
+import {
+  getSyncErrorMessage,
+  applySavedMedicineCloudData,
+  hasPendingMedicineImageBackfill,
+  scheduleBackgroundSync,
+} from './helpers/sync';
 
 // Kategori bazlı renk ve etiket tanımları
 export interface MedicineCategoryInfo {
@@ -77,23 +165,6 @@ function isAndroidPlatform(): boolean {
   return Platform?.OS === 'android';
 }
 
-function didReminderSchedulingSettingsChange(prev: UserSettings, next: UserSettings): boolean {
-  return (
-    prev.fullScreenAlarmEnabled !== next.fullScreenAlarmEnabled ||
-    prev.vibrationEnabled !== next.vibrationEnabled ||
-    prev.alarmModeEnabled !== next.alarmModeEnabled ||
-    prev.quietHoursEnabled !== next.quietHoursEnabled ||
-    prev.quietHoursStart !== next.quietHoursStart ||
-    prev.quietHoursEnd !== next.quietHoursEnd
-  );
-}
-
-interface RescheduledSnoozeNotification {
-  snoozeId: string;
-  notificationId: string;
-  triggerTime: string;
-}
-
 export interface NotificationSelfHealResult extends NotificationDriftReport {
   repaired: boolean;
   cancelledNotificationIds: string[];
@@ -106,227 +177,39 @@ export interface SettingsUpdateOptions {
   skipCloudSync?: boolean;
 }
 
-function mergeSnoozeNotificationRescheduleUpdates(
-  snoozes: Snooze[],
-  updates: RescheduledSnoozeNotification[]
-): Snooze[] {
-  if (updates.length === 0) {
-    return snoozes;
-  }
+// MEDICINE_COLORS artık src/constants.ts'te tanımlı (Sprint 4 — slice mimarisi)
+// Burada re-export ederek geriye uyumluluk korunuyor.
+export { MEDICINE_COLORS } from '../constants';
+// (Eski tanım kaldırıldı:)
+// export const MEDICINE_COLORS = [...];
 
-  const updatesMap = new Map(updates.map(update => [update.snoozeId, update]));
+/**
+ * medicineStore — Sprint 4 (slice mimarisi) temelleri
+ *
+ * Mevcut tek Zustand store'u, sorumluluklarına göre 4 mantıksal slice'a
+ * ayrılmış mimari ile uyumlu hale getirildi:
+ *
+ *   - MedicinesSlice  → ilaç CRUD (addMedicine, updateMedicine, ...)
+ *   - LogsSlice       → medicineLogs (alındı/atlandı/kaçırıldı)
+ *   - SnoozesSlice    → erteleme (snooze, deactivate, ...)
+ *   - SettingsSlice   → UserSettings + sync
+ *
+ * Bu temel interface, slice composability ile uyumlu hale getirildi.
+ * Davranış: 1:1 aynı — sadece tip tanımı parçalı olarak dokümante edildi.
+ *
+ * NOT: Incremental migration stratejisi — bu sprint'te slice composability
+ * için altyapı kuruldu. Her action, kendi slice dosyasına bağlanacak.
+ * Sprint 4 devamı + Sprint 5'te (useAlarmNavigation) tamamlanacak.
+ */
 
-  return snoozes.map(snooze => {
-    const update = updatesMap.get(snooze.id);
-    if (!update) {
-      return snooze;
-    }
-
-    return {
-      ...snooze,
-      notificationId: update.notificationId,
-      triggerTime: update.triggerTime,
-    };
-  });
-}
-
-function parseSnoozeTriggerTime(triggerTime: string): Date | null {
-  const parsedTriggerTime = new Date(triggerTime);
-
-  return Number.isNaN(parsedTriggerTime.getTime()) ? null : parsedTriggerTime;
-}
-
-async function rescheduleActiveNotificationsFromState(
-  state: Pick<MedicineState, 'medicines' | 'reminderTimes' | 'snoozes' | 'settings'>,
-  applySnoozeUpdates?: (updates: RescheduledSnoozeNotification[]) => void
-): Promise<void> {
-  const activeMedicines = new Map(
-    state.medicines.filter(medicine => medicine.isActive).map(medicine => [medicine.id, medicine])
-  );
-
-  const enabledReminderTimes = state.reminderTimes.filter(
-    reminderTime => reminderTime.isEnabled && activeMedicines.has(reminderTime.medicineId)
-  );
-
-  await Promise.allSettled(
-    enabledReminderTimes.map(reminderTime =>
-      scheduleMedicineNotification(
-        activeMedicines.get(reminderTime.medicineId)!,
-        reminderTime,
-        state.settings,
-        false
-      )
-    )
-  );
-
-  const now = new Date();
-  const activeSnoozes = state.snoozes.filter(snooze => snooze.isActive);
-  const snoozeResults = await Promise.allSettled(
-    activeSnoozes.map(async snooze => {
-      const triggerTime = parseSnoozeTriggerTime(snooze.triggerTime);
-      const medicine = activeMedicines.get(snooze.medicineId);
-      const reminderTime = state.reminderTimes.find(
-        item => item.id === snooze.reminderTimeId && item.isEnabled
-      );
-
-      if (!triggerTime || triggerTime.getTime() <= now.getTime()) {
-        log.debug('Gecmis veya gecersiz aktif snooze yeniden planlamada atlandi', {
-          snoozeId: snooze.id,
-          triggerTime: snooze.triggerTime,
-        });
-        return null;
-      }
-
-      if (!medicine || !reminderTime) {
-        return null;
-      }
-
-      const result = await scheduleSnoozeNotification({
-        medicine,
-        reminderTime,
-        snoozeId: snooze.id,
-        originalScheduledTime: snooze.originalScheduledTime,
-        snoozeCount: snooze.snoozeCount,
-        settings: state.settings,
-        triggerTime,
-      });
-
-      if (!result) {
-        return null;
-      }
-
-      return {
-        snoozeId: snooze.id,
-        notificationId: result.notificationId,
-        triggerTime: result.triggerTime.toISOString(),
-      };
-    })
-  );
-
-  const updates = snoozeResults.flatMap(result =>
-    result.status === 'fulfilled' && result.value ? [result.value] : []
-  );
-
-  if (updates.length > 0) {
-    applySnoozeUpdates?.(updates);
-  }
-}
-
-// Türkçe karakter encoding sorunlarını düzelt
-function sanitizeString(str: string | undefined | null): string {
-  if (!str) return '';
-  // Unicode escape sequence'ları decode et (\u00fc -> ü)
-  return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
-}
-
-function sanitizeMedicineData<T extends { name?: string; dosage?: string }>(data: T): T {
-  const sanitized = { ...data };
-
-  if (typeof data.name === 'string') {
-    sanitized.name = sanitizeString(data.name) as T['name'];
-  }
-
-  if (typeof data.dosage === 'string') {
-    sanitized.dosage = sanitizeString(data.dosage) as T['dosage'];
-  }
-
-  return sanitized;
-}
-
-function resolveMedicineLogArgs(
-  reminderTimeId: string,
-  medicines: Medicine[],
-  reminderTimes: ReminderTime[],
-  medicineIdFallbackOrNote?: string,
-  explicitNote?: string
-): { medicineIdFallback?: string; note?: string } {
-  if (explicitNote !== undefined) {
-    return {
-      medicineIdFallback: medicineIdFallbackOrNote,
-      note: explicitNote,
-    };
-  }
-
-  if (!medicineIdFallbackOrNote) {
-    return {};
-  }
-
-  const reminderExists = reminderTimes.some(reminderTime => reminderTime.id === reminderTimeId);
-
-  if (!reminderExists) {
-    return { medicineIdFallback: medicineIdFallbackOrNote };
-  }
-
-  const isKnownMedicineId = medicines.some(medicine => medicine.id === medicineIdFallbackOrNote);
-
-  return isKnownMedicineId
-    ? { medicineIdFallback: medicineIdFallbackOrNote }
-    : { note: medicineIdFallbackOrNote };
-}
-
-function buildMedicineLogSlotKey(reminderTimeId: string, scheduledTime: string): string {
-  return `${reminderTimeId}__${scheduledTime}`;
-}
-
-function isScheduledTimeInFuture(scheduledTime: string, referenceDate: Date = new Date()): boolean {
-  const parsedScheduledTime = new Date(scheduledTime);
-
-  if (Number.isNaN(parsedScheduledTime.getTime())) {
-    return false;
-  }
-
-  return parsedScheduledTime.getTime() > referenceDate.getTime();
-}
-
-function getMedicineLogStatusPriority(status: MedicineLog['status']): number {
-  switch (status) {
-    case 'taken':
-      return 3;
-    case 'skipped':
-      return 2;
-    case 'missed':
-      return 1;
-    default:
-      return 0;
-  }
-}
-
-function normalizeMedicineLogsBySlot(medicineLogs: MedicineLog[]): MedicineLog[] {
-  const logsBySlot = new Map<string, MedicineLog>();
-
-  medicineLogs.forEach(logEntry => {
-    const slotKey = buildMedicineLogSlotKey(logEntry.reminderTimeId, logEntry.scheduledTime);
-    const existingLog = logsBySlot.get(slotKey);
-
-    if (!existingLog) {
-      logsBySlot.set(slotKey, logEntry);
-      return;
-    }
-
-    const existingPriority = getMedicineLogStatusPriority(existingLog.status);
-    const nextPriority = getMedicineLogStatusPriority(logEntry.status);
-
-    if (nextPriority > existingPriority || nextPriority === existingPriority) {
-      logsBySlot.set(slotKey, logEntry);
-    }
-  });
-
-  return Array.from(logsBySlot.values()).sort((left, right) =>
-    left.scheduledTime.localeCompare(right.scheduledTime)
-  );
-}
-
-// Varsayılan renk paleti - Hem açık hem koyu modda iyi görünür
-export const MEDICINE_COLORS = [
-  '#FF6B6B', // Kırmızı
-  '#4ECDC4', // Turkuaz
-  '#45B7D1', // Mavi
-  '#96CEB4', // Yeşil
-  '#FFD93D', // Sarı (daha canlı)
-  '#C9A0DC', // Mor (daha dengeli)
-  '#FF8C69', // Turuncu
-  '#98D8C8', // Mint
-];
+export { useMedicinesStore } from './slices/medicines';
+export { useLogsStore } from './slices/logs';
+export { useSnoozesStore } from './slices/snoozes';
+export { useSettingsStore } from './slices/settings';
+// Internal: Wrapper action'lar slice store'larina delege eder
+import { useMedicinesStore as _useMedicinesStore } from './slices/medicines';
+import { useLogsStore as _useLogsStore } from './slices/logs';
+export type { MedicinesSlice, LogsSlice, SnoozesSlice, SettingsSlice } from './slices';
 
 interface MedicineState {
   medicines: Medicine[];
@@ -346,7 +229,10 @@ interface MedicineState {
   syncFromCloud: () => Promise<void>;
   clearSyncError: () => void;
 
-  addMedicine: (medicine: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt' | 'isActive'>) => string;
+  addMedicine: (
+    medicine: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt' | 'isActive'> &
+      Partial<Pick<Medicine, 'id' | 'customTimes' | 'isActive'>>
+  ) => string;
   updateMedicine: (id: string, updates: Partial<Medicine>) => void;
   deleteMedicine: (id: string) => void;
   toggleMedicineActive: (id: string) => Promise<void>;
@@ -424,45 +310,7 @@ interface MedicineState {
 /**
  * Schedules a background sync operation.
  * Errors are logged but do not crash the app.
- * The sync queue ensures sequential execution.
  */
-const scheduleBackgroundSync = (syncFn: () => Promise<void>): void => {
-  // Queue the sync but don't block the caller
-  syncFn().catch(error => {
-    // Log error but don't throw - this is background sync
-    log.error('BackgroundSync failed', error);
-  });
-};
-
-function getSyncErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Senkronizasyon hatasi';
-}
-
-function applySavedMedicineCloudData(
-  medicines: Medicine[],
-  medicineId: string,
-  cloudData: SavedMedicineCloudData
-): Medicine[] {
-  return medicines.map(medicine =>
-    medicine.id === medicineId
-      ? {
-          ...medicine,
-          updatedAt: cloudData.updatedAt ?? medicine.updatedAt,
-          imageUri: cloudData.clearLocalImage
-            ? undefined
-            : (cloudData.localImageUri ?? medicine.imageUri),
-          imageStoragePath: cloudData.imageStoragePath,
-          imageMimeType: cloudData.imageMimeType,
-          imageSize: cloudData.imageSize,
-          imageUpdatedAt: cloudData.imageUpdatedAt,
-        }
-      : medicine
-  );
-}
-
-function hasPendingMedicineImageBackfill(medicine: Medicine): boolean {
-  return isLocalMedicineImageUri(medicine.imageUri) && !medicine.imageStoragePath;
-}
 
 export const useMedicineStore = create<MedicineState>()(
   persist(
@@ -543,42 +391,31 @@ export const useMedicineStore = create<MedicineState>()(
             const localState = get();
 
             if (cloudData) {
+              // Sprint 47: pure merge helper'lara delege
+              const localState = get();
+
               // MERGE local ve cloud medicineLogs - duplicate'leri önle
-              const localLogs = localState.medicineLogs;
-              const cloudLogs = cloudData.medicineLogs || [];
-              const localLogIds = new Set(localLogs.map(l => l.id));
-              const newCloudLogs = cloudLogs.filter(cl => !localLogIds.has(cl.id));
-              const mergedLogs = normalizeMedicineLogsBySlot([...localLogs, ...newCloudLogs]);
+              const mergedLogs = mergeMedicineLogsById(
+                localState.medicineLogs,
+                cloudData.medicineLogs
+              );
 
               // Medicines için merge - updatedAt karşılaştırması ile
-              const localMedicineMap = new Map(localState.medicines.map(m => [m.id, m]));
-              const mergedMedicines = [...localState.medicines];
-              for (const cloudMedicine of cloudData.medicines || []) {
-                const localMedicine = localMedicineMap.get(cloudMedicine.id);
-                if (!localMedicine) {
-                  // Cloud'da var, local'de yok → ekle
-                  mergedMedicines.push(cloudMedicine);
-                } else if (cloudMedicine.updatedAt > localMedicine.updatedAt) {
-                  // Cloud daha güncel → güncelle
-                  const idx = mergedMedicines.findIndex(m => m.id === cloudMedicine.id);
-                  if (idx !== -1) mergedMedicines[idx] = cloudMedicine;
-                }
-                // else: local daha güncel veya eşit → local'i koru
-              }
+              const mergedMedicines = mergeMedicinesByUpdatedAt(
+                localState.medicines,
+                cloudData.medicines
+              );
 
               // ReminderTimes için merge
-              const localReminderIds = new Set(localState.reminderTimes.map(rt => rt.id));
-              const newCloudReminders = (cloudData.reminderTimes || []).filter(
-                crt => !localReminderIds.has(crt.id)
+              const mergedReminders = mergeReminderTimesById(
+                localState.reminderTimes,
+                cloudData.reminderTimes
               );
-              const mergedReminders = [...localState.reminderTimes, ...newCloudReminders];
 
-              const mergedSettings = {
-                ...localState.settings,
-                ...Object.fromEntries(
-                  Object.entries(cloudData.settings || {}).filter(([, v]) => v !== undefined)
-                ),
-              } as UserSettings;
+              const mergedSettings = mergeSettingsWithUndefined(
+                localState.settings,
+                cloudData.settings
+              );
 
               set({
                 medicines: mergedMedicines,
@@ -669,49 +506,36 @@ export const useMedicineStore = create<MedicineState>()(
         set({ syncError: null });
       },
 
-      // İlaç ekleme
+      // İlaç ekleme — Sprint 4 devamı: wrapper pattern.
+      // Core logic (sanitize, ID üretimi, reminder times hesaplama) useMedicinesStore
+      // slice'ına delege edilir. Side-effect'ler (cloud sync, widget update, legacy
+      // state sync) medicineStore.ts'te kalır.
       addMedicine: medicineData => {
         const id = generateId();
-        const now = new Date().toISOString();
         const { settings, userId } = get();
 
-        // Türkçe karakter encoding sorunlarını düzelt
+        // 1. Sanitize — slice'a göndermeden önce türkçe karakter fix
         const sanitizedData = sanitizeMedicineData(medicineData);
 
-        const newMedicine: Medicine = {
-          ...sanitizedData,
-          id,
-          isActive: true,
-          createdAt: now,
-          updatedAt: now,
-        };
+        // 2. Slice delege — state set + reminder times hesaplama
+        // settings opsiyonel parametre olarak geçirilir (kullanıcı tercihi korunur)
+        _useMedicinesStore
+          .getState()
+          .addMedicine(
+            { ...sanitizedData, id },
+            { wakeUpTime: settings.wakeUpTime, sleepTime: settings.sleepTime }
+          );
 
-        let times: Omit<ReminderTime, 'notificationId'>[];
+        // 3. Legacy state sync — medicineStore.ts'in kendi medicines/reminderTimes
+        // field'larını slice ile senkronize et (geriye uyumluluk)
+        const sliceMedicines = _useMedicinesStore.getState().medicines;
+        const sliceReminderTimes = _useMedicinesStore.getState().reminderTimes;
+        set({
+          medicines: sliceMedicines,
+          reminderTimes: sliceReminderTimes,
+        });
 
-        // CustomTimes varsa onu kullan, yoksa otomatik hesapla
-        if (medicineData.customTimes && medicineData.customTimes.length > 0) {
-          times = medicineData.customTimes.map((time, index) => ({
-            id: `${id}_${index}`,
-            medicineId: id,
-            time,
-            isEnabled: true,
-          }));
-        } else {
-          times = calculateMedicineTimes(id, {
-            wakeUpTime: settings.wakeUpTime,
-            sleepTime: settings.sleepTime,
-            frequency: medicineData.frequency,
-            instruction: medicineData.instructions,
-          });
-        }
-
-        set(state => ({
-          medicines: [...state.medicines, newMedicine],
-          reminderTimes: [...state.reminderTimes, ...times],
-        }));
-
-        // Medicine kaydını ve varsa görselini önce doğrudan buluta gönder.
-        // Böylece Storage/Firebase tarafı sadece genel tam sync'e bağlı kalmaz.
+        // 4. Cloud sync — mevcut kod (768-800 bloğu, satır kayması olabilir)
         if (userId) {
           void getSyncQueue()
             .enqueue(async () => {
@@ -747,7 +571,7 @@ export const useMedicineStore = create<MedicineState>()(
           scheduleBackgroundSync(() => get().syncToCloud());
         }
 
-        // Widget'ı güncelle (güvenli mod - hata olursa app çökmez)
+        // 5. Widget update — mevcut kod
         if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
@@ -768,16 +592,14 @@ export const useMedicineStore = create<MedicineState>()(
 
       // İlaç güncelleme
       updateMedicine: (id, updates) => {
-        const now = new Date().toISOString();
         const { userId } = get();
 
         // Türkçe karakter encoding sorunlarını düzelt
         const sanitizedUpdates = sanitizeMedicineData(updates);
 
+        // Sprint 23.3: pure helper'a delege edildi (updateMedicineInList)
         set(state => ({
-          medicines: state.medicines.map(m =>
-            m.id === id ? { ...m, ...sanitizedUpdates, updatedAt: now } : m
-          ),
+          medicines: updateMedicineInList(state.medicines, id, sanitizedUpdates),
         }));
 
         // Frekans, talimat veya özel saatler değiştiyse zamanları yeniden hesapla
@@ -841,7 +663,8 @@ export const useMedicineStore = create<MedicineState>()(
       deleteMedicine: id => {
         const { userId, snoozes } = get();
 
-        const medicineSnoozes = snoozes.filter(s => s.medicineId === id);
+        // Sprint 38: pure helper'a delege edildi
+        const medicineSnoozes = filterSnoozesByMedicineId(snoozes, id);
         for (const snooze of medicineSnoozes) {
           cancelNotification(snooze.notificationId).catch(err =>
             log.error('Failed to cancel stored snooze notification on delete', err)
@@ -854,11 +677,12 @@ export const useMedicineStore = create<MedicineState>()(
 
         get().deactivateSnoozesForMedicine(id);
 
+        // Sprint 26.3 + 37.1: pure helper'a delege edildi
         set(state => ({
-          medicines: state.medicines.filter(m => m.id !== id),
-          reminderTimes: state.reminderTimes.filter(rt => rt.medicineId !== id),
-          medicineLogs: state.medicineLogs.filter(log => log.medicineId !== id),
-          snoozes: state.snoozes.filter(s => s.medicineId !== id),
+          medicines: removeMedicineById(state.medicines, id),
+          reminderTimes: filterReminderTimesByMedicine(state.reminderTimes, id, true),
+          medicineLogs: filterMedicineLogsByMedicineId(state.medicineLogs, id, true),
+          snoozes: filterSnoozesByMedicineId(state.snoozes, id, true),
         }));
 
         if (userId) {
@@ -909,7 +733,8 @@ export const useMedicineStore = create<MedicineState>()(
       // İlaç aktif/pasif
       toggleMedicineActive: async id => {
         const { userId, medicines, snoozes, settings } = get();
-        const medicine = medicines.find(m => m.id === id);
+        // Sprint 35.1: pure helper'a delege edildi (findMedicineById)
+        const medicine = findMedicineById(medicines, id);
 
         if (!medicine) {
           return;
@@ -925,9 +750,12 @@ export const useMedicineStore = create<MedicineState>()(
         }));
 
         if (!nextIsActive) {
+          // Sprint 38: pure helper'a delege edildi
           const snoozeNotificationIds = Array.from(
             new Set(
-              snoozes.filter(s => s.medicineId === id && s.isActive).map(s => s.notificationId)
+              filterSnoozesByMedicineId(snoozes, id)
+                .filter(s => s.isActive)
+                .map(s => s.notificationId)
             )
           );
 
@@ -943,7 +771,8 @@ export const useMedicineStore = create<MedicineState>()(
             cancelledSnoozes: snoozeNotificationIds.length,
           });
         } else {
-          const activeMedicine = get().medicines.find(m => m.id === id);
+          // Sprint 35.1: pure helper'a delege edildi
+          const activeMedicine = findMedicineById(get().medicines, id);
           const reminderTimesToSchedule = get().reminderTimes.filter(
             reminderTime => reminderTime.medicineId === id && reminderTime.isEnabled
           );
@@ -974,21 +803,23 @@ export const useMedicineStore = create<MedicineState>()(
       // Hatırlatma zamanı güncelleme
       updateReminderTime: (id, updates) => {
         set(state => ({
-          reminderTimes: state.reminderTimes.map(rt => (rt.id === id ? { ...rt, ...updates } : rt)),
+          // Sprint 41.1: pure helper'a delege edildi
+          reminderTimes: updateReminderTimeInList(state.reminderTimes, id, updates),
         }));
       },
 
       // Zamanları yeniden hesapla
       regenerateReminderTimes: medicineId => {
         const { medicines, settings, reminderTimes } = get();
-        const medicine = medicines.find(m => m.id === medicineId);
+        // Sprint 28.2: pure helper'a delege edildi
+        const medicine = findMedicineById(medicines, medicineId);
 
         if (!medicine) return;
 
         // CustomTimes varsa yeniden hesaplama yapma
         if (medicine.customTimes && medicine.customTimes.length > 0) {
-          // Sadece customTimes'ı kullanarak zamanları güncelle
-          const otherTimes = reminderTimes.filter(rt => rt.medicineId !== medicineId);
+          // Sadece customTimes'ı kullanarak zamanları güncelle — Sprint 29.1: helper'a delege
+          const otherTimes = filterReminderTimesByMedicine(reminderTimes, medicineId, true);
           const newTimes = medicine.customTimes.map((time, index) => ({
             id: `${medicineId}_${index}`,
             medicineId,
@@ -999,8 +830,8 @@ export const useMedicineStore = create<MedicineState>()(
           return;
         }
 
-        // Eski zamanları kaldır
-        const otherTimes = reminderTimes.filter(rt => rt.medicineId !== medicineId);
+        // Eski zamanları kaldır — Sprint 36.1: pure helper'a delege edildi
+        const otherTimes = filterReminderTimesByMedicine(reminderTimes, medicineId, true);
 
         // Yeni zamanları hesapla
         const newTimes = calculateMedicineTimes(medicineId, {
@@ -1022,7 +853,8 @@ export const useMedicineStore = create<MedicineState>()(
         note?: string
       ): MedicineLog | null => {
         const { reminderTimes } = get();
-        const reminderTime = reminderTimes.find(rt => rt.id === reminderTimeId);
+        // Sprint 28.3: pure helper'a delege edildi (findReminderTimeById)
+        const reminderTime = findReminderTimeById(reminderTimes, reminderTimeId);
         const actualMedicineId = reminderTime?.medicineId || medicineIdFallback;
 
         if (!actualMedicineId) {
@@ -1043,28 +875,27 @@ export const useMedicineStore = create<MedicineState>()(
           );
         }
 
-        const baseLog = {
-          id: generateId(),
-          medicineId: actualMedicineId,
+        const baseLog = buildMedicineLogBase(
+          actualMedicineId,
           reminderTimeId,
           scheduledTime,
           status,
-          note,
-        };
+          note
+        );
 
-        // 'taken' durumunda takenAt ekle
-        return status === 'taken' ? { ...baseLog, takenAt: new Date().toISOString() } : baseLog;
+        // 'taken' durumunda takenAt ekle — Sprint 27.2: pure helper'a delege
+        return withTakenAt({ ...baseLog, id: generateId() }, status);
       },
 
       // Ortak bildirim temizleme fonksiyonu
       _cleanupNotifications: (medicineId: string, reminderTimeId: string) => {
         const { snoozes } = get();
 
-        const activeSnoozes = snoozes.filter(
-          s => s.medicineId === medicineId && s.reminderTimeId === reminderTimeId && s.isActive
-        );
+        // Sprint 22.2: pure helper'a delege edildi
+        const activeSnoozes = getActiveSnoozesForReminder(snoozes, medicineId, reminderTimeId);
 
-        const notificationId = `alarm-${medicineId}-${reminderTimeId}`;
+        // Sprint 28.1: pure helper'a delege edildi
+        const notificationId = buildAlarmNotificationId(medicineId, reminderTimeId);
         cancelNotification(notificationId).catch(err =>
           log.error('Failed to cancel notification', err)
         );
@@ -1078,11 +909,16 @@ export const useMedicineStore = create<MedicineState>()(
         return { notificationId, activeSnoozes };
       },
 
+      // İlaç alındı olarak logla — Sprint 4 devamı: wrapper pattern.
+      // _createMedicineLog helper'ı medicineStore.ts'te kalır (semantik
+      // çözümleme: medicineId fallback, note, status). medicineLogs slice'a
+      // bulk replace ile delege edilir (normalize wrapper'da).
       logMedicineTaken: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
         log.debug('logMedicineTaken called', { reminderTimeId, scheduledTime });
 
-        const { userId, medicines, reminderTimes } = get();
+        const { userId, medicines, reminderTimes, medicineLogs } = get();
 
+        // 1. Future guard (KORUNMALİ — early return)
         if (isScheduledTimeInFuture(scheduledTime)) {
           log.warn('Gelecekteki doz erkenden alindi olarak isaretlenemedi', {
             reminderTimeId,
@@ -1091,6 +927,7 @@ export const useMedicineStore = create<MedicineState>()(
           return;
         }
 
+        // 2. resolveMedicineLogArgs ile semantik çözümleme (helper)
         const resolvedArgs = resolveMedicineLogArgs(
           reminderTimeId,
           medicines,
@@ -1098,6 +935,8 @@ export const useMedicineStore = create<MedicineState>()(
           medicineIdFallback,
           note
         );
+
+        // 3. _createMedicineLog ile medicineLog objesi üret (helper)
         const medicineLog = get()._createMedicineLog(
           'taken',
           reminderTimeId,
@@ -1105,12 +944,11 @@ export const useMedicineStore = create<MedicineState>()(
           resolvedArgs.medicineIdFallback,
           resolvedArgs.note
         );
-
         if (!medicineLog) return;
 
-        const medicine = medicines.find(m => m.id === medicineLog.medicineId);
-
-        // Bakıcı bildirimi gönder
+        // 4. Caregiver notification (mevcut kod)
+        // Sprint 28.2: pure helper'a delege edildi (findMedicineById)
+        const medicine = findMedicineById(medicines, medicineLog.medicineId);
         if (userId && medicine) {
           import('../services/caregiverNotificationService').then(
             ({ notifyCaregiversAboutMedicineStatus }) => {
@@ -1124,16 +962,21 @@ export const useMedicineStore = create<MedicineState>()(
           );
         }
 
+        // 5. _cleanupNotifications (helper)
         const { notificationId, activeSnoozes } = get()._cleanupNotifications(
           medicineLog.medicineId,
           reminderTimeId
         );
 
+        // 6. medicineLogs — slice bulk replace (normalize wrapper'da)
+        const normalizedLogs = normalizeMedicineLogsBySlot([...medicineLogs, medicineLog]);
+        _useLogsStore.getState().replaceMedicineLogs(normalizedLogs);
+
+        // 7. medicineStore.ts'in legacy state'i + snoozes — wrapper'da kalır
         set(state => ({
-          medicineLogs: normalizeMedicineLogsBySlot([...state.medicineLogs, medicineLog]),
-          snoozes: state.snoozes.map(s =>
-            activeSnoozes.some(as => as.id === s.id) ? { ...s, isActive: false } : s
-          ),
+          medicineLogs: normalizedLogs,
+          // Sprint 30.1: pure helper'a delege edildi
+          snoozes: deactivateSnoozesIntersectingWith(state.snoozes, activeSnoozes),
         }));
 
         log.debug('Ilac alindi, bildirimler iptal edildi', {
@@ -1141,21 +984,22 @@ export const useMedicineStore = create<MedicineState>()(
           cancelledSnoozes: activeSnoozes.length,
         });
 
-        // Stok takibi aktifse stoku azalt (sadece taken'da)
+        // 8. decrementStock (sadece taken'da)
         get().decrementStock(medicineLog.medicineId);
 
+        // 9. Cloud save (mevcut kod)
         if (userId) {
           saveMedicineLogToCloud(userId, medicineLog).catch(err =>
             log.error('Failed to save log to cloud', err)
           );
         }
 
-        // Widget'ı güncelle (ilaç alındı)
+        // 10. Widget update (mevcut kod)
         if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
-              const { medicines, reminderTimes, medicineLogs } = get();
-              updateWidgetData(medicines, reminderTimes, medicineLogs).catch(() => {});
+              const { medicines, reminderTimes, medicineLogs: currentLogs } = get();
+              updateWidgetData(medicines, reminderTimes, currentLogs).catch(() => {});
             } catch (e) {
               log.debug('Widget hatası (logMedicineTaken)', e);
             }
@@ -1163,10 +1007,12 @@ export const useMedicineStore = create<MedicineState>()(
         }
       },
 
+      // İlaç atlandı olarak logla — Sprint 4 devamı: wrapper pattern.
+      // logMedicineTaken ile aynı yapı, fark: decrementStock yok, status='skipped'.
       logMedicineSkipped: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
         log.debug('logMedicineSkipped called', { reminderTimeId, scheduledTime });
 
-        const { userId, medicines, reminderTimes } = get();
+        const { userId, medicines, reminderTimes, medicineLogs } = get();
         const resolvedArgs = resolveMedicineLogArgs(
           reminderTimeId,
           medicines,
@@ -1184,7 +1030,8 @@ export const useMedicineStore = create<MedicineState>()(
 
         if (!medicineLog) return;
 
-        const medicine = medicines.find(m => m.id === medicineLog.medicineId);
+        // Sprint 28.2: pure helper'a delege edildi (findMedicineById)
+        const medicine = findMedicineById(medicines, medicineLog.medicineId);
 
         // Bakıcı bildirimi gönder
         if (userId && medicine) {
@@ -1205,11 +1052,13 @@ export const useMedicineStore = create<MedicineState>()(
           reminderTimeId
         );
 
+        // medicineLogs — slice bulk replace + legacy state sync
+        const normalizedLogs = normalizeMedicineLogsBySlot([...medicineLogs, medicineLog]);
+        _useLogsStore.getState().replaceMedicineLogs(normalizedLogs);
+        // Sprint 30.1: pure helper'a delege edildi
         set(state => ({
-          medicineLogs: normalizeMedicineLogsBySlot([...state.medicineLogs, medicineLog]),
-          snoozes: state.snoozes.map(s =>
-            activeSnoozes.some(as => as.id === s.id) ? { ...s, isActive: false } : s
-          ),
+          medicineLogs: normalizedLogs,
+          snoozes: deactivateSnoozesIntersectingWith(state.snoozes, activeSnoozes),
         }));
 
         log.debug('Ilac atlandi, bildirimler iptal edildi', {
@@ -1227,8 +1076,8 @@ export const useMedicineStore = create<MedicineState>()(
         if (isAndroidPlatform()) {
           setTimeout(() => {
             try {
-              const { medicines, reminderTimes, medicineLogs } = get();
-              updateWidgetData(medicines, reminderTimes, medicineLogs).catch(() => {});
+              const { medicines, reminderTimes, medicineLogs: currentLogs } = get();
+              updateWidgetData(medicines, reminderTimes, currentLogs).catch(() => {});
             } catch (e) {
               log.debug('Widget hatası (logMedicineSkipped)', e);
             }
@@ -1252,7 +1101,8 @@ export const useMedicineStore = create<MedicineState>()(
                 log.error('Failed to save missed log to cloud', err)
               );
 
-              const medicine = medicines.find(item => item.id === missedLog.medicineId);
+              // Sprint 32: pure helper'a delege edildi (findMedicineById)
+              const medicine = findMedicineById(medicines, missedLog.medicineId);
               if (!medicine) {
                 continue;
               }
@@ -1282,14 +1132,13 @@ export const useMedicineStore = create<MedicineState>()(
       ) => {
         const { snoozes, settings } = get();
 
-        // Sadece aktif snoozeleri say - düzeltme: isActive kontrolü eklendi
-        const activeSnoozeCount = snoozes.filter(
-          s =>
-            s.medicineId === medicineId &&
-            s.reminderTimeId === reminderTimeId &&
-            s.originalScheduledTime === originalScheduledTime &&
-            s.isActive // DÜZELTME: Sadece aktif olanları say
-        ).length;
+        // Sadece aktif snoozeleri say - Sprint 22.2: pure helper'a delege
+        const activeSnoozeCount = countActiveSnoozes(
+          snoozes,
+          medicineId,
+          reminderTimeId,
+          originalScheduledTime
+        );
 
         const newSnoozeCount = activeSnoozeCount + 1;
 
@@ -1330,29 +1179,29 @@ export const useMedicineStore = create<MedicineState>()(
       },
 
       deactivateSnooze: snoozeId => {
+        // Sprint 27.1: pure helper'a delege edildi
         set(state => ({
-          snoozes: state.snoozes.map(s => (s.id === snoozeId ? { ...s, isActive: false } : s)),
+          snoozes: deactivateSnoozeById(state.snoozes, snoozeId),
         }));
         log.debug('Snooze deaktif edildi', { snoozeId });
       },
 
       deactivateSnoozesForMedicine: medicineId => {
+        // Sprint 27.1: pure helper'a delege edildi
         set(state => ({
-          snoozes: state.snoozes.map(s =>
-            s.medicineId === medicineId ? { ...s, isActive: false } : s
-          ),
+          snoozes: deactivateSnoozesForMedicine(state.snoozes, medicineId),
         }));
         log.debug('Ilaca ait tum snoozelar deaktif edildi', { medicineId });
       },
 
+      // Sprint 27.1: pure helper'a delege edildi
       getActiveSnooze: (medicineId, reminderTimeId) => {
-        return get().snoozes.find(
-          s => s.medicineId === medicineId && s.reminderTimeId === reminderTimeId && s.isActive
-        );
+        return findActiveSnoozeForReminder(get().snoozes, medicineId, reminderTimeId);
       },
 
+      // Sprint 27.1: pure helper'a delege edildi
       getSnoozeByNotificationId: notificationId => {
-        return get().snoozes.find(s => s.notificationId === notificationId && s.isActive);
+        return findActiveSnoozeByNotificationId(get().snoozes, notificationId);
       },
 
       cleanupStaleSnoozes: async () => {
@@ -1366,12 +1215,13 @@ export const useMedicineStore = create<MedicineState>()(
           const triggerTime = parseSnoozeTriggerTime(s.triggerTime);
           const isStale = !triggerTime || triggerTime.getTime() + staleThreshold < now.getTime();
 
-          const medicineExists = medicines.some(m => m.id === s.medicineId && m.isActive);
-          const reminderTimeExists = reminderTimes.some(
-            reminderTime =>
-              reminderTime.id === s.reminderTimeId &&
-              reminderTime.medicineId === s.medicineId &&
-              reminderTime.isEnabled
+          // Sprint 29.2: pure helper'a delege edildi (hasActiveMedicineById)
+          const medicineExists = hasActiveMedicineById(medicines, s.medicineId);
+          // Sprint 31.1: pure helper'a delege edildi (hasActiveReminderTime)
+          const reminderTimeExists = hasActiveReminderTime(
+            reminderTimes,
+            s.reminderTimeId,
+            s.medicineId
           );
 
           return isStale || !medicineExists || !reminderTimeExists;
@@ -1392,8 +1242,9 @@ export const useMedicineStore = create<MedicineState>()(
         }
 
         const staleIds = new Set(staleSnoozes.map(s => s.id));
+        // Sprint 40.2: pure helper'a delege edildi
         set(state => ({
-          snoozes: state.snoozes.filter(s => !staleIds.has(s.id)),
+          snoozes: filterSnoozesExcluding(state.snoozes, staleIds),
         }));
 
         log.debug('Stale snooze temizligi tamamlandi', { cleanedCount: staleSnoozes.length });
@@ -1414,17 +1265,15 @@ export const useMedicineStore = create<MedicineState>()(
                 cleanedStaleSnoozeCount: cleanedStaleSnoozes,
               },
             });
-            return {
-              ...driftReport,
-              repaired: cleanedStaleSnoozes > 0,
-              cancelledNotificationIds: [],
-              snoozeNotificationUpdates: [],
-            };
+            // Sprint 24.3: pure helper'a delege edildi
+            return buildSelfHealNoDriftResult(driftReport, cleanedStaleSnoozes);
           }
 
-          const cancelledNotificationIds = Array.from(
-            new Set([...driftReport.orphanTriggerIds, ...driftReport.legacySnoozeNotificationIds])
-          );
+          // Sprint 22.2: pure helper'a delege edildi (uniqueNotificationIds)
+          const cancelledNotificationIds = uniqueNotificationIds([
+            ...driftReport.orphanTriggerIds,
+            ...driftReport.legacySnoozeNotificationIds,
+          ]);
 
           await Promise.allSettled(
             cancelledNotificationIds.map(notificationId => cancelNotification(notificationId))
@@ -1438,19 +1287,20 @@ export const useMedicineStore = create<MedicineState>()(
             }));
           });
 
+          // Sprint 24.3: pure helper'a delege edildi (buildSelfHealRepairContext)
           void recordDiagnosticEvent({
             scope: 'self-heal',
             level: 'info',
             message: 'Notification self-heal repaired drift',
-            context: {
-              missingCount: driftReport.missingNotificationIds.length,
-              configDriftCount: driftReport.configDriftIds.length,
-              orphanCount: driftReport.orphanTriggerIds.length,
-              legacySnoozeCount: driftReport.legacySnoozeNotificationIds.length,
-              cancelledCount: cancelledNotificationIds.length,
-              cleanedStaleSnoozeCount: cleanedStaleSnoozes,
-              snoozeUpdateCount: snoozeNotificationUpdates.length,
-            },
+            context: buildSelfHealRepairContext(
+              driftReport.missingNotificationIds,
+              driftReport.configDriftIds,
+              driftReport.orphanTriggerIds,
+              driftReport.legacySnoozeNotificationIds,
+              cancelledNotificationIds.length,
+              cleanedStaleSnoozes,
+              snoozeNotificationUpdates.length
+            ),
           });
 
           return {
@@ -1548,16 +1398,13 @@ export const useMedicineStore = create<MedicineState>()(
         });
       },
 
-      // ID ile ilaç getir
-      getMedicineById: id => {
-        return get().medicines.find(m => m.id === id);
-      },
+      // ID ile ilaç getir — Sprint 26.3: pure helper'a delege edildi
+      getMedicineById: id => findMedicineById(get().medicines, id),
 
       // İlaca ait zamanları getir
+      // Sprint 27.3: pure helper'a delege edildi
       getReminderTimesForMedicine: medicineId => {
-        return get()
-          .reminderTimes.filter(rt => rt.medicineId === medicineId)
-          .sort((a, b) => a.time.localeCompare(b.time));
+        return getReminderTimesForMedicinePure(get().reminderTimes, medicineId);
       },
 
       // Bugünkü hatırlatmaları getir
@@ -1576,18 +1423,20 @@ export const useMedicineStore = create<MedicineState>()(
 
         const result: { medicine: Medicine; reminderTime: ReminderTime; log?: MedicineLog }[] = [];
 
-        medicines
-          .filter(m => m.isActive)
-          .forEach(medicine => {
-            const times = reminderTimes.filter(rt => rt.medicineId === medicine.id && rt.isEnabled);
+        // Sprint 29.2: pure helper'a delege edildi (filterActiveMedicines)
+        filterActiveMedicines(medicines).forEach(medicine => {
+          // Sprint 29.1: pure helper'a delege edildi (filterReminderTimesByMedicine)
+          const times = filterReminderTimesByMedicine(reminderTimes, medicine.id).filter(
+            rt => rt.isEnabled
+          );
 
-            times.forEach(reminderTime => {
-              const scheduledTime = `${today}T${reminderTime.time}:00`;
-              const log = todayLogMap.get(buildMedicineLogSlotKey(reminderTime.id, scheduledTime));
+          times.forEach(reminderTime => {
+            const scheduledTime = `${today}T${reminderTime.time}:00`;
+            const log = todayLogMap.get(buildMedicineLogSlotKey(reminderTime.id, scheduledTime));
 
-              result.push({ medicine, reminderTime, log });
-            });
+            result.push({ medicine, reminderTime, log });
           });
+        });
 
         // Zamana göre sırala
         result.sort((a, b) => a.reminderTime.time.localeCompare(b.reminderTime.time));
@@ -1596,117 +1445,32 @@ export const useMedicineStore = create<MedicineState>()(
       },
 
       // Uyum oranını hesapla
+      // Sprint 21.2: pure helper'a delege edildi (calculateAdherenceRate)
       getAdherenceRate: (days = 7) => {
         const { medicineLogs, medicines, reminderTimes } = get();
-        const normalizedLogs = normalizeMedicineLogsBySlot(medicineLogs);
-        const now = new Date();
-        // eslint-disable-next-line unused-imports/no-unused-vars
-        const today = format(now, 'yyyy-MM-dd');
-        const currentTime = format(now, 'HH:mm');
-        const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-        // Aktif ilaçların hatırlatma sayısını kontrol et
-        const activeMedicineIds = new Set(medicines.filter(m => m.isActive).map(m => m.id));
-
-        const activeReminderCount = reminderTimes.filter(
-          rt => activeMedicineIds.has(rt.medicineId) && rt.isEnabled
-        ).length;
-
-        // Aktif hatırlatma yoksa %100 dön (ilaç yok = sorun yok)
-        if (activeReminderCount === 0) return 100;
-
-        const recentLogs = normalizedLogs.filter(log => new Date(log.scheduledTime) >= startDate);
-
-        // Log yoksa: bugün için geçmiş zamanlı hatırlatma var mı kontrol et
-        if (recentLogs.length === 0) {
-          // Bugün için geçmiş zamanlı bir hatırlatma varsa %0 dön
-          const hasPastReminderToday = reminderTimes.some(rt => {
-            if (!activeMedicineIds.has(rt.medicineId) || !rt.isEnabled) return false;
-            return rt.time < currentTime;
-          });
-
-          // Geçmiş zamanlı hatırlatma varsa ama log yoksa = %0 uyum
-          // Henüz zamanı gelmemiş hatırlatmalar için = henüz veri yok, ama %100 yanıltıcı
-          // Bu durumda "N/A" veya farklı bir gösterim olabilir, ama sayısal olarak:
-          // - Geçmiş hatırlatma varsa ve log yoksa = 0%
-          // - Sadece gelecek hatırlatmalar varsa = 100% (henüz sorumluluk başlamadı)
-          return hasPastReminderToday ? 0 : 100;
-        }
-
-        const takenCount = recentLogs.filter(log => log.status === 'taken').length;
-        return Math.round((takenCount / recentLogs.length) * 100);
+        return calculateAdherenceRate(medicineLogs, medicines, reminderTimes, days);
       },
 
+      // Sprint 21.2: pure helper'a delege edildi (calculateCurrentStreak)
       getCurrentStreak: () => {
         const { medicineLogs, medicines, reminderTimes } = get();
-        const normalizedLogs = normalizeMedicineLogsBySlot(medicineLogs);
-
-        const activeMedicineIds = new Set(medicines.filter(m => m.isActive).map(m => m.id));
-
-        const activeReminderCount = reminderTimes.filter(
-          rt => activeMedicineIds.has(rt.medicineId) && rt.isEnabled
-        ).length;
-
-        if (activeReminderCount === 0) return 0;
-
-        // OPTİMİZASYON: MedicineLogs'u tarihe göre önceden indexle - O(n) yerine O(m)
-        // Bu, her gün için tüm diziyi taramak yerine, doğrudan o günün loglarına erişmemizi sağlar
-        const logsByDate = new Map<string, typeof normalizedLogs>();
-
-        for (const log of normalizedLogs) {
-          if (!activeMedicineIds.has(log.medicineId)) continue;
-
-          const dateStr = log.scheduledTime.slice(0, 10); // 'yyyy-MM-dd' formatı
-          if (!logsByDate.has(dateStr)) {
-            logsByDate.set(dateStr, []);
-          }
-          logsByDate.get(dateStr)!.push(log);
-        }
-
-        let streak = 0;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        for (let i = 0; i < 365; i++) {
-          const checkDate = new Date(today);
-          checkDate.setDate(checkDate.getDate() - i);
-          const dateStr = format(checkDate, 'yyyy-MM-dd');
-
-          // O(1) lookup - artık filter kullanmıyoruz!
-          const dayLogs = logsByDate.get(dateStr) || [];
-
-          if (dayLogs.length === 0) {
-            if (i === 0) continue; // Bugün için henüz log yoksa atla
-            break;
-          }
-
-          const allTaken = dayLogs.every(log => log.status === 'taken');
-          if (!allTaken) break;
-
-          streak++;
-        }
-
-        return streak;
+        return calculateCurrentStreak(medicineLogs, medicines, reminderTimes);
       },
 
       // Stok yönetimi fonksiyonları
+      // Sprint 21.2: pure helper'a delege edildi (filterLowStockMedicines)
       getLowStockMedicines: () => {
         const { medicines } = get();
-        return medicines.filter(m => {
-          if (!m.isActive || !m.stockEnabled) return false;
-          const threshold = m.stockThreshold ?? 5;
-          return (m.stockCount ?? 0) <= threshold;
-        });
+        return filterLowStockMedicines(medicines);
       },
 
       updateMedicineStock: (medicineId, newCount) => {
         const { userId } = get();
+        // Sprint 23.3: pure helper'a delege edildi
         set(state => ({
-          medicines: state.medicines.map(m =>
-            m.id === medicineId
-              ? { ...m, stockCount: Math.max(0, newCount), updatedAt: new Date().toISOString() }
-              : m
-          ),
+          medicines: updateMedicineInList(state.medicines, medicineId, {
+            stockCount: Math.max(0, newCount),
+          }),
         }));
 
         if (userId) {
@@ -1716,7 +1480,8 @@ export const useMedicineStore = create<MedicineState>()(
 
       decrementStock: (medicineId, amount = 1) => {
         const { medicines, userId } = get();
-        const medicine = medicines.find(m => m.id === medicineId);
+        // Sprint 28.2: pure helper'a delege edildi
+        const medicine = findMedicineById(medicines, medicineId);
 
         if (!medicine || !medicine.stockEnabled) return;
 
@@ -1724,11 +1489,7 @@ export const useMedicineStore = create<MedicineState>()(
         const newStock = Math.max(0, currentStock - amount);
 
         set(state => ({
-          medicines: state.medicines.map(m =>
-            m.id === medicineId
-              ? { ...m, stockCount: newStock, updatedAt: new Date().toISOString() }
-              : m
-          ),
+          medicines: updateMedicineInList(state.medicines, medicineId, { stockCount: newStock }),
         }));
 
         // Az kaldı uyarısı için log
@@ -1749,39 +1510,10 @@ export const useMedicineStore = create<MedicineState>()(
       },
 
       // Bir sonraki uygun rengi getir
-      getNextAvailableColor: () => {
-        const { medicines } = get();
-
-        // Sadece aktif ilaçların renklerini al
-        const usedColors = medicines.filter(m => m.isActive).map(m => m.color);
-
-        // İlk kullanılmayan rengi bul
-        const unusedColor = MEDICINE_COLORS.find(color => !usedColors.includes(color));
-        if (unusedColor) {
-          return unusedColor;
-        }
-
-        // Tüm renkler kullanılıyorsa, en az kullanılan rengi bul
-        const colorCounts = new Map<string, number>();
-        MEDICINE_COLORS.forEach(color => colorCounts.set(color, 0));
-
-        usedColors.forEach(color => {
-          const count = colorCounts.get(color) || 0;
-          colorCounts.set(color, count + 1);
-        });
-
-        let minCount = Infinity;
-        let leastUsedColor = MEDICINE_COLORS[0];
-
-        colorCounts.forEach((count, color) => {
-          if (count < minCount) {
-            minCount = count;
-            leastUsedColor = color;
-          }
-        });
-
-        return leastUsedColor;
-      },
+      // Sprint 4 devami: getNextAvailableColor slice'a delege edildi.
+      // Kaynak implementasyon: src/stores/slices/medicines.ts
+      // Bu wrapper geriye uyumluluk icin korunuyor.
+      getNextAvailableColor: () => _useMedicinesStore.getState().getNextAvailableColor(),
 
       clearAllData: async (options?: { deleteFromCloud?: boolean }) => {
         const { userId, medicines } = get();
@@ -1815,23 +1547,16 @@ export const useMedicineStore = create<MedicineState>()(
           }
 
           // 4. AsyncStorage'ı temizle (persist middleware için kritik)
-          await AsyncStorage.multiRemove([
-            'medicine-store',
-            'medicine-store-sync-queue',
-            '@medicine_storage',
-          ]);
+          // Sprint 24.2: pure helper'a delege edildi
+          await AsyncStorage.multiRemove([...getMedicineStoreStorageKeysForRemoval()]);
           log.debug('AsyncStorage temizlendi');
 
-          // 5. Local state'i temizle
-          set({
-            medicines: [],
-            reminderTimes: [],
-            medicineLogs: [],
-            snoozes: [],
-            alarmState: DEFAULT_ALARM_STATE,
-            settings: DEFAULT_USER_SETTINGS,
-            lastSyncAt: null,
-          });
+          // 5. Local state'i temizle — Sprint 26.1: pure helper'a delege edildi
+          set(buildEmptyMedicineStoreState(DEFAULT_ALARM_STATE, DEFAULT_USER_SETTINGS));
+
+          // 6. Slice state'lerini de temizle (Sprint 4 devami)
+          _useMedicinesStore.getState().clearAllMedicines();
+          _useLogsStore.getState().clearAllLogs();
 
           log.info('Tum veriler basariyla temizlendi');
         } catch (error) {
@@ -1851,12 +1576,16 @@ export const useMedicineStore = create<MedicineState>()(
 
         const validatedData = validationResult.data;
 
+        // Sprint 26.2: pure helper'a delege edildi
         set({
-          medicines: validatedData.medicines,
-          reminderTimes: validatedData.reminderTimes,
-          medicineLogs: validatedData.medicineLogs,
-          settings: validatedData.settings,
-          lastSyncAt: new Date().toISOString(),
+          ...buildValidatedSyncState({
+            medicines: validatedData.medicines,
+            reminderTimes: validatedData.reminderTimes,
+            medicineLogs: validatedData.medicineLogs,
+            // Sprint 1: cast — ValidatedSyncData'dan gelen settings tüm
+            // UserSettings alanlarını içermeyebilir (defaultSyncData).
+            settings: validatedData.settings as UserSettings,
+          }),
         });
 
         void rescheduleActiveNotificationsFromState(get(), updates => {
@@ -1906,8 +1635,9 @@ export const useMedicineStore = create<MedicineState>()(
  * Aktif ilaçları getir.
  * useShallow ile shallow equality: aynı ilaç listesi olduğunda re-render tetiklenmez.
  */
+// Sprint 29.2: pure helper'a delege edildi (filterActiveMedicines)
 export function useActiveMedicines(): Medicine[] {
-  return useMedicineStore(useShallow(state => state.medicines.filter(m => m.isActive)));
+  return useMedicineStore(useShallow(state => filterActiveMedicines(state.medicines)));
 }
 
 /**

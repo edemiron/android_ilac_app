@@ -14,8 +14,16 @@ import { useAlert } from '../contexts/AlertContext';
 import { AddMedicineFormState } from '../types/addMedicine.types';
 import { TranslationKey } from '../contexts/LanguageContext';
 import { createScopedLogger } from '../utils/logger';
-import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInteraction';
 import { calculateMedicineTimes } from '../utils/timeCalculator';
+
+// Sprint 6.3 + 7.4 + 8.4 + 11.3: pure helper'lar ./useMedicineHelpers.ts'te.
+// Sprint 11.3: calculateMedicineTimes ciktilarini isValidClockTime ile filtrele.
+import {
+  adjustTimesForConflicts,
+  sanitizeMedicineName,
+  sanitizeDosage,
+  isValidClockTime,
+} from './useMedicineHelpers';
 
 const log = createScopedLogger('MedicinePersistence');
 
@@ -47,53 +55,10 @@ export function useMedicinePersistence({
   } = useMedicineStore();
   const { canAddMedicine: checkCanAddMedicine, canUseBarcodeScanner } = useSubscription();
 
-  // Saatleri çakışma aralığına göre kaydır
-  const adjustTimesForConflicts = useCallback(
-    (originalTimes: string[], conflictingTimes: Set<string>, intervalMinutes: number): string[] => {
-      const adjustedTimes: string[] = [];
-      const allOccupiedTimes = new Set(conflictingTimes);
-
-      for (const time of originalTimes) {
-        if (!allOccupiedTimes.has(time)) {
-          adjustedTimes.push(time);
-          allOccupiedTimes.add(time);
-        } else {
-          // Çakışma var, yeni saat bul
-          const [hours, minutes] = time.split(':').map(Number);
-          let newMinutes = minutes;
-          let newHours = hours;
-          let foundSlot = false;
-
-          // Maksimum 6 kez dene (60 dakika ileriye kadar)
-          for (let attempt = 0; attempt < 6; attempt++) {
-            newMinutes += intervalMinutes;
-            if (newMinutes >= 60) {
-              newHours += Math.floor(newMinutes / 60);
-              newMinutes = newMinutes % 60;
-            }
-            if (newHours >= 24) {
-              newHours = newHours % 24;
-            }
-
-            const candidateTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
-
-            if (!allOccupiedTimes.has(candidateTime)) {
-              adjustedTimes.push(candidateTime);
-              allOccupiedTimes.add(candidateTime);
-              foundSlot = true;
-              break;
-            }
-          }
-
-          // Eğer uygun slot bulunamazsa orijinal zamanı kullan
-          if (!foundSlot) {
-            adjustedTimes.push(time);
-          }
-        }
-      }
-
-      return adjustedTimes.sort();
-    },
+  // Saat cakisma kontrolu — pure helper'a delege.
+  const adjustTimesForConflictsFn = useCallback(
+    (originalTimes: string[], conflictingTimes: Set<string>, intervalMinutes: number): string[] =>
+      adjustTimesForConflicts(originalTimes, conflictingTimes, intervalMinutes),
     []
   );
 
@@ -118,7 +83,9 @@ export function useMedicinePersistence({
           frequency: formState.frequency,
           instruction: formState.instruction,
         });
-        newMedicineTimes = calculatedTimes.map(rt => rt.time);
+        // Sprint 11.3: invalid time degerlerini filtrele (calculateMedicineTimes
+        // edge case'lerinde bosluk/timezone bozuklugu olabilir)
+        newMedicineTimes = calculatedTimes.map(rt => rt.time).filter(t => isValidClockTime(t));
       }
 
       // Mevcut aktif ilaçların tüm saatlerini topla
@@ -153,7 +120,7 @@ export function useMedicinePersistence({
 
       // Otomatik düzenleme için yeni saatleri hesapla
       const intervalMinutes = settings.conflictIntervalMinutes || 10;
-      const adjustedTimes = adjustTimesForConflicts(
+      const adjustedTimes = adjustTimesForConflictsFn(
         newMedicineTimes,
         existingOccupiedTimes,
         intervalMinutes
@@ -199,7 +166,7 @@ export function useMedicinePersistence({
       language,
       t,
       getReminderTimesForMedicine,
-      adjustTimesForConflicts,
+      adjustTimesForConflictsFn,
       showAlert,
     ]
   );
@@ -250,9 +217,16 @@ export function useMedicinePersistence({
   const saveMedicine = useCallback(
     async (formState: AddMedicineFormState): Promise<boolean> => {
       try {
+        // Sprint 8.4: inline trim -> sanitizeMedicineName/sanitizeDosage helper'lara delege.
+        const sanitizedName = sanitizeMedicineName(formState.name);
+        const sanitizedDosage = sanitizeDosage(formState.dosage);
+        if (!sanitizedName) {
+          log.error('Medicine name bos/dolu olamaz');
+          return false;
+        }
         const medicineData = {
-          name: formState.name.trim(),
-          dosage: formState.dosage.trim(),
+          name: sanitizedName,
+          dosage: sanitizedDosage || formState.dosage,
           dosageAmount: formState.dosageAmount,
           form: formState.medicineForm,
           frequency: formState.useCustomTimes ? formState.customTimes.length : formState.frequency,
@@ -406,7 +380,8 @@ export function useMedicinePersistence({
 
   const handleSave = useCallback(
     async (formState: AddMedicineFormState) => {
-      if (!formState.name.trim()) {
+      // Sprint 8.4: inline trim -> sanitizeMedicineName helper'a delege.
+      if (!sanitizeMedicineName(formState.name)) {
         showError(t('error'), t('error_required_field'));
         return false;
       }
@@ -436,60 +411,6 @@ export function useMedicinePersistence({
         }
       }
 
-      // İlaç etkileşim kontrolü
-      const activeMedicineNames = medicines
-        .filter(m => m.isActive && (!isEditing || m.id !== medicineId))
-        .map(m => m.name);
-      const allDrugNames = [...activeMedicineNames, formState.name.trim()];
-
-      const interactionResult = checkMultipleInteractions(allDrugNames);
-
-      if (interactionResult.hasInteractions) {
-        const interactionMessages = interactionResult.interactions
-          .map(i => `${getSeverityIcon(i.severity)} ${i.drug1} + ${i.drug2}\n${i.description}`)
-          .join('\n\n');
-
-        return new Promise<boolean>(resolve => {
-          showAlert({
-            type: 'warning',
-            title:
-              language === 'tr'
-                ? '⚠️ İlaç Etkileşimi Tespit Edildi'
-                : '⚠️ Drug Interaction Detected',
-            message: `${interactionMessages}\n\n${language === 'tr' ? 'Yine de eklemek istiyor musunuz?' : 'Do you still want to add this medicine?'}`,
-            buttons: [
-              {
-                text: t('cancel'),
-                style: 'cancel',
-                onPress: () => resolve(false),
-              },
-              {
-                text: language === 'tr' ? 'Yine de Ekle' : 'Add Anyway',
-                style: 'destructive',
-                onPress: async () => {
-                  // İlaç etkileşimi kabul edildi, şimdi saat çakışmasını kontrol et
-                  const timeConflictResult = await checkTimeConflict(formState);
-                  if (!timeConflictResult.proceed) {
-                    resolve(false);
-                    return;
-                  }
-                  // Otomatik düzenleme yapıldıysa güncellenmiş formState ile kaydet
-                  const finalFormState = timeConflictResult.adjustedTimes
-                    ? {
-                      ...formState,
-                      customTimes: timeConflictResult.adjustedTimes,
-                      useCustomTimes: true,
-                    }
-                    : formState;
-                  const result = await saveMedicine(finalFormState);
-                  resolve(result);
-                },
-              },
-            ],
-          });
-        });
-      }
-
       // Saat çakışma kontrolü
       const timeConflictResult = await checkTimeConflict(formState);
       if (!timeConflictResult.proceed) {
@@ -499,10 +420,10 @@ export function useMedicinePersistence({
       // Otomatik düzenleme yapıldıysa güncellenmiş formState ile kaydet
       const finalFormState = timeConflictResult.adjustedTimes
         ? {
-          ...formState,
-          customTimes: timeConflictResult.adjustedTimes,
-          useCustomTimes: true,
-        }
+            ...formState,
+            customTimes: timeConflictResult.adjustedTimes,
+            useCustomTimes: true,
+          }
         : formState;
 
       return saveMedicine(finalFormState);

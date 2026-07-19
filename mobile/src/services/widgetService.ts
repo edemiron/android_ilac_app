@@ -77,7 +77,7 @@ function formatMedicinesForWidget(
           time: time.time,
           dosage: medicine.dosage || '',
           reminderTimeId: time.id,
-          color: medicine.color || 0xff4ecdc4,
+          color: parseInt((medicine.color ?? '4ecdc4').replace('#', ''), 16) || 0xff4ecdc4,
           isTaken,
           isSkipped,
           isMissed,

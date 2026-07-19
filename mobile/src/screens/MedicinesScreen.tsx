@@ -1,351 +1,31 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMedicineStore } from '../stores/medicineStore';
 import { RootStackParamList, Medicine } from '../types';
-import { formatTimeDisplay, getInstructionText } from '../utils/timeCalculator';
-import { differenceInDays, parseISO, startOfDay, format } from 'date-fns';
-import { tr, enUS } from 'date-fns/locale';
-import { useTheme, ThemeColors } from '../contexts/ThemeContext';
-import { useLanguage, TranslationKey } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { useAlert } from '../contexts/AlertContext';
 
+// Sprint 5.1: MedicinesScreen.tsx (1317 -> 989 satir) modularizasyonu.
+// Component'ler ve helpers screens/MedicinesScreen/* altinda.
+import { Section } from './MedicinesScreen/components/Section';
+import { MedicineRow } from './MedicinesScreen/components/MedicineRow';
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-// Son kullanma tarihi durumu hesaplama
-type ExpiryStatus =
-  | { type: 'expired' }
-  | { type: 'expires_today' }
-  | { type: 'expires_soon'; daysLeft: number }
-  | { type: 'ok' }
-  | null;
-
-function getExpiryStatus(expiryDate: string | undefined, reminderDays?: number): ExpiryStatus {
-  if (!expiryDate) return null;
-
-  try {
-    const today = startOfDay(new Date());
-    const expiry = startOfDay(parseISO(expiryDate));
-    const daysLeft = differenceInDays(expiry, today);
-
-    // Kullanıcının seçtiği hatırlatma süresi (varsayılan: 30 gün)
-    const threshold = reminderDays || 30;
-
-    if (daysLeft < 0) return { type: 'expired' };
-    if (daysLeft === 0) return { type: 'expires_today' };
-    if (daysLeft <= threshold) return { type: 'expires_soon', daysLeft };
-    return { type: 'ok' };
-  } catch {
-    return null;
-  }
-}
-
-// Encoding hatasını düzeltен yardımcı: "kapsu00fcl" → "ü"
-function decodeDosage(raw: string): string {
-  if (!raw) return raw;
-  try {
-    return raw.replace(/u([0-9a-fA-F]{4})/g, (_, hex) =>
-      String.fromCharCode(parseInt(hex, 16))
-    );
-  } catch {
-    return raw;
-  }
-}
-
-// İlac form ikonları (MaterialCommunityIcons)
-type MedicinIconInfo = { lib: 'mci'; name: string } | { lib: 'ion'; name: string };
-
-function getMedicineFormIcon(medicine: Medicine): MedicinIconInfo {
-  // 1. medicine.form alanı varsa doğrudan eşle
-  if (medicine.form) {
-    const formMap: Record<string, MedicinIconInfo> = {
-      tablet: { lib: 'mci', name: 'pill' },
-      capsule: { lib: 'mci', name: 'pill-multiple' },
-      syrup: { lib: 'mci', name: 'bottle-tonic-outline' },
-      drops: { lib: 'mci', name: 'water-outline' },
-      injection: { lib: 'mci', name: 'needle' },
-      cream: { lib: 'mci', name: 'hand-back-right-outline' },
-      spray: { lib: 'mci', name: 'spray' },
-      patch: { lib: 'mci', name: 'bandage' },
-      suppository: { lib: 'mci', name: 'medical-bag' },
-      powder: { lib: 'mci', name: 'powder' },
-      other: { lib: 'mci', name: 'medical-bag' },
-    };
-    if (formMap[medicine.form]) return formMap[medicine.form];
-  }
-  // 2. Eski kayıtlar için dosage metninden çıkarım
-  const text = `${medicine.dosage || ''} ${medicine.stockUnit || ''}`.toLowerCase();
-  if (text.includes('tablet')) return { lib: 'mci', name: 'pill' };
-  if (text.includes('kaps') || text.includes('capsule')) return { lib: 'mci', name: 'pill-multiple' };
-  if (text.includes('ml') || text.includes('şurup') || text.includes('syrup')) return { lib: 'mci', name: 'bottle-tonic-outline' };
-  if (text.includes('damla') || text.includes('drop')) return { lib: 'mci', name: 'water-outline' };
-  if (text.includes('enjeksiyon') || text.includes('injection') || text.includes('iğne')) return { lib: 'mci', name: 'needle' };
-  return { lib: 'ion', name: 'medical' };
-}
-
-interface SectionProps {
-  icon: string;
-  title: string;
-  count?: number;
-  children: React.ReactNode;
-  colors: ThemeColors;
-  isDark: boolean;
-}
-
-const Section: React.FC<SectionProps> = ({ icon, title, count, children, colors, isDark }) => (
-  <View
-    style={[
-      styles.section,
-      {
-        backgroundColor: colors.card,
-        shadowOpacity: isDark ? 0 : 0.05,
-        elevation: isDark ? 0 : 1,
-      },
-    ]}
-  >
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionIcon}>{icon}</Text>
-      <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-        {title} {count !== undefined && `(${count})`}
-      </Text>
-    </View>
-    {children}
-  </View>
-);
-
-interface MedicineRowProps {
-  medicine: Medicine;
-  times: string[];
-  onPress: () => void;
-  onToggleActive: () => void;
-  onDelete: () => void;
-  onShowActionMenu: (medicine: Medicine, onToggle: () => void, onDel: () => void) => void;
-  colors: ThemeColors;
-  isDark: boolean;
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
-  language: 'tr' | 'en';
-  isSelectionMode?: boolean;
-  isSelected?: boolean;
-  onSelect?: () => void;
-  onLongPressSelect?: () => void;
-}
-
-const MedicineRow: React.FC<MedicineRowProps> = ({
-  medicine,
-  times,
-  onPress,
-  onToggleActive,
-  onDelete,
-  onShowActionMenu,
-  colors,
-  isDark,
-  t,
-  language,
-  isSelectionMode,
-  isSelected,
-  onSelect,
-  onLongPressSelect,
-}) => {
-  const handleLongPress = () => {
-    if (onLongPressSelect) {
-      onLongPressSelect();
-      return;
-    }
-    onShowActionMenu(medicine, onToggleActive, onDelete);
-  };
-
-  const handlePress = () => {
-    if (isSelectionMode && onSelect) {
-      onSelect();
-    } else {
-      onPress();
-    }
-  };
-
-  // Son kullanma tarihi durumunu hesapla (kullanıcının seçtiği hatırlatma süresini kullan)
-  const expiryStatus = getExpiryStatus(medicine.expiryDate, medicine.expiryReminderDays);
-
-  // Son kullanma tarihini formatla
-  const formatExpiryDate = (dateStr: string): string => {
-    try {
-      const date = parseISO(dateStr);
-      const locale = language === 'tr' ? tr : enUS;
-      // "SKT: 31 Oca 2027" veya "EXP: Jan 31, 2027"
-      if (language === 'tr') {
-        return `SKT: ${format(date, 'd MMM yyyy', { locale })}`;
-      }
-      return `EXP: ${format(date, 'MMM d, yyyy', { locale })}`;
-    } catch {
-      return '';
-    }
-  };
-
-  const getExpiryBadge = () => {
-    if (!expiryStatus) return null;
-
-    switch (expiryStatus.type) {
-      case 'expired':
-        return (
-          <View style={[styles.expiryBadge, { backgroundColor: colors.error + '20' }]}>
-            <Ionicons name="alert-circle" size={12} color={colors.error} />
-            <Text style={[styles.expiryBadgeText, { color: colors.error }]}>
-              {language === 'tr' ? 'Süresi doldu' : 'Expired'}
-            </Text>
-          </View>
-        );
-      case 'expires_today':
-        return (
-          <View style={[styles.expiryBadge, { backgroundColor: colors.error + '20' }]}>
-            <Ionicons name="alert-circle" size={12} color={colors.error} />
-            <Text style={[styles.expiryBadgeText, { color: colors.error }]}>
-              {language === 'tr' ? 'Bugün doluyor' : 'Expires today'}
-            </Text>
-          </View>
-        );
-      case 'expires_soon':
-        return (
-          <View
-            style={[styles.expiryBadge, { backgroundColor: (colors.warning || '#F59E0B') + '20' }]}
-          >
-            <Ionicons name="time-outline" size={12} color={colors.warning || '#F59E0B'} />
-            <Text style={[styles.expiryBadgeText, { color: colors.warning || '#F59E0B' }]}>
-              {language === 'tr' ? `${expiryStatus.daysLeft} gün` : `${expiryStatus.daysLeft} days`}
-            </Text>
-          </View>
-        );
-      case 'ok':
-        // 30 gunden fazla var - tarihi goster
-        if (medicine.expiryDate) {
-          return (
-            <View style={[styles.expiryBadge, { backgroundColor: colors.textMuted + '15' }]}>
-              <Ionicons name="calendar-outline" size={11} color={colors.textMuted} />
-              <Text style={[styles.expiryBadgeText, { color: colors.textMuted }]}>
-                {formatExpiryDate(medicine.expiryDate)}
-              </Text>
-            </View>
-          );
-        }
-        return null;
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <TouchableOpacity
-      style={[
-        styles.medicineCard,
-        {
-          backgroundColor: colors.card,
-          shadowOpacity: isDark ? 0 : 0.08,
-          elevation: isDark ? 0 : 2,
-        },
-        !medicine.isActive && { opacity: 0.6 },
-        isSelected && {
-          backgroundColor: colors.primary + '15',
-          borderColor: colors.primary,
-          borderWidth: 2,
-        },
-      ]}
-      onPress={handlePress}
-      onLongPress={handleLongPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.rowContent}>
-        {isSelectionMode && (
-          <View
-            style={[
-              styles.checkbox,
-              { borderColor: isSelected ? colors.primary : colors.border },
-              isSelected && { backgroundColor: colors.primary },
-            ]}
-          >
-            {isSelected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-          </View>
-        )}
-        <View style={[styles.iconContainer, { backgroundColor: medicine.color + '20', overflow: 'hidden' }]}>
-          {medicine.imageUri ? (
-            <Image source={{ uri: medicine.imageUri }} style={{ width: 44, height: 44 }} />
-          ) : (() => {
-            const iconInfo = getMedicineFormIcon(medicine);
-            if (iconInfo.lib === 'mci') {
-              return <MaterialCommunityIcons name={iconInfo.name} size={18} color={medicine.color} />;
-            }
-            return <Ionicons name={iconInfo.name as any} size={18} color={medicine.color} />;
-          })()}
-        </View>
-        <View style={styles.medicineInfo}>
-          <View style={styles.medicineHeader}>
-            <Text
-              style={[
-                styles.medicineName,
-                { color: colors.text },
-                !medicine.isActive && { color: colors.textMuted },
-              ]}
-              numberOfLines={2}
-            >
-              {medicine.name}
-            </Text>
-            {!medicine.isActive && (
-              <View style={[styles.pausedBadge, { backgroundColor: colors.warning + '20' }]}>
-                <Text style={[styles.pausedText, { color: colors.warning }]}>
-                  {language === 'tr' ? 'Duraklatıldı' : 'Paused'}
-                </Text>
-              </View>
-            )}
-            {getExpiryBadge()}
-          </View>
-          <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
-            {decodeDosage(medicine.dosage)} • {t('medicines_times_per_day', { count: medicine.frequency })}
-            {medicine.instructions && ` • ${getInstructionText(medicine.instructions, language)}`}
-          </Text>
-          {/* Sıradaki doz + kalan sayısı */}
-          {times.length > 0 && (() => {
-            const now = new Date();
-            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-            // Sıradaki saati bul (en yakın gelecek saat, yoksa ilk saat)
-            const sorted = [...times].sort();
-            const nextTime = sorted.find(t => t > currentTime) || sorted[0];
-            const otherCount = times.length - 1;
-            return (
-              <View style={styles.timesContainer}>
-                <View
-                  style={[styles.timeChip, {
-                    backgroundColor: medicine.isActive ? medicine.color + '15' : colors.inputBackground,
-                  }]}
-                >
-                  <Ionicons name="time-outline" size={11}
-                    color={medicine.isActive ? medicine.color : colors.textMuted} />
-                  <Text style={[styles.timeChipText,
-                  { color: medicine.isActive ? medicine.color : colors.textMuted }]}>
-                    {formatTimeDisplay(nextTime)}
-                  </Text>
-                </View>
-                {otherCount > 0 && (
-                  <Text style={[styles.moreTimesText, { color: colors.textMuted }]}>
-                    +{otherCount}
-                  </Text>
-                )}
-              </View>
-            );
-          })()}
-        </View>
-        <TouchableOpacity
-          onPress={() => onShowActionMenu(medicine, onToggleActive, onDelete)}
-          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-        >
-          <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-};
 
 export default function MedicinesScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -361,8 +41,7 @@ export default function MedicinesScreen() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Tip dismissed state
-  const [tipDismissed, setTipDismissed] = useState(true); // Default true to hide while loading
+  // Tip dismissed state — Sprint 20.4: Dead code kaldirildi (sadece set ediliyor, read edilmiyor)
 
   // Delete confirmation modal state
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -378,31 +57,54 @@ export default function MedicinesScreen() {
   // Single medicine delete confirmation state
   const [singleDeleteVisible, setSingleDeleteVisible] = useState(false);
 
-  // Load tip dismissed state from AsyncStorage
-  useEffect(() => {
-    const loadTipState = async () => {
-      try {
-        const dismissed = await AsyncStorage.getItem('medicines_tip_dismissed');
-        setTipDismissed(dismissed === 'true');
-      } catch {
-        setTipDismissed(false);
-      }
-    };
-    loadTipState();
-  }, []);
+  // Sprint 68: search + filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterMode, setFilterMode] = useState<'all' | 'active' | 'inactive' | 'lowStock'>('all');
 
-  // Dismiss tip handler
-  const dismissTip = useCallback(async () => {
-    setTipDismissed(true);
-    try {
-      await AsyncStorage.setItem('medicines_tip_dismissed', 'true');
-    } catch {
-      // Ignore storage errors
+  // Sprint 68: filtered + searched medicines list
+  const filteredMedicines = useMemo(() => {
+    let result = medicines;
+    // Filter by mode
+    if (filterMode === 'active') {
+      result = result.filter(m => m.isActive);
+    } else if (filterMode === 'inactive') {
+      result = result.filter(m => !m.isActive);
+    } else if (filterMode === 'lowStock') {
+      // Low stock: stockEnabled && (stockCount ?? 0) <= (stockThreshold ?? 0)
+      result = result.filter(m => m.stockEnabled && (m.stockCount ?? 0) <= (m.stockThreshold ?? 0));
     }
-  }, []);
+    // Filter by search query (case-insensitive name match)
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length > 0) {
+      result = result.filter(m => m.name.toLowerCase().includes(q));
+    }
+    return result;
+  }, [medicines, filterMode, searchQuery]);
 
-  const activeMedicines = medicines.filter(m => m.isActive);
-  const inactiveMedicines = medicines.filter(m => !m.isActive);
+  // Sprint 20.4: loadTipState useEffect kaldirildi (tipDismissed dead code)
+  void AsyncStorage; // import referansi korunur
+
+  // Sprint 20.4: dismissTip state/callback kaldirildi (dead code)
+
+  // Sprint 68: search + filter mode uygulanmış listeler
+  const activeMedicines = useMemo(() => {
+    let list = medicines.filter(m => m.isActive);
+    if (filterMode === 'inactive') list = []; // aktif moddayken inactive gizle
+    if (filterMode === 'lowStock') {
+      list = list.filter(m => m.stockEnabled && (m.stockCount ?? 0) <= (m.stockThreshold ?? 0));
+    }
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length > 0) list = list.filter(m => m.name.toLowerCase().includes(q));
+    return list;
+  }, [medicines, filterMode, searchQuery]);
+
+  const inactiveMedicines = useMemo(() => {
+    let list = medicines.filter(m => !m.isActive);
+    if (filterMode === 'active' || filterMode === 'lowStock') list = []; // diğer modlarda inactive gizle
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length > 0) list = list.filter(m => m.name.toLowerCase().includes(q));
+    return list;
+  }, [medicines, filterMode, searchQuery]);
 
   // Toggle selection for a medicine
   const toggleSelection = useCallback((id: string) => {
@@ -549,6 +251,100 @@ export default function MedicinesScreen() {
         </View>
       )}
 
+      {/* Sprint 68: search bar + filter chips */}
+      <View
+        style={[
+          styles.searchBarContainer,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <Ionicons
+          name="search-outline"
+          size={18}
+          color={colors.textMuted}
+          style={styles.searchIcon}
+        />
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder={language === 'tr' ? 'İlaç ara...' : 'Search medicines...'}
+          placeholderTextColor={colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          accessibilityLabel={language === 'tr' ? 'İlaç arama' : 'Search medicines'}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearchQuery('')}
+            accessibilityRole="button"
+            accessibilityLabel={language === 'tr' ? 'Aramayı temizle' : 'Clear search'}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Sprint 68: filter chips */}
+      <View style={styles.filterChipRow}>
+        {(['all', 'active', 'inactive', 'lowStock'] as const).map(mode => (
+          <TouchableOpacity
+            key={mode}
+            style={[
+              styles.filterChip,
+              {
+                backgroundColor: filterMode === mode ? colors.primary : colors.surfaceContainerLow,
+                borderColor: filterMode === mode ? colors.primary : colors.border,
+              },
+            ]}
+            onPress={() => {
+              setFilterMode(mode);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: filterMode === mode }}
+            accessibilityLabel={
+              mode === 'all'
+                ? language === 'tr'
+                  ? 'Tümü'
+                  : 'All'
+                : mode === 'active'
+                  ? language === 'tr'
+                    ? 'Aktif'
+                    : 'Active'
+                  : mode === 'inactive'
+                    ? language === 'tr'
+                      ? 'Pasif'
+                      : 'Inactive'
+                    : language === 'tr'
+                      ? 'Stok Az'
+                      : 'Low Stock'
+            }
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                { color: filterMode === mode ? '#FFFFFF' : colors.text },
+              ]}
+            >
+              {mode === 'all'
+                ? language === 'tr'
+                  ? 'Tümü'
+                  : 'All'
+                : mode === 'active'
+                  ? language === 'tr'
+                    ? 'Aktif'
+                    : 'Active'
+                  : mode === 'inactive'
+                    ? language === 'tr'
+                      ? 'Pasif'
+                      : 'Inactive'
+                    : language === 'tr'
+                      ? 'Stok Az'
+                      : 'Low Stock'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {medicines.length === 0 ? (
           <View style={styles.emptyStateContainer}>
@@ -558,17 +354,20 @@ export default function MedicinesScreen() {
               colors={colors}
               isDark={isDark}
             >
+              {/* Sprint 73C: PillboxIllustration + "İlk ilacını ekle" CTA */}
               <View style={styles.emptyState}>
                 <View
                   style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '15' }]}
                 >
-                  <Text style={styles.emptyIconLarge}>💊</Text>
+                  <Ionicons name="medkit" size={48} color={colors.primary} />
                 </View>
                 <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  {t('medicines_empty')}
+                  {language === 'tr' ? 'İlk ilacını ekle' : 'Add your first medicine'}
                 </Text>
                 <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
-                  {t('medicines_add_first')}
+                  {language === 'tr'
+                    ? 'İlacını ekle, hatırlatma planla, sağlığını takip et'
+                    : 'Add medicine, schedule reminders, track health'}
                 </Text>
                 <TouchableOpacity
                   style={[styles.addButton, { backgroundColor: colors.primary }]}
@@ -576,7 +375,9 @@ export default function MedicinesScreen() {
                   activeOpacity={0.8}
                 >
                   <Ionicons name="add" size={20} color="#FFFFFF" />
-                  <Text style={styles.addButtonText}>{t('home_add_medicine')}</Text>
+                  <Text style={styles.addButtonText}>
+                    {language === 'tr' ? 'İlaç Ekle' : 'Add Medicine'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </Section>
@@ -702,8 +503,6 @@ export default function MedicinesScreen() {
                 })}
               </View>
             )}
-
-
           </>
         )}
 
@@ -936,6 +735,42 @@ export default function MedicinesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  // Sprint 68: search + filter styles
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  filterChipRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,

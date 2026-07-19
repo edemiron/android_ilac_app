@@ -198,7 +198,9 @@ function speakWithPromise(message: string, language: 'tr' | 'en'): Promise<void>
 
     Tts.addEventListener('tts-finish', onFinish);
     Tts.addEventListener('tts-cancel', onCancel);
-    Tts.addEventListener('tts-error', onError);
+    Tts.addEventListener('tts-error', (event: { utteranceId?: string | number }) => {
+      onError(new Error(String(event?.utteranceId ?? 'TTS error')));
+    });
 
     // Dil ayarı
     Tts.setDefaultLanguage(language === 'tr' ? 'tr-TR' : 'en-US')

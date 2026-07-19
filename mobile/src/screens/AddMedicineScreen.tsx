@@ -20,9 +20,13 @@ import {
 } from '../components/addMedicine';
 
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../types';
+
+type AddMedicineNavigation = NativeStackNavigationProp<RootStackParamList, 'AddMedicine'>;
 
 export default function AddMedicineScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<AddMedicineNavigation>();
   const {
     routeParams,
     isEditing,
@@ -147,7 +151,7 @@ export default function AddMedicineScreen() {
           <View style={styles.card}>
             <ImagePickerSection
               imageUri={formState.imageUri}
-              onImageChange={(uri) => updateFormField('imageUri', uri)}
+              onImageChange={uri => updateFormField('imageUri', uri)}
               label={language === 'tr' ? 'İlaç Fotoğrafı' : 'Medicine Photo'}
               colors={colors}
               language={language}
@@ -167,8 +171,12 @@ export default function AddMedicineScreen() {
           <View style={styles.card}>
             <AdvancedSettingsSection
               formState={formState}
-              onRequireBarcodeChange={(val: boolean) => updateFormField('requireBarcodeOnTake', val)}
-              onVibrationPatternChange={(pattern: 'default' | 'heartbeat' | 'urgent' | 'soft') => updateFormField('vibrationPattern', pattern)}
+              onRequireBarcodeChange={(val: boolean) =>
+                updateFormField('requireBarcodeOnTake', val)
+              }
+              onVibrationPatternChange={(pattern: 'default' | 'heartbeat' | 'urgent' | 'soft') =>
+                updateFormField('vibrationPattern', pattern)
+              }
               onScanBarcode={() => navigation.navigate('BarcodeScanner', { mode: 'assign' })}
               label={language === 'tr' ? 'Gelişmiş Alarm Ayarları' : 'Advanced Alarm Settings'}
               colors={colors}

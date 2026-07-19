@@ -2,14 +2,17 @@ import { isInQuietHours } from '../utils/notifications';
 import { UserSettings } from '../types';
 
 describe('isInQuietHours', () => {
-  const baseSettings: UserSettings = {
+  // Sprint 1: 'as UserSettings' cast eklendi — UserSettings required alanları
+  // (security, TTS, persistent) eksik ama isInQuietHours test bunlari kullanmiyor.
+  // Tam default icin src/utils/defaultSettings.ts'e bakin.
+  const baseSettings = {
     wakeUpTime: '08:00',
     sleepTime: '23:00',
     notificationSound: 'default',
     vibrationEnabled: true,
     fullScreenAlarmEnabled: true,
-    language: 'tr',
-    alarmSound: 'alarm',
+    language: 'tr' as const,
+    alarmSound: 'alarm' as const,
     alarmVolume: 80,
     snoozeDuration: 5,
     maxSnoozeCount: 3,
@@ -18,7 +21,7 @@ describe('isInQuietHours', () => {
     quietHoursEnd: '07:00',
     alarmModeEnabled: true,
     conflictIntervalMinutes: 10,
-  };
+  } as UserSettings;
 
   beforeEach(() => {
     jest.useFakeTimers();

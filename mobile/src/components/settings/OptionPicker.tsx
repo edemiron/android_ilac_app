@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useHaptics } from '../../hooks/useHaptics';
 import { createSettingsStyles } from './styles';
 
 interface OptionPickerProps<T extends string | number> {
@@ -18,15 +19,25 @@ export function OptionPicker<T extends string | number>({
   getLabel,
 }: OptionPickerProps<T>): React.ReactElement {
   const { colors, isDark } = useTheme();
+  const haptics = useHaptics();
   const styles = createSettingsStyles(colors, isDark);
+
+  // Sprint 66A: selection haptic on option choose
+  const handleSelect = useCallback(
+    (value: T) => {
+      haptics.selection();
+      onSelect(value);
+    },
+    [haptics, onSelect]
+  );
 
   return (
     <View style={styles.pickerContainer}>
-      {options.map((option) => (
+      {options.map(option => (
         <TouchableOpacity
           key={String(option)}
           style={[styles.pickerOption, selectedValue === option && styles.pickerOptionActive]}
-          onPress={() => onSelect(option)}
+          onPress={() => handleSelect(option)}
           activeOpacity={0.7}
         >
           <Text
@@ -37,7 +48,9 @@ export function OptionPicker<T extends string | number>({
           >
             {getLabel(option)}
           </Text>
-          {selectedValue === option && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+          {selectedValue === option && (
+            <Ionicons name="checkmark" size={18} color={colors.primary} />
+          )}
         </TouchableOpacity>
       ))}
     </View>

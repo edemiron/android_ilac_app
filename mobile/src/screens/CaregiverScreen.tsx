@@ -23,10 +23,10 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { useCaregiver } from '../hooks/useCaregiver';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, type ThemeColors } from '../contexts/ThemeContext';
 import { useAlert } from '../contexts/AlertContext';
 
-const createStyles = (colors: any, isDark: boolean) =>
+const createStyles = (colors: ThemeColors, _isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -250,7 +250,6 @@ export default function CaregiverScreen() {
     cancelInviteRel,
     showQRCode,
     hideQRCode,
-    refresh,
   } = useCaregiver();
 
   const [email, setEmail] = useState('');
@@ -259,39 +258,36 @@ export default function CaregiverScreen() {
 
   const t = {
     title: language === 'tr' ? 'Bakıcı Yönetimi' : 'Caregiver Management',
-    subtitle: language === 'tr'
-      ? 'Sevdikleriniz ilaç takipinizi görüntüleyebilir'
-      : 'Your loved ones can view your medication schedule',
+    subtitle:
+      language === 'tr'
+        ? 'Sevdikleriniz ilaç takipinizi görüntüleyebilir'
+        : 'Your loved ones can view your medication schedule',
     addCaregiver: language === 'tr' ? 'Bakıcı Ekle' : 'Add Caregiver',
     emailPlaceholder: language === 'tr' ? 'E-posta adresi' : 'Email address',
     inviteButton: language === 'tr' ? 'Davet Et' : 'Invite',
     caregiversTitle: language === 'tr' ? 'Bakıcılarım' : 'My Caregivers',
     pendingInvitesTitle: language === 'tr' ? 'Bekleyen Davetler' : 'Pending Invites',
-    noCaregivers: language === 'tr'
-      ? 'Henüz bakıcı eklemediniz'
-      : 'No caregivers added yet',
-    noCaregiversSubtitle: language === 'tr'
-      ? 'Sevdiklerinizi davet ederek ilaç takipinizi paylaşabilirsiniz'
-      : 'Invite your loved ones to share your medication schedule',
-    noInvites: language === 'tr'
-      ? 'Bekleyen davetiniz yok'
-      : 'No pending invites',
+    noCaregivers: language === 'tr' ? 'Henüz bakıcı eklemediniz' : 'No caregivers added yet',
+    noCaregiversSubtitle:
+      language === 'tr'
+        ? 'Sevdiklerinizi davet ederek ilaç takipinizi paylaşabilirsiniz'
+        : 'Invite your loved ones to share your medication schedule',
+    noInvites: language === 'tr' ? 'Bekleyen davetiniz yok' : 'No pending invites',
     viewSchedule: language === 'tr' ? 'Takvim' : 'Schedule',
     viewHistory: language === 'tr' ? 'Geçmiş' : 'History',
     receiveAlerts: language === 'tr' ? 'Bildirimler' : 'Alerts',
     remove: language === 'tr' ? 'Kaldır' : 'Remove',
     cancel: language === 'tr' ? 'İptal' : 'Cancel',
     qrTitle: language === 'tr' ? 'Davet Kodu' : 'Invite Code',
-    qrSubtitle: language === 'tr'
-      ? 'Bakıcı bu QR kodu tarayarak daveti kabul edebilir'
-      : 'Caregiver can scan this QR code to accept the invite',
+    qrSubtitle:
+      language === 'tr'
+        ? 'Bakıcı bu QR kodu tarayarak daveti kabul edebilir'
+        : 'Caregiver can scan this QR code to accept the invite',
     shareInvite: language === 'tr' ? 'Daveti Paylaş' : 'Share Invite',
     close: language === 'tr' ? 'Kapat' : 'Close',
     inviteSent: language === 'tr' ? 'Davet Gönderildi' : 'Invite Sent',
     inviteSentBody: (code: string) =>
-      language === 'tr'
-        ? `Davet kodu: ${code}`
-        : `Invite code: ${code}`,
+      language === 'tr' ? `Davet kodu: ${code}` : `Invite code: ${code}`,
     expired: language === 'tr' ? 'Süresi Doldu' : 'Expired',
     expires: (date: string) => {
       const d = new Date(date);
@@ -303,7 +299,10 @@ export default function CaregiverScreen() {
 
   const handleInvite = async () => {
     if (!email.trim()) {
-      showError(language === 'tr' ? 'Hata' : 'Error', language === 'tr' ? 'Lütfen e-posta girin' : 'Please enter an email');
+      showError(
+        language === 'tr' ? 'Hata' : 'Error',
+        language === 'tr' ? 'Lütfen e-posta girin' : 'Please enter an email'
+      );
       return;
     }
 
@@ -317,7 +316,10 @@ export default function CaregiverScreen() {
       setEmail('');
       showInfo(t.inviteSent, t.inviteSentBody(result.inviteCode!));
     } else {
-      showError(language === 'tr' ? 'Hata' : 'Error', result.error || language === 'tr' ? 'Davet gönderilemedi' : 'Failed to send invite');
+      showError(
+        language === 'tr' ? 'Hata' : 'Error',
+        result.error || language === 'tr' ? 'Davet gönderilemedi' : 'Failed to send invite'
+      );
     }
   };
 
@@ -346,16 +348,15 @@ export default function CaregiverScreen() {
 
   const handleShareInvite = () => {
     // Invite kodunu ve linki paylaş
-    const shareText = language === 'tr'
-      ? `İlaç Hatırlatıcı uygulamasında benim takipimi yapman için davet kodum: ${currentInviteCode}`
-      : `My invite code for the medication reminder app: ${currentInviteCode}`;
+    const shareText =
+      language === 'tr'
+        ? `İlaç Hatırlatıcı uygulamasında benim takipimi yapman için davet kodum: ${currentInviteCode}`
+        : `My invite code for the medication reminder app: ${currentInviteCode}`;
 
     // Share dialog (native veya react-native-share)
-    Alert.alert(
-      language === 'tr' ? 'Davet Kodu' : 'Invite Code',
-      shareText,
-      [{ text: language === 'tr' ? 'Tamam' : 'OK' }]
-    );
+    Alert.alert(language === 'tr' ? 'Davet Kodu' : 'Invite Code', shareText, [
+      { text: language === 'tr' ? 'Tamam' : 'OK' },
+    ]);
   };
 
   const renderPermissions = (relationship: {
@@ -428,7 +429,8 @@ export default function CaregiverScreen() {
                   <View style={styles.inviteInfo}>
                     <Text style={styles.inviteEmail}>{invite.caregiverEmail}</Text>
                     <Text style={styles.inviteCode}>
-                      {language === 'tr' ? 'Kod' : 'Code'}: {invite.id} • {t.expires(invite.expiresAt)}
+                      {language === 'tr' ? 'Kod' : 'Code'}: {invite.id} •{' '}
+                      {t.expires(invite.expiresAt)}
                     </Text>
                   </View>
                   <View style={styles.inviteActions}>
@@ -474,7 +476,12 @@ export default function CaregiverScreen() {
             caregivers.map(caregiver => (
               <View key={caregiver.id} style={styles.card}>
                 <View style={styles.caregiverItem}>
-                  <View style={[styles.inviteButton, { backgroundColor: colors.primary + '20', width: 44, height: 44 }]}>
+                  <View
+                    style={[
+                      styles.inviteButton,
+                      { backgroundColor: colors.primary + '20', width: 44, height: 44 },
+                    ]}
+                  >
                     <Ionicons name="person" size={22} color={colors.primary} />
                   </View>
                   <View style={styles.caregiverInfo}>
@@ -485,7 +492,12 @@ export default function CaregiverScreen() {
                   </View>
                   <TouchableOpacity
                     style={styles.removeButton}
-                    onPress={() => handleRemoveCaregiver(caregiver.id, caregiver.caregiverName || caregiver.caregiverEmail || 'Bakıcı')}
+                    onPress={() =>
+                      handleRemoveCaregiver(
+                        caregiver.id,
+                        caregiver.caregiverName || caregiver.caregiverEmail || 'Bakıcı'
+                      )
+                    }
                   >
                     <Ionicons name="trash-outline" size={20} color={colors.error} />
                   </TouchableOpacity>

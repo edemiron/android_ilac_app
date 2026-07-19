@@ -1,7 +1,7 @@
 // Polyfill for crypto.getRandomValues (required for uuid package)
 import 'react-native-get-random-values';
 
-import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useRef, Suspense, lazy } from 'react';
 import {
   StatusBar,
   View,
@@ -16,11 +16,11 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import notifee, { EventType } from '@notifee/react-native';
+import notifee from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -46,10 +46,11 @@ import {
 
 // Lazy load BarcodeScannerScreen - vision-camera is HEAVY and slows startup by ~5s
 const BarcodeScannerScreen = lazy(() => import('./src/screens/BarcodeScannerScreen'));
+
+// Sprint 60: Lazy load OnboardingScreen
+const OnboardingScreen = lazy(() => import('./src/screens/OnboardingScreen'));
 import { RootStackParamList, MainTabParamList, AuthStackParamList } from './src/types';
 import {
-  requestNotificationPermissions,
-  createNotificationChannels,
   setupNotificationListeners,
   dismissNotification,
   scheduleSnoozeNotification,
@@ -57,40 +58,36 @@ import {
   cleanupOrphanNotifications,
   cancelAllNotifications,
 } from './src/utils/notifications';
-import { createPersistentNotificationChannel } from './src/utils/persistentNotification';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { generateId } from './src/utils/idGenerator';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { UserProfileProvider } from './src/hooks/useUserProfile';
+import { AccentProvider } from './src/contexts/AccentContext';
+import { OnboardingProvider, useOnboarding } from './src/hooks/useOnboarding';
+import { LowStockDismissProvider } from './src/hooks/useLowStockDismiss';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { AlertProvider } from './src/contexts/AlertContext';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
+import { usePermissionsGate } from './src/hooks/usePermissionsGate';
+import { useSecurityGate } from './src/hooks/useSecurityGate';
+import { useBootRecovery } from './src/hooks/useBootRecovery';
+import { useAlarmNavigation, type PendingAlarmData } from './src/hooks/useAlarmNavigation';
 import {
   getBootRecoveryResult,
   clearBootRecoveryResult,
-  BootRecoveryResult,
   reRegisterAllAlarms,
 } from './src/utils/bootHandler';
 import { isAlarmHandled } from './index';
 import { createScopedLogger } from './src/utils/logger';
 import { STORAGE_KEYS } from './src/constants';
-import {
-  performSecurityCheck,
-  getSecuritySettings,
-  authenticateWithBiometrics,
-  verifyPin,
-  updateLastActiveTime,
-  SecuritySettings,
-} from './src/utils/security';
 
 const appLog = createScopedLogger('App');
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-
-const PERMISSIONS_SHOWN_KEY = '@permissions_shown';
 
 function getTriggerDisplayName(trigger: string): string {
   const triggerNames: Record<string, string> = {
@@ -307,7 +304,7 @@ function MainTabs() {
   const panResponder = React.useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: (evt) => {
+        onStartShouldSetPanResponder: evt => {
           const x = evt.nativeEvent.pageX;
           return x < EDGE_ZONE || x > SCREEN_WIDTH - EDGE_ZONE;
         },
@@ -327,9 +324,8 @@ function MainTabs() {
           const idx = tabIndexRef.current;
 
           const isSignificant = Math.abs(gs.dx) > 50 || Math.abs(gs.vx) > 0.3;
-          const nextIdx = gs.dx < 0
-            ? Math.min(idx + 1, TAB_ROUTES.length - 1)
-            : Math.max(idx - 1, 0);
+          const nextIdx =
+            gs.dx < 0 ? Math.min(idx + 1, TAB_ROUTES.length - 1) : Math.max(idx - 1, 0);
 
           if (!isSignificant || nextIdx === idx || !nav) {
             // Snap back
@@ -374,7 +370,7 @@ function MainTabs() {
     <View style={{ flex: 1 }} {...panResponder.panHandlers}>
       <Animated.View style={{ flex: 1, transform: [{ translateX }] }}>
         <Tab.Navigator
-          tabBar={(props) => {
+          tabBar={props => {
             tabNavRef.current = props.navigation;
             tabIndexRef.current = props.state.index;
             return <CustomTabBar {...props} />;
@@ -385,10 +381,26 @@ function MainTabs() {
             headerTitleStyle: { fontWeight: '600', color: colors.headerText },
           }}
         >
-          <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false, title: t('tab_home') }} />
-          <Tab.Screen name="Medicines" component={MedicinesScreen} options={{ title: t('tab_medicines'), headerTitle: t('tab_medicines') }} />
-          <Tab.Screen name="Statistics" component={StatisticsScreen} options={{ title: t('tab_statistics'), headerTitle: t('tab_statistics') }} />
-          <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: t('tab_settings'), headerTitle: t('tab_settings') }} />
+          <Tab.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{ headerShown: false, title: t('tab_home') }}
+          />
+          <Tab.Screen
+            name="Medicines"
+            component={MedicinesScreen}
+            options={{ title: t('tab_medicines'), headerTitle: t('tab_medicines') }}
+          />
+          <Tab.Screen
+            name="Statistics"
+            component={StatisticsScreen}
+            options={{ title: t('tab_statistics'), headerTitle: t('tab_statistics') }}
+          />
+          <Tab.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{ title: t('tab_settings'), headerTitle: t('tab_settings') }}
+          />
         </Tab.Navigator>
       </Animated.View>
     </View>
@@ -430,11 +442,26 @@ function LazyBarcodeScannerScreen(props: any) {
   );
 }
 
+// Sprint 60: Lazy Onboarding wrapper
+function LazyOnboardingScreen() {
+  const { colors } = useTheme();
+  return (
+    <Suspense
+      fallback={
+        <View style={[loadingStyles.container, { backgroundColor: colors.background }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      }
+    >
+      <OnboardingScreen />
+    </Suspense>
+  );
+}
+
 // Main App Content with Navigation
 function AppContent() {
   const navigationRef = useRef<any>(null);
   const processedSnoozesRef = useRef<Set<string>>(new Set()); // Snooze işlemi yapılmış notification'lar
-  const activeAlarmKeysRef = useRef<Set<string>>(new Set()); // Şu an açık olan alarm key'leri (duplicate guard)
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -449,34 +476,55 @@ function AppContent() {
     logMedicineSkipped,
   } = useMedicineStore();
 
-  const [showPermissions, setShowPermissions] = useState<boolean | null>(null);
-  const [pendingAlarm, setPendingAlarm] = useState<any>(null);
-  const [bootRecovery, setBootRecovery] = useState<BootRecoveryResult | null>(null);
+  // Pending alarm queue + navigation — Sprint 6 DRY refactor:
+  // Hook artık sadece React state'i tutar; tüm alarm validation/snooze/navigate
+  // mantığı utils/alarmNavigation.ts içindeki `handleIncomingAlarmNavigation`
+  // pure fonksiyonuna delege edilir. Hook kendisi useMedicineStore.getState()
+  // ile store action'larına erişir, dolayısıyla App.tsx options yüzeyi
+  // 8 callback'ten 4'e indi.
+  const { pendingAlarm, setPendingAlarm, handleIncomingAlarm } = useAlarmNavigation({
+    isNavigationReady: () => navigationRef.current?.isReady() ?? false,
+    isAlarmAlreadyHandled: async (
+      medicineId: string,
+      reminderTimeId: string,
+      scheduledTime: string
+    ) => {
+      const today = new Date().toISOString().split('T')[0];
+      return await isAlarmHandled(`${medicineId}-${reminderTimeId}-${today}`);
+    },
+    navigateToAlarmScreen: (data: PendingAlarmData) => {
+      navigationRef.current?.navigate('Alarm', {
+        medicineId: data.medicineId,
+        reminderTimeId: data.reminderTimeId,
+        scheduledTime: data.scheduledTime,
+        snoozeCount: data.snoozeCount ? parseInt(data.snoozeCount, 10) : undefined,
+        originalScheduledTime: data.originalScheduledTime,
+      });
+      // Bildirimi HEMEN iptal et — foreground DELIVERED handler tekrar tetiklenmesin
+      notifee
+        .cancelDisplayedNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`)
+        .catch(() => undefined);
+    },
+    cancelMedicineNotifications,
+  });
+  // Boot recovery (App.tsx'ten çıkartıldı, useBootRecovery hook'una taşındı)
+  const { bootRecovery, clearBootRecovery } = useBootRecovery();
 
-  // Güvenlik kontrolü state'leri - TÜM HOOK'LAR EN ÜSTTE
-  const [securityCheckComplete, setSecurityCheckComplete] = useState(false);
-  const [showPinEntry, setShowPinEntry] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [securitySettings, setSecuritySettings] = useState<SecuritySettings | null>(null);
+  // İzin ekranı gate (App.tsx'ten çıkartıldı, usePermissionsGate hook'una taşındı)
+  const { showPermissions, handlePermissionsComplete } = usePermissionsGate();
 
-  // İzin ekranı gösterildi mi kontrol et
-  useEffect(() => {
-    const checkPermissionsShown = async () => {
-      try {
-        const shown = await AsyncStorage.getItem(PERMISSIONS_SHOWN_KEY);
-        setShowPermissions(shown !== 'true');
-      } catch (error) {
-        setShowPermissions(true);
-      }
-    };
-    checkPermissionsShown();
-  }, []);
+  // Sprint 60: Onboarding gate — yeni kullanıcılar için 4 slide akış
+  const { isLoading: onboardingLoading, isCompleted: onboardingCompleted } = useOnboarding();
 
-  // İzin ekranı tamamlandığında
-  const handlePermissionsComplete = async () => {
-    await AsyncStorage.setItem(PERMISSIONS_SHOWN_KEY, 'true');
-    setShowPermissions(false);
-  };
+  // Güvenlik kapısı (App.tsx'ten çıkartıldı, useSecurityGate hook'una taşındı)
+  const {
+    securityCheckComplete,
+    showPinEntry,
+    pinInput,
+    setPinInput,
+    securitySettings,
+    handlePinVerify,
+  } = useSecurityGate();
 
   // Auth durumu değiştiğinde store'u güncelle ve sync yap
   useEffect(() => {
@@ -488,184 +536,8 @@ function AppContent() {
     }
   }, [isAuthenticated, user]);
 
-  // Güvenlik kontrolü - app açılışında
-  useEffect(() => {
-    const checkSecurity = async () => {
-      if (!isAuthenticated) return;
-
-      const secSettings = await getSecuritySettings();
-      if (!secSettings || !secSettings.securityEnabled || secSettings.securityType === 'none') {
-        setSecurityCheckComplete(true);
-        return;
-      }
-
-      setSecuritySettings(secSettings);
-
-      // Biyometrik kontrol
-      if (secSettings.securityType === 'biometric' || secSettings.securityType === 'both') {
-        const bioResult = await authenticateWithBiometrics();
-        if (bioResult.success) {
-          await updateLastActiveTime();
-          setSecurityCheckComplete(true);
-          return;
-        }
-        // Biyometrik başarısız ve "biometric" modundaysa, PIN gerekli
-        if (secSettings.securityType === 'biometric') {
-          setShowPinEntry(true);
-          return;
-        }
-      }
-
-      // PIN gerekli
-      if (secSettings.securityType === 'pin' || secSettings.securityType === 'both') {
-        setShowPinEntry(true);
-      }
-    };
-
-    checkSecurity();
-  }, [isAuthenticated]);
-
-  const handlePinVerify = async () => {
-    if (!pinInput || pinInput.length < 4) {
-      Alert.alert(
-        language === 'tr' ? 'Geçersiz PIN' : 'Invalid PIN',
-        language === 'tr' ? 'PIN en az 4 haneli olmalı.' : 'PIN must be at least 4 digits.'
-      );
-      return;
-    }
-
-    const result = await verifyPin(pinInput);
-    if (result.success) {
-      setPinInput('');
-      setShowPinEntry(false);
-      await updateLastActiveTime();
-      setSecurityCheckComplete(true);
-    } else {
-      Alert.alert(
-        language === 'tr' ? 'Yanlış PIN' : 'Incorrect PIN',
-        result.error || (language === 'tr' ? 'Girdiğiniz PIN doğru değil.' : 'The PIN you entered is incorrect.')
-      );
-      if (!result.success) {
-        setPinInput('');
-      }
-    }
-  };
-
-  const navigateToAlarm = async (data: {
-    medicineId: string;
-    reminderTimeId: string;
-    scheduledTime: string;
-    isSnooze?: string;
-    snoozeId?: string;
-    snoozeCount?: string;
-    originalScheduledTime?: string;
-  }) => {
-    console.log('🔴 navigateToAlarm:', data.medicineId, data.reminderTimeId);
-
-    // KRİTİK: Bu alarm zaten handle edildi mi? (ertele/aldım/dismiss)
-    const today = new Date().toISOString().split('T')[0];
-    const alarmKey = `${data.medicineId}-${data.reminderTimeId}-${today}`;
-    const handled = await isAlarmHandled(alarmKey);
-    if (handled) {
-      appLog.debug('Alarm already handled, skipping', { alarmKey });
-      return;
-    }
-
-    // DUPLICATE GUARD: Aynı alarm key için zaten ekran açıksa tekrar açma
-    if (activeAlarmKeysRef.current.has(alarmKey)) {
-      appLog.debug('Alarm already active on screen, skipping duplicate', { alarmKey });
-      return;
-    }
-    activeAlarmKeysRef.current.add(alarmKey);
-    // 60 saniye sonra guard'ı temizle (alarm ekranı kapanmış olmalı)
-    setTimeout(() => activeAlarmKeysRef.current.delete(alarmKey), 60_000);
-
-    const isTestMode = data.medicineId === 'test-medicine';
-    const isSnooze = data.isSnooze === 'true';
-
-    if (!isTestMode) {
-      const storeState = useMedicineStore.getState();
-      const medicine = storeState.getMedicineById(data.medicineId);
-
-      if (!medicine) {
-        appLog.warn('Alarm: ilaç silinmiş', {
-          medicineId: data.medicineId,
-          reminderTimeId: data.reminderTimeId,
-        });
-        if (isSnooze && data.snoozeId) {
-          dismissNotification(`snooze-${data.snoozeId}`);
-        } else {
-          dismissNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`);
-        }
-        cancelMedicineNotifications(data.medicineId);
-        return;
-      }
-
-      const medicineLogs = storeState.medicineLogs;
-      const today = new Date().toISOString().split('T')[0];
-      const alreadyLogged = medicineLogs.some(
-        log =>
-          log.reminderTimeId === data.reminderTimeId &&
-          log.scheduledTime.startsWith(today) &&
-          (log.status === 'taken' || log.status === 'skipped')
-      );
-
-      if (alreadyLogged) {
-        appLog.warn('Alarm: zaten loglanmış', {
-          medicineId: data.medicineId,
-          reminderTimeId: data.reminderTimeId,
-        });
-        if (isSnooze && data.snoozeId) {
-          dismissNotification(`snooze-${data.snoozeId}`);
-          storeState.deactivateSnooze(data.snoozeId);
-        } else {
-          dismissNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`);
-        }
-        return;
-      }
-
-      if (isSnooze && data.snoozeId) {
-        const snooze = storeState.snoozes.find(s => s.id === data.snoozeId);
-        if (snooze && !snooze.isActive) {
-          appLog.warn('Alarm: snooze inaktif', {
-            snoozeId: data.snoozeId,
-            medicineId: data.medicineId,
-          });
-          dismissNotification(`snooze-${data.snoozeId}`);
-          return;
-        }
-      }
-    }
-
-    if (!navigationRef.current?.isReady()) {
-      setPendingAlarm(data);
-      return;
-    }
-
-    navigationRef.current?.navigate('Alarm', {
-      medicineId: data.medicineId,
-      reminderTimeId: data.reminderTimeId,
-      scheduledTime: data.scheduledTime,
-      snoozeCount: data.snoozeCount ? parseInt(data.snoozeCount, 10) : undefined,
-      originalScheduledTime: data.originalScheduledTime,
-    });
-
-    // KRİTİK: Navigate sonrası bildirimi HEMEN iptal et
-    // Foreground DELIVERED handler'ın tekrar tetiklenmesini engeller
-    const mainNotifId = `alarm-${data.medicineId}-${data.reminderTimeId}`;
-    try {
-      await notifee.cancelDisplayedNotification(mainNotifId);
-    } catch (_e) {
-      /* */
-    }
-
-    if (isSnooze && data.snoozeId) {
-      dismissNotification(`snooze-${data.snoozeId}`);
-    } else {
-      dismissNotification(mainNotifId);
-      cancelMedicineNotifications(data.medicineId);
-    }
-  };
+  // navigateToAlarm callback'i tamamen useAlarmNavigation hook'una tasindi (Sprint 5).
+  // Inline 115 satirlik callback buradan cikarildi — bkz: src/hooks/useAlarmNavigation.ts.
 
   // Aksiyon işle (bildirim butonlarından)
   const handleAction = async (actionId: string, data: any) => {
@@ -762,6 +634,7 @@ function AppContent() {
     }
   };
 
+  // Notifee event listener'larını kur
   useEffect(() => {
     const performStartupCleanup = async () => {
       try {
@@ -819,7 +692,7 @@ function AppContent() {
 
         const recovery = await getBootRecoveryResult();
         if (recovery && (recovery.reminders > 0 || recovery.snoozes > 0)) {
-          setBootRecovery(recovery);
+          // setBootRecovery useBootRecovery hook'unda — burada bir sey yapmaya gerek yok.
           await clearBootRecoveryResult();
         }
       } catch (error) {
@@ -832,12 +705,8 @@ function AppContent() {
 
   // Notifee event listener'larını kur
   useEffect(() => {
-    // Bildirim kanallarını oluştur
-    createNotificationChannels();
-    createPersistentNotificationChannel();
-
     // Foreground event listener
-    const unsubscribe = setupNotificationListeners(navigateToAlarm, handleAction);
+    const unsubscribe = setupNotificationListeners(handleIncomingAlarm, handleAction);
 
     // Background event handler artık index.ts'te register ediliyor
 
@@ -918,12 +787,8 @@ function AppContent() {
     };
   }, []);
 
-  useEffect(() => {
-    if (pendingAlarm && navigationRef.current?.isReady()) {
-      navigateToAlarm(pendingAlarm);
-      setPendingAlarm(null);
-    }
-  }, [pendingAlarm]);
+  // pendingAlarm hazir oldugunda navigate etme islemi useAlarmNavigation hook'u
+  // icinde yonetiliyor (src/hooks/useAlarmNavigation.ts:148-153). Bu effect kaldirildi.
 
   // KRİTİK: Uygulama arka plandan öne geldiğinde pending-alarm kontrol et
   // wakeAndOpenApp warm start'ta uygulamayı öne getirir ama checkInitialNotification
@@ -976,7 +841,7 @@ function AppContent() {
         `${triggerName} sonrası ${bootRecovery.reminders} hatırlatma${bootRecovery.snoozes > 0 ? ` ve ${bootRecovery.snoozes} erteleme` : ''} yeniden planlandı.`,
         [{ text: 'Tamam', style: 'default' }]
       );
-      setBootRecovery(null);
+      clearBootRecovery();
     }
   }, [bootRecovery]);
 
@@ -1034,7 +899,7 @@ function AppContent() {
               <TouchableOpacity
                 key={num}
                 style={[styles.pinButton, { backgroundColor: colors.card }]}
-                onPress={() => pinInput.length < 6 && setPinInput(prev => prev + num)}
+                onPress={() => pinInput.length < 6 && setPinInput(pinInput + num)}
               >
                 <Text style={[styles.pinButtonText, { color: colors.text }]}>{num}</Text>
               </TouchableOpacity>
@@ -1043,11 +908,11 @@ function AppContent() {
               style={[styles.pinButton, { backgroundColor: colors.card }]}
               onPress={() => setPinInput('')}
             >
-              <Text style={[styles.pinButtonText, { color: colors.danger }]}>C</Text>
+              <Text style={[styles.pinButtonText, { color: colors.text }]}>C</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.pinButton, { backgroundColor: colors.card }]}
-              onPress={() => pinInput.length < 6 && setPinInput(prev => prev + '0')}
+              onPress={() => pinInput.length < 6 && setPinInput(pinInput + '0')}
             >
               <Text style={[styles.pinButtonText, { color: colors.text }]}>0</Text>
             </TouchableOpacity>
@@ -1079,15 +944,19 @@ function AppContent() {
   };
 
   // Giriş yapılmışsa ana uygulamayı göster
+  // Sprint 60: Onboarding gate — yeni kullanıcılar için
+  if (!onboardingLoading && !onboardingCompleted) {
+    return <LazyOnboardingScreen />;
+  }
+
   return (
     <NavigationContainer
       ref={navigationRef}
       onReady={() => {
-        // Navigation hazır olduğunda pending alarm varsa yönlendir
-        if (pendingAlarm) {
-          navigateToAlarm(pendingAlarm);
-          setPendingAlarm(null);
-        }
+        // Navigation hazır olduğunda pending alarm varsa yönlendir.
+        // NOT: useAlarmNavigation hook'u kendi içinde
+        // pendingAlarm + isNavigationReady'i izliyor (effect içinde), bu yüzden
+        // tekrar tetiklemeye gerek yok. Burada boş bırakılır.
       }}
     >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -1199,17 +1068,25 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary componentName="App">
-        <ThemeProvider>
-          <LanguageProvider>
-            <AuthProvider>
-              <SubscriptionProvider>
-                <AlertProvider>
-                  <AppContent />
-                </AlertProvider>
-              </SubscriptionProvider>
-            </AuthProvider>
-          </LanguageProvider>
-        </ThemeProvider>
+        <UserProfileProvider>
+          <AccentProvider>
+            <ThemeProvider>
+              <LowStockDismissProvider>
+                <OnboardingProvider>
+                  <LanguageProvider>
+                    <AuthProvider>
+                      <SubscriptionProvider>
+                        <AlertProvider>
+                          <AppContent />
+                        </AlertProvider>
+                      </SubscriptionProvider>
+                    </AuthProvider>
+                  </LanguageProvider>
+                </OnboardingProvider>
+              </LowStockDismissProvider>
+            </ThemeProvider>
+          </AccentProvider>
+        </UserProfileProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );

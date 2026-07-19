@@ -15,47 +15,6 @@ import {
 } from '../utils/notifications';
 import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInteraction';
 import { useAlert } from '../contexts/AlertContext';
-
-// Test ilaç verileri
-const TEST_MEDICINE_NAMES = [
-  'Aspirin',
-  'Parol',
-  'Majezik',
-  'Arveles',
-  'Nurofen',
-  'Tylol',
-  'Voltaren',
-  'Cataflam',
-  'Apranax',
-  'Dikloron',
-  'Aferin',
-  'Gripin',
-  'Minoset',
-  'Vermidon',
-  'Dolorex',
-];
-
-const TEST_MEDICINE_DOSES = [
-  '500mg',
-  '200mg',
-  '100mg',
-  '250mg',
-  '400mg',
-  '1 tablet',
-  '2 tablet',
-  '1 kapsu00fcl',
-  '5ml',
-  '10ml',
-];
-
-const TEST_INSTRUCTIONS = [
-  'after_meal',
-  'before_meal',
-  'with_meal',
-  'any_time',
-  'empty_stomach',
-  'before_sleep',
-] as const;
 import { speak } from '../utils/speech';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
 import { useLanguage, Language } from '../contexts/LanguageContext';
@@ -63,6 +22,22 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { createScopedLogger } from '../utils/logger';
 import { CHANNELS } from '../constants';
+
+// Sprint 5.2: Test data + pure helpers ./useSettingsHelpers.ts'e tasindi.
+import {
+  TEST_MEDICINE_NAMES,
+  TEST_MEDICINE_DOSES,
+  TEST_INSTRUCTIONS,
+  SETTING_TO_PICKER_MAP,
+  parseTimeToDate,
+  togglePickerVisibility,
+  closePickerVisibility,
+  isValidTimeFormat,
+  getLocalizedThemeLabel,
+  getLocalizedLanguageLabel,
+  type SettingsPickerKey,
+  type TimeSettingKey,
+} from './useSettingsHelpers';
 
 const log = createScopedLogger('SettingsScreen');
 
@@ -93,6 +68,7 @@ export function useSettingsScreen() {
     showSleepPicker: false,
     showThemePicker: false,
     showLanguagePicker: false,
+    showLayoutPicker: false,
     showSnoozePicker: false,
     showSnoozeCountPicker: false,
     showVolumePicker: false,
@@ -101,46 +77,34 @@ export function useSettingsScreen() {
     showConflictIntervalPicker: false,
   });
 
-  const togglePicker = useCallback((pickerName: keyof typeof pickerState) => {
-    setPickerState(prev => ({
-      ...prev,
-      [pickerName]: !prev[pickerName],
-    }));
-  }, []);
+  const togglePicker = useCallback(
+    (pickerName: SettingsPickerKey) =>
+      setPickerState(prev => togglePickerVisibility(prev, pickerName)),
+    []
+  );
 
-  const closePicker = useCallback((pickerName: keyof typeof pickerState) => {
-    setPickerState(prev => ({
-      ...prev,
-      [pickerName]: false,
-    }));
-  }, []);
-
-  const parseTimeToDate = useCallback((timeStr: string) => {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-    return date;
-  }, []);
+  const closePicker = useCallback(
+    (pickerName: SettingsPickerKey) =>
+      setPickerState(prev => closePickerVisibility(prev, pickerName)),
+    []
+  );
 
   const handleTimeChange = useCallback(
-    (settingKey: 'wakeUpTime' | 'sleepTime' | 'quietHoursStart' | 'quietHoursEnd') =>
-      (event: DateTimePickerEvent, selectedDate?: Date) => {
-        const pickerMap: Record<string, keyof typeof pickerState> = {
-          wakeUpTime: 'showWakeUpPicker',
-          sleepTime: 'showSleepPicker',
-          quietHoursStart: 'showQuietStartPicker',
-          quietHoursEnd: 'showQuietEndPicker',
-        };
+    (settingKey: TimeSettingKey) => (event: DateTimePickerEvent, selectedDate?: Date) => {
+      if (Platform.OS !== 'ios') {
+        closePicker(SETTING_TO_PICKER_MAP[settingKey]);
+      }
 
-        if (Platform.OS !== 'ios') {
-          closePicker(pickerMap[settingKey]);
-        }
-
-        if (selectedDate) {
-          const timeStr = format(selectedDate, 'HH:mm');
+      if (selectedDate) {
+        const timeStr = format(selectedDate, 'HH:mm');
+        // Sprint 11.2: Sprint 10.2 validation helper'a delege
+        if (isValidTimeFormat(timeStr)) {
           updateSettings({ [settingKey]: timeStr });
+        } else {
+          log.warn('Invalid time format from picker, update skipped', { settingKey, timeStr });
         }
-      },
+      }
+    },
     [closePicker, updateSettings]
   );
 
@@ -300,7 +264,7 @@ export function useSettingsScreen() {
     const activeMedicineNames = medicines.filter(m => m.isActive).map(m => m.name);
     const allDrugNames = [...activeMedicineNames, testMedicineName];
 
-    const interactionResult = checkMultipleInteractions(allDrugNames);
+    const interactionResult = await checkMultipleInteractions(allDrugNames);
 
     // Belirli bir saat icin cakisma kontrolu
     const checkTimeConflictForTime = (
@@ -482,7 +446,10 @@ export function useSettingsScreen() {
     // Önce ilaç etkileşimi kontrolü
     if (interactionResult.hasInteractions) {
       const interactionMessages = interactionResult.interactions
-        .map(i => `${getSeverityIcon(i.severity)} ${i.drug1} + ${i.drug2}\n${i.description}`)
+        .map(
+          (i: { severity: string; drug1: string; drug2: string; description: string }) =>
+            `${getSeverityIcon(i.severity as never)} ${i.drug1} + ${i.drug2}\n${i.description}`
+        )
         .join('\n\n');
 
       showAlert({
@@ -551,7 +518,7 @@ export function useSettingsScreen() {
             body: `${medicine.dosage} almanin zamani!\n⏰ ${notifTimeStr}`,
             android: {
               channelId: CHANNELS.ALARM,
-              category: 'alarm' as any,
+              category: 'alarm' as never,
               importance: 4, // HIGH
               visibility: 1, // PUBLIC
               ongoing: true,
@@ -581,7 +548,7 @@ export function useSettingsScreen() {
             },
           },
           {
-            type: 1, // TIMESTAMP
+            type: 0, // TriggerType.TIMESTAMP (raw value to avoid import)
             timestamp: triggerTime.getTime(),
             alarmManager: { allowWhileIdle: true, type: 2 }, // SET_ALARM_CLOCK
           }
@@ -707,23 +674,13 @@ export function useSettingsScreen() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   }, []);
 
+  // Sprint 12.2: pure helper'lara delege.
   const getThemeLabel = useCallback(
-    (themeValue: ThemeMode) => {
-      switch (themeValue) {
-        case 'light':
-          return t('settings_theme_light');
-        case 'dark':
-          return t('settings_theme_dark');
-        case 'system':
-          return t('settings_theme_system');
-      }
-    },
-    [t]
+    (themeValue: ThemeMode) => getLocalizedThemeLabel(themeValue, language),
+    [language]
   );
 
-  const getLanguageLabel = useCallback((lang: Language) => {
-    return lang === 'tr' ? 'Türkçe' : 'English';
-  }, []);
+  const getLanguageLabel = useCallback((lang: Language) => getLocalizedLanguageLabel(lang), []);
 
   return {
     navigation,

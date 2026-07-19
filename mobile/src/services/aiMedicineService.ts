@@ -1,8 +1,18 @@
-import { AISearchResult, GlobalMedicine, MedicineForm, MedicineProspectus } from '../types';
+import { AISearchResult } from '../types';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createScopedLogger } from '../utils/logger';
+// Sprint 7.1 + 8.1: Pure prompt + response helper'lari inline tanimlar silindi.
+// Eski API adlari alias olarak kullaniliyor (backward compat).
+import {
+  createNameSearchPrompt,
+  parseNameSearchResponse,
+  createSearchPrompt,
+  createInfoPrompt,
+  parseProspectusResponse,
+  parseAIResponse,
+} from './aiMedicineHelpers';
 
 const log = createScopedLogger('AIMedicineService');
 
@@ -92,9 +102,10 @@ export async function searchMedicineByBarcodeAI(barcode: string): Promise<AISear
     try {
       const geminiSearch = httpsCallable(fn, 'geminiSearch');
       const result = await geminiSearch({ barcode });
+      const data = result.data as { success?: boolean; result?: unknown } | undefined;
 
-      if (result.data?.success) {
-        return parseAIResponse(result.data.result, barcode, 'Gemini (Function)');
+      if (data?.success) {
+        return parseAIResponse(data.result as string, barcode, 'Gemini (Function)');
       }
 
       // Function başarısız olursa fallback olarak direct API dene
@@ -187,7 +198,7 @@ async function searchWithGemini(
 
 // ============ OPENAİ İLE ARAMA ============
 
-async function searchWithOpenAI(
+async function _searchWithOpenAI(
   barcode: string,
   apiKey: string,
   model: string = 'gpt-4o-mini'
@@ -351,67 +362,6 @@ async function searchNameWithOpenAI(
   }
 }
 
-function createNameSearchPrompt(name: string): string {
-  return `
-"${name}" isimli ilacı bul ve bilgilerini JSON formatında döndür.
-
-Yanıtı SADECE aşağıdaki JSON formatında ver:
-
-{
-  "found": true veya false,
-  "confidence": 0-100 arası güven skoru,
-  "medicine": {
-    "name": "İlaç adı (tam adı)",
-    "genericName": "Etken madde adı",
-    "dosage": "Yaygın doz (örn: 500mg)",
-    "form": "tablet/capsule/syrup/cream/drops/spray/injection/other",
-    "manufacturer": "Üretici firma (Türkiye'de satılıyorsa)",
-    "country": "TR"
-  }
-}
-
-NOT: Türkiye'de satılan ilaçları öncelikli olarak bul. Emin değilsen "found": false döndür.
-`;
-}
-
-function parseNameSearchResponse(response: string, source: string): AISearchResult {
-  try {
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { success: false, confidence: 0, error: 'Geçersiz AI yanıtı' };
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-
-    if (!parsed.found || !parsed.medicine) {
-      return {
-        success: false,
-        confidence: parsed.confidence || 0,
-        error: 'İlaç bulunamadı',
-      };
-    }
-
-    const medicine: Partial<GlobalMedicine> = {
-      name: parsed.medicine.name,
-      genericName: parsed.medicine.genericName,
-      dosage: parsed.medicine.dosage,
-      form: (parsed.medicine.form as MedicineForm) || 'other',
-      manufacturer: parsed.medicine.manufacturer || 'Bilinmiyor',
-      country: parsed.medicine.country || 'TR',
-    };
-
-    return {
-      success: true,
-      medicine,
-      confidence: parsed.confidence || 65,
-      source,
-    };
-  } catch (error) {
-    log.error('AI isim aramasi parse hatasi', error);
-    return { success: false, confidence: 0, error: 'AI yanıtı işlenemedi' };
-  }
-}
-
 // ============ İLAÇ HAKKINDA BİLGİ GETIR ============
 
 /**
@@ -475,7 +425,7 @@ async function getInfoWithGemini(
 
     const data = await response.json();
     const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    return parseProspectusResponse(textResponse);
+    return parseProspectusResponse(textResponse, 'Gemini (Function)');
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme hatasi';
     return { success: false, confidence: 0, error: errorMessage };
@@ -510,140 +460,53 @@ async function getInfoWithOpenAI(
 
     const data = await response.json();
     const textResponse = data.choices?.[0]?.message?.content;
-    return parseProspectusResponse(textResponse);
+    return parseProspectusResponse(textResponse, 'OpenAI (Function)');
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme hatasi';
     return { success: false, confidence: 0, error: errorMessage };
   }
 }
 
-// ============ PROMPT OLUŞTURMA ============
-
-function createSearchPrompt(barcode: string): string {
-  return `
-Aşağıdaki barkod numarasına sahip ilacı bul ve bilgilerini JSON formatında döndür.
-
-Barkod: ${barcode}
-
-Yanıtı SADECE aşağıdaki JSON formatında ver, başka hiçbir şey yazma:
-
-{
-  "found": true veya false,
-  "confidence": 0-100 arası güven skoru,
-  "medicine": {
-    "name": "İlaç adı",
-    "genericName": "Etken madde adı",
-    "dosage": "Doz (örn: 500mg)",
-    "form": "tablet/capsule/syrup/cream/drops/spray/injection/other",
-    "manufacturer": "Üretici firma",
-    "country": "Ülke kodu (TR, US, DE vb.)"
-  }
-}
-
-Eğer ilaç bulunamazsa:
-{
-  "found": false,
-  "confidence": 0,
-  "medicine": null
-}
-
-NOT: Sadece emin olduğun bilgileri yaz. Emin değilsen "found": false döndür.
-`;
-}
-
-function createInfoPrompt(medicineName: string, dosage?: string): string {
-  return `
-"${medicineName}${dosage ? ` ${dosage}` : ''}" ilacı hakkında detaylı bilgi ver.
-
-Yanıtı SADECE aşağıdaki JSON formatında ver:
-
-{
-  "found": true,
-  "prospectus": {
-    "indication": "Ne için kullanılır (1-2 cümle)",
-    "contraindication": "Kimler kullanmamalı (1-2 cümle)",
-    "sideEffects": ["Yan etki 1", "Yan etki 2", "Yan etki 3"],
-    "dosageInstructions": "Nasıl kullanılır",
-    "warnings": ["Uyarı 1", "Uyarı 2"],
-    "interactions": ["Etkileşim 1", "Etkileşim 2"],
-    "pregnancy": "Gebelikte kullanım bilgisi",
-    "storage": "Saklama koşulları",
-    "activeIngredients": [
-      {"name": "Etken madde", "amount": "Miktar"}
-    ]
-  }
-}
-`;
-}
-
 // ============ YANIT PARSE ============
 
-function parseAIResponse(response: string, barcode: string, source: string): AISearchResult {
-  try {
-    // JSON'ı temizle (bazen AI ekstra text ekleyebilir)
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { success: false, confidence: 0, error: 'Geçersiz AI yanıtı' };
-    }
+// ============================================================================
+// Sprint 10.4: ServiceResult<T> wrapper alternatifleri — geriye donuk uyumluluk
+// korunarak yeni API ekleniyor. Eski fonksiyonlar (Promise<AISearchResult>)
+// oldugu gibi kalmaya devam ediyor; yeni Service fonksiyonlari ServiceResult<T> doner.
+// ============================================================================
 
-    const parsed = JSON.parse(jsonMatch[0]);
+import { withServiceResult, type ServiceResult } from './types';
 
-    if (!parsed.found || !parsed.medicine) {
-      return {
-        success: false,
-        confidence: parsed.confidence || 0,
-        error: 'İlaç bulunamadı',
-      };
-    }
-
-    const medicine: Partial<GlobalMedicine> = {
-      barcode,
-      name: parsed.medicine.name,
-      genericName: parsed.medicine.genericName,
-      dosage: parsed.medicine.dosage,
-      form: (parsed.medicine.form as MedicineForm) || 'other',
-      manufacturer: parsed.medicine.manufacturer || 'Bilinmiyor',
-      country: parsed.medicine.country || 'TR',
-    };
-
-    return {
-      success: true,
-      medicine,
-      confidence: parsed.confidence || 70,
-      source,
-    };
-  } catch (error) {
-    log.error('AI yanit parse hatasi', error);
-    return {
-      success: false,
-      confidence: 0,
-      error: 'AI yanıtı işlenemedi',
-    };
-  }
+/**
+ * Barkod ile AI arama — ServiceResult<T> wrapper.
+ */
+export async function searchMedicineByBarcodeAIService(
+  barcode: string
+): Promise<ServiceResult<AISearchResult>> {
+  return withServiceResult(() => searchMedicineByBarcodeAI(barcode), {
+    errorCode: 'API_ERROR',
+  });
 }
 
-function parseProspectusResponse(response: string): AISearchResult {
-  try {
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { success: false, confidence: 0, error: 'Geçersiz AI yanıtı' };
-    }
+/**
+ * Isim ile AI arama — ServiceResult<T> wrapper.
+ */
+export async function searchMedicineByNameAIService(
+  name: string
+): Promise<ServiceResult<AISearchResult>> {
+  return withServiceResult(() => searchMedicineByNameAI(name), {
+    errorCode: 'NOT_FOUND',
+  });
+}
 
-    const parsed = JSON.parse(jsonMatch[0]);
-
-    if (!parsed.found || !parsed.prospectus) {
-      return { success: false, confidence: 0, error: 'Prospektüs bilgisi bulunamadı' };
-    }
-
-    return {
-      success: true,
-      medicine: {
-        prospectus: parsed.prospectus as MedicineProspectus,
-      },
-      confidence: 80,
-    };
-    // eslint-disable-next-line unused-imports/no-unused-vars
-  } catch (error) {
-    return { success: false, confidence: 0, error: 'Prospektüs yanıtı işlenemedi' };
-  }
+/**
+ * Ilac bilgisi getir — ServiceResult<T> wrapper.
+ */
+export async function getMedicineInfoAIService(
+  medicineName: string,
+  dosage?: string
+): Promise<ServiceResult<AISearchResult>> {
+  return withServiceResult(() => getMedicineInfoAI(medicineName, dosage), {
+    errorCode: 'API_ERROR',
+  });
 }

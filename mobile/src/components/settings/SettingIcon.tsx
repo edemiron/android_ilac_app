@@ -6,10 +6,10 @@ import { SettingIconProps } from './types';
 const ICON_EMOJI: Record<string, string> = {
   // Bildirimler
   'notifications-outline': '🔔',
-  'notifications': '🔔',
+  notifications: '🔔',
   'notifications-off-outline': '🔕',
   'alarm-outline': '⏰',
-  'alarm': '⏰',
+  alarm: '⏰',
   'phone-portrait-outline': '📱',
   'volume-high-outline': '🔊',
   'volume-high': '🔊',
@@ -25,21 +25,21 @@ const ICON_EMOJI: Record<string, string> = {
   // Ayarlar/Görünüm
   'moon-outline': '🌙',
   'sunny-outline': '☀️',
-  'moon': '🌙',
-  'sunny': '☀️',
+  moon: '🌙',
+  sunny: '☀️',
   'globe-outline': '🌍',
   'color-palette-outline': '🎨',
 
   // Sağlık/İlaç
   'flask-outline': '💊',
   'warning-outline': '⚠️',
-  'warning': '⚠️',
+  warning: '⚠️',
   'fitness-outline': '💪',
   'add-circle-outline': '➕',
 
   // İnsanlar
   'people-outline': '👥',
-  'people': '👥',
+  people: '👥',
   'person-outline': '👤',
   'person-add-outline': '👤',
 
@@ -66,7 +66,7 @@ const ICON_EMOJI: Record<string, string> = {
   'chevron-down': '↓',
 };
 
-export const SettingIcon: React.FC<SettingIconProps> = ({ name, color }) => {
+export const SettingIcon: React.FC<SettingIconProps> = ({ name }) => {
   const emoji = ICON_EMOJI[name] || ICON_EMOJI[name?.replace('-outline', '')] || '•';
 
   return (

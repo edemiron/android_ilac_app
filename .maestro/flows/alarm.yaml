@@ -1,0 +1,14 @@
+appId: com.ilachatirlatici
+---
+- launchApp:
+    clearState: true
+# NOT: Bu test gerçek alarm için saat beklemez; bunun yerine
+# debug butonu veya manuel notification trigger kullanır.
+- assertVisible: "İlaçlarım"
+# Alarm simülasyonu: deep link veya debug menüden "Test Alarm" tetikle
+- tapOn:
+    text: "Test Alarm"
+- assertVisible: "İlaç Zamanı"
+- tapOn:
+    text: "Aldım"
+- assertVisible: "Anasayfa"

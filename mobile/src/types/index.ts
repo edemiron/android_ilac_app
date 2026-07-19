@@ -19,6 +19,11 @@ export interface Medicine {
   updatedAt: string;
   // İlaç Resmi (Faz 1)
   imageUri?: string; // Optimizasyonlu lokal fotoğraf yolu
+  // Cloud sync icin eklenen alanlar (PR #1 sonrasi)
+  imageStoragePath?: string; // Firebase Storage path
+  imageMimeType?: string; // image/jpeg, image/png
+  imageSize?: number; // bytes
+  imageUpdatedAt?: string; // ISO timestamp
 
   // Stok takibi
   stockEnabled?: boolean; // Stok takibi aktif mi?
@@ -65,6 +70,8 @@ export interface ReminderTime {
   time: string; // "HH:mm" formatında
   notificationId?: string;
   isEnabled: boolean;
+  // Smoke testi icin trigger time (Sprint 1'de eklenen alan, opsiyonel)
+  smokeTriggerTime?: string;
 }
 
 // Kullanıcı ayarları

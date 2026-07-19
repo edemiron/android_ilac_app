@@ -26,24 +26,24 @@ interface SubscriptionContextType {
   isLoading: boolean;
   isPremium: boolean;
   plan: SubscriptionPlan;
-  
+
   // Actions
   refreshSubscription: () => Promise<void>;
   upgrade: (billingPeriod: 'monthly' | 'yearly', transactionId?: string) => Promise<void>;
   cancel: () => Promise<void>;
-  
+
   // Checks
   canAddMedicine: (currentCount: number) => { allowed: boolean; reason?: string };
   canUseAISearch: (dailyCount: number) => { allowed: boolean; reason?: string };
   canUseBarcodeScanner: () => { allowed: boolean; reason?: string; remaining?: number };
   shouldShowAds: () => boolean;
   remainingDays: number | null;
-  
+
   // Barkod tarama
   barcodeScanCount: number;
   remainingBarcodeScans: number;
   incrementBarcodeScanCount: () => Promise<void>;
-  
+
   // Pricing
   monthlyPrice: string;
   yearlyPrice: string;
@@ -135,18 +135,20 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       setSubscription(defaultSubscription);
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.uid]);
+    // user?.uid dependency icin yeterli; refreshSubscription useCallback ile stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.uid, refreshSubscription]);
 
   const upgrade = async (billingPeriod: 'monthly' | 'yearly', transactionId?: string) => {
     if (!user?.uid) throw new Error('Kullanıcı girişi gerekli');
-    
+
     await upgradeToPremium(user.uid, billingPeriod, transactionId);
     await refreshSubscription();
   };
 
   const cancel = async () => {
     if (!user?.uid) throw new Error('Kullanıcı girişi gerekli');
-    
+
     await cancelSubscription(user.uid);
     await refreshSubscription();
   };
@@ -154,10 +156,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const isPremium = subscription.tier === 'premium' && subscription.isActive;
   const plan = SUBSCRIPTION_PLANS[subscription.tier];
   const remainingDays = getRemainingDays(subscription);
-  
+
   // Kalan barkod tarama hakkı
   const barcodeScanLimit = plan.limits.barcodeScanLimit;
-  const remainingBarcodeScans = barcodeScanLimit === -1 ? -1 : Math.max(0, barcodeScanLimit - barcodeScanCount);
+  const remainingBarcodeScans =
+    barcodeScanLimit === -1 ? -1 : Math.max(0, barcodeScanLimit - barcodeScanCount);
 
   const value: SubscriptionContextType = {
     subscription,
@@ -180,11 +183,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     yearlySavings: getYearlySavings(),
   };
 
-  return (
-    <SubscriptionContext.Provider value={value}>
-      {children}
-    </SubscriptionContext.Provider>
-  );
+  return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }
 
 export function useSubscription() {

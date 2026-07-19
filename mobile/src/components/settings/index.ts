@@ -5,6 +5,7 @@ export { OptionPicker } from './OptionPicker';
 export { PremiumCard } from './PremiumCard';
 export { DailyScheduleSection } from './DailyScheduleSection';
 export { AppearanceSection } from './AppearanceSection';
+export { AccentColorSection } from './AccentColorSection';
 export { NotificationSection } from './NotificationSection';
 export { DevTestSection } from './DevTestSection';
 export { QuietHoursSection } from './QuietHoursSection';

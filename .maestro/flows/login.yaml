@@ -1,0 +1,14 @@
+appId: com.ilachatirlatici
+---
+- launchApp
+- assertVisible: "İlaç Hatırlatıcı"
+- assertVisible: "E-posta"
+- tapOn:
+    id: "email-input"
+- inputText: "test@example.com"
+- tapOn:
+    id: "password-input"
+- inputText: "Test1234!"
+- tapOn:
+    text: "Giriş Yap"
+- assertVisible: "Anasayfa"

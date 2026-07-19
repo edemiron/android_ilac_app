@@ -172,7 +172,7 @@ describe('AuthService', () => {
   describe('deleteAccount', () => {
     it('should delete current user', async () => {
       const mockUser = { uid: 'test-uid' };
-      mockAuth.currentUser = mockUser as typeof mockAuth.currentUser;
+      mockAuth.currentUser = mockUser as unknown as typeof mockAuth.currentUser;
       mockDeleteUser.mockResolvedValueOnce(undefined);
 
       await expect(deleteAccount()).resolves.not.toThrow();

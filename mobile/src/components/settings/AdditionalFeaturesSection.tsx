@@ -8,6 +8,7 @@ interface AdditionalFeaturesSectionProps {
   onSecurityPress: () => void;
   onTtsPress: () => void;
   onCaregiverPress?: () => void;
+  onResetLowStockPress?: () => void;
   ttsEnabled: boolean;
 }
 
@@ -16,6 +17,7 @@ export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps>
   onSecurityPress,
   onTtsPress,
   onCaregiverPress,
+  onResetLowStockPress,
   ttsEnabled,
 }) => {
   const { language, t } = useLanguage();
@@ -75,6 +77,19 @@ export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps>
         onPress={onTtsPress}
         showChevron
       />
+      {onResetLowStockPress && (
+        <SettingRow
+          icon={{ name: 'refresh-circle-outline', color: '#F59E0B' }}
+          label={language === 'tr' ? 'Stok Uyarılarını Sıfırla' : 'Reset Stock Alerts'}
+          description={
+            language === 'tr'
+              ? 'Tüm dismiss edilmiş uyarıları tekrar göster'
+              : 'Show all dismissed alerts again'
+          }
+          onPress={onResetLowStockPress}
+          showChevron
+        />
+      )}
     </SettingsSection>
   );
 };

@@ -23,15 +23,12 @@ import { useFocusEffect } from '@react-navigation/core';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, type ThemeColors } from '../contexts/ThemeContext';
 import { useAlert } from '../contexts/AlertContext';
-import {
-  acceptCaregiverInvite,
-  isValidInviteCode,
-} from '../services/caregiverService';
+import { acceptCaregiverInvite, isValidInviteCode } from '../services/caregiverService';
 import { extractInviteCodeFromUrl } from '../services/qrCodeService';
 
-const createStyles = (colors: any) =>
+const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -107,7 +104,7 @@ const createStyles = (colors: any) =>
       elevation: 5,
     },
     acceptButtonDisabled: {
-      backgroundColor: colors.disabled,
+      backgroundColor: colors.textMuted,
     },
     acceptButtonText: {
       fontSize: 18,
@@ -186,31 +183,30 @@ export default function CaregiverInviteScreen({ route }: CaregiverInviteScreenPr
 
   const t = {
     title: language === 'tr' ? 'Daveti Kabul Et' : 'Accept Invite',
-    subtitle: language === 'tr'
-      ? 'Hasta tarafından paylaşılan 6 haneli davet kodunu girin'
-      : 'Enter the 6-character invite code shared by the patient',
+    subtitle:
+      language === 'tr'
+        ? 'Hasta tarafından paylaşılan 6 haneli davet kodunu girin'
+        : 'Enter the 6-character invite code shared by the patient',
     scan: language === 'tr' ? 'Tara' : 'Scan',
     accept: language === 'tr' ? 'Daveti Kabul Et' : 'Accept Invite',
     clear: language === 'tr' ? 'Temizle' : 'Clear',
     error: {
       invalid: language === 'tr' ? 'Geçersiz davet kodu' : 'Invalid invite code',
       empty: language === 'tr' ? 'Lütfen davet kodunu girin' : 'Please enter invite code',
-      notLoggedIn: language === 'tr'
-        ? 'Oturum açmanız gerekiyor'
-        : 'You need to be logged in',
+      notLoggedIn: language === 'tr' ? 'Oturum açmanız gerekiyor' : 'You need to be logged in',
     },
     success: {
       title: language === 'tr' ? 'Davet Kabul Edildi' : 'Invite Accepted',
-      message: language === 'tr'
-        ? 'Artık bakıcı panelinden ilaç takibini görüntüleyebilirsiniz'
-        : 'You can now view the medication schedule from the caregiver panel',
+      message:
+        language === 'tr'
+          ? 'Artık bakıcı panelinden ilaç takibini görüntüleyebilirsiniz'
+          : 'You can now view the medication schedule from the caregiver panel',
     },
-    infoTitle: language === 'tr'
-      ? 'Nasıl çalışır?'
-      : 'How it works?',
-    infoText: language === 'tr'
-      ? 'Hasta, bu uygulamadan 6 haneli bir davet kodu paylaşır. Kodu buraya girerek hastanın ilaç takvimini görüntüleyebilirsiniz.'
-      : 'The patient shares a 6-character invite code from this app. Enter the code here to view their medication schedule.',
+    infoTitle: language === 'tr' ? 'Nasıl çalışır?' : 'How it works?',
+    infoText:
+      language === 'tr'
+        ? 'Hasta, bu uygulamadan 6 haneli bir davet kodu paylaşır. Kodu buraya girerek hastanın ilaç takvimini görüntüleyebilirsiniz.'
+        : 'The patient shares a 6-character invite code from this app. Enter the code here to view their medication schedule.',
   };
 
   // URL parametresinden kodu al
@@ -256,19 +252,15 @@ export default function CaregiverInviteScreen({ route }: CaregiverInviteScreenPr
     setIsLoading(false);
 
     if (result.success) {
-      Alert.alert(
-        t.success.title,
-        t.success.message,
-        [
-          {
-            text: language === 'tr' ? 'Tamam' : 'OK',
-            onPress: () => {
-              // Navigate back or to caregiver dashboard
-              setCode('');
-            },
+      Alert.alert(t.success.title, t.success.message, [
+        {
+          text: language === 'tr' ? 'Tamam' : 'OK',
+          onPress: () => {
+            // Navigate back or to caregiver dashboard
+            setCode('');
           },
-        ]
-      );
+        },
+      ]);
     } else {
       showError(language === 'tr' ? 'Hata' : 'Error', result.error || t.error.invalid);
     }
@@ -296,16 +288,8 @@ export default function CaregiverInviteScreen({ route }: CaregiverInviteScreenPr
     for (let i = 0; i < 6; i++) {
       const isFilled = i < digits.length;
       boxes.push(
-        <View
-          key={i}
-          style={[
-            styles.codeBox,
-            isFilled && styles.codeBoxFilled,
-          ]}
-        >
-          <Text style={styles.codeBoxText}>
-            {isFilled ? digits[i] : ''}
-          </Text>
+        <View key={i} style={[styles.codeBox, isFilled && styles.codeBoxFilled]}>
+          <Text style={styles.codeBoxText}>{isFilled ? digits[i] : ''}</Text>
         </View>
       );
     }
@@ -329,9 +313,7 @@ export default function CaregiverInviteScreen({ route }: CaregiverInviteScreenPr
         <Text style={styles.subtitle}>{t.subtitle}</Text>
 
         {/* Code Display (Boxes) */}
-        <View style={styles.codeDisplay}>
-          {renderCodeBoxes()}
-        </View>
+        <View style={styles.codeDisplay}>{renderCodeBoxes()}</View>
 
         {/* Input */}
         <View style={styles.inputContainer}>

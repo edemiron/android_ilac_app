@@ -22,9 +22,13 @@ export interface MIUISettings {
 export function isMIUIDevice(): boolean {
   if (Platform.OS !== 'android') return false;
 
-  const { Manufacturer, Brand } = NativeModules.PlatformConstants || {};
-  const manufacturer = (Manufacturer || '').toLowerCase();
-  const brand = (Brand || '').toLowerCase();
+  // NativeModules.PlatformConstants test ortaminda veya nadir cihazlarda
+  // undefined olabilir; bu durumda MIUI degil varsayalim (safe default).
+  const platformConstants = NativeModules?.PlatformConstants;
+  if (!platformConstants) return false;
+
+  const manufacturer = String(platformConstants.Manufacturer ?? '').toLowerCase();
+  const brand = String(platformConstants.Brand ?? '').toLowerCase();
 
   return (
     manufacturer.includes('xiaomi') ||

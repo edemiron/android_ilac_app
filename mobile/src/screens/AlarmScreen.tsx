@@ -36,12 +36,14 @@ import { tr, enUS } from 'date-fns/locale';
 import { useLanguage } from '../contexts/LanguageContext';
 import { createScopedLogger } from '../utils/logger';
 
+// Sprint 6.2: AlarmScreen.tsx (910 satir) pure helper extraction.
+import { getInstructionDisplay } from './AlarmScreen/helpers';
+
 const log = createScopedLogger('AlarmScreen');
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'Alarm'>;
 
-// eslint-disable-next-line unused-imports/no-unused-vars
 // eslint-disable-next-line unused-imports/no-unused-vars
 const { width, height } = Dimensions.get('window');
 
@@ -135,6 +137,8 @@ export default function AlarmScreen() {
   const ttsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isStoppedRef = useRef<boolean>(false); // Alarm durduruldu mu?
   const isSnoozingRef = useRef<boolean>(false); // Snooze işlemi devam ediyor mu?
+  // processTake TDZ'den kaçınmak için ref üzerinden çağrılır.
+  const processTakeRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   // Barkod Doğrulama State
   const [showScanner, setShowScanner] = useState(false);
@@ -151,7 +155,7 @@ export default function AlarmScreen() {
           // Biraz bekletip işlemi tamamla
           setTimeout(() => {
             setShowScanner(false);
-            processTake();
+            processTakeRef.current();
           }, 1500);
         } else {
           setScannedMessage(
@@ -189,7 +193,7 @@ export default function AlarmScreen() {
     pulse.start();
 
     return () => pulse.stop();
-  }, []);
+  }, [pulseAnim]);
 
   // Alarm durdurma fonksiyonu - useEffect'lerden önce tanımlanmalı
   const stopAlarm = useCallback(async () => {
@@ -399,7 +403,7 @@ export default function AlarmScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicine, isTestMode, medicineId, settings.vibrationEnabled, language]);
 
-  const processTake = async () => {
+  const processTake = useCallback(async () => {
     // KRİTİK: scheduledTime'ı HomeScreen ile aynı formatta oluştur
     // getTodayReminders `l.scheduledTime.startsWith(today)` ile eşleştirir
     // toISOString() UTC verir, gece saatlerinde tarih uyuşmaz
@@ -430,7 +434,14 @@ export default function AlarmScreen() {
 
     dismissAlarm();
     navigation.goBack();
-  };
+    // processTake, dismissAlarm, navigation vb. runtime'da processTakeRef uzerinden erisilir
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // processTake her render'da stable bir ref'e atanır — TDZ'den kaçınmak icin
+  useEffect(() => {
+    processTakeRef.current = async () => processTake();
+  });
 
   const handleTake = async () => {
     await stopAlarm();
@@ -665,13 +676,8 @@ export default function AlarmScreen() {
           <Text style={styles.scannerTitle}>
             {language === 'tr' ? 'İlacın Barkodunu Okutun' : 'Scan Medicine Barcode'}
           </Text>
-          {scannedMessage ? (
-            <Text style={styles.scannerMessage}>{scannedMessage}</Text>
-          ) : null}
-          <TouchableOpacity
-            style={styles.cancelScanButton}
-            onPress={() => setShowScanner(false)}
-          >
+          {scannedMessage ? <Text style={styles.scannerMessage}>{scannedMessage}</Text> : null}
+          <TouchableOpacity style={styles.cancelScanButton} onPress={() => setShowScanner(false)}>
             <Text style={styles.cancelScanText}>{language === 'tr' ? 'İptal' : 'Cancel'}</Text>
           </TouchableOpacity>
         </View>
@@ -680,19 +686,7 @@ export default function AlarmScreen() {
   }
 
   // Talimat metni
-  const getInstructionDisplay = () => {
-    if (!medicine.instructions) return null;
-
-    const instructionTexts: Record<string, { tr: string; en: string }> = {
-      before_meal: { tr: '🍽️ Yemekten önce', en: '🍽️ Before meal' },
-      after_meal: { tr: '🍽️ Yemekten sonra', en: '🍽️ After meal' },
-      with_meal: { tr: '🍽️ Yemekle birlikte', en: '🍽️ With meal' },
-      empty_stomach: { tr: '⚠️ Aç karnına', en: '⚠️ Empty stomach' },
-      before_sleep: { tr: '🌙 Yatmadan önce', en: '🌙 Before sleep' },
-    };
-
-    return instructionTexts[medicine.instructions]?.[language] || null;
-  };
+  const getInstructionDisplayText = () => getInstructionDisplay(medicine.instructions, language);
 
   return (
     <View style={[styles.container, { backgroundColor: medicine.color }]}>
@@ -712,9 +706,9 @@ export default function AlarmScreen() {
         <Text style={styles.medicineName}>{medicine.name}</Text>
         <Text style={styles.dosageText}>{medicine.dosage}</Text>
 
-        {getInstructionDisplay() && (
+        {getInstructionDisplayText() && (
           <View style={styles.instructionBadge}>
-            <Text style={styles.instructionText}>{getInstructionDisplay()}</Text>
+            <Text style={styles.instructionText}>{getInstructionDisplayText()}</Text>
           </View>
         )}
       </View>

@@ -11,24 +11,32 @@
  * - FCM bildirimleri
  */
 
-import { collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, query, where, onSnapshot, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+} from 'firebase/firestore';
 import { generateId } from '../utils/idGenerator';
 import { createScopedLogger } from '../utils/logger';
-import type {
-  CaregiverRelationship,
-  CaregiverInvite,
-  PatientInfo,
-  CaregiverStatus,
-  InviteStatus,
-} from '../types';
+// Sprint 7.3: Pure helper'lar ./caregiverHelpers.ts'e tasindi.
+// generateInviteCode + isValidInviteCode inline tanimlar kaldirildi,
+// re-export ile public API korunuyor.
+import { generateInviteCode, isValidInviteCode, isValidFcmToken, formatCaregiverNotification } from './caregiverHelpers';
+export { generateInviteCode, isValidInviteCode };
+import type { CaregiverRelationship, CaregiverInvite, PatientInfo } from '../types';
 
 const log = createScopedLogger('CaregiverService');
 
 // Firestore collection names
-const CAREGIVERS_COLLECTION = 'caregivers';
 const INVITES_COLLECTION = 'caregiverInvites';
 const RELATIONSHIPS_COLLECTION = 'caregiverRelationships';
-const PATIENTS_COLLECTION = 'patients';
 
 // Davet kodu geçerlilik süresi (7 gün)
 const INVITE_EXPIRY_DAYS = 7;
@@ -37,22 +45,6 @@ const INVITE_EXPIRY_DAYS = 7;
  * 6 haneli rastgele davet kodu oluştur
  * Okunabilir karakterler: 0-9, A-Z (hariç I, O, Q)
  */
-function generateInviteCode(): string {
-  const chars = '0123456789ABCDEFGHJKLMNPRSTUVWXYZ'; // I, O, Q çıkarıldı (karışıklık önleme)
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
-
-/**
- * Davet kodu validasyonu
- */
-export function isValidInviteCode(code: string): boolean {
-  // 6 haneli, sadece alfanümerik
-  return /^[A-Z0-9]{6}$/.test(code);
-}
 
 /**
  * Yeni bakıcı daveti oluştur
@@ -86,9 +78,10 @@ export async function createCaregiverInvite(
       log.warn('Zaten pending davet var', { caregiverEmail });
       return {
         success: false,
-        error: caregiverEmail === 'tr'
-          ? 'Bu e-posta adresine zaten bekleyen bir davet var.'
-          : 'There is already a pending invite for this email.',
+        error:
+          caregiverEmail === 'tr'
+            ? 'Bu e-posta adresine zaten bekleyen bir davet var.'
+            : 'There is already a pending invite for this email.',
       };
     }
 
@@ -105,9 +98,10 @@ export async function createCaregiverInvite(
       log.warn('Zaten aktif bakıcı ilişkisi var', { caregiverEmail });
       return {
         success: false,
-        error: caregiverEmail === 'tr'
-          ? 'Bu kişi zaten bakıcınız olarak ekli.'
-          : 'This person is already your caregiver.',
+        error:
+          caregiverEmail === 'tr'
+            ? 'Bu kişi zaten bakıcınız olarak ekli.'
+            : 'This person is already your caregiver.',
       };
     }
 
@@ -254,16 +248,11 @@ export async function acceptCaregiverInvite(
 /**
  * Kullanıcının bakıcı ilişkilerini getir
  */
-export async function getCaregivers(
-  patientId: string
-): Promise<CaregiverRelationship[]> {
+export async function getCaregivers(patientId: string): Promise<CaregiverRelationship[]> {
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
-    const q = query(
-      collection(db, RELATIONSHIPS_COLLECTION),
-      where('patientId', '==', patientId)
-    );
+    const q = query(collection(db, RELATIONSHIPS_COLLECTION), where('patientId', '==', patientId));
 
     const snapshot = await getDocs(q);
     const caregivers: CaregiverRelationship[] = [];
@@ -307,7 +296,12 @@ export async function removeCaregiver(
  */
 export async function updateCaregiverRelationship(
   relationshipId: string,
-  updates: Partial<Pick<CaregiverRelationship, 'status' | 'canViewSchedule' | 'canViewHistory' | 'canReceiveAlerts' | 'caregiverFcmToken'>>
+  updates: Partial<
+    Pick<
+      CaregiverRelationship,
+      'status' | 'canViewSchedule' | 'canViewHistory' | 'canReceiveAlerts' | 'caregiverFcmToken'
+    >
+  >
 ): Promise<{ success: boolean }> {
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
@@ -329,9 +323,7 @@ export async function updateCaregiverRelationship(
 /**
  * Bakıcının bağlı olduğu hastaları getir
  */
-export async function getPatientsForCaregiver(
-  caregiverId: string
-): Promise<PatientInfo[]> {
+export async function getPatientsForCaregiver(caregiverId: string): Promise<PatientInfo[]> {
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
@@ -380,12 +372,9 @@ export function subscribeToCaregivers(
   const unsubscribePromise = (async () => {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
-    const q = query(
-      collection(db, RELATIONSHIPS_COLLECTION),
-      where('patientId', '==', patientId)
-    );
+    const q = query(collection(db, RELATIONSHIPS_COLLECTION), where('patientId', '==', patientId));
 
-    return onSnapshot(q, (snapshot) => {
+    return onSnapshot(q, snapshot => {
       const caregivers: CaregiverRelationship[] = [];
       snapshot.forEach(doc => {
         caregivers.push(doc.data() as CaregiverRelationship);
@@ -407,6 +396,14 @@ export async function updateCaregiverFcmToken(
   caregiverId: string,
   fcmToken: string
 ): Promise<void> {
+  if (!isValidFcmToken(fcmToken)) {
+    log.warn('Gecersiz FCM token format, guncelleme atlandi', {
+      caregiverId,
+      tokenLength: fcmToken?.length,
+    });
+    return;
+  }
+
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
@@ -462,8 +459,8 @@ export async function notifyCaregivers(
     }
 
     // FCM üzerinden bildirim gönder
-    const { getMessaging, getToken } = await import('firebase/messaging');
-    const messaging = getMessaging();
+    // Not: Production'da Cloud Functions kullanılmalı
+    // Şimdilik log ile bırakıyoruz
 
     // Her bakıcıya bildirim gönder
     for (const doc of snapshot.docs) {
@@ -473,11 +470,20 @@ export async function notifyCaregivers(
         continue;
       }
 
+      // Sprint 12.4: content builder helper'a delege
+      // notifyCaregivers tek dil (TR) destekliyor; ileride multi-language
+      // ihtiyacinda caregiver profile.language kullanilabilir.
+      const content = formatCaregiverNotification(
+        notification.type,
+        notification.medicineName
+      );
+
       // Cloud Functions üzerinden bildirim gönder
       // Alternatif: Client-side FCM API (sınırlı)
       log.info('Bakıcı bildirimi', {
         caregiverId: relationship.caregiverId,
         notification,
+        content,
       });
 
       // Not: Production'da Cloud Functions kullanılmalı
@@ -491,9 +497,7 @@ export async function notifyCaregivers(
 /**
  * Davetleri getir (kullanıcının davetleri)
  */
-export async function getPendingInvites(
-  patientId: string
-): Promise<CaregiverInvite[]> {
+export async function getPendingInvites(patientId: string): Promise<CaregiverInvite[]> {
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
@@ -533,4 +537,100 @@ export async function cancelInvite(inviteCode: string): Promise<{ success: boole
     log.error('Davet iptal hatası', error);
     return { success: false };
   }
+}
+
+// ============================================================================
+// Sprint 9.3: ServiceResult<T> wrapper alternatifleri — geriye donuk uyumluluk
+// korunarak yeni API ekleniyor. Eski fonksiyonlar (Promise<T | null>, vb.)
+// oldugu gibi kalmaya devam ediyor; yeni Service fonksiyonlari ServiceResult<T> doner.
+// ============================================================================
+
+import { withServiceResult, type ServiceResult } from './types';
+
+/**
+ * Bakici daveti olustur — ServiceResult<T> wrapper.
+ * Eski API `{success, inviteCode?, error?}` doner; yeni wrapper basari
+ * durumunda inviteCode payload'i doner.
+ */
+export async function createCaregiverInviteService(
+  patientId: string,
+  patientName: string,
+  caregiverEmail: string,
+  permissions: {
+    canViewSchedule: boolean;
+    canViewHistory: boolean;
+    canReceiveAlerts: boolean;
+  } = {
+    canViewSchedule: true,
+    canViewHistory: true,
+    canReceiveAlerts: true,
+  }
+): Promise<ServiceResult<{ inviteCode: string }>> {
+  try {
+    const result = await createCaregiverInvite(patientId, patientName, caregiverEmail, permissions);
+    if (result.success && result.inviteCode) {
+      return { ok: true, data: { inviteCode: result.inviteCode } };
+    }
+    return {
+      ok: false,
+      error: {
+        code: 'API_ERROR',
+        message: result.error || 'Davet olusturulamadi',
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: {
+        code: 'UNKNOWN',
+        message: e instanceof Error ? e.message : 'Bilinmeyen hata',
+      },
+    };
+  }
+}
+
+/**
+ * Davet kabul et — ServiceResult<T> wrapper.
+ */
+export async function acceptCaregiverInviteService(
+  inviteCode: string,
+  caregiverId: string,
+  caregiverName: string,
+  caregiverFcmToken?: string
+): Promise<ServiceResult<{ success: boolean }>> {
+  try {
+    const result = await acceptCaregiverInvite(
+      inviteCode,
+      caregiverId,
+      caregiverName,
+      caregiverFcmToken
+    );
+    if (result.success) {
+      return { ok: true, data: { success: true } };
+    }
+    return {
+      ok: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: result.error || 'Davet kabul edilemedi',
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: {
+        code: 'UNKNOWN',
+        message: e instanceof Error ? e.message : 'Bilinmeyen hata',
+      },
+    };
+  }
+}
+
+/**
+ * Kullanicinin bakici iliskilerini getir — ServiceResult<T> wrapper.
+ */
+export async function getCaregiversService(
+  patientId: string
+): Promise<ServiceResult<CaregiverRelationship[]>> {
+  return withServiceResult(() => getCaregivers(patientId), { errorCode: 'API_ERROR' });
 }
