@@ -11,7 +11,6 @@ import { LayoutAnimation, Platform, UIManager } from 'react-native';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { HomeScreenLayoutA } from './HomeScreenLayoutA';
 import { HomeScreenLayoutB } from './HomeScreenLayoutB';
-import { HomeScreenLayoutC } from './HomeScreenLayoutC';
 import type { TodayReminder } from '../../screens/HomeScreen/types';
 import type { Medicine } from '../../types';
 import type { MiniChartDatum } from '../common/MiniChart';
@@ -118,19 +117,6 @@ export function HomeScreenLayoutSwitcher({
         onSkip={onSkip}
         onAddPress={onAddPress}
         onLowStockPress={onLowStockPress}
-      />
-    );
-  }
-
-  // Sprint 67: Layout C — iOS Inset Grouped (orphan artık Switcher'a bağlı)
-  if (profile.layout === 'C') {
-    return (
-      <HomeScreenLayoutC
-        reminder={reminder}
-        reminders={reminders}
-        onTake={onTake}
-        onSnooze={onSnooze}
-        onSkip={onSkip}
       />
     );
   }

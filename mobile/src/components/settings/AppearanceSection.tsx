@@ -124,7 +124,7 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
 
       {showLayoutPicker && (
         <OptionPicker<LayoutVariant>
-          options={['A', 'B', 'C']}
+          options={['A', 'B']}
           selectedValue={profile.layout}
           onSelect={handleLayoutSelect}
           getLabel={getLayoutLabel}
