@@ -86,7 +86,18 @@ export function HomeScreenLayoutSwitcher({
   }, [profile.layout]);
 
   if (isLoading) {
-    return <HomeScreenLayoutA reminder={reminder} reminders={reminders} onAddPress={onAddPress} />;
+    return (
+      <HomeScreenLayoutA
+        reminder={reminder}
+        reminders={reminders}
+        adherence={adherence}
+        streak={streak}
+        completedCount={completedCount}
+        totalCount={totalCount}
+        remainingCount={remainingCount}
+        onAddPress={onAddPress}
+      />
+    );
   }
 
   if (profile.layout === 'B') {
@@ -124,5 +135,16 @@ export function HomeScreenLayoutSwitcher({
     );
   }
 
-  return <HomeScreenLayoutA reminder={reminder} reminders={reminders} onAddPress={onAddPress} />;
+  return (
+    <HomeScreenLayoutA
+      reminder={reminder}
+      reminders={reminders}
+      adherence={adherence}
+      streak={streak}
+      completedCount={completedCount}
+      totalCount={totalCount}
+      remainingCount={remainingCount}
+      onAddPress={onAddPress}
+    />
+  );
 }
