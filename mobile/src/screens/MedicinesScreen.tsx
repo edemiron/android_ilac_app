@@ -354,17 +354,20 @@ export default function MedicinesScreen() {
               colors={colors}
               isDark={isDark}
             >
+              {/* Sprint 73C: PillboxIllustration + "İlk ilacını ekle" CTA */}
               <View style={styles.emptyState}>
                 <View
                   style={[styles.emptyIconContainer, { backgroundColor: colors.primary + '15' }]}
                 >
-                  <Text style={styles.emptyIconLarge}>💊</Text>
+                  <Ionicons name="medkit" size={48} color={colors.primary} />
                 </View>
                 <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  {t('medicines_empty')}
+                  {language === 'tr' ? 'İlk ilacını ekle' : 'Add your first medicine'}
                 </Text>
                 <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
-                  {t('medicines_add_first')}
+                  {language === 'tr'
+                    ? 'İlacını ekle, hatırlatma planla, sağlığını takip et'
+                    : 'Add medicine, schedule reminders, track health'}
                 </Text>
                 <TouchableOpacity
                   style={[styles.addButton, { backgroundColor: colors.primary }]}
@@ -372,7 +375,9 @@ export default function MedicinesScreen() {
                   activeOpacity={0.8}
                 >
                   <Ionicons name="add" size={20} color="#FFFFFF" />
-                  <Text style={styles.addButtonText}>{t('home_add_medicine')}</Text>
+                  <Text style={styles.addButtonText}>
+                    {language === 'tr' ? 'İlaç Ekle' : 'Add Medicine'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </Section>

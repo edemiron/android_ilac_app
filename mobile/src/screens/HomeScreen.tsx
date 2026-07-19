@@ -292,13 +292,51 @@ export default function HomeScreen() {
 
   const firstName = user?.displayName?.split(' ')[0] || '';
 
-  const greeting = firstName
-    ? language === 'tr'
-      ? `Merhaba, ${firstName}`
-      : `Hello, ${firstName}`
-    : language === 'tr'
-      ? 'Merhaba'
-      : 'Hello';
+  // Sprint 73B: Time-based greeting + dynamic date
+  const getTimeBasedGreeting = (): string => {
+    const hour = new Date().getHours();
+    if (language !== 'tr') {
+      if (hour >= 5 && hour < 12) return 'Good morning';
+      if (hour >= 12 && hour < 17) return 'Good afternoon';
+      if (hour >= 17 && hour < 22) return 'Good evening';
+      return 'Good night';
+    }
+    if (hour >= 5 && hour < 12) return 'Günaydın';
+    if (hour >= 12 && hour < 17) return 'İyi günler';
+    if (hour >= 17 && hour < 22) return 'İyi akşamlar';
+    return 'İyi geceler';
+  };
+
+  const getDynamicDate = (): string => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const dateKey = today.toDateString();
+    const tomorrowKey = tomorrow.toDateString();
+    if (language !== 'tr') {
+      if (dateKey === today.toDateString()) return 'Today';
+      if (tomorrowKey === today.toDateString()) return 'Tomorrow';
+      // "This week" check
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      if (today >= weekStart && today < new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)) {
+        return 'This week';
+      }
+      return format(today, 'EEE, d MMM', { locale: enUS });
+    }
+    if (dateKey === today.toDateString()) return 'Bugün';
+    if (tomorrowKey === today.toDateString()) return 'Yarın';
+    const weekStart2 = new Date(today);
+    weekStart2.setDate(today.getDate() - today.getDay());
+    if (today >= weekStart2 && today < new Date(weekStart2.getTime() + 7 * 24 * 60 * 60 * 1000)) {
+      return 'Bu hafta';
+    }
+    return format(today, 'd MMMM, EEEE', { locale: tr });
+  };
+
+  const timeGreeting = getTimeBasedGreeting();
+  const dynamicDate = getDynamicDate();
+  const greeting = firstName ? `${timeGreeting}, ${firstName}` : timeGreeting;
 
   // Saat dilimine göre selamlama ikonu
   const _getGreetingIcon = () => {
@@ -450,7 +488,7 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.heroDate, { color: colors.textMuted }]}>{today}</Text>
+              <Text style={[styles.heroDate, { color: colors.textMuted }]}>{dynamicDate}</Text>
             </View>
 
             {/* Uyum Oranı Circular Progress */}
