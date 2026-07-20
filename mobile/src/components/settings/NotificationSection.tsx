@@ -1,5 +1,5 @@
 import React from 'react';
-import { Switch, LayoutAnimation } from 'react-native';
+import { Switch, LayoutAnimation, View, Text } from 'react-native';
 import { SettingsSection } from './SettingsSection';
 import { SettingRow } from './SettingRow';
 import { OptionPicker } from './OptionPicker';
@@ -122,8 +122,42 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
   };
 
   const getSnoozeCountLabel = (count: number) => {
-    return `${count} ${language === 'tr' ? 'kez' : 'times'}`;
+    const unit =
+      language === 'tr'
+        ? count === 1
+          ? 'erteleme'
+          : 'erteleme'
+        : count === 1
+          ? 'snooze'
+          : 'snoozes';
+    return `${count} ${unit}`;
   };
+
+  // Sprint 83: Visible ON/OFF badge so state reads at a glance.
+  const renderStateBadge = (enabled: boolean) => (
+    <View
+      style={{
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 10,
+        backgroundColor: enabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(156, 163, 175, 0.18)',
+        marginRight: 8,
+      }}
+      accessibilityElementsHidden
+      importantForAccessibility="no"
+    >
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: '700',
+          color: enabled ? '#10B981' : '#6B7280',
+          letterSpacing: 0.3,
+        }}
+      >
+        {enabled ? (language === 'tr' ? 'AÇIK' : 'ON') : language === 'tr' ? 'KAPALI' : 'OFF'}
+      </Text>
+    </View>
+  );
 
   return (
     <SettingsSection icon="notifications-outline" title={t('settings_notifications')}>
@@ -132,12 +166,15 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         label={t('settings_vibration')}
         description={language === 'tr' ? 'Hatırlatmalarda titret' : 'Vibrate on reminders'}
         rightElement={
-          <Switch
-            value={settings.vibrationEnabled}
-            onValueChange={value => onSettingChange({ vibrationEnabled: value })}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor="#FFFFFF"
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {renderStateBadge(settings.vibrationEnabled)}
+            <Switch
+              value={settings.vibrationEnabled}
+              onValueChange={value => onSettingChange({ vibrationEnabled: value })}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
         }
       />
 
@@ -150,12 +187,15 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
             : 'Notification stays until medicine is taken'
         }
         rightElement={
-          <Switch
-            value={settings.persistentNotificationEnabled ?? true}
-            onValueChange={value => onSettingChange({ persistentNotificationEnabled: value })}
-            trackColor={{ false: colors.border, true: '#F59E0B' }}
-            thumbColor="#FFFFFF"
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {renderStateBadge(settings.persistentNotificationEnabled ?? true)}
+            <Switch
+              value={settings.persistentNotificationEnabled ?? true}
+              onValueChange={value => onSettingChange({ persistentNotificationEnabled: value })}
+              trackColor={{ false: colors.border, true: '#F59E0B' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
         }
       />
 
@@ -164,12 +204,15 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         label={t('settings_fullscreen_alarm')}
         description={language === 'tr' ? 'Kilit ekranında göster' : 'Show on lock screen'}
         rightElement={
-          <Switch
-            value={settings.fullScreenAlarmEnabled}
-            onValueChange={value => onSettingChange({ fullScreenAlarmEnabled: value })}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor="#FFFFFF"
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {renderStateBadge(settings.fullScreenAlarmEnabled)}
+            <Switch
+              value={settings.fullScreenAlarmEnabled}
+              onValueChange={value => onSettingChange({ fullScreenAlarmEnabled: value })}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
         }
       />
 
@@ -180,12 +223,15 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           language === 'tr' ? 'Telefon sessizde bile ses çıkar' : 'Sound plays even in silent mode'
         }
         rightElement={
-          <Switch
-            value={settings.alarmModeEnabled ?? true}
-            onValueChange={value => onSettingChange({ alarmModeEnabled: value })}
-            trackColor={{ false: colors.border, true: '#EF4444' }}
-            thumbColor="#FFFFFF"
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {renderStateBadge(settings.alarmModeEnabled ?? true)}
+            <Switch
+              value={settings.alarmModeEnabled ?? true}
+              onValueChange={value => onSettingChange({ alarmModeEnabled: value })}
+              trackColor={{ false: colors.border, true: '#EF4444' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
         }
       />
 
