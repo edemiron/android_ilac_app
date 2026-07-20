@@ -10,6 +10,11 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@notifee/react-native|uuid)',
   ],
+  // Sprint 87A: react-native-svg ve svg-bagli component'leri stub'la — Babel'in
+  // parse edemedigi node_modules'u test ortaminda bypass et.
+  moduleNameMapper: {
+    '^react-native-svg$': '<rootDir>/__mocks__/react-native-svg.js',
+  },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
   testMatch: ['**/__tests__/**/*.(ts|tsx|js)', '**/*.(test|spec).(ts|tsx|js)'],

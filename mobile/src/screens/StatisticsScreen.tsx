@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import LinearGradient from 'react-native-linear-gradient';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { format, subDays, eachDayOfInterval, isWithinInterval } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
@@ -24,11 +23,13 @@ import {
 } from '../services/pdfReportService';
 import { useAlert } from '../contexts/AlertContext';
 import { createScopedLogger } from '../utils/logger';
+import { CircularProgress } from '../components/common/CircularProgress'; // Sprint 87A: Ana Sayfa hero pattern tutarlılığı
 
 // Sprint 6.1: StatisticsScreen.tsx (910 -> 849 satir) modularizasyonu.
 // Component'ler ve helpers screens/StatisticsScreen/* altinda.
+// Sprint 87: LinearGradient hero kaldirildi, Ana Sayfa CircularProgress pattern
+// ile tutarli hale getirildi.
 import { Section } from './StatisticsScreen/components/Section';
-import { StatRow } from './StatisticsScreen/components/StatRow';
 import type { Period } from './StatisticsScreen/helpers';
 import { getAdherenceColor } from './StatisticsScreen/helpers';
 import { findTopMissedTimes } from './StatisticsScreen/chartHelpers';
@@ -114,8 +115,8 @@ export default function StatisticsScreen() {
   }, [dateRange, medicineLogs, dailyStats]);
 
   const suggestions = useMemo(() => {
-    const logs = medicineLogs.filter(
-      log => isWithinInterval(new Date(log.scheduledTime), dateRange)
+    const logs = medicineLogs.filter(log =>
+      isWithinInterval(new Date(log.scheduledTime), dateRange)
     );
     return findTopMissedTimes(logs, 2);
   }, [medicineLogs, dateRange]);
@@ -249,53 +250,52 @@ export default function StatisticsScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       showsVerticalScrollIndicator={false}
     >
-      <LinearGradient
-        colors={
-          overallStats.adherenceRate >= 50
-            ? [colors.primary, colors.gradientEnd || '#3B82F6']
-            : ['#F59E0B', '#F97316']
-        }
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.adherenceCard}
+      {/* Sprint 87A: Hero — Ana Sayfa CircularProgress pattern tutarlılığı */}
+      <View
+        style={[
+          styles.heroCard,
+          { backgroundColor: colors.card, borderBottomColor: colors.border },
+        ]}
       >
-        <View style={styles.adherenceContent}>
-          <View style={styles.adherenceIconBox}>
-            <Text style={styles.adherenceIconEmoji}>
-              {overallStats.adherenceRate >= 80
-                ? '🌟'
-                : overallStats.adherenceRate >= 50
-                  ? '📊'
-                  : '💪'}
-            </Text>
-          </View>
-          <View style={styles.adherenceTextContainer}>
-            <Text style={styles.adherenceTitle}>
-              {language === 'tr'
-                ? `${overallStats.taken}/${overallStats.total || 0} tamamlandı`
-                : `${overallStats.taken}/${overallStats.total || 0} completed`}
-            </Text>
-            <Text style={styles.adherenceSubtitle}>
-              {overallStats.adherenceRate >= 80
-                ? language === 'tr'
-                  ? 'Harika gidiyorsun! 🎉'
-                  : "You're doing great! 🎉"
-                : overallStats.adherenceRate >= 50
-                  ? language === 'tr'
-                    ? 'İyi gidiyorsun, devam et!'
-                    : 'Good progress, keep going!'
-                  : overallStats.total === 0
-                    ? language === 'tr'
-                      ? 'Henüz veri yok'
-                      : 'No data yet'
-                    : language === 'tr'
-                      ? 'Bugün başlayalım! 💪'
-                      : "Let's start today! 💪"}
-            </Text>
+        <CircularProgress
+          percentage={overallStats.adherenceRate}
+          size={72}
+          strokeWidth={8}
+          progressColor={getAdherenceColor(overallStats.adherenceRate, colors)}
+        />
+        <View style={styles.heroText}>
+          <Text style={[styles.heroTitle, { color: colors.text }]}>
+            {language === 'tr'
+              ? `${overallStats.taken}/${overallStats.total || 0} doz tamamlandı`
+              : `${overallStats.taken}/${overallStats.total || 0} doses completed`}
+          </Text>
+          <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
+            {selectedPeriod === 'weekly'
+              ? language === 'tr'
+                ? 'Son 7 günde'
+                : 'Last 7 days'
+              : language === 'tr'
+                ? 'Son 30 günde'
+                : 'Last 30 days'}
+          </Text>
+          <View style={styles.heroStatsRow}>
+            {overallStats.currentStreak > 0 && (
+              <View style={styles.heroStat}>
+                <Ionicons name="flame" size={14} color={colors.primary} />
+                <Text style={[styles.heroStatText, { color: colors.text }]}>
+                  {overallStats.currentStreak} {language === 'tr' ? 'gün seri' : 'day streak'}
+                </Text>
+              </View>
+            )}
+            <View style={styles.heroStat}>
+              <Ionicons name="flame-outline" size={14} color={colors.warning} />
+              <Text style={[styles.heroStatText, { color: colors.text }]}>
+                {overallStats.bestStreak} {language === 'tr' ? 'en iyi' : 'best'}
+              </Text>
+            </View>
           </View>
         </View>
-        <Text style={styles.adherenceValue}>%{overallStats.adherenceRate}</Text>
-      </LinearGradient>
+      </View>
 
       {/* PDF Rapor Butonu - Üstte */}
       <TouchableOpacity
@@ -419,51 +419,57 @@ export default function StatisticsScreen() {
         </View>
       </Section>
 
+      {/* Sprint 87B: Özet grid — Ana Sayfa stat tile pattern tutarlılığı */}
       <Section
         icon="📈"
         title={language === 'tr' ? 'ÖZET' : 'SUMMARY'}
         colors={colors}
         isDark={isDark}
       >
-        <StatRow
-          icon="✅"
-          iconBg="#DCFCE7"
-          label={t('home_taken')}
-          value={overallStats.taken}
-          valueColor={colors.success}
-          colors={colors}
-          isFirst
-        />
-        <StatRow
-          icon="⏭️"
-          iconBg="#FEF3C7"
-          label={t('home_skipped')}
-          value={overallStats.skipped}
-          valueColor={colors.warning}
-          colors={colors}
-        />
-        <StatRow
-          icon="❌"
-          iconBg="#FEE2E2"
-          label={t('home_missed')}
-          value={overallStats.missed}
-          valueColor={colors.error}
-          colors={colors}
-        />
-        <StatRow
-          icon="🔥"
-          iconBg="#FEF3C7"
-          label={t('stats_streak')}
-          value={`${overallStats.currentStreak} ${language === 'tr' ? 'gün' : 'days'}`}
-          colors={colors}
-        />
-        <StatRow
-          icon="🏆"
-          iconBg="#DBEAFE"
-          label={t('stats_best_streak')}
-          value={`${overallStats.bestStreak} ${language === 'tr' ? 'gün' : 'days'}`}
-          colors={colors}
-        />
+        <View style={styles.statGrid}>
+          <View style={[styles.statTile, { backgroundColor: colors.surfaceContainerLow }]}>
+            <View style={[styles.statTileIcon, { backgroundColor: colors.success + '20' }]}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+            </View>
+            <Text style={[styles.statTileValue, { color: colors.success }]}>
+              {overallStats.taken}
+            </Text>
+            <Text style={[styles.statTileLabel, { color: colors.textSecondary }]}>
+              {t('home_taken')}
+            </Text>
+          </View>
+          <View style={[styles.statTile, { backgroundColor: colors.surfaceContainerLow }]}>
+            <View style={[styles.statTileIcon, { backgroundColor: colors.warning + '20' }]}>
+              <Ionicons name="play-skip-forward" size={20} color={colors.warning} />
+            </View>
+            <Text style={[styles.statTileValue, { color: colors.warning }]}>
+              {overallStats.skipped}
+            </Text>
+            <Text style={[styles.statTileLabel, { color: colors.textSecondary }]}>
+              {t('home_skipped')}
+            </Text>
+          </View>
+          <View style={[styles.statTile, { backgroundColor: colors.surfaceContainerLow }]}>
+            <View style={[styles.statTileIcon, { backgroundColor: colors.error + '20' }]}>
+              <Ionicons name="close-circle" size={20} color={colors.error} />
+            </View>
+            <Text style={[styles.statTileValue, { color: colors.error }]}>
+              {overallStats.missed}
+            </Text>
+            <Text style={[styles.statTileLabel, { color: colors.textSecondary }]}>
+              {t('home_missed')}
+            </Text>
+          </View>
+          <View style={[styles.statTile, { backgroundColor: colors.surfaceContainerLow }]}>
+            <View style={[styles.statTileIcon, { backgroundColor: colors.primary + '20' }]}>
+              <Ionicons name="medkit" size={20} color={colors.primary} />
+            </View>
+            <Text style={[styles.statTileValue, { color: colors.text }]}>{overallStats.total}</Text>
+            <Text style={[styles.statTileLabel, { color: colors.textSecondary }]}>
+              {language === 'tr' ? 'Toplam' : 'Total'}
+            </Text>
+          </View>
+        </View>
       </Section>
 
       {dailyStats.some(d => d.total > 0) ? (
@@ -603,57 +609,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  adherenceCard: {
+  // Sprint 87A: Ana Sayfa hero pattern'i — CircularProgress + metin + alt istatistikler
+  heroCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    marginTop: 12,
     marginHorizontal: 16,
-    marginTop: 16,
     borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  adherenceContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  heroText: {
     flex: 1,
-    marginRight: 12,
+    marginLeft: 16,
   },
-  adherenceIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+  heroTitle: {
+    fontSize: 16,
+    fontWeight: '700',
   },
-  adherenceIconEmoji: {
-    fontSize: 24,
-  },
-  adherenceTextContainer: {
-    flex: 1,
-  },
-  adherenceTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  adherenceSubtitle: {
+  heroSubtitle: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
     marginTop: 2,
+    fontWeight: '500',
   },
-  adherenceValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    minWidth: 70,
-    textAlign: 'right',
+  heroStatsRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 12,
+  },
+  heroStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroStatText: {
+    fontSize: 12,
+    marginLeft: 4,
+    fontWeight: '600',
   },
   section: {
     marginTop: 16,
@@ -732,6 +724,39 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 17,
     fontWeight: '700',
+  },
+  // Sprint 87B: 2x2 stat grid (Alındı/Atlandı/Kaçırıldı/Toplam)
+  statGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 12,
+    gap: 8,
+  },
+  statTile: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  statTileIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  statTileValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  statTileLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
   },
   chartContainer: {
     padding: 16,
