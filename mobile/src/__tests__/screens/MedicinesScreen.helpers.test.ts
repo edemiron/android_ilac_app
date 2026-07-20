@@ -16,29 +16,19 @@ import {
 } from '../../screens/MedicinesScreen/helpers';
 import type { ThemeColors } from '../../contexts/ThemeContext';
 
-const mockColors: ThemeColors = {
-  primary: '#0EA5E9',
-  onPrimary: '#FFFFFF',
-  primaryContainer: '#BAE6FD',
-  onPrimaryContainer: '#0C4A6E',
-  surface: '#FFFFFF',
-  surfaceVariant: '#F5F5F5',
-  surfaceContainerLow: '#FAFAFA',
-  background: '#0F172A',
-  card: '#1E293B',
-  text: '#F8FAFC',
-  textSecondary: '#94A3B8',
-  textMuted: '#64748B',
-  border: '#334155',
-  borderLight: '#1E293B',
-  error: '#EF4444',
-  warning: '#F59E0B',
-  success: '#10B981',
-  info: '#3B82F6',
-  inputBackground: '#1E293B',
-  inputBorder: '#334155',
-  shadow: '#000000',
-};
+// Testlerde sadece renk isimleri kullanılıyor (error/warning/success/textMuted vs.).
+// ThemeColors tipinde ~30 field var — test cast ile atlanıyor, çünkü
+// helper'larımız sadece renk isimlerine bakıyor.
+const mockColors = {
+  primary: '#0D9488',
+  primaryContainer: '#CCFBF1',
+  text: '#0F172A',
+  textSecondary: '#475569',
+  textMuted: '#94A3B8',
+  error: '#B91C1C',
+  warning: '#B45309',
+  success: '#059669',
+} as unknown as ThemeColors;
 
 describe('decodeDosage', () => {
   it('decodes unicode escapes', () => {
