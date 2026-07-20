@@ -3,6 +3,11 @@
  *
  * Sprint 5.1: MedicinesScreen.tsx (1317 satir) modularizasyonu.
  * Tek bir ilac kart satir render eder (secim modu, expiry badge, action menu).
+ *
+ * Sprint 81:
+ *   - 81A: SKT badge akıllı renk (kırmızı dolmuş, sarı yaklaşıyor, yeşil/muted OK)
+ *   - 81B: Stok sayısı badge ("26/30 kaldı")
+ *   - 81C: Saat chip zaman bazlı renk (gelecek primary, geçmiş muted)
  */
 
 import React from 'react';
@@ -11,11 +16,13 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { format, parseISO } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
+import { differenceInCalendarDays } from 'date-fns';
 import { ThemeColors } from '../../../contexts/ThemeContext';
 import { TranslationKey } from '../../../contexts/LanguageContext';
 import { Medicine } from '../../../types';
 import { formatTimeDisplay, getInstructionText } from '../../../utils/timeCalculator';
 import { decodeDosage, getExpiryStatus, getMedicineFormIcon } from '../helpers';
+import { DEFAULT_REMINDER_DAYS } from '../types';
 
 interface MedicineRowProps {
   medicine: Medicine;
@@ -57,6 +64,66 @@ function getNextTime(times: string[]): string | null {
   return sorted.find(t => t > currentTime) || sorted[0];
 }
 
+// Sprint 81C: HH:MM string'i şu andan büyük mü kontrol et (gelecek mi?)
+function isFutureTime(time: string): boolean {
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(
+    now.getMinutes()
+  ).padStart(2, '0')}`;
+  return time > currentTime;
+}
+
+// Sprint 81A: SKT için kalan gün sayısına göre renk paleti.
+// < 0: error (kırmızı), 0-90: warning (sarı), > 90: success (yeşil),
+// tarih yoksa: muted (gri).
+function getExpiryColor(
+  expiryDate: string | undefined,
+  reminderDays: number | undefined,
+  colors: ThemeColors
+): { bg: string; fg: string } {
+  if (!expiryDate) {
+    return { bg: colors.textMuted + '15', fg: colors.textMuted };
+  }
+  try {
+    const days = differenceInCalendarDays(parseISO(expiryDate), new Date());
+    if (days < 0) {
+      return { bg: colors.error + '20', fg: colors.error };
+    }
+    if (days <= (reminderDays ?? DEFAULT_REMINDER_DAYS)) {
+      return { bg: (colors.warning || '#F59E0B') + '20', fg: colors.warning || '#F59E0B' };
+    }
+    if (days <= 90) {
+      return { bg: (colors.success || '#10B981') + '15', fg: colors.success || '#10B981' };
+    }
+    // > 90 gün — muted, kullanıcıyı meşgul etme
+    return { bg: colors.textMuted + '15', fg: colors.textMuted };
+  } catch {
+    return { bg: colors.textMuted + '15', fg: colors.textMuted };
+  }
+}
+
+// Sprint 81B: Stok badge rengini hesapla.
+// stockCount <= threshold: kırmızı, <= 2x threshold: sarı, > 2x: muted.
+function getStockColor(
+  stockCount: number | undefined,
+  threshold: number | undefined,
+  colors: ThemeColors
+): { bg: string; fg: string; variant: 'critical' | 'low' | 'ok' } | null {
+  if (stockCount === undefined) return null;
+  const t = threshold ?? 5; // Sprint 65 default threshold
+  if (stockCount <= t) {
+    return { bg: colors.error + '20', fg: colors.error, variant: 'critical' };
+  }
+  if (stockCount <= t * 2) {
+    return {
+      bg: (colors.warning || '#F59E0B') + '20',
+      fg: colors.warning || '#F59E0B',
+      variant: 'low',
+    };
+  }
+  return { bg: colors.textMuted + '15', fg: colors.textMuted, variant: 'ok' };
+}
+
 export const MedicineRow: React.FC<MedicineRowProps> = ({
   medicine,
   times,
@@ -94,12 +161,20 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
   const renderExpiryBadge = () => {
     if (!medicine.expiryDate) return null;
     const status = expiryStatus;
+    // Sprint 81A: Akıllı renk — gün sayısına göre 4 seviye
+    const palette = getExpiryColor(medicine.expiryDate, medicine.expiryReminderDays, colors);
+    const expiryIcon =
+      status === 'expired'
+        ? 'alert-circle'
+        : status === 'expiring'
+          ? 'time-outline'
+          : 'calendar-outline';
 
     if (status === 'expired') {
       return (
-        <View style={[styles.expiryBadge, { backgroundColor: colors.error + '20' }]}>
-          <Ionicons name="alert-circle" size={12} color={colors.error} />
-          <Text style={[styles.expiryBadgeText, { color: colors.error }]}>
+        <View style={[styles.expiryBadge, { backgroundColor: palette.bg }]}>
+          <Ionicons name={expiryIcon} size={12} color={palette.fg} />
+          <Text style={[styles.expiryBadgeText, { color: palette.fg }]}>
             {language === 'tr' ? 'Süresi doldu' : 'Expired'}
           </Text>
         </View>
@@ -107,11 +182,9 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
     }
     if (status === 'expiring') {
       return (
-        <View
-          style={[styles.expiryBadge, { backgroundColor: (colors.warning || '#F59E0B') + '20' }]}
-        >
-          <Ionicons name="time-outline" size={12} color={colors.warning || '#F59E0B'} />
-          <Text style={[styles.expiryBadgeText, { color: colors.warning || '#F59E0B' }]}>
+        <View style={[styles.expiryBadge, { backgroundColor: palette.bg }]}>
+          <Ionicons name={expiryIcon} size={12} color={palette.fg} />
+          <Text style={[styles.expiryBadgeText, { color: palette.fg }]}>
             {language === 'tr' ? 'Yakında' : 'Soon'}
           </Text>
         </View>
@@ -119,9 +192,9 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
     }
     if (status === 'ok') {
       return (
-        <View style={[styles.expiryBadge, { backgroundColor: colors.textMuted + '15' }]}>
-          <Ionicons name="calendar-outline" size={11} color={colors.textMuted} />
-          <Text style={[styles.expiryBadgeText, { color: colors.textMuted }]}>
+        <View style={[styles.expiryBadge, { backgroundColor: palette.bg }]}>
+          <Ionicons name={expiryIcon} size={11} color={palette.fg} />
+          <Text style={[styles.expiryBadgeText, { color: palette.fg }]}>
             {formatExpiryDate(medicine.expiryDate, language)}
           </Text>
         </View>
@@ -130,8 +203,32 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
     return null;
   };
 
+  // Sprint 81B: Stok badge render
+  const stockPalette = getStockColor(medicine.stockCount, medicine.stockThreshold, colors);
+  const renderStockBadge = () => {
+    if (!stockPalette || medicine.stockEnabled === false) return null;
+    if (medicine.stockCount === undefined) return null;
+    const tr = language === 'tr';
+    const label =
+      stockPalette.variant === 'critical'
+        ? tr
+          ? `Stok az (${medicine.stockCount})`
+          : `Low (${medicine.stockCount})`
+        : tr
+          ? `${medicine.stockCount} kaldı`
+          : `${medicine.stockCount} left`;
+    return (
+      <View style={[styles.stockBadge, { backgroundColor: stockPalette.bg }]}>
+        <Ionicons name="cube-outline" size={11} color={stockPalette.fg} />
+        <Text style={[styles.stockBadgeText, { color: stockPalette.fg }]}>{label}</Text>
+      </View>
+    );
+  };
+
   const nextTime = getNextTime(times);
   const otherCount = times.length - 1;
+  // Sprint 81C: Gelecek saat primary, geçmiş muted
+  const isNextFuture = nextTime ? isFutureTime(nextTime) : false;
 
   return (
     <TouchableOpacity
@@ -205,6 +302,7 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
               </View>
             )}
             {renderExpiryBadge()}
+            {renderStockBadge()}
           </View>
           <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
             {decodeDosage(medicine.dosage)} •{' '}
@@ -213,25 +311,43 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
           </Text>
           {nextTime && (
             <View style={styles.timesContainer}>
+              {/* Sprint 81C: Gelecek saat primary (medicine.color), geçmiş muted */}
               <View
                 style={[
                   styles.timeChip,
                   {
                     backgroundColor: medicine.isActive
-                      ? medicine.color + '15'
+                      ? isNextFuture
+                        ? medicine.color + '25'
+                        : colors.textMuted + '15'
                       : colors.inputBackground,
+                    borderWidth: isNextFuture && medicine.isActive ? 1 : 0,
+                    borderColor:
+                      isNextFuture && medicine.isActive ? medicine.color + '40' : 'transparent',
                   },
                 ]}
               >
                 <Ionicons
                   name="time-outline"
                   size={11}
-                  color={medicine.isActive ? medicine.color : colors.textMuted}
+                  color={
+                    medicine.isActive
+                      ? isNextFuture
+                        ? medicine.color
+                        : colors.textMuted
+                      : colors.textMuted
+                  }
                 />
                 <Text
                   style={[
                     styles.timeChipText,
-                    { color: medicine.isActive ? medicine.color : colors.textMuted },
+                    {
+                      color: medicine.isActive
+                        ? isNextFuture
+                          ? medicine.color
+                          : colors.textMuted
+                        : colors.textMuted,
+                    },
                   ]}
                 >
                   {formatTimeDisplay(nextTime)}
@@ -322,6 +438,20 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   expiryBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginLeft: 3,
+  },
+  // Sprint 81B: Stok badge stilleri
+  stockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginRight: 6,
+  },
+  stockBadgeText: {
     fontSize: 10,
     fontWeight: '600',
     marginLeft: 3,
