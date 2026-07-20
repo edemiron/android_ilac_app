@@ -31,6 +31,7 @@ import { Section } from './StatisticsScreen/components/Section';
 import { StatRow } from './StatisticsScreen/components/StatRow';
 import type { Period } from './StatisticsScreen/helpers';
 import { getAdherenceColor } from './StatisticsScreen/helpers';
+import { findTopMissedTimes } from './StatisticsScreen/chartHelpers';
 
 const screenWidth = Dimensions.get('window').width;
 const log = createScopedLogger('StatisticsScreen');
@@ -114,31 +115,9 @@ export default function StatisticsScreen() {
 
   const suggestions = useMemo(() => {
     const logs = medicineLogs.filter(
-      log =>
-        isWithinInterval(new Date(log.scheduledTime), dateRange) &&
-        (log.status === 'missed' || log.status === 'skipped')
+      log => isWithinInterval(new Date(log.scheduledTime), dateRange)
     );
-
-    const timeStats: Record<string, { missed: number; total: number }> = {};
-
-    logs.forEach(log => {
-      const time = log.scheduledTime.split('T')[1]?.substring(0, 5) || '';
-      if (!timeStats[time]) {
-        timeStats[time] = { missed: 0, total: 0 };
-      }
-      timeStats[time].missed++;
-      timeStats[time].total++;
-    });
-
-    const problematicTimes = Object.entries(timeStats)
-      .filter(([_, stats]) => stats.missed >= 2)
-      .sort((a, b) => b[1].missed - a[1].missed)
-      .slice(0, 2);
-
-    return problematicTimes.map(([time, stats]) => ({
-      time,
-      missedCount: stats.missed,
-    }));
+    return findTopMissedTimes(logs, 2);
   }, [medicineLogs, dateRange]);
 
   const chartData = useMemo(() => {
@@ -198,8 +177,6 @@ export default function StatisticsScreen() {
       fontSize: 10,
     },
   };
-
-  const _getColor = (rate: number) => getAdherenceColor(rate, colors);
 
   const handleGeneratePDF = async (days: 7 | 30 | 90) => {
     try {
@@ -393,6 +370,9 @@ export default function StatisticsScreen() {
               selectedPeriod === 'weekly' && { borderColor: colors.primary, borderWidth: 1 },
             ]}
             onPress={() => setSelectedPeriod('weekly')}
+            accessibilityRole="button"
+            accessibilityState={{ selected: selectedPeriod === 'weekly' }}
+            accessibilityLabel={t('stats_weekly')}
           >
             <Ionicons
               name="calendar-outline"
@@ -418,6 +398,9 @@ export default function StatisticsScreen() {
               selectedPeriod === 'monthly' && { borderColor: colors.primary, borderWidth: 1 },
             ]}
             onPress={() => setSelectedPeriod('monthly')}
+            accessibilityRole="button"
+            accessibilityState={{ selected: selectedPeriod === 'monthly' }}
+            accessibilityLabel={t('stats_monthly')}
           >
             <Ionicons
               name="calendar"
