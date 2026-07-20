@@ -16,13 +16,18 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { format, parseISO } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
-import { differenceInCalendarDays } from 'date-fns';
 import { ThemeColors } from '../../../contexts/ThemeContext';
 import { TranslationKey } from '../../../contexts/LanguageContext';
 import { Medicine } from '../../../types';
 import { formatTimeDisplay, getInstructionText } from '../../../utils/timeCalculator';
-import { decodeDosage, getExpiryStatus, getMedicineFormIcon } from '../helpers';
-import { DEFAULT_REMINDER_DAYS } from '../types';
+import {
+  decodeDosage,
+  getExpiryStatus,
+  getMedicineFormIcon,
+  getExpiryColor,
+  getStockColor,
+  isFutureTime,
+} from '../helpers';
 
 interface MedicineRowProps {
   medicine: Medicine;
@@ -64,65 +69,7 @@ function getNextTime(times: string[]): string | null {
   return sorted.find(t => t > currentTime) || sorted[0];
 }
 
-// Sprint 81C: HH:MM string'i şu andan büyük mü kontrol et (gelecek mi?)
-function isFutureTime(time: string): boolean {
-  const now = new Date();
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(
-    now.getMinutes()
-  ).padStart(2, '0')}`;
-  return time > currentTime;
-}
-
-// Sprint 81A: SKT için kalan gün sayısına göre renk paleti.
-// < 0: error (kırmızı), 0-90: warning (sarı), > 90: success (yeşil),
-// tarih yoksa: muted (gri).
-function getExpiryColor(
-  expiryDate: string | undefined,
-  reminderDays: number | undefined,
-  colors: ThemeColors
-): { bg: string; fg: string } {
-  if (!expiryDate) {
-    return { bg: colors.textMuted + '15', fg: colors.textMuted };
-  }
-  try {
-    const days = differenceInCalendarDays(parseISO(expiryDate), new Date());
-    if (days < 0) {
-      return { bg: colors.error + '20', fg: colors.error };
-    }
-    if (days <= (reminderDays ?? DEFAULT_REMINDER_DAYS)) {
-      return { bg: (colors.warning || '#F59E0B') + '20', fg: colors.warning || '#F59E0B' };
-    }
-    if (days <= 90) {
-      return { bg: (colors.success || '#10B981') + '15', fg: colors.success || '#10B981' };
-    }
-    // > 90 gün — muted, kullanıcıyı meşgul etme
-    return { bg: colors.textMuted + '15', fg: colors.textMuted };
-  } catch {
-    return { bg: colors.textMuted + '15', fg: colors.textMuted };
-  }
-}
-
-// Sprint 81B: Stok badge rengini hesapla.
-// stockCount <= threshold: kırmızı, <= 2x threshold: sarı, > 2x: muted.
-function getStockColor(
-  stockCount: number | undefined,
-  threshold: number | undefined,
-  colors: ThemeColors
-): { bg: string; fg: string; variant: 'critical' | 'low' | 'ok' } | null {
-  if (stockCount === undefined) return null;
-  const t = threshold ?? 5; // Sprint 65 default threshold
-  if (stockCount <= t) {
-    return { bg: colors.error + '20', fg: colors.error, variant: 'critical' };
-  }
-  if (stockCount <= t * 2) {
-    return {
-      bg: (colors.warning || '#F59E0B') + '20',
-      fg: colors.warning || '#F59E0B',
-      variant: 'low',
-    };
-  }
-  return { bg: colors.textMuted + '15', fg: colors.textMuted, variant: 'ok' };
-}
+// getExpiryColor, getStockColor, isFutureTime helpers.ts'e tasindi (Sprint 82).
 
 export const MedicineRow: React.FC<MedicineRowProps> = ({
   medicine,
