@@ -40,7 +40,21 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
     isPast,
   } = getRelativeTimeText(reminder.reminderTime.time, language, reminder.log);
 
-  const statusColor = isNow ? colors.primary : isPast ? SOFT_RED : colors.textSecondary;
+  // Sprint 80B: statusPill renk paleti — soluk secondary yerine primaryContainer
+  const statusBg = isNow
+    ? colors.primaryContainer
+    : isPast
+      ? isDark
+        ? 'rgba(239, 68, 68, 0.18)'
+        : '#FEE2E2'
+      : colors.primaryContainer;
+  const statusFg = isNow
+    ? colors.onPrimaryContainer
+    : isPast
+      ? isDark
+        ? '#FCA5A5'
+        : '#B91C1C'
+      : colors.onPrimaryContainer;
 
   return (
     <>
@@ -57,8 +71,9 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
         ]}
       >
         <View style={styles.currentDoseHeader}>
-          <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
-            <Text style={[styles.statusPillText, { color: statusColor }]}>{relativeTime}</Text>
+          {/* Sprint 80B: Daha belirgin status pill — primaryContainer + onPrimaryContainer */}
+          <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
+            <Text style={[styles.statusPillText, { color: statusFg }]}>{relativeTime}</Text>
           </View>
           <Text style={[styles.currentDoseTime, { color: colors.textSecondary }]}>
             {formatTimeDisplay(reminder.reminderTime.time)}
@@ -153,14 +168,20 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
                 : `Skip ${reminder.medicine.name} dose`
             }
             accessibilityHint={
-              language === 'tr' ? 'Bu dozu atlandı olarak kaydeder' : 'Marks this dose as skipped'
+              language === 'tr'
+                ? `${reminder.medicine.name} ilacının bu dozunu atlandı olarak kaydeder`
+                : `Marks this dose of ${reminder.medicine.name} as skipped`
             }
           >
             <Ionicons
               name="close-circle-outline"
-              size={18}
+              size={16}
               color={isDark ? '#EF4444' : '#DC2626'}
             />
+            {/* Sprint 80A: Görsel "Atla" etiketi (buton içinde, hâlâ 48pt touch target) */}
+            <Text style={[styles.skipBtnText, { color: isDark ? '#EF4444' : '#DC2626' }]}>
+              {language === 'tr' ? 'Atla' : 'Skip'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -222,13 +243,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statusPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 12,
   },
+  // Sprint 80B: Daha okunur font
   statusPillText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   currentDoseTime: {
     fontSize: 14,
@@ -288,6 +310,12 @@ const styles = StyleSheet.create({
   },
   skipBtn: {
     borderWidth: 1,
+  },
+  // Sprint 80A: skip buton text label
+  skipBtnText: {
+    fontWeight: '600',
+    marginLeft: 4,
+    fontSize: 13,
   },
   modalOverlay: {
     flex: 1,
