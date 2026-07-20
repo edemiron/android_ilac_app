@@ -28,7 +28,12 @@ import { createScopedLogger } from '../utils/logger';
 // Sprint 7.3: Pure helper'lar ./caregiverHelpers.ts'e tasindi.
 // generateInviteCode + isValidInviteCode inline tanimlar kaldirildi,
 // re-export ile public API korunuyor.
-import { generateInviteCode, isValidInviteCode, isValidFcmToken, formatCaregiverNotification } from './caregiverHelpers';
+import {
+  generateInviteCode,
+  isValidInviteCode,
+  isValidFcmToken,
+  formatCaregiverNotification,
+} from './caregiverHelpers';
 export { generateInviteCode, isValidInviteCode };
 import type { CaregiverRelationship, CaregiverInvite, PatientInfo } from '../types';
 
@@ -37,6 +42,7 @@ const log = createScopedLogger('CaregiverService');
 // Firestore collection names
 const INVITES_COLLECTION = 'caregiverInvites';
 const RELATIONSHIPS_COLLECTION = 'caregiverRelationships';
+const MEDICINE_LOGS_SUBCOLLECTION = 'medicineLogs'; // Sprint 72: hasta medicineLogs subcollection
 
 // Davet kodu geçerlilik süresi (7 gün)
 const INVITE_EXPIRY_DAYS = 7;
@@ -473,10 +479,7 @@ export async function notifyCaregivers(
       // Sprint 12.4: content builder helper'a delege
       // notifyCaregivers tek dil (TR) destekliyor; ileride multi-language
       // ihtiyacinda caregiver profile.language kullanilabilir.
-      const content = formatCaregiverNotification(
-        notification.type,
-        notification.medicineName
-      );
+      const content = formatCaregiverNotification(notification.type, notification.medicineName);
 
       // Cloud Functions üzerinden bildirim gönder
       // Alternatif: Client-side FCM API (sınırlı)
@@ -633,4 +636,98 @@ export async function getCaregiversService(
   patientId: string
 ): Promise<ServiceResult<CaregiverRelationship[]>> {
   return withServiceResult(() => getCaregivers(patientId), { errorCode: 'API_ERROR' });
+}
+
+// ============================================================================
+// Sprint 72: Caregiver Event Bridge — caregiver tarafi Firestore entegrasyonu.
+// Caregiver telefonda "Hasta Aldi" butonuna bastiginda callback tetiklenir.
+// Bu callback patient tarafindaki medicineLogs subcollection'a yeni bir log
+// yazar. Production'da Cloud Function uzerinden daha guvenli ama demo icin
+// caregiver client-side yazabilir (rule: caregiver relationship active olmali).
+// ============================================================================
+
+/**
+ * Caregiver tarafindan "Hasta Aldi" aksiyonu — Firestore'a medicineLog yaz.
+ *
+ * Hasta medicineLogs subcollection path: `users/{patientId}/medicineLogs/{logId}`
+ * Bu local medicineStore ile AYNI path kullanir — firestoreSync mantigiyla
+ * uyumlu.
+ */
+export async function logMedicineTakenByCaregiver(
+  patientId: string,
+  medicineName: string,
+  doseTime: string
+): Promise<{ success: boolean; logId?: string; error?: string }> {
+  try {
+    if (!patientId || !medicineName) {
+      return {
+        success: false,
+        error: 'patientId ve medicineName zorunlu',
+      };
+    }
+
+    const db = await import('firebase/firestore').then(m => m.getFirestore());
+    const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
+
+    const logId = generateId();
+    const logDoc = {
+      id: logId,
+      medicineId: '', // caregiver tarafindan bilinmez — sadece medicineName loglanir
+      medicineName,
+      scheduledTime: doseTime,
+      status: 'taken',
+      takenAt: new Date().toISOString(),
+      source: 'caregiver_action', // ayirt edici: caregiver basladi
+      createdAtServer: serverTimestamp(),
+    };
+
+    const docRef = await addDoc(
+      collection(db, 'users', patientId, MEDICINE_LOGS_SUBCOLLECTION),
+      logDoc
+    );
+
+    log.info('Caregiver medicineLog yazildi', {
+      patientId,
+      logId: docRef.id,
+      medicineName,
+    });
+
+    return { success: true, logId: docRef.id };
+  } catch (error) {
+    log.error('Caregiver logMedicineTakenByCaregiver hata', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+    };
+  }
+}
+
+/**
+ * Hasta telefon numarasini getir (caregiver tarafi icin tel arama linki).
+ *
+ * Kullanici profilinde `users/{patientId}.phoneNumber` field'i beklenir.
+ * Henuz yoksa fallback bos string doner — caregiver "Ara" butonu calismaz.
+ */
+export async function getPatientPhoneNumber(patientId: string): Promise<string> {
+  try {
+    if (!patientId) return '';
+
+    const db = await import('firebase/firestore').then(m => m.getFirestore());
+    const { doc, getDoc } = await import('firebase/firestore');
+
+    const userRef = doc(db, 'users', patientId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      log.warn('Patient user doc bulunamadi, telefon yok', { patientId });
+      return '';
+    }
+
+    const data = userSnap.data();
+    const phone = typeof data?.phoneNumber === 'string' ? data.phoneNumber : '';
+    return phone;
+  } catch (error) {
+    log.error('getPatientPhoneNumber hata', error);
+    return '';
+  }
 }

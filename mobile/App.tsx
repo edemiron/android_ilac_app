@@ -70,6 +70,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { AlertProvider } from './src/contexts/AlertContext';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
+import { CaregiverEventBridge } from './src/components/CaregiverEventBridge'; // Sprint 72
 import { usePermissionsGate } from './src/hooks/usePermissionsGate';
 import { useSecurityGate } from './src/hooks/useSecurityGate';
 import { useBootRecovery } from './src/hooks/useBootRecovery';
@@ -1077,6 +1078,8 @@ export default function App() {
                     <AuthProvider>
                       <SubscriptionProvider>
                         <AlertProvider>
+                          {/* Sprint 72: CaregiverEventBridge — caregiver "Hasta Aldı" / "Ara" action'larını Firestore'a bağlar */}
+                          <CaregiverEventBridge />
                           <AppContent />
                         </AlertProvider>
                       </SubscriptionProvider>
