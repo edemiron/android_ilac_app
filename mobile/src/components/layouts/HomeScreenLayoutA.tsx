@@ -2,7 +2,10 @@
  * HomeScreenLayoutA — Sprint 69: Layout A (Sade / Compact).
  *
  * Sprint 57'de sade "Tek bilgi" idi. Sprint 69'da kompakt hero eklendi.
- * Mevcut sürüm: Sade görünüm — minimal hero + Şu An + Bugünün Planı (collapsed).
+ * Sprint 79: Bugünün Planı default expanded (collapsed → expanded);
+ *   inline summary satırı eklendi (Bugün X doz · Y alındı · Z bekleyen).
+ *
+ * Mevcut sürüm: Sade görünüm — minimal hero + Şu An + Bugünün Planı (default açık).
  *
  * Kullanim:
  *   <HomeScreenLayoutA
@@ -10,6 +13,8 @@
  *     adherence={75}
  *     streak={4}
  *     remainingCount={3}
+ *     completedCount={2}
+ *     totalCount={7}
  *     onTake={...}
  *     onSnooze={...}
  *     onSkip={...}
@@ -55,7 +60,7 @@ export function HomeScreenLayoutA({
 }: LayoutAProps) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
-  const [showPlan, setShowPlan] = useState(false);
+  const [showPlan, setShowPlan] = useState(true); // Sprint 79A: default expanded
   const tr = language === 'tr';
 
   if (!reminder && reminders.length === 0) {
@@ -118,6 +123,17 @@ export function HomeScreenLayoutA({
               )}
             </View>
           </View>
+        </View>
+      )}
+
+      {/* Sprint 79B: Inline summary — Bugün X doz · Y alındı · Z bekleyen */}
+      {totalCount > 0 && (
+        <View style={[styles.summaryRow, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
+            {tr
+              ? `Bugün ${totalCount} doz · ${completedCount} alındı · ${remainingCount} bekleyen`
+              : `Today ${totalCount} doses · ${completedCount} taken · ${remainingCount} pending`}
+          </Text>
         </View>
       )}
 
@@ -243,6 +259,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginLeft: 4,
     fontWeight: '600',
+  },
+  // Sprint 79B: inline summary satırı
+  summaryRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  summaryText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   noCurrentContainer: {
     alignItems: 'center',
