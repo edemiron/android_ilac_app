@@ -19,8 +19,8 @@ const log = createScopedLogger('useUserProfile');
 
 /**
  * Layout varyasyonu. preferredLayout ile eşleşir.
- * - A: Sade / Minimal (default, yaşlılar için)
- * - B: Detaylı (Kart + Adherence, gençler için)
+ * - A: Detaylı (CircularProgress + stat tile + streak + collapsed plan)
+ * - B: Sade (kompakt hero + bugünün planı)
  */
 export type LayoutVariant = 'A' | 'B';
 

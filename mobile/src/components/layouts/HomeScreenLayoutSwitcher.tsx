@@ -1,8 +1,8 @@
 /**
- * HomeScreenLayoutSwitcher — Sprint 58.5 + 62.
+ * HomeScreenLayoutSwitcher — Sprint 58.5 + 62 + 78.
  *
  * useUserProfile hook'undan layout tercihini okur, uygun layout component'ini render eder.
- * Layout B (Detaylı) 7 MD3 kartı, Layout A (Sade) minimal görünüm.
+ * Layout A (Detaylı) CircularProgress + stat tiles + streak; Layout B (Sade) kompakt görünüm.
  * Sprint 62: Layout A↔B geçişinde LayoutAnimation (RN built-in) ile crossfade.
  */
 
@@ -99,7 +99,8 @@ export function HomeScreenLayoutSwitcher({
     );
   }
 
-  if (profile.layout === 'B') {
+  // Sprint 78: A = Detaylı (7 kart LayoutB), B = Sade (kompakt LayoutA)
+  if (profile.layout === 'A') {
     return (
       <HomeScreenLayoutB
         reminder={reminder}

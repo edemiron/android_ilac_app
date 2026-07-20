@@ -1,10 +1,8 @@
 /**
- * HomeScreenLayoutA — Sprint 69: Layout A (Detaylı / Compact).
+ * HomeScreenLayoutA — Sprint 69: Layout A (Sade / Compact).
  *
- * Sprint 57'de sade "Tek bilgi" idi. Sprint 69'da kullanıcının "Detaylı"
- * beklentisini karşılamak için: CircularProgress + compact stat + streak
- * eklendi. Layout B/C'den farkı: daha kompakt (boş alan az, kart yok, sadece
- * minimal hero + remaining + plan).
+ * Sprint 57'de sade "Tek bilgi" idi. Sprint 69'da kompakt hero eklendi.
+ * Mevcut sürüm: Sade görünüm — minimal hero + Şu An + Bugünün Planı (collapsed).
  *
  * Kullanim:
  *   <HomeScreenLayoutA
