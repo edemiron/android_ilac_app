@@ -122,9 +122,12 @@ export default function StatisticsScreen() {
   }, [medicineLogs, dateRange]);
 
   const chartData = useMemo(() => {
+    // Sprint 89A: Weekly 7-gunu sikistirmak icin EEE -> EE (2 harf).
+    // TR: "Pt Sa Ca Pe Cu Cm Pa" / EN: "Mo Tu We Th Fr Sa Su"
+    // Monthly (30 gun) icin her 5. gun — zaten kisa 'd' formatinda.
     const labels =
       selectedPeriod === 'weekly'
-        ? dailyStats.map(d => format(d.date, 'EEE', { locale: dateLocale }))
+        ? dailyStats.map(d => format(d.date, 'EE', { locale: dateLocale }))
         : dailyStats
             .filter((_, i) => i % 5 === 0)
             .map(d => format(d.date, 'd', { locale: dateLocale }));
@@ -147,7 +150,8 @@ export default function StatisticsScreen() {
     decimalPlaces: 0,
     labelColor: () => colors.textSecondary,
     propsForLabels: {
-      fontSize: 10,
+      // Sprint 89A: x-axis etiket font 10 -> 9 (7 etiket sikismasi)
+      fontSize: 9,
     },
   };
 
