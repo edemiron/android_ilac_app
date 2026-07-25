@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { LineChart, PieChart } from 'react-native-chart-kit';
+import { LineChart } from 'react-native-chart-kit';
 import { format, subDays, eachDayOfInterval, isWithinInterval } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
 import { useTheme } from '../contexts/ThemeContext';
@@ -136,34 +136,6 @@ export default function StatisticsScreen() {
 
     return { labels, data };
   }, [dailyStats, selectedPeriod, dateLocale]);
-
-  const pieData = useMemo(() => {
-    if (overallStats.total === 0) return [];
-
-    return [
-      {
-        name: t('home_taken'),
-        population: overallStats.taken,
-        color: colors.success,
-        legendFontColor: colors.text,
-        legendFontSize: 12,
-      },
-      {
-        name: t('home_skipped'),
-        population: overallStats.skipped,
-        color: colors.warning,
-        legendFontColor: colors.text,
-        legendFontSize: 12,
-      },
-      {
-        name: t('home_missed'),
-        population: overallStats.missed,
-        color: colors.error,
-        legendFontColor: colors.text,
-        legendFontSize: 12,
-      },
-    ].filter(item => item.population > 0);
-  }, [overallStats, colors, t]);
 
   const chartConfig = {
     backgroundGradientFrom: colors.card,
@@ -512,24 +484,65 @@ export default function StatisticsScreen() {
         </Section>
       )}
 
-      {pieData.length > 0 && (
+      {overallStats.total > 0 && (
         <Section
           icon="🥧"
           title={language === 'tr' ? 'DAĞILIM' : 'DISTRIBUTION'}
           colors={colors}
           isDark={isDark}
         >
-          <View style={styles.chartContainer}>
-            <PieChart
-              data={pieData}
-              width={screenWidth - 64}
-              height={180}
-              chartConfig={chartConfig}
-              accessor="population"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute
-            />
+          {/* Sprint 88C: PieChart yerine custom yatay bar — daha okunur, Ana Sayfa tutarlı */}
+          <View style={styles.distributionContainer}>
+            {[
+              {
+                key: 'taken',
+                label: t('home_taken'),
+                count: overallStats.taken,
+                color: colors.success,
+                icon: 'checkmark-circle' as const,
+              },
+              {
+                key: 'skipped',
+                label: t('home_skipped'),
+                count: overallStats.skipped,
+                color: colors.warning,
+                icon: 'play-skip-forward' as const,
+              },
+              {
+                key: 'missed',
+                label: t('home_missed'),
+                count: overallStats.missed,
+                color: colors.error,
+                icon: 'close-circle' as const,
+              },
+            ].map(item => {
+              const pct =
+                overallStats.total > 0 ? Math.round((item.count / overallStats.total) * 100) : 0;
+              return (
+                <View key={item.key} style={styles.distributionRow}>
+                  <View style={styles.distributionLabelRow}>
+                    <Ionicons name={item.icon} size={16} color={item.color} />
+                    <Text style={[styles.distributionLabel, { color: colors.text }]}>
+                      {item.label}
+                    </Text>
+                    <Text style={[styles.distributionValue, { color: colors.textMuted }]}>
+                      {item.count} ({pct}%)
+                    </Text>
+                  </View>
+                  <View style={[styles.distributionBarBg, { backgroundColor: item.color + '15' }]}>
+                    <View
+                      style={[
+                        styles.distributionBarFill,
+                        {
+                          backgroundColor: item.color,
+                          width: `${pct}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              );
+            })}
           </View>
         </Section>
       )}
@@ -539,65 +552,73 @@ export default function StatisticsScreen() {
           .slice()
           .reverse()
           .slice(0, 7)
-          .map((day, index) => (
-            <View
-              key={index}
-              style={[
-                styles.historyRow,
-                index > 0 && {
-                  borderTopWidth: StyleSheet.hairlineWidth,
-                  borderTopColor: colors.divider,
-                },
-              ]}
-            >
-              <View style={styles.historyInfo}>
-                <View style={[styles.iconContainer, { backgroundColor: '#F3F4F6' }]}>
-                  <Text style={styles.iconEmoji}>📅</Text>
-                </View>
-                <View style={styles.historyTextContainer}>
-                  <Text style={[styles.historyDay, { color: colors.text }]}>
-                    {format(day.date, 'EEEE', { locale: dateLocale })}
-                  </Text>
-                  <Text style={[styles.historyDate, { color: colors.textMuted }]}>
-                    {format(day.date, 'd MMMM', { locale: dateLocale })}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.historyStats}>
-                {day.total > 0 ? (
-                  <>
-                    <View style={[styles.historyBadge, { backgroundColor: '#DCFCE7' }]}>
-                      <Text style={[styles.historyBadgeText, { color: colors.success }]}>
-                        ✓{day.taken}
-                      </Text>
-                    </View>
-                    {(day.skipped > 0 || day.missed > 0) && (
-                      <View style={[styles.historyBadge, { backgroundColor: '#FEE2E2' }]}>
-                        <Text style={[styles.historyBadgeText, { color: colors.error }]}>
-                          ✗{day.skipped + day.missed}
-                        </Text>
-                      </View>
-                    )}
-                  </>
-                ) : (
-                  <Text style={[styles.historyNoData, { color: colors.textMuted }]}>-</Text>
-                )}
-              </View>
-              <Text
+          .map((day, index) => {
+            // Sprint 88A: medkit ikonu (Ana Sayfa TimelineItem pattern)
+            const dayHasData = day.total > 0;
+            const accentColor = dayHasData
+              ? getAdherenceColor(day.adherenceRate, colors)
+              : colors.textMuted;
+            return (
+              <View
+                key={index}
                 style={[
-                  styles.historyRate,
-                  {
-                    color:
-                      day.total > 0
-                        ? getAdherenceColor(day.adherenceRate, colors)
-                        : colors.textMuted,
+                  styles.historyRow,
+                  index > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: colors.divider,
                   },
                 ]}
               >
-                {day.total > 0 ? `%${day.adherenceRate}` : '-'}
-              </Text>
-            </View>
-          ))}
+                <View style={styles.historyInfo}>
+                  {/* Sprint 88A: medkit ikonu + hafif renkli daire */}
+                  <View style={[styles.iconContainer, { backgroundColor: accentColor + '20' }]}>
+                    <Ionicons name="medical" size={18} color={accentColor} />
+                  </View>
+                  <View style={styles.historyTextContainer}>
+                    <Text style={[styles.historyDay, { color: colors.text }]} numberOfLines={1}>
+                      {format(day.date, 'EEE', { locale: dateLocale })}
+                    </Text>
+                    <Text style={[styles.historyDate, { color: colors.textMuted }]}>
+                      {format(day.date, 'd MMM', { locale: dateLocale })}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.historyStats}>
+                  {dayHasData ? (
+                    <>
+                      {/* Sprint 88A: sadece taken > 0 ise ✓ badge */}
+                      {day.taken > 0 && (
+                        <View
+                          style={[styles.historyBadge, { backgroundColor: colors.success + '20' }]}
+                        >
+                          <Ionicons name="checkmark" size={11} color={colors.success} />
+                          <Text style={[styles.historyBadgeText, { color: colors.success }]}>
+                            {day.taken}
+                          </Text>
+                        </View>
+                      )}
+                      {(day.skipped > 0 || day.missed > 0) && (
+                        <View
+                          style={[styles.historyBadge, { backgroundColor: colors.error + '20' }]}
+                        >
+                          <Ionicons name="close" size={11} color={colors.error} />
+                          <Text style={[styles.historyBadgeText, { color: colors.error }]}>
+                            {day.skipped + day.missed}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <Text style={[styles.historyNoData, { color: colors.textMuted }]}>—</Text>
+                  )}
+                </View>
+                {/* Sprint 88A: yüzde değeri */}
+                <Text style={[styles.historyRate, { color: accentColor }]}>
+                  {dayHasData ? `%${day.adherenceRate}` : '—'}
+                </Text>
+              </View>
+            );
+          })}
       </Section>
 
       <View style={{ height: 40 }} />
@@ -614,7 +635,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingVertical: 14,
     marginTop: 12,
     marginHorizontal: 16,
     borderRadius: 16,
@@ -729,15 +750,15 @@ const styles = StyleSheet.create({
   statGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 12,
-    gap: 8,
+    padding: 10,
+    gap: 6,
   },
   statTile: {
     flexBasis: '48%',
     flexGrow: 1,
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
     borderRadius: 12,
   },
   statTileIcon: {
@@ -763,6 +784,39 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     alignItems: 'center',
   },
+  // Sprint 88C: Dağılım custom yatay bar (PieChart yerine)
+  distributionContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  distributionRow: {
+    marginBottom: 12,
+  },
+  distributionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  distributionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+    flex: 1,
+  },
+  distributionValue: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  distributionBarBg: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  distributionBarFill: {
+    height: 8,
+    borderRadius: 4,
+  },
   chart: {
     borderRadius: 12,
   },
@@ -779,11 +833,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
   },
+  // Sprint 88A: kompakt history kart (padding 12->10, badge'lerde ikon + sayi)
   historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   historyInfo: {
     flexDirection: 'row',
@@ -794,34 +849,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   historyDay: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
   historyDate: {
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 11,
+    marginTop: 1,
   },
   historyStats: {
     flexDirection: 'row',
-    gap: 6,
-    marginRight: 12,
+    gap: 4,
+    marginRight: 10,
   },
   historyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 2,
   },
   historyBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
   historyNoData: {
-    fontSize: 14,
+    fontSize: 13,
   },
   historyRate: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    width: 50,
+    width: 48,
     textAlign: 'right',
   },
   suggestionRow: {
