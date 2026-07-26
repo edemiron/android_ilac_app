@@ -12,6 +12,7 @@ export { QuietHoursSection } from './QuietHoursSection';
 export { AdditionalFeaturesSection } from './AdditionalFeaturesSection';
 export { AccountSection } from './AccountSection';
 export { AboutSection } from './AboutSection';
+export { CaregiverSection } from './CaregiverSection'; // Sprint 90
 
 export { createSettingsStyles } from './styles';
 export type { SettingsStyles } from './styles';

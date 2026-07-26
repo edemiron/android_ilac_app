@@ -12,6 +12,7 @@ import {
   AdditionalFeaturesSection,
   AccountSection,
   AboutSection,
+  CaregiverSection, // Sprint 90: Bakıcı yönetim section
   createSettingsStyles,
 } from '../components/settings';
 import { useSettingsScreen } from '../hooks/useSettingsScreen';
@@ -167,6 +168,9 @@ export default function SettingsScreen() {
           parseTimeToDate={parseTimeToDate}
           formatTimeDisplay={formatTimeDisplay}
         />
+
+        {/* Sprint 90: Bakıcı yönetim section */}
+        <CaregiverSection />
 
         <AppearanceSection
           showThemePicker={pickerState.showThemePicker}

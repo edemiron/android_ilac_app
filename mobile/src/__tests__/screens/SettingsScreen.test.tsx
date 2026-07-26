@@ -114,6 +114,7 @@ jest.mock('../../components/settings', () => {
   return {
     PremiumCard: simpleMock,
     DailyScheduleSection: simpleMock,
+    CaregiverSection: simpleMock, // Sprint 90
     AppearanceSection: simpleMock,
     AccentColorSection: simpleMock,
     NotificationSection: simpleMock,
