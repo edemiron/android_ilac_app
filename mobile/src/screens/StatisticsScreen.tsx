@@ -263,12 +263,15 @@ export default function StatisticsScreen() {
                 </Text>
               </View>
             )}
-            <View style={styles.heroStat}>
-              <Ionicons name="flame-outline" size={14} color={colors.warning} />
-              <Text style={[styles.heroStatText, { color: colors.text }]}>
-                {overallStats.bestStreak} {language === 'tr' ? 'en iyi' : 'best'}
-              </Text>
-            </View>
+            {/* Sprint 91: bestStreak 0 ise gizle (sadece current streak varsa) */}
+            {overallStats.bestStreak > 0 && (
+              <View style={styles.heroStat}>
+                <Ionicons name="flame-outline" size={14} color={colors.warning} />
+                <Text style={[styles.heroStatText, { color: colors.text }]}>
+                  {overallStats.bestStreak} {language === 'tr' ? 'en iyi' : 'best'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -522,6 +525,15 @@ export default function StatisticsScreen() {
             ].map(item => {
               const pct =
                 overallStats.total > 0 ? Math.round((item.count / overallStats.total) * 100) : 0;
+              // Sprint 91B: 0 deger icin "—" goster, 100% icin "Hepsi"
+              const displayValue =
+                item.count === 0
+                  ? '—'
+                  : pct === 100
+                    ? language === 'tr'
+                      ? 'Hepsi'
+                      : 'All'
+                    : `${item.count} (${pct}%)`;
               return (
                 <View key={item.key} style={styles.distributionRow}>
                   <View style={styles.distributionLabelRow}>
@@ -530,7 +542,7 @@ export default function StatisticsScreen() {
                       {item.label}
                     </Text>
                     <Text style={[styles.distributionValue, { color: colors.textMuted }]}>
-                      {item.count} ({pct}%)
+                      {displayValue}
                     </Text>
                   </View>
                   <View style={[styles.distributionBarBg, { backgroundColor: item.color + '15' }]}>
