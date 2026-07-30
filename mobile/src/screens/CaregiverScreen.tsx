@@ -13,7 +13,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
   ActivityIndicator,
   Modal,
 } from 'react-native';
@@ -62,7 +61,7 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) =>
       borderRadius: 16,
       padding: 16,
       marginBottom: 12,
-      shadowColor: '#000',
+      shadowColor: colors.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
       shadowRadius: 4,
@@ -148,7 +147,7 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) =>
     // QR Modal
     modalContainer: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      backgroundColor: colors.overlay,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -193,7 +192,7 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) =>
       gap: 8,
     },
     shareButtonText: {
-      color: '#fff',
+      color: colors.textOnPrimary,
       fontSize: 16,
       fontWeight: '600',
     },
@@ -236,7 +235,7 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) =>
 export default function CaregiverScreen() {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
-  const { showInfo, showError } = useAlert();
+  const { showInfo, showError, showAlert } = useAlert();
   const styles = createStyles(colors, isDark);
 
   const {
@@ -278,12 +277,19 @@ export default function CaregiverScreen() {
     receiveAlerts: language === 'tr' ? 'Bildirimler' : 'Alerts',
     remove: language === 'tr' ? 'Kaldır' : 'Remove',
     cancel: language === 'tr' ? 'İptal' : 'Cancel',
+    removeCaregiverTitle: language === 'tr' ? 'Bakıcı Kaldır' : 'Remove Caregiver',
+    removeCaregiverMessage: (name: string) =>
+      language === 'tr'
+        ? `${name} adlı bakıcıyı kaldırmak istediğinize emin misiniz?`
+        : `Are you sure you want to remove ${name} as your caregiver?`,
+    unnamedCaregiver: language === 'tr' ? 'İsimsiz bakıcı' : 'Unnamed caregiver',
     qrTitle: language === 'tr' ? 'Davet Kodu' : 'Invite Code',
     qrSubtitle:
       language === 'tr'
         ? 'Bakıcı bu QR kodu tarayarak daveti kabul edebilir'
         : 'Caregiver can scan this QR code to accept the invite',
     shareInvite: language === 'tr' ? 'Daveti Paylaş' : 'Share Invite',
+    shareOk: language === 'tr' ? 'Tamam' : 'OK',
     close: language === 'tr' ? 'Kapat' : 'Close',
     inviteSent: language === 'tr' ? 'Davet Gönderildi' : 'Invite Sent',
     inviteSentBody: (code: string) =>
@@ -324,22 +330,21 @@ export default function CaregiverScreen() {
   };
 
   const handleRemoveCaregiver = (relationshipId: string, name: string) => {
-    Alert.alert(
-      language === 'tr' ? 'Bakıcı Kaldır' : 'Remove Caregiver',
-      language === 'tr'
-        ? `${name} adlı bakıcıyı kaldırmak istediğinize emin misiniz?`
-        : `Are you sure you want to remove ${name} as your caregiver?`,
-      [
-        { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
+    showAlert({
+      type: 'warning',
+      title: t.removeCaregiverTitle,
+      message: t.removeCaregiverMessage(name),
+      buttons: [
+        { text: t.cancel, style: 'cancel' },
         {
-          text: language === 'tr' ? 'Kaldır' : 'Remove',
+          text: t.remove,
           style: 'destructive',
           onPress: async () => {
             await removeCaregiverRel(relationshipId);
           },
         },
-      ]
-    );
+      ],
+    });
   };
 
   const handleCancelInvite = async (inviteCode: string) => {
@@ -354,9 +359,12 @@ export default function CaregiverScreen() {
         : `My invite code for the medication reminder app: ${currentInviteCode}`;
 
     // Share dialog (native veya react-native-share)
-    Alert.alert(language === 'tr' ? 'Davet Kodu' : 'Invite Code', shareText, [
-      { text: language === 'tr' ? 'Tamam' : 'OK' },
-    ]);
+    showAlert({
+      type: 'info',
+      title: t.qrTitle,
+      message: shareText,
+      buttons: [{ text: t.shareOk }],
+    });
   };
 
   const renderPermissions = (relationship: {
@@ -410,9 +418,9 @@ export default function CaregiverScreen() {
                 disabled={isCreating || !email.trim()}
               >
                 {isCreating ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={colors.textOnPrimary} />
                 ) : (
-                  <Ionicons name="person-add" size={24} color="#fff" />
+                  <Ionicons name="person-add" size={24} color={colors.textOnPrimary} />
                 )}
               </TouchableOpacity>
             </View>
@@ -473,37 +481,37 @@ export default function CaregiverScreen() {
               </Text>
             </View>
           ) : (
-            caregivers.map(caregiver => (
-              <View key={caregiver.id} style={styles.card}>
-                <View style={styles.caregiverItem}>
-                  <View
-                    style={[
-                      styles.inviteButton,
-                      { backgroundColor: colors.primary + '20', width: 44, height: 44 },
-                    ]}
-                  >
-                    <Ionicons name="person" size={22} color={colors.primary} />
+            caregivers.map(caregiver => {
+              // Hem isim hem email yoksa UI bos kalmasin (CaregiverSection ile tutarli).
+              const displayName =
+                caregiver.caregiverName ||
+                caregiver.caregiverEmail ||
+                t.unnamedCaregiver;
+              return (
+                <View key={caregiver.id} style={styles.card}>
+                  <View style={styles.caregiverItem}>
+                    <View
+                      style={[
+                        styles.inviteButton,
+                        { backgroundColor: colors.primary + '20', width: 44, height: 44 },
+                      ]}
+                    >
+                      <Ionicons name="person" size={22} color={colors.primary} />
+                    </View>
+                    <View style={styles.caregiverInfo}>
+                      <Text style={styles.caregiverName}>{displayName}</Text>
+                      {renderPermissions(caregiver)}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => handleRemoveCaregiver(caregiver.id, displayName)}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={colors.error} />
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.caregiverInfo}>
-                    <Text style={styles.caregiverName}>
-                      {caregiver.caregiverName || caregiver.caregiverEmail}
-                    </Text>
-                    {renderPermissions(caregiver)}
-                  </View>
-                  <TouchableOpacity
-                    style={styles.removeButton}
-                    onPress={() =>
-                      handleRemoveCaregiver(
-                        caregiver.id,
-                        caregiver.caregiverName || caregiver.caregiverEmail || 'Bakıcı'
-                      )
-                    }
-                  >
-                    <Ionicons name="trash-outline" size={20} color={colors.error} />
-                  </TouchableOpacity>
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -517,13 +525,13 @@ export default function CaregiverScreen() {
                 <QRCode
                   value={qrCodeData || currentInviteCode}
                   size={200}
-                  color={isDark ? '#fff' : '#000'}
+                  color={colors.text}
                   backgroundColor="transparent"
                 />
                 <Text style={styles.inviteCodeText}>{currentInviteCode}</Text>
                 <Text style={styles.qrSubtitle}>{t.qrSubtitle}</Text>
                 <TouchableOpacity style={styles.shareButton} onPress={handleShareInvite}>
-                  <Ionicons name="share-outline" size={20} color="#fff" />
+                  <Ionicons name="share-outline" size={20} color={colors.textOnPrimary} />
                   <Text style={styles.shareButtonText}>{t.shareInvite}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.closeButton} onPress={hideQRCode}>

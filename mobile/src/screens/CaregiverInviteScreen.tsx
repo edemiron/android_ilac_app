@@ -12,7 +12,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -175,7 +174,7 @@ export default function CaregiverInviteScreen({ route }: CaregiverInviteScreenPr
   const { colors } = useTheme();
   const { language } = useLanguage();
   const { user } = useAuth();
-  const { showInfo, showError } = useAlert();
+  const { showInfo, showError, showAlert } = useAlert();
   const styles = createStyles(colors);
 
   const [code, setCode] = useState('');
@@ -252,15 +251,20 @@ export default function CaregiverInviteScreen({ route }: CaregiverInviteScreenPr
     setIsLoading(false);
 
     if (result.success) {
-      Alert.alert(t.success.title, t.success.message, [
-        {
-          text: language === 'tr' ? 'Tamam' : 'OK',
-          onPress: () => {
-            // Navigate back or to caregiver dashboard
-            setCode('');
+      showAlert({
+        type: 'success',
+        title: t.success.title,
+        message: t.success.message,
+        buttons: [
+          {
+            text: language === 'tr' ? 'Tamam' : 'OK',
+            onPress: () => {
+              // Navigate back or to caregiver dashboard
+              setCode('');
+            },
           },
-        },
-      ]);
+        ],
+      });
     } else {
       showError(language === 'tr' ? 'Hata' : 'Error', result.error || t.error.invalid);
     }

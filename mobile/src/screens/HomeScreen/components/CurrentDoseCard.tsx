@@ -119,8 +119,10 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
                 : 'Marks this dose as completed'
             }
           >
-            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-            <Text style={styles.takeBtnText}>{language === 'tr' ? 'Aldım' : 'Taken'}</Text>
+            <Ionicons name="checkmark" size={20} color={colors.textOnPrimary} />
+            <Text style={[styles.takeBtnText, { color: colors.textOnPrimary }]}>
+              {language === 'tr' ? 'Aldım' : 'Taken'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -297,7 +299,6 @@ const styles = StyleSheet.create({
   },
   takeBtn: {},
   takeBtnText: {
-    color: '#FFFFFF',
     fontWeight: '700',
     marginLeft: 6,
   },
@@ -319,7 +320,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Static — modal scrim Android standard
     justifyContent: 'center',
     alignItems: 'center',
   },

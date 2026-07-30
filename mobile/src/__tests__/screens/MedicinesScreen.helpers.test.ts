@@ -255,35 +255,39 @@ describe('getStockColor', () => {
 });
 
 describe('isFutureTime', () => {
+  // Sabit referans saati ile gun siniri tasimadan hesapla
+  const refNow = new Date('2026-07-31T12:00:00');
+
   it('returns true for time 1 hour in the future', () => {
-    const future = new Date();
+    const future = new Date(refNow);
     future.setHours(future.getHours() + 1);
     const hh = String(future.getHours()).padStart(2, '0');
     const mm = String(future.getMinutes()).padStart(2, '0');
-    expect(isFutureTime(`${hh}:${mm}`)).toBe(true);
+    expect(isFutureTime(`${hh}:${mm}`, refNow)).toBe(true);
   });
 
   it('returns false for time 1 hour in the past', () => {
-    const past = new Date();
+    const past = new Date(refNow);
     past.setHours(past.getHours() - 1);
     const hh = String(past.getHours()).padStart(2, '0');
     const mm = String(past.getMinutes()).padStart(2, '0');
-    expect(isFutureTime(`${hh}:${mm}`)).toBe(false);
+    expect(isFutureTime(`${hh}:${mm}`, refNow)).toBe(false);
   });
 
-  it('string comparison works correctly (14:00 > 09:00)', () => {
-    expect('14:00' > '09:00').toBe(true);
-    expect('08:00' > '09:00').toBe(false);
+  it('handles day boundary: 23:00 from 00:30 next morning is future (same day)', () => {
+    // Bugun 00:30 → 23:30 bugunun gelecegi (gece yarisindan once)
+    const earlyMorning = new Date('2026-07-31T00:30:00');
+    expect(isFutureTime('23:30', earlyMorning)).toBe(true);
   });
 
-  it('handles edge case 23:59 vs current 00:00', () => {
-    // Test passes regardless of test runner clock — just verify no throw
-    expect(() => isFutureTime('23:59')).not.toThrow();
-    expect(() => isFutureTime('00:00')).not.toThrow();
+  it('returns false for time earlier today', () => {
+    // Sabah 9:00'da, 08:00 bugun gecmis
+    const morning = new Date('2026-07-31T09:00:00');
+    expect(isFutureTime('08:00', morning)).toBe(false);
   });
 
   it('returns boolean type (true/false)', () => {
-    const result = isFutureTime('12:00');
+    const result = isFutureTime('12:00', refNow);
     expect(typeof result).toBe('boolean');
   });
 });

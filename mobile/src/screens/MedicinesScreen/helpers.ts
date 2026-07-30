@@ -154,14 +154,14 @@ export function getStockColor(
 }
 
 /**
- * Sprint 81C: HH:MM string'i su andan buyuk mu kontrol et (gelecek mi?).
- * HH:MM string comparison: "08:00" > "01:22" true doner.
- * Gun icin degil, sadece saat-dakika karsilastirmasi.
+ * Sprint 81C: Belirtilen HH:MM zamani su andan sonra mi (gelecek mi?).
+ * Tam Date karsilastirmasi yapar — gun sinirini dogru geciyor (ornek: su an 00:30,
+ * hedef 23:30 ise bugunun 23:30'u gelecekte; 00:30'dan kucuk 23:30 "dun" degil,
+ * bugun ileride bir saat).
  */
-export function isFutureTime(time: string): boolean {
-  const now = new Date();
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(
-    now.getMinutes()
-  ).padStart(2, '0')}`;
-  return time > currentTime;
+export function isFutureTime(time: string, now: Date = new Date()): boolean {
+  const [hh, mm] = time.split(':').map(Number);
+  const target = new Date(now);
+  target.setHours(hh, mm, 0, 0);
+  return target.getTime() > now.getTime();
 }

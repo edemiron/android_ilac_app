@@ -206,7 +206,7 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
               isSelected && { backgroundColor: colors.primary },
             ]}
           >
-            {isSelected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+            {isSelected && <Ionicons name="checkmark" size={14} color={colors.textOnPrimary} />}
           </View>
         )}
         <View

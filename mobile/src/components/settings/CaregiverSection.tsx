@@ -27,6 +27,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useCaregiver } from '../../hooks/useCaregiver';
 import { useAlert } from '../../contexts/AlertContext';
 import { createScopedLogger } from '../../utils/logger';
+import { getInitials } from './getInitials';
 
 const log = createScopedLogger('CaregiverSection');
 
@@ -118,7 +119,7 @@ const createStyles = (colors: ThemeColors) =>
     submitBtnText: {
       fontSize: 14,
       fontWeight: '700',
-      color: '#FFFFFF',
+      color: colors.textOnPrimary,
     },
     empty: {
       paddingHorizontal: 16,
@@ -132,16 +133,11 @@ const createStyles = (colors: ThemeColors) =>
     },
   });
 
-function getInitials(name: string): string {
-  const parts = name.split(/[\s@]+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
+// getInitials pure helper izole module'de (Sprint 93 — testable)
 
 export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInviteScreen }) => {
-  const { colors, isDark } = useTheme();
-  const { t: _t, language } = useLanguage();
+  const { colors } = useTheme();
+  const { language } = useLanguage();
   const { user } = useAuth();
   const { showAlert } = useAlert();
   const styles = createStyles(colors);
@@ -267,29 +263,36 @@ export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInvite
           </View>
         ) : null}
 
-        {activeCaregivers.map((cg, index) => (
-          <View key={cg.id} style={[styles.row, index === 0 && { borderTopWidth: 0 }]}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {getInitials(cg.caregiverName ?? cg.caregiverEmail ?? '?')}
-              </Text>
+        {activeCaregivers.map((cg, index) => {
+          // Hem isim hem email yoksa bos avatar/isim gorunmesin (H1-H3).
+          const displayName =
+            cg.caregiverName ||
+            cg.caregiverEmail ||
+            (tr ? 'İsimsiz bakıcı' : 'Unnamed caregiver');
+          return (
+            <View key={cg.id} style={[styles.row, index === 0 && { borderTopWidth: 0 }]}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
+              </View>
+              <View style={styles.info}>
+                <Text style={styles.name}>{displayName}</Text>
+                {cg.caregiverEmail ? (
+                  <Text style={styles.email}>{cg.caregiverEmail}</Text>
+                ) : null}
+              </View>
+              <TouchableOpacity
+                style={styles.removeBtn}
+                onPress={() => handleRemove(cg.id, displayName)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  tr ? `${displayName} bakıcısını kaldır` : `Remove ${displayName}`
+                }
+              >
+                <Text style={styles.removeBtnText}>{tr ? 'Kaldır' : 'Remove'}</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.info}>
-              <Text style={styles.name}>{cg.caregiverName || cg.caregiverEmail}</Text>
-              <Text style={styles.email}>{cg.caregiverEmail}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.removeBtn}
-              onPress={() => handleRemove(cg.id, cg.caregiverName || cg.caregiverEmail || '')}
-              accessibilityRole="button"
-              accessibilityLabel={
-                tr ? `${cg.caregiverName} bakıcısını kaldır` : `Remove ${cg.caregiverName}`
-              }
-            >
-              <Text style={styles.removeBtnText}>{tr ? 'Kaldır' : 'Remove'}</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+          );
+        })}
 
         {/* Bekleyen davetler */}
         {pendingList.map((invite, index) => (
@@ -301,14 +304,14 @@ export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInvite
             ]}
           >
             <View style={[styles.avatar, { backgroundColor: colors.warning + '20' }]}>
-              <Text style={[styles.avatarText, { color: colors.warning || '#F59E0B' }]}>
+              <Text style={[styles.avatarText, { color: colors.warning }]}>
                 {getInitials(invite.caregiverEmail)}
               </Text>
             </View>
             <View style={styles.info}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View style={[styles.statusBadge, { backgroundColor: colors.warning + '20' }]}>
-                  <Text style={[styles.statusBadgeText, { color: colors.warning || '#F59E0B' }]}>
+                  <Text style={[styles.statusBadgeText, { color: colors.warning }]}>
                     {tr ? 'Bekliyor' : 'Pending'}
                   </Text>
                 </View>
@@ -363,7 +366,7 @@ export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInvite
           accessibilityLabel={tr ? 'Bakıcı davet et' : 'Invite caregiver'}
         >
           {submitting ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
+            <ActivityIndicator color={colors.textOnPrimary} size="small" />
           ) : (
             <Text style={styles.submitBtnText}>{tr ? 'Bakıcı Davet Et' : 'Invite Caregiver'}</Text>
           )}

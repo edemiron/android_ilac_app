@@ -70,6 +70,7 @@ jest.mock('../../contexts/AlertContext', () => ({
     showError: jest.fn(),
     showInfo: jest.fn(),
     showSuccess: jest.fn(),
+    showAlert: jest.fn(),
   }),
 }));
 

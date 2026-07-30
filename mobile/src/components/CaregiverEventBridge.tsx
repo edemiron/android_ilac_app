@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Alert } from 'react-native';
+import { Linking } from 'react-native';
 import {
   useCaregiverEventHandler,
   CaregiverEventCallbacks,
@@ -31,6 +31,7 @@ import {
   subscribeToCaregivers,
 } from '../services/caregiverService';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('CaregiverEventBridge');
@@ -41,6 +42,7 @@ const log = createScopedLogger('CaregiverEventBridge');
  */
 export function CaregiverEventBridge() {
   const { user } = useAuth();
+  const { showAlert } = useAlert();
   const caregiverId = user?.uid ?? null;
 
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
@@ -86,14 +88,22 @@ export function CaregiverEventBridge() {
 
     if (!activePatientId) {
       log.warn('Aktif hasta yok, tel arama yapilamadi');
-      Alert.alert('Aktif hasta yok', 'Önce bir hasta seçmelisiniz.');
+      showAlert({
+        type: 'warning',
+        title: 'Aktif hasta yok',
+        message: 'Önce bir hasta seçmelisiniz.',
+      });
       return;
     }
 
     const phone = await getPatientPhoneNumber(activePatientId);
     if (!phone) {
       log.warn('Hasta telefon numarasi yok');
-      Alert.alert('Telefon bulunamadı', 'Bu hastanın telefon numarası kayıtlı değil.');
+      showAlert({
+        type: 'warning',
+        title: 'Telefon bulunamadı',
+        message: 'Bu hastanın telefon numarası kayıtlı değil.',
+      });
       return;
     }
 
@@ -109,7 +119,7 @@ export function CaregiverEventBridge() {
     } catch (error) {
       log.error('tel: acilamadi', error);
     }
-  }, [activePatientId]);
+  }, [activePatientId, showAlert]);
 
   const handleDismiss = useCallback(() => {
     log.info('onDismiss — caregiver notification kapatildi');

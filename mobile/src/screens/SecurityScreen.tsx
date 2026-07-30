@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   Switch,
   ScrollView,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { RootStackParamList } from '../types';
 import { useMedicineStore } from '../stores/medicineStore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAlert } from '../contexts/AlertContext';
 import {
   checkBiometricAvailability,
   authenticateWithBiometrics,
@@ -32,6 +32,26 @@ import { triggerHaptic } from './SecurityScreen/helpers';
 
 const log = createScopedLogger('SecurityScreen');
 
+// Yaygın/zayıf PIN listesi — handleCreatePin + handleChangePin ortak kullanır
+const WEAK_PINS = [
+  '1234',
+  '1111',
+  '0000',
+  '1212',
+  '7777',
+  '1004',
+  '2000',
+  '4444',
+  '2222',
+  '3333',
+  '5555',
+  '6666',
+  '8888',
+  '9999',
+  '123456',
+  '654321',
+];
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 import { ViewStyle } from 'react-native';
@@ -43,10 +63,9 @@ interface CardProps {
 }
 
 const Card: React.FC<CardProps> = ({ children, style }) => {
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   return (
-    <View style={[styles.card, { backgroundColor: isDark ? '#16213E' : '#fff' }, style]}>
+    <View style={[styles.card, { backgroundColor: colors.card }, style]}>
       {children}
     </View>
   );
@@ -74,14 +93,13 @@ const SettingRow: React.FC<SettingRowProps> = ({
   showArrow = false,
   isFirst = false,
 }) => {
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   return (
     <TouchableOpacity
       style={[
         styles.settingRow,
         !isFirst && styles.settingRowBorder,
-        { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
+        { borderColor: colors.border },
       ]}
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
@@ -91,22 +109,16 @@ const SettingRow: React.FC<SettingRowProps> = ({
         <Ionicons name={icon} size={20} color={iconColor} />
       </View>
       <View style={styles.settingContent}>
-        <Text style={[styles.settingTitle, { color: isDark ? '#fff' : '#1a1a1a' }]}>{title}</Text>
+        <Text style={[styles.settingTitle, { color: colors.text }]}>{title}</Text>
         {subtitle && (
-          <Text
-            style={[styles.settingSubtitle, { color: isDark ? 'rgba(255,255,255,0.6)' : '#666' }]}
-          >
+          <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>
             {subtitle}
           </Text>
         )}
       </View>
       {value && <View style={styles.valueContainer}>{value}</View>}
       {showArrow && (
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={isDark ? 'rgba(255,255,255,0.4)' : '#999'}
-        />
+        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       )}
     </TouchableOpacity>
   );
@@ -117,7 +129,8 @@ export default function SecurityScreen() {
   const navigation = useNavigation<NavigationProp>();
   // eslint-disable-next-line unused-imports/no-unused-vars
   const { t, language } = useLanguage();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
+  const { showAlert } = useAlert();
   const { settings, updateSettings } = useMedicineStore();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -154,12 +167,14 @@ export default function SecurityScreen() {
   const handleToggleSecurity = useCallback(
     async (enabled: boolean) => {
       if (enabled && !hasPin && !biometricAvailable) {
-        Alert.alert(
-          language === 'tr' ? 'Güvenlik Yöntemi Gerekli' : 'Security Method Required',
-          language === 'tr'
-            ? 'Güvenliği aktif etmek için PIN veya biyometrik kimlik doğrulama ayarlamalısınız.'
-            : 'You need to set up PIN or biometric authentication to enable security.'
-        );
+        showAlert({
+          type: 'warning',
+          title: language === 'tr' ? 'Güvenlik Yöntemi Gerekli' : 'Security Method Required',
+          message:
+            language === 'tr'
+              ? 'Güvenliği aktif etmek için PIN veya biyometrik kimlik doğrulama ayarlamalısınız.'
+              : 'You need to set up PIN or biometric authentication to enable security.',
+        });
         return;
       }
       updateSettings({ securityEnabled: enabled });
@@ -171,18 +186,20 @@ export default function SecurityScreen() {
       });
       triggerHaptic(enabled ? 'success' : 'light');
     },
-    [hasPin, biometricAvailable, settings, language, updateSettings]
+    [hasPin, biometricAvailable, settings, language, updateSettings, showAlert]
   );
 
   const handleToggleBiometric = useCallback(
     async (enabled: boolean) => {
       if (enabled && !biometricAvailable) {
-        Alert.alert(
-          language === 'tr' ? 'Biyometrik Kullanılamıyor' : 'Biometric Unavailable',
-          language === 'tr'
-            ? 'Cihazınız biyometrik kimlik doğrulamayı desteklemiyor.'
-            : 'Your device does not support biometric authentication.'
-        );
+        showAlert({
+          type: 'warning',
+          title: language === 'tr' ? 'Biyometrik Kullanılamıyor' : 'Biometric Unavailable',
+          message:
+            language === 'tr'
+              ? 'Cihazınız biyometrik kimlik doğrulamayı desteklemiyor.'
+              : 'Your device does not support biometric authentication.',
+        });
         return;
       }
 
@@ -203,51 +220,38 @@ export default function SecurityScreen() {
       });
       triggerHaptic(enabled ? 'success' : 'light');
     },
-    [biometricAvailable, hasPin, settings, language, updateSettings]
+    [biometricAvailable, hasPin, settings, language, updateSettings, showAlert]
   );
 
   const handleCreatePin = async () => {
     if (!isValidPin(pin)) {
-      Alert.alert(
-        language === 'tr' ? 'Geçersiz PIN' : 'Invalid PIN',
-        language === 'tr' ? 'PIN 4-6 haneli olmalı.' : 'PIN must be 4-6 digits.'
-      );
+      showAlert({
+        type: 'error',
+        title: language === 'tr' ? 'Geçersiz PIN' : 'Invalid PIN',
+        message: language === 'tr' ? 'PIN 4-6 haneli olmalı.' : 'PIN must be 4-6 digits.',
+      });
       return;
     }
     if (pin !== confirmPin) {
-      Alert.alert(
-        language === 'tr' ? 'PIN Eşleşmiyor' : 'PIN Mismatch',
-        language === 'tr' ? "PIN'ler birbiriyle eşleşmiyor." : 'PINs do not match.'
-      );
+      showAlert({
+        type: 'error',
+        title: language === 'tr' ? 'PIN Eşleşmiyor' : 'PIN Mismatch',
+        message:
+          language === 'tr' ? "PIN'ler birbiriyle eşleşmiyor." : 'PINs do not match.',
+      });
       return;
     }
 
     // Zayıf PIN kontrolü
-    const weakPins = [
-      '1234',
-      '1111',
-      '0000',
-      '1212',
-      '7777',
-      '1004',
-      '2000',
-      '4444',
-      '2222',
-      '3333',
-      '5555',
-      '6666',
-      '8888',
-      '9999',
-      '123456',
-      '654321',
-    ];
-    if (weakPins.includes(pin)) {
-      Alert.alert(
-        language === 'tr' ? 'Zayıf PIN' : 'Weak PIN',
-        language === 'tr'
-          ? 'Bu PIN çok yaygın kullanılıyor. Lütfen daha güvenli bir PIN seçin.'
-          : 'This PIN is too common. Please choose a more secure PIN.'
-      );
+    if (WEAK_PINS.includes(pin)) {
+      showAlert({
+        type: 'error',
+        title: language === 'tr' ? 'Zayıf PIN' : 'Weak PIN',
+        message:
+          language === 'tr'
+            ? 'Bu PIN çok yaygın kullanılıyor. Lütfen daha güvenli bir PIN seçin.'
+            : 'This PIN is too common. Please choose a more secure PIN.',
+      });
       return;
     }
 
@@ -263,58 +267,46 @@ export default function SecurityScreen() {
       });
       triggerHaptic('success');
     } else {
-      Alert.alert(
-        language === 'tr' ? 'Hata' : 'Error',
-        language === 'tr' ? 'PIN kaydedilemedi.' : 'Failed to save PIN.'
-      );
+      showAlert({
+        type: 'error',
+        title: language === 'tr' ? 'Hata' : 'Error',
+        message: language === 'tr' ? 'PIN kaydedilemedi.' : 'Failed to save PIN.',
+      });
     }
   };
 
   const handleChangePin = async () => {
     const verifyResult = await verifyPin(oldPin);
     if (!verifyResult.success) {
-      Alert.alert(
-        language === 'tr' ? 'Yanlış PIN' : 'Incorrect PIN',
-        verifyResult.error || (language === 'tr' ? 'Mevcut PIN hatalı' : 'Current PIN is incorrect')
-      );
+      showAlert({
+        type: 'error',
+        title: language === 'tr' ? 'Yanlış PIN' : 'Incorrect PIN',
+        message:
+          verifyResult.error ||
+          (language === 'tr' ? 'Mevcut PIN hatalı' : 'Current PIN is incorrect'),
+      });
       triggerHaptic('error');
       return;
     }
     if (!isValidPin(pin)) {
-      Alert.alert(language === 'tr' ? 'Geçersiz PIN' : 'Invalid PIN');
+      showAlert({ type: 'error', title: language === 'tr' ? 'Geçersiz PIN' : 'Invalid PIN' });
       return;
     }
     if (pin !== confirmPin) {
-      Alert.alert(language === 'tr' ? 'PIN Eşleşmiyor' : 'PIN Mismatch');
+      showAlert({ type: 'error', title: language === 'tr' ? 'PIN Eşleşmiyor' : 'PIN Mismatch' });
       return;
     }
 
     // Zayıf PIN kontrolü
-    const weakPins = [
-      '1234',
-      '1111',
-      '0000',
-      '1212',
-      '7777',
-      '1004',
-      '2000',
-      '4444',
-      '2222',
-      '3333',
-      '5555',
-      '6666',
-      '8888',
-      '9999',
-      '123456',
-      '654321',
-    ];
-    if (weakPins.includes(pin)) {
-      Alert.alert(
-        language === 'tr' ? 'Zayıf PIN' : 'Weak PIN',
-        language === 'tr'
-          ? 'Bu PIN çok yaygın kullanılıyor. Lütfen daha güvenli bir PIN seçin.'
-          : 'This PIN is too common. Please choose a more secure PIN.'
-      );
+    if (WEAK_PINS.includes(pin)) {
+      showAlert({
+        type: 'error',
+        title: language === 'tr' ? 'Zayıf PIN' : 'Weak PIN',
+        message:
+          language === 'tr'
+            ? 'Bu PIN çok yaygın kullanılıyor. Lütfen daha güvenli bir PIN seçin.'
+            : 'This PIN is too common. Please choose a more secure PIN.',
+      });
       return;
     }
 
@@ -328,10 +320,11 @@ export default function SecurityScreen() {
   };
 
   const handleClearPin = () => {
-    Alert.alert(
-      language === 'tr' ? 'PIN Sil' : 'Remove PIN',
-      language === 'tr' ? "PIN'i silmek istediğinize emin misiniz?" : 'Are you sure?',
-      [
+    showAlert({
+      type: 'warning',
+      title: language === 'tr' ? 'PIN Sil' : 'Remove PIN',
+      message: language === 'tr' ? "PIN'i silmek istediğinize emin misiniz?" : 'Are you sure?',
+      buttons: [
         { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
         {
           text: language === 'tr' ? 'Sil' : 'Remove',
@@ -347,8 +340,8 @@ export default function SecurityScreen() {
             }
           },
         },
-      ]
-    );
+      ],
+    });
   };
 
   const handleTimeoutChange = async (timeout: number) => {
@@ -364,8 +357,8 @@ export default function SecurityScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: isDark ? '#1A1A2E' : '#f5f5f5' }]}>
-        <Text style={{ color: isDark ? '#fff' : '#333', marginTop: 100 }}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.text, marginTop: 100 }}>
           {language === 'tr' ? 'Yükleniyor...' : 'Loading...'}
         </Text>
       </View>
@@ -375,12 +368,12 @@ export default function SecurityScreen() {
   // PIN modu aktifse PIN ekranını göster
   if (pinMode !== 'none') {
     return (
-      <View style={[styles.container, { backgroundColor: isDark ? '#1A1A2E' : '#f5f5f5' }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.pinHeader}>
           <TouchableOpacity onPress={() => setPinMode('none')} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#333'} />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.pinTitle, { color: isDark ? '#fff' : '#333' }]}>
+          <Text style={[styles.pinTitle, { color: colors.text }]}>
             {pinMode === 'create' && (language === 'tr' ? '🔢 PIN Ayarla' : '🔢 Set PIN')}
             {pinMode === 'change' && (language === 'tr' ? '🔢 PIN Değiştir' : '🔢 Change PIN')}
           </Text>
@@ -389,15 +382,15 @@ export default function SecurityScreen() {
         <Card style={styles.pinCard}>
           {pinMode === 'change' && (
             <View style={styles.pinInputContainer}>
-              <Text style={[styles.pinLabel, { color: isDark ? '#fff' : '#333' }]}>
+              <Text style={[styles.pinLabel, { color: colors.text }]}>
                 {language === 'tr' ? 'Mevcut PIN' : 'Current PIN'}
               </Text>
               <TextInput
                 style={[
                   styles.pinInput,
                   {
-                    backgroundColor: isDark ? '#1A1A2E' : '#f0f0f0',
-                    color: isDark ? '#fff' : '#333',
+                    backgroundColor: colors.inputBackground,
+                    color: colors.text,
                   },
                 ]}
                 value={oldPin}
@@ -405,13 +398,13 @@ export default function SecurityScreen() {
                 keyboardType="number-pad"
                 secureTextEntry={!showPin}
                 maxLength={6}
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
           )}
 
           <View style={styles.pinInputContainer}>
-            <Text style={[styles.pinLabel, { color: isDark ? '#fff' : '#333' }]}>
+            <Text style={[styles.pinLabel, { color: colors.text }]}>
               {pinMode === 'change'
                 ? language === 'tr'
                   ? 'Yeni PIN'
@@ -424,8 +417,8 @@ export default function SecurityScreen() {
               style={[
                 styles.pinInput,
                 {
-                  backgroundColor: isDark ? '#1A1A2E' : '#f0f0f0',
-                  color: isDark ? '#fff' : '#333',
+                  backgroundColor: colors.inputBackground,
+                  color: colors.text,
                 },
               ]}
               value={pin}
@@ -433,20 +426,20 @@ export default function SecurityScreen() {
               keyboardType="number-pad"
               secureTextEntry={!showPin}
               maxLength={6}
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textMuted}
             />
           </View>
 
           <View style={styles.pinInputContainer}>
-            <Text style={[styles.pinLabel, { color: isDark ? '#fff' : '#333' }]}>
+            <Text style={[styles.pinLabel, { color: colors.text }]}>
               {language === 'tr' ? 'PIN Tekrar' : 'Confirm PIN'}
             </Text>
             <TextInput
               style={[
                 styles.pinInput,
                 {
-                  backgroundColor: isDark ? '#1A1A2E' : '#f0f0f0',
-                  color: isDark ? '#fff' : '#333',
+                  backgroundColor: colors.inputBackground,
+                  color: colors.text,
                 },
               ]}
               value={confirmPin}
@@ -454,7 +447,7 @@ export default function SecurityScreen() {
               keyboardType="number-pad"
               secureTextEntry={!showPin}
               maxLength={6}
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textMuted}
             />
           </View>
 
@@ -475,7 +468,9 @@ export default function SecurityScreen() {
           style={[styles.saveButton, { backgroundColor: colors.primary }]}
           onPress={pinMode === 'create' ? handleCreatePin : handleChangePin}
         >
-          <Text style={styles.saveButtonText}>{language === 'tr' ? 'Kaydet' : 'Save'}</Text>
+          <Text style={[styles.saveButtonText, { color: colors.textOnPrimary }]}>
+            {language === 'tr' ? 'Kaydet' : 'Save'}
+          </Text>
         </TouchableOpacity>
 
         {hasPin && pinMode !== 'create' && (
@@ -494,16 +489,16 @@ export default function SecurityScreen() {
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: isDark ? '#1A1A2E' : '#f5f5f5' }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       showsVerticalScrollIndicator={false}
     >
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.headerEmoji]}>🔒</Text>
-        <Text style={[styles.headerTitle, { color: isDark ? '#fff' : '#333' }]}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
           {language === 'tr' ? 'Güvenlik' : 'Security'}
         </Text>
-        <Text style={[styles.headerSubtitle, { color: isDark ? 'rgba(255,255,255,0.6)' : '#666' }]}>
+        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
           {language === 'tr'
             ? 'Uygulama güvenliğini ve kilitleme ayarlarını yönetin'
             : 'Manage app security and lock settings'}
@@ -563,17 +558,17 @@ export default function SecurityScreen() {
         <View
           style={[
             styles.cardHeader,
-            { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
+            { borderColor: colors.border },
           ]}
         >
           <Ionicons name="keypad" size={20} color="#F59E0B" />
-          <Text style={[styles.cardTitle, { color: isDark ? '#fff' : '#333', marginLeft: 8 }]}>
+          <Text style={[styles.cardTitle, { color: colors.text, marginLeft: 8 }]}>
             {language === 'tr' ? 'PIN Yönetimi' : 'PIN Management'}
           </Text>
         </View>
 
         <TouchableOpacity
-          style={[styles.pinActionButton, { backgroundColor: isDark ? '#1A1A2E' : '#f0f0f0' }]}
+          style={[styles.pinActionButton, { backgroundColor: colors.inputBackground }]}
           onPress={() => setPinMode(hasPin ? 'change' : 'create')}
         >
           <Ionicons name="keypad" size={18} color="#4ECDC4" />
@@ -594,23 +589,22 @@ export default function SecurityScreen() {
         <View
           style={[
             styles.cardHeader,
-            { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
+            { borderColor: colors.border },
           ]}
         >
           <Ionicons name="time" size={20} color="#8B5CF6" />
-          <Text style={[styles.cardTitle, { color: isDark ? '#fff' : '#333', marginLeft: 8 }]}>
+          <Text style={[styles.cardTitle, { color: colors.text, marginLeft: 8 }]}>
             {language === 'tr' ? 'Otomatik Kilit' : 'Auto-Lock'}
           </Text>
         </View>
 
-        <Text style={[styles.cardSubtitle, { color: isDark ? 'rgba(255,255,255,0.6)' : '#666' }]}>
+        <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
           {language === 'tr'
             ? 'Uygulama arka planda kaldığında ne kadar sonra kilitlensin'
             : 'Lock after app is in background'}
         </Text>
 
         <View style={styles.timeoutContainer}>
-          // eslint-disable-next-line unused-imports/no-unused-vars
           {[0, 1, 5, 15, 30].map(minutes => (
             <TouchableOpacity
               key={minutes}
@@ -624,10 +618,8 @@ export default function SecurityScreen() {
                   backgroundColor:
                     settings.lockTimeout === minutes
                       ? colors.primary
-                      : isDark
-                        ? '#1A1A2E'
-                        : '#f0f0f0',
-                  borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e0e0e0',
+                      : colors.inputBackground,
+                  borderColor: colors.border,
                 },
               ]}
               onPress={() => handleTimeoutChange(minutes)}
@@ -638,10 +630,8 @@ export default function SecurityScreen() {
                   {
                     color:
                       settings.lockTimeout === minutes
-                        ? '#fff'
-                        : isDark
-                          ? 'rgba(255,255,255,0.7)'
-                          : '#666',
+                        ? colors.textOnPrimary
+                        : colors.textSecondary,
                   },
                 ]}
               >
@@ -661,20 +651,20 @@ export default function SecurityScreen() {
         <View
           style={[
             styles.cardHeader,
-            { borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' },
+            { borderColor: colors.border },
           ]}
         >
           <Ionicons name="information-circle" size={20} color="#6B7280" />
-          <Text style={[styles.cardTitle, { color: isDark ? '#fff' : '#333', marginLeft: 8 }]}>
+          <Text style={[styles.cardTitle, { color: colors.text, marginLeft: 8 }]}>
             {language === 'tr' ? 'Güvenlik Durumu' : 'Security Status'}
           </Text>
         </View>
 
         <View style={styles.statusRow}>
-          <Text style={[styles.statusLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#666' }]}>
+          <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>
             {language === 'tr' ? 'PIN Ayarlı:' : 'PIN Set:'}
           </Text>
-          <Text style={[styles.statusValue, { color: hasPin ? '#4ECDC4' : '#FF6B6B' }]}>
+          <Text style={[styles.statusValue, { color: hasPin ? colors.success : colors.error }]}>
             {hasPin
               ? language === 'tr'
                 ? '✓ Evet'
@@ -686,10 +676,10 @@ export default function SecurityScreen() {
         </View>
 
         <View style={styles.statusRow}>
-          <Text style={[styles.statusLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#666' }]}>
+          <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>
             {language === 'tr' ? 'Biyometrik:' : 'Biometric:'}
           </Text>
-          <Text style={[styles.statusValue, { color: biometricAvailable ? '#4ECDC4' : '#FF6B6B' }]}>
+          <Text style={[styles.statusValue, { color: biometricAvailable ? colors.success : colors.error }]}>
             {biometricAvailable
               ? language === 'tr'
                 ? '✓ Kullanılabilir'
@@ -701,10 +691,10 @@ export default function SecurityScreen() {
         </View>
 
         <View style={styles.statusRow}>
-          <Text style={[styles.statusLabel, { color: isDark ? 'rgba(255,255,255,0.7)' : '#666' }]}>
+          <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>
             {language === 'tr' ? 'Güvenlik Tipi:' : 'Security Type:'}
           </Text>
-          <Text style={[styles.statusValue, { color: isDark ? '#fff' : '#333' }]}>
+          <Text style={[styles.statusValue, { color: colors.text }]}>
             {settings.securityType === 'none' && (language === 'tr' ? 'Kapalı' : 'Disabled')}
             {settings.securityType === 'pin' && 'PIN'}
             {settings.securityType === 'biometric' && biometricType}
@@ -889,7 +879,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
