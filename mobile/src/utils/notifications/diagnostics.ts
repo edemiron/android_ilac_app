@@ -6,7 +6,6 @@
  */
 
 import { Platform } from 'react-native';
-import { addMinutes } from 'date-fns';
 import notifee from '@notifee/react-native';
 import { createScopedLogger } from '../logger';
 import { isMIUIDevice } from '../miuiHelper';
@@ -106,15 +105,54 @@ function resolveSmokeTriggerDate(
 }
 
 /**
+ * "HH:mm" formatli reminderTime.time -> bugunun (veya gecmisse yarin) o saatindeki Date.
+ * Notifee minimum 5 sn gelecek zaman gerektirir; cikti 5 sn oncesine cekilir.
+ */
+function resolveReminderTimeOfDay(
+  time: string,
+  referenceNow: Date
+): Date {
+  const [hh, mm] = time.split(':').map(Number);
+  const target = new Date(referenceNow);
+  target.setHours(hh, mm, 0, 0);
+  // Bugunku saat gectiyse yarin ayni saate kur
+  if (target.getTime() <= referenceNow.getTime()) {
+    target.setDate(target.getDate() + 1);
+  }
+  return target;
+}
+
+/**
+ * Notifee timestamp-trigger kabul etmedigi minimum gelecek zaman (ms).
+ * Android SchedulerService aninda gelen trigger'i drop edebiliyor.
+ */
+const MIN_FUTURE_BUFFER_MS = 5_000;
+
+/**
  * Notification trigger time hesapla.
- * Smoke trigger date varsa onu kullanir, yoksa addMinutes ile simdi+offset.
+ * Oncelik:
+ *  1. bypassBuffer=false ve smokeTriggerTime gecerli + gelecekte ise smoke kullan (test/dev)
+ *  2. Yoksa reminderTime.time (HH:mm) parse et, bugun (veya gecmisse yarin) o saatine kur
+ *  3. Notifee minimum gelecek zaman garantisi (5 sn)
  */
 export function resolveReminderTriggerDate(
   reminderTime: ReminderTime & { smokeTriggerTime?: string },
-  _bypassBuffer: boolean = false,
+  bypassBuffer: boolean = false,
   referenceNow: Date = new Date()
 ): Date {
-  return resolveSmokeTriggerDate(reminderTime, referenceNow) ?? addMinutes(referenceNow, 0);
+  if (!bypassBuffer) {
+    const smoke = resolveSmokeTriggerDate(reminderTime, referenceNow);
+    if (smoke) return smoke;
+  }
+
+  const target = resolveReminderTimeOfDay(reminderTime.time, referenceNow);
+
+  const minTime = referenceNow.getTime() + MIN_FUTURE_BUFFER_MS;
+  if (target.getTime() < minTime) {
+    target.setTime(minTime);
+  }
+
+  return target;
 }
 
 /**
