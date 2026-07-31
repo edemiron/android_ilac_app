@@ -430,7 +430,6 @@ export function useMedicinePersistence({
     },
     [
       isEditing,
-      medicineId,
       medicines,
       checkCanAddMedicine,
       language,

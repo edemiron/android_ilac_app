@@ -61,26 +61,6 @@ export default function MedicinesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'active' | 'inactive' | 'lowStock'>('all');
 
-  // Sprint 68: filtered + searched medicines list
-  const filteredMedicines = useMemo(() => {
-    let result = medicines;
-    // Filter by mode
-    if (filterMode === 'active') {
-      result = result.filter(m => m.isActive);
-    } else if (filterMode === 'inactive') {
-      result = result.filter(m => !m.isActive);
-    } else if (filterMode === 'lowStock') {
-      // Low stock: stockEnabled && (stockCount ?? 0) <= (stockThreshold ?? 0)
-      result = result.filter(m => m.stockEnabled && (m.stockCount ?? 0) <= (m.stockThreshold ?? 0));
-    }
-    // Filter by search query (case-insensitive name match)
-    const q = searchQuery.trim().toLowerCase();
-    if (q.length > 0) {
-      result = result.filter(m => m.name.toLowerCase().includes(q));
-    }
-    return result;
-  }, [medicines, filterMode, searchQuery]);
-
   // Sprint 20.4: loadTipState useEffect kaldirildi (tipDismissed dead code)
   void AsyncStorage; // import referansi korunur
 
@@ -322,7 +302,7 @@ export default function MedicinesScreen() {
             <Text
               style={[
                 styles.filterChipText,
-                { color: filterMode === mode ? '#FFFFFF' : colors.text },
+                { color: filterMode === mode ? colors.textOnPrimary : colors.text },
               ]}
             >
               {mode === 'all'

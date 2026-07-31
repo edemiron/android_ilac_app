@@ -78,7 +78,6 @@ export default function SettingsScreen() {
   const {
     reset: resetLowStock,
     isDismissed: isLowStockDismissed,
-    isLoading: lowStockDismissLoading,
   } = useLowStockDismiss();
   const handleResetLowStock = useCallback(async () => {
     if (!isLowStockDismissed) {

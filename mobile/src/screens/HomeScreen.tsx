@@ -184,7 +184,6 @@ export default function HomeScreen() {
 
   const currentStreak = useMemo(() => getCurrentStreak(), [getCurrentStreak]);
 
-  const today = format(new Date(), 'dd MMMM yyyy, EEEE', { locale: dateLocale });
   const currentTime = format(new Date(), 'HH:mm');
 
   // currentReminder'ı memoize et - performans için

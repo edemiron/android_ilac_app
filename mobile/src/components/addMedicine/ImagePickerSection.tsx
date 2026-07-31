@@ -4,6 +4,9 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { ThemeColors } from '../../contexts/ThemeContext';
 import { useAlert } from '../../contexts/AlertContext';
+import { createScopedLogger } from '../../utils/logger';
+
+const log = createScopedLogger('ImagePickerSection');
 
 interface ImagePickerSectionProps {
     imageUri?: string;
@@ -45,7 +48,7 @@ export const ImagePickerSection: React.FC<ImagePickerSectionProps> = ({
                 onImageChange(result.assets[0].uri);
             }
         } catch (error) {
-            console.error('Error picking image: ', error);
+            log.error('Error picking image', error);
         }
     };
 
@@ -71,7 +74,7 @@ export const ImagePickerSection: React.FC<ImagePickerSectionProps> = ({
                 onImageChange(result.assets[0].uri);
             }
         } catch (error) {
-            console.error('Error taking photo: ', error);
+            log.error('Error taking photo', error);
         }
     };
 

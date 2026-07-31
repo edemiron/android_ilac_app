@@ -35,7 +35,7 @@ function toLowStock(m: Medicine | LowStockMedicine): LowStockMedicine {
 }
 
 export function LowStockCard({ medicines, onPress, onDismiss }: LowStockCardProps) {
-  const { colors, isDark } = useTheme();
+  const { isDark } = useTheme();
   const { language } = useLanguage();
 
   if (medicines.length === 0) return null;

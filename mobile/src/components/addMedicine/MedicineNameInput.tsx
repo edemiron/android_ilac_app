@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -46,6 +46,18 @@ export function MedicineNameInput({
   barcodeScanned,
 }: Props) {
   const styles = createStyles(colors);
+  // Autocomplete kapanmasini 200ms geciktiriyoruz ki kullanici bir secenegi tiklayabilsin.
+  // Unmount sonrasi tiklama olursa setState-on-unmount uyarisi vermesin diye ref ile takip.
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+        blurTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const handleChangeText = (text: string) => {
     onChangeText(text);
@@ -55,7 +67,13 @@ export function MedicineNameInput({
   };
 
   const handleBlur = () => {
-    setTimeout(() => onBlur(), 200);
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+    }
+    blurTimeoutRef.current = setTimeout(() => {
+      blurTimeoutRef.current = null;
+      onBlur();
+    }, 200);
   };
 
   const renderAutocompleteItem = ({ item }: { item: MedicineAutocompleteResult }) => (

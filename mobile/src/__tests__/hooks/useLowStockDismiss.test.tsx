@@ -34,15 +34,6 @@ const mockedGetItem = AsyncStorage.getItem as any;
 const mockedSetItem = AsyncStorage.setItem as any;
 const mockedRemoveItem = AsyncStorage.removeItem as any;
 
-interface Captured {
-  isLoading: boolean;
-  isDismissed: boolean;
-  dismissedAt: string | null;
-  checkDismissed: (h: string) => boolean;
-  dismiss: (h: string) => Promise<void>;
-  reset: () => Promise<void>;
-}
-
 const captureRef: any = { current: null };
 
 function Capture() {

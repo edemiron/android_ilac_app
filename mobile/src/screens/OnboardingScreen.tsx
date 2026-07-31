@@ -102,9 +102,9 @@ function Slide({ item }: { item: SlideContent }) {
 }
 
 export default function OnboardingScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { language } = useLanguage();
-  const { currentSlide, totalSlides, next, goTo, complete } = useOnboarding();
+  const { currentSlide, totalSlides, goTo, complete } = useOnboarding();
   const tr = language === 'tr';
   const listRef = useRef<FlatList<SlideContent>>(null);
 
@@ -116,7 +116,7 @@ export default function OnboardingScreen() {
             typeof PermissionsAndroid.request
           >[0]
         );
-      } catch (err) {
+      } catch (_err) {
         // ignore
       }
     }
