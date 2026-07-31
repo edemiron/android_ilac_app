@@ -84,3 +84,12 @@ tmp/
 *.tmp
 *.bak
 *.swp
+
+.wrongstack/
+!/.wrongstack/
+/.wrongstack/*
+!/.wrongstack/project.json
+
+# Sprint 96 smoke test runtime artifacts
+mobile/.smoke-logs/
+
