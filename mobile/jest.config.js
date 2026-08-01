@@ -8,7 +8,7 @@ module.exports = {
   // kullandigimiz pattern).
   // Sprint 44.1: ts-jest eklendi (package.json), babel-jest fallback korundu.
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@notifee/react-native|uuid)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@notifee/react-native|uuid|moti|react-native-reanimated|react-native-worklets|react-native-gesture-handler)',
   ],
   // Sprint 87A: react-native-svg ve svg-bagli component'leri stub'la — Babel'in
   // parse edemedigi node_modules'u test ortaminda bypass et.

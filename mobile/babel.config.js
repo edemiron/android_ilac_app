@@ -20,6 +20,9 @@ module.exports = function (api) {
               },
             ],
           ]),
+      // Sprint 97.1: react-native-worklets plugin (Reanimated 4 + Moti icin).
+      // Mutlaka EN SON plugin olmali — Reanimated docs uyarisi.
+      'react-native-worklets/plugin',
     ],
   };
 };

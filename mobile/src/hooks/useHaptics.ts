@@ -21,6 +21,8 @@ const HAPTIC_OPTIONS = {
 
 type HapticType = 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'warning' | 'error';
 
+export type { HapticType };
+
 const HAPTIC_TYPE_MAP: Record<HapticType, string> = {
   light: 'impactLight',
   medium: 'impactMedium',

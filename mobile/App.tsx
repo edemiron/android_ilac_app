@@ -16,6 +16,7 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; // Sprint 97.1
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -1067,35 +1068,44 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary componentName="App">
-        <UserProfileProvider>
-          <AccentProvider>
-            <ThemeProvider>
-              <LowStockDismissProvider>
-                <OnboardingProvider>
-                  <LanguageProvider>
-                    <AuthProvider>
-                      <SubscriptionProvider>
-                        <AlertProvider>
-                          {/* Sprint 72: CaregiverEventBridge — caregiver "Hasta Aldı" / "Ara" action'larını Firestore'a bağlar */}
-                          <CaregiverEventBridge />
-                          <AppContent />
-                        </AlertProvider>
-                      </SubscriptionProvider>
-                    </AuthProvider>
-                  </LanguageProvider>
-                </OnboardingProvider>
-              </LowStockDismissProvider>
-            </ThemeProvider>
-          </AccentProvider>
-        </UserProfileProvider>
-      </ErrorBoundary>
-    </SafeAreaProvider>
+    // Sprint 97.1: GestureHandlerRootView en dista — react-native-gesture-handler
+    // ve Reanimated 4 tabanli gesture/moti animasyonlarinin calismasi icin zorunlu.
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaProvider>
+        <ErrorBoundary componentName="App">
+          <UserProfileProvider>
+            <AccentProvider>
+              <ThemeProvider>
+                <LowStockDismissProvider>
+                  <OnboardingProvider>
+                    <LanguageProvider>
+                      <AuthProvider>
+                        <SubscriptionProvider>
+                          <AlertProvider>
+                            {/* Sprint 72: CaregiverEventBridge — caregiver "Hasta Aldı" / "Ara" action'larını Firestore'a bağlar */}
+                            <CaregiverEventBridge />
+                            <AppContent />
+                          </AlertProvider>
+                        </SubscriptionProvider>
+                      </AuthProvider>
+                    </LanguageProvider>
+                  </OnboardingProvider>
+                </LowStockDismissProvider>
+              </ThemeProvider>
+            </AccentProvider>
+          </UserProfileProvider>
+        </ErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  // Sprint 97.1: GestureHandlerRootView icin flex:1 gerekli — tum provider'lar
+  // bu view icinde render edilir.
+  gestureRoot: {
+    flex: 1,
+  },
   securityContainer: {
     flex: 1,
     justifyContent: 'center',
