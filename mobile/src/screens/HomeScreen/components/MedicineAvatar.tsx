@@ -9,14 +9,14 @@
 
 import React from 'react';
 import {
-  View,
   Text,
   Image,
   StyleSheet,
   type StyleProp,
   type ViewStyle,
-  type ImageStyle,
 } from 'react-native';
+import { MotiView } from 'moti';
+import { motiTransitions } from '../../../theme/moti-config';
 
 export interface MedicineAvatarProps {
   /** İlacın adı — ilk karakter avatar olarak gösterilir. */
@@ -47,25 +47,36 @@ export function MedicineAvatar({
   // imageUri varsa fotoğraf göster
   if (imageUri) {
     return (
-      <Image
-        source={{ uri: imageUri }}
-        style={[
-          styles.image,
-          {
-            width: size,
-            height: size,
-            borderRadius,
-            opacity: isCompleted ? 0.55 : 1,
-          },
-          style as StyleProp<ImageStyle>,
-        ]}
-        accessibilityIgnoresInvertColors
-      />
+      // Sprint 100: mount pop-in (scale 0.8 → 1, spring)
+      <MotiView
+        from={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: isCompleted ? 0.55 : 1 }}
+        transition={motiTransitions.expressive}
+        style={style}
+      >
+        <Image
+          source={{ uri: imageUri }}
+          style={[
+            styles.image,
+            {
+              width: size,
+              height: size,
+              borderRadius,
+              opacity: isCompleted ? 0.55 : 1,
+            },
+          ]}
+          accessibilityIgnoresInvertColors
+        />
+      </MotiView>
     );
   }
 
   return (
-    <View
+    // Sprint 100: mount pop-in (scale 0.8 → 1, spring)
+    <MotiView
+      from={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: isCompleted ? 0.55 : 1 }}
+      transition={motiTransitions.expressive}
       style={[
         styles.container,
         {
@@ -93,7 +104,7 @@ export function MedicineAvatar({
       >
         {initial}
       </Text>
-    </View>
+    </MotiView>
   );
 }
 

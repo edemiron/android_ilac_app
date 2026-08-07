@@ -9,9 +9,12 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { MotiView } from 'moti';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { MotiPressable } from '../../../components/common/MotiPressable';
+import { motiTransitions } from '../../../theme/moti-config';
 
 export interface SectionHeaderProps {
   /** Section başlığı (büyük harf zaten style'da). */
@@ -36,24 +39,31 @@ export function SectionHeader({
   const linkText = seeAllLabel ?? (language === 'tr' ? 'Tümü' : 'See all');
 
   return (
-    <View style={styles.container}>
+    // Sprint 100: section header mount fade-in (quick, hizli gecis)
+    <MotiView
+      from={{ opacity: 0, translateX: -8 }}
+      animate={{ opacity: 1, translateX: 0 }}
+      transition={motiTransitions.quick}
+      style={styles.container}
+    >
       <View style={styles.leftGroup}>
         {icon !== undefined && <Text style={styles.icon}>{icon}</Text>}
         <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
       </View>
       {showSeeAll && (
-        <TouchableOpacity
+        <MotiPressable
           onPress={onSeeAll}
           accessibilityRole="link"
           accessibilityLabel={`${title} ${linkText}`}
           hitSlop={8}
+          onPressHaptic="selection"
         >
           <Text style={[styles.seeAll, { color: colors.primary }]}>
             {linkText} ›
           </Text>
-        </TouchableOpacity>
+        </MotiPressable>
       )}
-    </View>
+    </MotiView>
   );
 }
 

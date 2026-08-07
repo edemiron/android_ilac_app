@@ -14,12 +14,21 @@ import { render, fireEvent } from '@testing-library/react-native';
 jest.mock('react-native', () => ({
   View: 'View',
   Text: 'Text',
-  TouchableOpacity: 'TouchableOpacity',
   StyleSheet: {
     create: <T,>(s: T): T => s,
     flatten: <T,>(s: T): T => s,
   },
 }));
+
+jest.mock('../../../components/common/MotiPressable', () => {
+  const ReactLocal = require('react');
+  // Press davranisi: onPress haptic'i devre disi birak, dogrudan cagrilsin (testin
+  // kullanacagi sekliyle). Mock Pressable gibi host element gibi davranir.
+  return {
+    MotiPressable: (props: { children?: React.ReactNode; [k: string]: unknown }) =>
+      ReactLocal.createElement('MotiPressable', props, props.children),
+  };
+});
 
 jest.mock('react-native-vector-icons/Ionicons', () => 'Ionicons');
 

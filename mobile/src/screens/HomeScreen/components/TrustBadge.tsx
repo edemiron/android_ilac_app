@@ -12,9 +12,11 @@ import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Alert, type StyleProp, type ViewStyle } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { MotiView } from 'moti';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { MotiPressable } from '../../../components/common/MotiPressable';
+import { motiTransitions } from '../../../theme/moti-config';
 
 export interface TrustBadgeProps {
   /** Custom pozisyon override (test/özel kullanım). */
@@ -43,39 +45,46 @@ export function TrustBadge({ bottom = 100, right = 16, style }: TrustBadgeProps)
 
   return (
     <View style={[styles.wrapper, { bottom, right }, style]} pointerEvents="box-none">
-      <MotiPressable
-        onPress={onPress}
-        onPressHaptic="light"
-        scaleTo={0.95}
-        accessibilityRole="button"
-        accessibilityLabel={
-          language === 'tr'
-            ? 'Anlık, Sessiz, Güvenli. Bilgi için dokunun.'
-            : 'Instant, Silent, Safe. Tap for info.'
-        }
+      {/* Sprint 100: mount slide-in from right (FAB ile çakışmadan yumuşak giriş) */}
+      <MotiView
+        from={{ opacity: 0, translateX: 24 }}
+        animate={{ opacity: 1, translateX: 0 }}
+        transition={motiTransitions.standard}
       >
-        <LinearGradient
-          colors={gradientColors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.badge}
+        <MotiPressable
+          onPress={onPress}
+          onPressHaptic="light"
+          scaleTo={0.95}
+          accessibilityRole="button"
+          accessibilityLabel={
+            language === 'tr'
+              ? 'Anlık, Sessiz, Güvenli. Bilgi için dokunun.'
+              : 'Instant, Silent, Safe. Tap for info.'
+          }
         >
-          <View style={styles.iconBox}>
-            <Ionicons name="shield-checkmark" size={18} color="#FFFFFF" />
-          </View>
-          <View style={styles.textGroup}>
-            <Text style={styles.line} numberOfLines={1}>
-              {language === 'tr' ? 'ANLIK' : 'INSTANT'}
-            </Text>
-            <Text style={styles.line} numberOfLines={1}>
-              {language === 'tr' ? 'SESSİZ' : 'SILENT'}
-            </Text>
-            <Text style={styles.line} numberOfLines={1}>
-              {language === 'tr' ? 'GÜVENLİ' : 'SAFE'}
-            </Text>
-          </View>
-        </LinearGradient>
-      </MotiPressable>
+          <LinearGradient
+            colors={gradientColors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.badge}
+          >
+            <View style={styles.iconBox}>
+              <Ionicons name="shield-checkmark" size={18} color="#FFFFFF" />
+            </View>
+            <View style={styles.textGroup}>
+              <Text style={styles.line} numberOfLines={1}>
+                {language === 'tr' ? 'ANLIK' : 'INSTANT'}
+              </Text>
+              <Text style={styles.line} numberOfLines={1}>
+                {language === 'tr' ? 'SESSİZ' : 'SILENT'}
+              </Text>
+              <Text style={styles.line} numberOfLines={1}>
+                {language === 'tr' ? 'GÜVENLİ' : 'SAFE'}
+              </Text>
+            </View>
+          </LinearGradient>
+        </MotiPressable>
+      </MotiView>
     </View>
   );
 }

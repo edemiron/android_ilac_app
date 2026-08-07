@@ -7,12 +7,15 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { MotiView } from 'moti';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import type { RootStackParamList } from '../../../types';
+import { MotiPressable } from '../../../components/common/MotiPressable';
+import { motiTransitions } from '../../../theme/moti-config';
 import { IconBadge } from './IconBadge';
 
 export interface StatsGridProps {
@@ -94,7 +97,11 @@ export function StatsGrid({
   ];
 
   return (
-    <View
+    // Sprint 100: grid mount fade-in (cells ayri stagger ile sirayla gelir)
+    <MotiView
+      from={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={motiTransitions.standard}
       style={styles.grid}
       accessibilityRole="summary"
       accessibilityLabel={
@@ -103,38 +110,41 @@ export function StatsGrid({
           : `Today ${totalCount} doses, ${completedCount} taken, ${remainingCount} pending, ${lowStockCount} low stock`
       }
     >
-      {cells.map(cell => (
-        <View
+      {cells.map((cell, index) => (
+        // Sprint 100: 4 cell sırayla mount olur (stagger 50ms)
+        <MotiView
           key={cell.testID}
+          from={{ opacity: 0, translateY: 6 }}
+          animate={{ opacity: cell.disabled ? 0.6 : 1, translateY: 0 }}
+          transition={{ ...motiTransitions.standard, delay: index * 50 }}
           style={[
             styles.cell,
             {
               backgroundColor: isDark ? colors.surfaceContainerLow : colors.surface,
               borderColor: colors.border,
-              opacity: cell.disabled ? 0.6 : 1,
             },
           ]}
         >
           {cell.onPress ? (
-            <TouchableOpacity
+            <MotiPressable
               style={styles.cellInner}
               onPress={cell.onPress}
               accessibilityRole="button"
               accessibilityLabel={`${cell.label}: ${cell.value}`}
               testID={cell.testID}
-              activeOpacity={0.7}
               disabled={cell.disabled}
+              onPressHaptic="light"
             >
               {renderCellContent(cell, colors)}
-            </TouchableOpacity>
+            </MotiPressable>
           ) : (
             <View style={styles.cellInner} testID={cell.testID}>
               {renderCellContent(cell, colors)}
             </View>
           )}
-        </View>
+        </MotiView>
       ))}
-    </View>
+    </MotiView>
   );
 }
 

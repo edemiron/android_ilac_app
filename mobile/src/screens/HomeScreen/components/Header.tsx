@@ -12,8 +12,10 @@ import React from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { MotiView } from 'moti';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { motiTransitions } from '../../../theme/moti-config';
 
 export interface HeaderProps {
   /** Selamlama metni ("Merhaba, Ahmet" veya sadece "Günaydın"). */
@@ -50,45 +52,53 @@ export function Header({
     : [colors.gradientStart, colors.gradientEnd];
 
   return (
-    <LinearGradient
-      colors={gradientColors}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={[styles.heroCard, style]}
+    // Sprint 100: mount fade + slide-down (gradient hero yumuşak giriş)
+    <MotiView
+      from={{ opacity: 0, translateY: -8 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={motiTransitions.standard}
+      style={style}
     >
-      {/* Streak chip — sağ üstte */}
-      {showStreak && (
-        <View style={styles.streakChip} accessibilityLabel={`Streak ${currentStreak}`}>
-          <Ionicons name="flame" size={14} color="#FFFFFF" />
-          <Text style={styles.streakChipText}>
-            {currentStreak} {language === 'tr' ? 'gün' : 'days'}
-          </Text>
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.heroCard}
+      >
+        {/* Streak chip — sağ üstte */}
+        {showStreak && (
+          <View style={styles.streakChip} accessibilityLabel={`Streak ${currentStreak}`}>
+            <Ionicons name="flame" size={14} color="#FFFFFF" />
+            <Text style={styles.streakChipText}>
+              {currentStreak} {language === 'tr' ? 'gün' : 'days'}
+            </Text>
+          </View>
+        )}
+
+        {/* Greeting */}
+        <Text style={styles.greeting} numberOfLines={1}>
+          {greeting}
+        </Text>
+
+        {/* Dynamic date + doz sayısı */}
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {dynamicDate} · {totalDoses} {language === 'tr' ? 'doz planı' : 'doses'}
+        </Text>
+
+        {/* Inline progress bar */}
+        <View style={styles.progressTrack} accessibilityLabel={`Adherence ${progressPercent} percent`}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${progressPercent}%` },
+            ]}
+          />
         </View>
-      )}
-
-      {/* Greeting */}
-      <Text style={styles.greeting} numberOfLines={1}>
-        {greeting}
-      </Text>
-
-      {/* Dynamic date + doz sayısı */}
-      <Text style={styles.subtitle} numberOfLines={1}>
-        {dynamicDate} · {totalDoses} {language === 'tr' ? 'doz planı' : 'doses'}
-      </Text>
-
-      {/* Inline progress bar */}
-      <View style={styles.progressTrack} accessibilityLabel={`Adherence ${progressPercent} percent`}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${progressPercent}%` },
-          ]}
-        />
-      </View>
-      <Text style={styles.progressLabel}>
-        {progressPercent}% {language === 'tr' ? 'uyum' : 'adherence'}
-      </Text>
-    </LinearGradient>
+        <Text style={styles.progressLabel}>
+          {progressPercent}% {language === 'tr' ? 'uyum' : 'adherence'}
+        </Text>
+      </LinearGradient>
+    </MotiView>
   );
 }
 
