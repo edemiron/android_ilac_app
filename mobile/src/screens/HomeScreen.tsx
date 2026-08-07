@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
@@ -26,9 +25,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { InlineAdBanner } from '../components/common/AdBanner';
 import { scheduleSnoozeNotification } from '../utils/notifications';
-import { formatTimeDisplay } from '../utils/timeCalculator';
 import { getRelativeTimeText } from './HomeScreen/helpers';
-import { getUniqueMedicineCount } from '../stores/helpers/reminderStats';
 import {
   checkAndShowPersistentNotifications,
   dismissAllPersistentNotifications,
@@ -38,14 +35,15 @@ import { createScopedLogger } from '../utils/logger';
 const log = createScopedLogger('HomeScreen');
 import { refreshWidget } from '../services/widgetService';
 import { useAlert } from '../contexts/AlertContext';
-import { CircularProgress } from '../components/common/CircularProgress';
-import { LowStockCard } from '../components/common/LowStockCard';
-import { useLowStockDismiss, computeLowStockHash } from '../hooks/useLowStockDismiss';
 
 // Sprint 4.2: HomeScreen.tsx (1962 -> ~1400 satir) modularizasyonu.
 // Component'ler ve helper'lar screens/HomeScreen/* altinda.
 import { CurrentDoseCard } from './HomeScreen/components/CurrentDoseCard';
 import { TimelineItem } from './HomeScreen/components/TimelineItem';
+import { Header } from './HomeScreen/components/Header';
+import { StatsGrid } from './HomeScreen/components/StatsGrid';
+import { SectionHeader } from './HomeScreen/components/SectionHeader';
+import { TrustBadge } from './HomeScreen/components/TrustBadge';
 import type { TodayReminder } from './HomeScreen/types';
 import { HomeScreenLayoutSwitcher } from '../components/layouts/HomeScreenLayoutSwitcher';
 
@@ -95,14 +93,6 @@ export default function HomeScreen() {
   // Stok uyarısı - memoize edildi
   // getLowStockMedicines zaten medicines'i icinden okur (zustand state selector)
   const lowStockMedicines = useMemo(() => getLowStockMedicines(), [getLowStockMedicines]);
-
-  // Sprint 65A: Stok uyarısı persistent dismiss — hash ile auto-invalidation
-  const { checkDismissed, dismiss: dismissLowStock } = useLowStockDismiss();
-  const lowStockHash = useMemo(
-    () => computeLowStockHash(lowStockMedicines.map(m => ({ id: m.id, stockCount: m.stockCount }))),
-    [lowStockMedicines]
-  );
-  const isLowStockDismissed = checkDismissed(lowStockHash);
 
   // Son kullanma tarihi uyarısı kontrolü
   useEffect(() => {
@@ -277,7 +267,7 @@ export default function HomeScreen() {
   );
 
   // İstatistikleri memoize et - her render'da yeniden hesaplamayı önle
-  const { completedCount, totalCount, remainingCount, uniqueMedicineCount } = useMemo(() => {
+  const { completedCount, totalCount, remainingCount } = useMemo(() => {
     const total = todayReminders.length;
     const completed = todayReminders.filter(r => r.log?.status === 'taken').length;
     const skipped = todayReminders.filter(r => r.log?.status === 'skipped').length;
@@ -285,7 +275,6 @@ export default function HomeScreen() {
       totalCount: total,
       completedCount: completed,
       remainingCount: total - completed - skipped,
-      uniqueMedicineCount: getUniqueMedicineCount(todayReminders),
     };
   }, [todayReminders]);
 
@@ -346,8 +335,7 @@ export default function HomeScreen() {
     return '🌙'; // Gece
   };
 
-  // İlerleme yüzdesi
-  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  // İlerleme yüzdesi Header component'inde hesaplanıyor (totalDoses/completedCount'ten).
 
   // Filter timeline based on active tab + deduplicate "Şu An" card (item 3)
   const filteredTimeline = useMemo(() => {
@@ -474,174 +462,29 @@ export default function HomeScreen() {
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Hero Card - Gradient Karşılama */}
-        <View style={[styles.heroCard, { backgroundColor: colors.card }]}>
-          {/* Üst Kısım: Selamlama + Uyum Oranı */}
-          <View style={styles.heroTop}>
-            <View style={styles.heroLeft}>
-              <View style={styles.greetingRow}>
-                <Text style={[styles.heroGreeting, { color: colors.text }]}>{greeting}</Text>
-                <View style={[styles.todayBadge, { backgroundColor: colors.primary + '20' }]}>
-                  <Text style={[styles.todayBadgeText, { color: colors.primary }]}>
-                    {language === 'tr' ? 'Bugün' : 'Today'}
-                  </Text>
-                </View>
-              </View>
-              <Text style={[styles.heroDate, { color: colors.textMuted }]}>{dynamicDate}</Text>
-            </View>
+        {/* Sprint 98: Karol-inspired gradient header (greeting + date + progress + streak) */}
+        <Header
+          greeting={greeting}
+          dynamicDate={dynamicDate}
+          totalDoses={totalCount}
+          completedCount={completedCount}
+          currentStreak={currentStreak}
+        />
 
-            {/* Uyum Oranı Circular Progress */}
-            <View style={styles.progressContainer}>
-              <CircularProgress
-                percentage={progressPercent}
-                size={70}
-                strokeWidth={8}
-                progressColor={colors.primary}
-                trackColor={isDark ? 'rgba(255, 255, 255, 0.1)' : '#E8F4F4'}
-                textColor={colors.primary}
-                backgroundColor={isDark ? 'rgba(255, 255, 255, 0.05)' : '#F0F9F9'}
-              />
-              <Text style={[styles.progressLabel, { color: colors.textMuted }]}>
-                {language === 'tr' ? 'Uyum oranı' : 'Adherence'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Stats Row */}
-          <View style={[styles.heroStats, { backgroundColor: colors.background }]}>
-            <View style={styles.heroStatItem}>
-              <View style={[styles.heroStatIcon, { backgroundColor: colors.primary + '15' }]}>
-                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-              </View>
-              <View>
-                <Text style={[styles.heroStatValue, { color: colors.text }]}>
-                  {totalCount} {language === 'tr' ? 'doz' : 'doses'}
-                </Text>
-                <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
-                  {language === 'tr'
-                    ? `Bugün · ${uniqueMedicineCount} ${uniqueMedicineCount === 1 ? 'ilaç' : 'ilaç'}`
-                    : `Today · ${uniqueMedicineCount} med`}
-                </Text>
-              </View>
-            </View>
-
-            <View style={[styles.heroStatDivider, { backgroundColor: colors.border }]} />
-
-            <View style={styles.heroStatItem}>
-              <View
-                style={[
-                  styles.heroStatIcon,
-                  { backgroundColor: isDark ? 'rgba(52, 211, 153, 0.2)' : '#DCFCE7' },
-                ]}
-              >
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={18}
-                  color={isDark ? '#34D399' : '#16A34A'}
-                />
-              </View>
-              <View>
-                <Text style={[styles.heroStatValue, { color: isDark ? '#34D399' : '#16A34A' }]}>
-                  {completedCount}
-                </Text>
-                <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
-                  {language === 'tr' ? 'Alındı' : 'Taken'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={[styles.heroStatDivider, { backgroundColor: colors.border }]} />
-
-            <View style={styles.heroStatItem}>
-              <View
-                style={[
-                  styles.heroStatIcon,
-                  { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7' },
-                ]}
-              >
-                <Ionicons name="time-outline" size={18} color={isDark ? '#F59E0B' : '#D97706'} />
-              </View>
-              <View>
-                <Text style={[styles.heroStatValue, { color: isDark ? '#F59E0B' : '#D97706' }]}>
-                  {remainingCount}
-                </Text>
-                <Text style={[styles.heroStatLabel, { color: colors.textMuted }]}>
-                  {language === 'tr' ? 'Bekleyen' : 'Pending'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Sonraki İlaç Bilgisi */}
-          {currentReminder && (
-            <View style={[styles.nextMedicineRow, { borderTopColor: colors.border }]}>
-              <Text style={[styles.nextMedicineText, { color: colors.textMuted }]}>
-                {language === 'tr' ? 'Sonraki Doz:' : 'Next Dose:'}{' '}
-                <Text style={[styles.nextMedicineTime, { color: colors.text }]}>
-                  {formatTimeDisplay(currentReminder.reminderTime.time)}
-                </Text>
-                {' • '}
-                <Text style={{ color: colors.text }}>{currentReminder.medicine.name}</Text>
-              </Text>
-              <TouchableOpacity
-                onPress={() =>
-                  navigation.navigate('AddMedicine', { medicineId: currentReminder.medicine.id })
-                }
-              >
-                <Text style={[styles.quickEditText, { color: colors.primary }]}>
-                  {language === 'tr' ? 'Hızlı düzenle' : 'Quick edit'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {currentStreak > 0 && (
-          <LinearGradient
-            colors={['#F59E0B', '#F97316']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.streakCard}
-          >
-            <View style={styles.streakContent}>
-              <View style={styles.streakIconBox}>
-                <Text style={styles.streakIconEmoji}>🔥</Text>
-              </View>
-              <View style={styles.streakTextContainer}>
-                <Text style={styles.streakTitle}>
-                  {currentStreak} {language === 'tr' ? 'Gün Seri!' : 'Day Streak!'}
-                </Text>
-                <Text style={styles.streakSubtitle}>
-                  {currentStreak >= 7
-                    ? language === 'tr'
-                      ? 'Muhteşem gidiyorsun!'
-                      : "You're doing amazing!"
-                    : language === 'tr'
-                      ? 'Devam et!'
-                      : 'Keep it up!'}
-                </Text>
-              </View>
-            </View>
-          </LinearGradient>
-        )}
-
-        {/* Stok Uyarısı (Sprint 65A: persistent dismiss) */}
-        {lowStockMedicines.length > 0 && !isLowStockDismissed && (
-          <LowStockCard
-            medicines={lowStockMedicines}
-            onPress={() => navigation.navigate('Medicines' as never)}
-            onDismiss={() => dismissLowStock(lowStockHash)}
-          />
-        )}
+        {/* Sprint 98: 2x2 StatsGrid (Bugün / Alınan / Bekleyen / Stok Uyarısı) */}
+        <StatsGrid
+          totalCount={totalCount}
+          completedCount={completedCount}
+          remainingCount={remainingCount}
+          lowStockCount={lowStockMedicines.length}
+        />
 
         {currentReminder && (
           <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionIcon}>💊</Text>
-              <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-                {language === 'tr' ? 'ŞU AN' : 'CURRENT'}
-              </Text>
-            </View>
+            <SectionHeader
+              icon="💊"
+              title={language === 'tr' ? 'ŞU AN' : 'CURRENT'}
+            />
             <CurrentDoseCard
               reminder={currentReminder}
               colors={colors}
@@ -657,15 +500,14 @@ export default function HomeScreen() {
         <InlineAdBanner />
 
         <View style={styles.sectionContainer}>
-          {/* Bugünün Planı & Filtreler */}
-          <View style={styles.sectionHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="calendar-outline" size={18} color={isDark ? '#F59E0B' : '#D97706'} />
-              <Text style={[styles.sectionTitle, { color: isDark ? '#F59E0B' : '#D97706' }]}>
-                {language === 'tr' ? 'BUGÜNÜN PLANI' : "TODAY'S PLAN"}
-              </Text>
-            </View>
-          </View>
+          {/* Sprint 98: SectionHeader "Tümü >" pattern'i */}
+          <SectionHeader
+            icon="📅"
+            title={language === 'tr' ? 'BUGÜNÜN PLANI' : "TODAY'S PLAN"}
+            onSeeAll={() => navigation.navigate('Medicines' as never)}
+          />
+
+          {/* Filtre Tabları */}
 
           {/* Filtre Tabları */}
           <ScrollView
@@ -901,6 +743,9 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Sprint 98: Karol-inspired floating trust badge — sağ alt köşede */}
+      <TrustBadge bottom={100} right={16} />
     </SafeAreaView>
   );
 }

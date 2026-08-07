@@ -2,20 +2,21 @@
  * HomeScreen — TimelineItem bileşeni.
  *
  * Sprint 4.2: HomeScreen.tsx (1962 satir) içinden ayrıldı.
+ * Sprint 98: MedicineAvatar kullanılıyor; pickFormIcon kaldırıldı.
  * Gün içindeki tek bir reminder için timeline satırı: status badge, snooze
  * geri sayım, hızlı "Bugün Al" butonu.
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { ThemeColors } from '../../../contexts/ThemeContext';
 import { useHaptics } from '../../../hooks/useHaptics';
 import { formatTimeDisplay } from '../../../utils/timeCalculator';
 import { SOFT_RED, SOFT_RED_BG, type TodayReminder } from '../types';
 import { getRelativeTimeText } from '../helpers';
+import { MedicineAvatar } from './MedicineAvatar';
 
 interface TimelineItemProps {
   reminder: TodayReminder;
@@ -25,39 +26,6 @@ interface TimelineItemProps {
   isFirst: boolean;
   hasActiveSnooze: boolean;
   snoozeTriggerTime: string | null;
-}
-
-interface FormIconDescriptor {
-  lib: 'mci' | 'ion';
-  name: string;
-}
-
-const FORM_ICON_MAP: Record<string, FormIconDescriptor> = {
-  tablet: { lib: 'mci', name: 'pill' },
-  capsule: { lib: 'mci', name: 'pill-multiple' },
-  syrup: { lib: 'mci', name: 'bottle-tonic-outline' },
-  drops: { lib: 'mci', name: 'water-outline' },
-  injection: { lib: 'mci', name: 'needle' },
-  cream: { lib: 'mci', name: 'hand-back-right-outline' },
-  spray: { lib: 'mci', name: 'spray' },
-  other: { lib: 'mci', name: 'medical-bag' },
-};
-
-/**
- * Ilacin form/dosage text'indan ikon sec (MedicinesScreen ile ayni mantik).
- */
-function pickFormIcon(medicine: TodayReminder['medicine']): FormIconDescriptor {
-  if (medicine.form && FORM_ICON_MAP[medicine.form]) {
-    return FORM_ICON_MAP[medicine.form];
-  }
-  const text = `${medicine.dosage || ''} ${medicine.stockUnit || ''}`.toLowerCase();
-  if (text.includes('tablet')) return { lib: 'mci', name: 'pill' };
-  if (text.includes('kaps')) return { lib: 'mci', name: 'pill-multiple' };
-  if (text.includes('ml') || text.includes('şurup'))
-    return { lib: 'mci', name: 'bottle-tonic-outline' };
-  if (text.includes('damla')) return { lib: 'mci', name: 'water-outline' };
-  if (text.includes('iğne') || text.includes('enjeksiyon')) return { lib: 'mci', name: 'needle' };
-  return { lib: 'ion', name: 'medical' };
 }
 
 /**
@@ -179,8 +147,6 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
   const status = getStatusBadge();
   const isCompleted = isTaken || isSkipped;
   const medicineColor = reminder.medicine.color || colors.primary;
-  const iconBgOpacity = isDark ? '70' : '45';
-  const formIcon = pickFormIcon(reminder.medicine);
 
   return (
     <View
@@ -196,27 +162,15 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
         },
       ]}
     >
-      <View
-        style={[
-          styles.medicineIconBox,
-          { backgroundColor: medicineColor + iconBgOpacity, overflow: 'hidden' },
-        ]}
-      >
-        {reminder.medicine.imageUri ? (
-          <Image source={{ uri: reminder.medicine.imageUri }} style={{ width: 40, height: 40 }} />
-        ) : formIcon.lib === 'mci' ? (
-          <MaterialCommunityIcons
-            name={formIcon.name}
-            size={isCompleted ? 16 : 20}
-            color={medicineColor}
-          />
-        ) : (
-          <Ionicons
-            name={formIcon.name as never}
-            size={isCompleted ? 16 : 20}
-            color={medicineColor}
-          />
-        )}
+      {/* Sprint 98: MedicineAvatar (harf avatar / image parity) */}
+      <View style={styles.avatarWrapper}>
+        <MedicineAvatar
+          name={reminder.medicine.name}
+          color={medicineColor}
+          size={isCompleted ? 36 : 40}
+          isCompleted={isCompleted}
+          imageUri={reminder.medicine.imageUri}
+        />
       </View>
 
       <View style={styles.medicineInfo}>
@@ -232,11 +186,38 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
           {reminder.medicine.name}
         </Text>
         <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
-          {formatTimeDisplay(reminder.reminderTime.time)} • {decodeDosage(reminder.medicine.dosage)}
+          {decodeDosage(reminder.medicine.dosage)}
         </Text>
       </View>
 
+      {/* Sprint 98: Saat badge (her zaman) + status pill / quick take (vertical stack) */}
       <View style={styles.medicineStatus}>
+        <View
+          style={[
+            styles.timeBadge,
+            {
+              backgroundColor: isCompleted
+                ? colors.surfaceContainerHigh
+                : colors.primary + '18',
+            },
+          ]}
+          accessibilityLabel={`Time ${formatTimeDisplay(reminder.reminderTime.time)}`}
+        >
+          <Ionicons
+            name="time-outline"
+            size={11}
+            color={isCompleted ? colors.textMuted : colors.primary}
+          />
+          <Text
+            style={[
+              styles.timeBadgeText,
+              { color: isCompleted ? colors.textMuted : colors.primary },
+            ]}
+          >
+            {formatTimeDisplay(reminder.reminderTime.time)}
+          </Text>
+        </View>
+
         {isMissed ? (
           <TouchableOpacity
             style={[styles.takeNowBtn, { backgroundColor: colors.primary }]}
@@ -289,12 +270,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderLeftWidth: 3,
   },
-  medicineIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+  avatarWrapper: {
     marginRight: 12,
   },
   medicineInfo: {
@@ -311,6 +287,20 @@ const styles = StyleSheet.create({
   },
   medicineStatus: {
     marginLeft: 8,
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  timeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   statusBadge: {
     flexDirection: 'row',

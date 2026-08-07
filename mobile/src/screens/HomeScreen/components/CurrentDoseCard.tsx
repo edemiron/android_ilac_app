@@ -13,6 +13,7 @@ import { formatTimeDisplay } from '../../../utils/timeCalculator';
 import { ThemeColors } from '../../../contexts/ThemeContext';
 import { SOFT_RED, SNOOZE_OPTIONS, type TodayReminder } from '../types';
 import { getRelativeTimeText } from '../helpers';
+import { MedicineAvatar } from './MedicineAvatar';
 
 interface CurrentDoseCardProps {
   reminder: TodayReminder;
@@ -81,15 +82,14 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
         </View>
 
         <View style={styles.currentDoseInfo}>
-          <View
-            style={[
-              styles.medicineIcon,
-              { backgroundColor: reminder.medicine.color + (isDark ? '50' : '20') },
-            ]}
-          >
-            <Ionicons name="medical" size={24} color={reminder.medicine.color} />
-          </View>
-          <View style={styles.currentDoseText}>
+          {/* Sprint 98: MedicineAvatar (harf avatar / image parity) */}
+          <MedicineAvatar
+            name={reminder.medicine.name}
+            color={reminder.medicine.color}
+            size={48}
+            imageUri={reminder.medicine.imageUri}
+          />
+          <View style={[styles.currentDoseText, { marginLeft: 12 }]}>
             <Text
               style={[styles.currentDoseName, { color: colors.text }]}
               numberOfLines={2}
@@ -262,14 +262,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  medicineIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
   },
   currentDoseText: {
     flex: 1,
