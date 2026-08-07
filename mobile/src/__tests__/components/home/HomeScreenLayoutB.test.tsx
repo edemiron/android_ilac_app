@@ -27,7 +27,9 @@ jest.mock('react-native', () => ({
   },
 }));
 
-jest.mock('react-native-linear-gradient', () => 'LinearGradient');
+jest.mock('expo-linear-gradient', () => ({
+  LinearGradient: 'LinearGradient',
+}));
 jest.mock('react-native-vector-icons/Ionicons', () => 'Ionicons');
 
 // StatsGrid @react-navigation/native kullaniyor (Stok Uyarisi navigation.navigate).

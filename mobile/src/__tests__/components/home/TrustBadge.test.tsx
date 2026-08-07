@@ -28,7 +28,9 @@ jest.mock('react-native', () => {
   };
 });
 
-jest.mock('react-native-linear-gradient', () => 'LinearGradient');
+jest.mock('expo-linear-gradient', () => ({
+  LinearGradient: 'LinearGradient',
+}));
 jest.mock('react-native-vector-icons/Ionicons', () => 'Ionicons');
 
 jest.mock('../../../contexts/LanguageContext', () => ({

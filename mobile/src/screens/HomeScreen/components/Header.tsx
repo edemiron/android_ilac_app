@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { MotiView } from 'moti';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -48,8 +48,8 @@ export function Header({
 
   const showStreak = currentStreak > 0;
   const gradientColors = isDark
-    ? [colors.primaryDark ?? '#6B7CDF', colors.gradientEnd]
-    : [colors.gradientStart, colors.gradientEnd];
+    ? ([colors.primaryDark ?? '#6B7CDF', colors.gradientEnd] as const)
+    : ([colors.gradientStart, colors.gradientEnd] as const);
 
   return (
     // Sprint 100: mount fade + slide-down (gradient hero yumuşak giriş)

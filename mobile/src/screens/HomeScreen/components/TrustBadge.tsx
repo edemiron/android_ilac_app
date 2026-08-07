@@ -10,7 +10,7 @@
 
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Alert, type StyleProp, type ViewStyle } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { MotiView } from 'moti';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -31,8 +31,8 @@ export function TrustBadge({ bottom = 100, right = 16, style }: TrustBadgeProps)
   const { language } = useLanguage();
 
   const gradientColors = isDark
-    ? [colors.primaryDark ?? '#6B7CDF', colors.gradientEnd]
-    : [colors.gradientStart, colors.gradientEnd];
+    ? ([colors.primaryDark ?? '#6B7CDF', colors.gradientEnd] as const)
+    : ([colors.gradientStart, colors.gradientEnd] as const);
 
   const onPress = useCallback(() => {
     Alert.alert(
