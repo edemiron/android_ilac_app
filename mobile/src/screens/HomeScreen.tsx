@@ -438,6 +438,8 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <HomeScreenLayoutSwitcher
+          greeting={greeting}
+          dynamicDate={dynamicDate}
           reminder={currentReminder}
           reminders={todayReminders}
           adherence={_adherenceRate}
@@ -446,11 +448,13 @@ export default function HomeScreen() {
           totalCount={totalCount}
           remainingCount={remainingCount}
           lowStockMedicines={lowStockMedicines}
+          lowStockCount={lowStockMedicines.length}
           isPremium={isPremium}
           onTake={() => currentReminder && handleTake(currentReminder.reminderTime.id)}
           onSnooze={minutes => currentReminder && handleSnooze(currentReminder, minutes)}
           onSkip={() => currentReminder && handleSkip(currentReminder.reminderTime.id)}
           onAddPress={() => navigation.navigate('AddMedicine' as never)}
+          onSeeAllMedicines={() => navigation.navigate('Medicines' as never)}
         />
       </SafeAreaView>
     );

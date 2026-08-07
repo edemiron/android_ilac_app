@@ -1,32 +1,34 @@
 /**
- * HomeScreenLayoutB — Sprint 58.5: Layout B (Kart Bazlı / MD3 Filled) — Detaylı.
+ * HomeScreenLayoutB — Sprint 58.5 + 99: Layout B (Detaylı / Karol-inspired).
  *
- * 7 MD3 kart:
- *   1. Adherence Hero (CircularProgress + 56pt number + streak chip)
- *   2. Streak Gradient Card (🔥 gün serisi)
- *   3. Stat Tiles Row (Bugün/Alınan/Kalan)
- *   4. Low Stock Card (stok uyarısı)
- *   5. 7-gün Mini Chart (SVG)
- *   6. Şu An (CurrentDoseCard)
- *   7. Bugün Planı (TimelineItem kartları)
- *   + InlineAdBanner (premium değilse)
- *   + Empty State fallback
+ * Sprint 58.5: 7 MD3 kart yapisi (Adherence Hero + Streak Gradient + Stat Tiles + LowStock + MiniChart + Şu An + Bugün).
+ * Sprint 99: Layout A ile ayni gradient Header + 2x2 StatsGrid + SectionHeader paylasimli.
+ *   - Card 1 (Adherence Hero) → <Header> gradient + progress bar + streak chip
+ *   - Card 2 (Streak Gradient) → kaldirildi (Header zaten streak chip tasiyor; redundancy)
+ *   - Card 3 (Stat Tiles Row) → <StatsGrid> 2x2 grid
+ *   - Şu An + Bugün section title'lari <SectionHeader> ile degistirildi
  *
- * Sprint 57 review vaadini tam karşılar.
+ * Korunan MD3 kartlar:
+ *   - LowStockCard (stok uyarisi)
+ *   - MiniChart (son 7 gün)
+ *   - CurrentDoseCard (Şu An CTA)
+ *   - TimelineItem listesi (Bugün Planı)
+ *   - EmptyState fallback
+ *   - InlineAdBanner (premium degilse)
  */
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { CurrentDoseCard } from '../../screens/HomeScreen/components/CurrentDoseCard';
 import { TimelineItem } from '../../screens/HomeScreen/components/TimelineItem';
+import { Header } from '../../screens/HomeScreen/components/Header';
+import { StatsGrid } from '../../screens/HomeScreen/components/StatsGrid';
+import { SectionHeader } from '../../screens/HomeScreen/components/SectionHeader';
 import {
-  CircularProgress,
   InlineAdBanner,
   LowStockCard,
-  StatTile,
   MiniChart,
   EmptyState,
   type MiniChartDatum,
@@ -35,14 +37,18 @@ import type { TodayReminder } from '../../screens/HomeScreen/types';
 import type { Medicine } from '../../types';
 
 interface LayoutBProps {
+  /** Sprint 99: Header icin selamlama metni. */
+  greeting: string;
+  /** Sprint 99: Header icin dinamik tarih metni. */
+  dynamicDate: string;
   reminder?: TodayReminder;
   reminders?: TodayReminder[];
-  adherence?: number;
   streak?: number;
   completedCount?: number;
   totalCount?: number;
   remainingCount?: number;
   lowStockMedicines?: Medicine[];
+  lowStockCount?: number;
   miniChartData?: MiniChartDatum[];
   isPremium?: boolean;
   onTake?: () => void;
@@ -50,17 +56,20 @@ interface LayoutBProps {
   onSkip?: () => void;
   onAddPress?: () => void;
   onLowStockPress?: () => void;
+  onSeeAllMedicines?: () => void;
 }
 
 export function HomeScreenLayoutB({
+  greeting,
+  dynamicDate,
   reminder,
   reminders = [],
-  adherence = 0,
   streak = 0,
   completedCount = 0,
   totalCount = 0,
   remainingCount = 0,
   lowStockMedicines = [],
+  lowStockCount,
   miniChartData = [],
   isPremium = false,
   onTake,
@@ -68,6 +77,7 @@ export function HomeScreenLayoutB({
   onSkip,
   onAddPress,
   onLowStockPress,
+  onSeeAllMedicines,
 }: LayoutBProps) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
@@ -75,91 +85,57 @@ export function HomeScreenLayoutB({
 
   const tr = language === 'tr';
 
+  // Sprint 99: lowStockCount prop'u verilmediyse lowStockMedicines.length fallback
+  const effectiveLowStockCount = lowStockCount ?? lowStockMedicines.length;
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
     >
-      {/* Card 1: Adherence Hero */}
-      {adherence > 0 && (
-        <View
-          style={[
-            styles.card,
-            styles.adherenceCard,
-            { backgroundColor: colors.surfaceContainerLow },
-          ]}
-          accessibilityRole="summary"
-          accessibilityLabel={`${tr ? 'Bugünkü uyum' : "Today's adherence"} ${adherence} ${tr ? 'yüzde' : 'percent'}`}
-        >
-          <View style={styles.adherenceRow}>
-            <View style={styles.adherenceNumberWrap}>
-              <Text style={[styles.adherenceNumber, { color: colors.primary }]}>{adherence}%</Text>
-              <Text style={[styles.adherenceLabel, { color: colors.textSecondary }]}>
-                {tr ? 'Bugünkü uyum' : "Today's adherence"}
-              </Text>
-              {streak > 0 && (
-                <Text style={[styles.streakChip, { color: colors.text }]}>
-                  🔥 {streak} {tr ? 'gün seri' : 'day streak'}
-                </Text>
-              )}
-            </View>
-            <CircularProgress
-              percentage={adherence}
-              size={88}
-              strokeWidth={9}
-              progressColor={colors.primary}
-            />
-          </View>
-        </View>
-      )}
+      {/* Sprint 99: Gradient Header (greeting + date + progress + streak chip) */}
+      <Header
+        greeting={greeting}
+        dynamicDate={dynamicDate}
+        totalDoses={totalCount}
+        completedCount={completedCount}
+        currentStreak={streak}
+      />
 
-      {/* Card 2: Streak Gradient */}
-      {streak > 0 && (
-        <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.streakCard}
-          accessibilityRole="summary"
-          accessibilityLabel={`${streak} ${tr ? 'gün seri' : 'day streak'}`}
-        >
-          <Text style={styles.streakEmoji}>🔥</Text>
-          <View style={styles.streakTextWrap}>
-            <Text style={styles.streakTitle}>
-              {streak} {tr ? 'Gün Seri!' : 'Day Streak!'}
-            </Text>
-            <Text style={styles.streakSubtitle}>{tr ? 'Devam et!' : 'Keep it up!'}</Text>
-          </View>
-        </LinearGradient>
-      )}
+      {/* Sprint 99: 2x2 StatsGrid */}
+      <StatsGrid
+        totalCount={totalCount}
+        completedCount={completedCount}
+        remainingCount={remainingCount}
+        lowStockCount={effectiveLowStockCount}
+      />
 
-      {/* Card 3: Stat Tiles Row */}
-      <View style={styles.statRow}>
-        <StatTile value={totalCount} label={tr ? 'Bugün' : 'Today'} accent="primary" />
-        <View style={styles.statGap} />
-        <StatTile value={completedCount} label={tr ? 'Alınan' : 'Taken'} accent="success" />
-        <View style={styles.statGap} />
-        <StatTile value={remainingCount} label={tr ? 'Kalan' : 'Remaining'} accent="warning" />
-      </View>
+      {/* Kart 1 (eski) Adherence Hero kaldirildi — Header zaten progress + streak tasiyor.
+          Kart 2 (eski) Streak Gradient kaldirildi — streak chip Header'da. */}
 
-      {/* Card 4: Low Stock */}
+      {/* Kart 3 (eski) Stat Tiles Row kaldirildi — StatsGrid 2x2 tasiyor. */}
+
+      {/* Kart 4: Low Stock (korundu) */}
       {lowStockMedicines.length > 0 && (
         <LowStockCard medicines={lowStockMedicines} onPress={onLowStockPress} />
       )}
 
-      {/* Card 5: 7-gün Mini Chart */}
+      {/* Kart 5: 7-gün Mini Chart (korundu) */}
       {miniChartData.length > 0 && (
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLow }]}>
+        <View
+          style={[styles.card, { backgroundColor: colors.surfaceContainerLow, marginTop: 16 }]}
+        >
           <MiniChart data={miniChartData} title={tr ? 'Son 7 Gün' : 'Last 7 Days'} />
         </View>
       )}
 
-      {/* Card 6: Şu An */}
+      {/* Kart 6: Şu An (CurrentDoseCard) — SectionHeader ile */}
       {reminder && (
-        <>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            {tr ? 'Şu An' : 'Now'}
-          </Text>
+        <View style={styles.section}>
+          <SectionHeader
+            title={tr ? 'Şu An' : 'Now'}
+            icon="⏰"
+          />
           <CurrentDoseCard
             reminder={reminder}
             colors={colors}
@@ -169,18 +145,25 @@ export function HomeScreenLayoutB({
             onSnooze={onSnooze || (() => {})}
             onSkip={onSkip || (() => {})}
           />
-        </>
+        </View>
       )}
 
-      {/* Card 7: Bugün */}
+      {/* Kart 7: Bugün Planı (TimelineItem) — SectionHeader + chevron toggle */}
       <TouchableOpacity
-        style={[styles.planHeader, { minHeight: 44 }]}
+        style={styles.planHeaderToggle}
         onPress={() => setShowPlan(!showPlan)}
         accessibilityRole="button"
+        accessibilityLabel={
+          showPlan
+            ? tr ? 'Bugün planını gizle' : 'Hide today plan'
+            : tr ? 'Bugün planını göster' : 'Show today plan'
+        }
       >
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-          {tr ? 'Bugün' : 'Today'} ({reminders.length})
-        </Text>
+        <SectionHeader
+          title={tr ? 'Bugünün Planı' : "Today's Plan"}
+          icon="📋"
+          {...(onSeeAllMedicines ? { onSeeAll: onSeeAllMedicines } : {})}
+        />
         <Text style={[styles.chevron, { color: colors.textMuted }]}>{showPlan ? '▼' : '▶'}</Text>
       </TouchableOpacity>
 
@@ -233,7 +216,6 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 32 },
   card: {
     marginHorizontal: 16,
-    marginTop: 12,
     padding: 20,
     borderRadius: 16,
     shadowColor: '#000',
@@ -242,108 +224,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  adherenceCard: {
-    paddingVertical: 16,
-  },
-  adherenceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  adherenceNumberWrap: {
-    flex: 1,
-  },
-  adherenceNumber: {
-    fontSize: 56,
-    fontWeight: '800',
-    letterSpacing: -2,
-  },
-  adherenceLabel: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  streakChip: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 6,
-  },
-  streakCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-  },
-  streakEmoji: {
-    fontSize: 40,
-    marginRight: 14,
-  },
-  streakTextWrap: {
-    flex: 1,
-  },
-  streakTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  streakSubtitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    marginTop: 2,
-    opacity: 0.9,
-  },
-  statRow: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 12,
-  },
-  statGap: {
-    width: 8,
-  },
   cardStacked: {
     padding: 0,
     overflow: 'hidden',
   },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 8,
+  section: {
+    marginTop: 8,
   },
-  planHeader: {
+  planHeaderToggle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    marginTop: 16,
+    paddingRight: 16,
   },
-  chevron: { fontSize: 14 },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 24,
-  },
-  emptyText: {
-    fontSize: 16,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  addBtn: {
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 28,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  addBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+  chevron: {
+    fontSize: 14,
+    marginLeft: 8,
   },
   adContainer: {
     marginTop: 16,

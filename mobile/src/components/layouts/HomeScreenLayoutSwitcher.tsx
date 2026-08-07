@@ -39,6 +39,10 @@ const LAYOUT_ANIMATION_CONFIG = {
 };
 
 interface SwitcherProps {
+  /** Sprint 99: LayoutB Header için selamlama metni. */
+  greeting: string;
+  /** Sprint 99: LayoutB Header için dinamik tarih metni. */
+  dynamicDate: string;
   reminder?: TodayReminder;
   reminders?: TodayReminder[];
   adherence?: number;
@@ -47,6 +51,8 @@ interface SwitcherProps {
   totalCount?: number;
   remainingCount?: number;
   lowStockMedicines?: Medicine[];
+  /** Sprint 99: lowStockMedicines.length yerine explicit sayı. */
+  lowStockCount?: number;
   miniChartData?: MiniChartDatum[];
   isPremium?: boolean;
   onTake?: () => void;
@@ -54,9 +60,13 @@ interface SwitcherProps {
   onSkip?: () => void;
   onAddPress?: () => void;
   onLowStockPress?: () => void;
+  /** Sprint 99: LayoutB "Tümü >" link için MedicinesScreen navigate. */
+  onSeeAllMedicines?: () => void;
 }
 
 export function HomeScreenLayoutSwitcher({
+  greeting,
+  dynamicDate,
   reminder,
   reminders = [],
   adherence = 0,
@@ -65,6 +75,7 @@ export function HomeScreenLayoutSwitcher({
   totalCount = 0,
   remainingCount = 0,
   lowStockMedicines = [],
+  lowStockCount,
   miniChartData = [],
   isPremium = false,
   onTake,
@@ -72,6 +83,7 @@ export function HomeScreenLayoutSwitcher({
   onSkip,
   onAddPress,
   onLowStockPress,
+  onSeeAllMedicines,
 }: SwitcherProps) {
   const { profile, isLoading } = useUserProfile();
   const previousLayoutRef = useRef<string | null>(null);
@@ -103,14 +115,16 @@ export function HomeScreenLayoutSwitcher({
   if (profile.layout === 'A') {
     return (
       <HomeScreenLayoutB
+        greeting={greeting}
+        dynamicDate={dynamicDate}
         reminder={reminder}
         reminders={reminders}
-        adherence={adherence}
         streak={streak}
         completedCount={completedCount}
         totalCount={totalCount}
         remainingCount={remainingCount}
         lowStockMedicines={lowStockMedicines}
+        lowStockCount={lowStockCount}
         miniChartData={miniChartData}
         isPremium={isPremium}
         onTake={onTake}
@@ -118,6 +132,7 @@ export function HomeScreenLayoutSwitcher({
         onSkip={onSkip}
         onAddPress={onAddPress}
         onLowStockPress={onLowStockPress}
+        onSeeAllMedicines={onSeeAllMedicines}
       />
     );
   }
