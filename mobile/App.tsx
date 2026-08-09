@@ -45,6 +45,8 @@ import {
   CaregiverInviteScreen,
 } from './src/screens';
 
+import { useAppFonts } from './src/hooks/useAppFonts'; // Sprint 103.2: Clinical Clarity font gate
+
 // Lazy load BarcodeScannerScreen - vision-camera is HEAVY and slows startup by ~5s
 const BarcodeScannerScreen = lazy(() => import('./src/screens/BarcodeScannerScreen'));
 
@@ -1073,30 +1075,41 @@ export default function App() {
     <GestureHandlerRootView style={styles.gestureRoot}>
       <SafeAreaProvider>
         <ErrorBoundary componentName="App">
-          <UserProfileProvider>
-            <AccentProvider>
-              <ThemeProvider>
-                <LowStockDismissProvider>
-                  <OnboardingProvider>
-                    <LanguageProvider>
-                      <AuthProvider>
-                        <SubscriptionProvider>
-                          <AlertProvider>
-                            {/* Sprint 72: CaregiverEventBridge — caregiver "Hasta Aldı" / "Ara" action'larını Firestore'a bağlar */}
-                            <CaregiverEventBridge />
-                            <AppContent />
-                          </AlertProvider>
-                        </SubscriptionProvider>
-                      </AuthProvider>
-                    </LanguageProvider>
-                  </OnboardingProvider>
-                </LowStockDismissProvider>
-              </ThemeProvider>
-            </AccentProvider>
-          </UserProfileProvider>
+          {/* Sprint 103.2: AppWithFonts font gate — ErrorBoundary sarmalaması
+              sayesinde useFonts error'ı yakalanır ve LoadingScreen fallback'i
+              provider tree'ye girmeden önce çalışır. */}
+          <AppWithFonts />
         </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function AppWithFonts() {
+  const fontsLoaded = useAppFonts();
+  if (!fontsLoaded) return <LoadingScreen />;
+  return (
+    <UserProfileProvider>
+      <AccentProvider>
+        <ThemeProvider>
+          <LowStockDismissProvider>
+            <OnboardingProvider>
+              <LanguageProvider>
+                <AuthProvider>
+                  <SubscriptionProvider>
+                    <AlertProvider>
+                      {/* Sprint 72: CaregiverEventBridge — caregiver "Hasta Aldı" / "Ara" action'larını Firestore'a bağlar */}
+                      <CaregiverEventBridge />
+                      <AppContent />
+                    </AlertProvider>
+                  </SubscriptionProvider>
+                </AuthProvider>
+              </LanguageProvider>
+            </OnboardingProvider>
+          </LowStockDismissProvider>
+        </ThemeProvider>
+      </AccentProvider>
+    </UserProfileProvider>
   );
 }
 

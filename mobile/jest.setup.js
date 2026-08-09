@@ -291,3 +291,9 @@ jest.mock('react-native-screens', () => {
     enableScreens: jest.fn(),
   };
 });
+
+// Sprint 103.2: expo-font mock — Jest'te font binary (woff2) yok, useFonts true döner.
+// useAppFonts hook'u bu mock'a bağlı; aksi halde require() undefined döner ve test crash eder.
+jest.mock('expo-font', () => ({
+  useFonts: jest.fn(() => [true, null]),
+}));

@@ -1,0 +1,17 @@
+SIL Open Font License v1.1
+============================
+
+This directory contains font assets for the İlaç Hatırlatıcı mobile app:
+
+  - Hanken Grotesk (SemiBold 600, Bold 700) — by Hanken Grotesk authors
+  - Inter (Regular 400, Medium 500) — by Rasmus Andersson
+
+Both fonts are licensed under the SIL Open Font License, Version 1.1.
+
+Full license text: https://scripts.sil.org/OFL
+
+Font source:
+  - Original Google Fonts: https://fonts.google.com/specimen/Hanken+Grotesk
+                            https://fonts.google.com/specimen/Inter
+  - fontsource mirror (woff2 latin subset): https://fontsource.org/fonts/inter
+                                            https://fontsource.org/fonts/hanken-grotesk
