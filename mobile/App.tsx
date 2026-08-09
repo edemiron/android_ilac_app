@@ -1086,30 +1086,40 @@ export default function App() {
 }
 
 function AppWithFonts() {
-  const fontsLoaded = useAppFonts();
-  if (!fontsLoaded) return <LoadingScreen />;
+  // Sprint 103.5: ThemeProvider + UserProfileProvider + AccentProvider en üstte —
+  // LoadingScreen useTheme() çağırıyor, font loading gate'i bunlardan ÖNCE
+  // sarmalarsak "useTheme must be used within a ThemeProvider" exception'ı
+  // fırlatılır ve ErrorBoundary catch eder (Sprint 103.4 sonrası test crash).
   return (
     <UserProfileProvider>
       <AccentProvider>
         <ThemeProvider>
-          <LowStockDismissProvider>
-            <OnboardingProvider>
-              <LanguageProvider>
-                <AuthProvider>
-                  <SubscriptionProvider>
-                    <AlertProvider>
-                      {/* Sprint 72: CaregiverEventBridge — caregiver "Hasta Aldı" / "Ara" action'larını Firestore'a bağlar */}
-                      <CaregiverEventBridge />
-                      <AppContent />
-                    </AlertProvider>
-                  </SubscriptionProvider>
-                </AuthProvider>
-              </LanguageProvider>
-            </OnboardingProvider>
-          </LowStockDismissProvider>
+          <AppRoot />
         </ThemeProvider>
       </AccentProvider>
     </UserProfileProvider>
+  );
+}
+
+function AppRoot() {
+  const fontsLoaded = useAppFonts();
+  if (!fontsLoaded) return <LoadingScreen />;
+  return (
+    <LowStockDismissProvider>
+      <OnboardingProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <SubscriptionProvider>
+              <AlertProvider>
+                {/* Sprint 72: CaregiverEventBridge — caregiver "Hasta Aldı" / "Ara" action'larını Firestore'a bağlar */}
+                <CaregiverEventBridge />
+                <AppContent />
+              </AlertProvider>
+            </SubscriptionProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </OnboardingProvider>
+    </LowStockDismissProvider>
   );
 }
 
