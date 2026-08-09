@@ -532,7 +532,7 @@ export default function HomeScreen() {
                   styles.filterTab,
                   activeTab === tab.id && { backgroundColor: colors.primary },
                   activeTab !== tab.id && {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F3F4F6',
+                    backgroundColor: isDark ? withAlpha('#FFFFFF', ALPHA.haze) : '#F3F4F6',
                   },
                 ]}
                 onPress={() => setActiveTab(tab.id as FilterTab)}
@@ -890,7 +890,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: withAlpha('#FFFFFF', ALPHA.chip),
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -908,7 +908,7 @@ const styles = StyleSheet.create({
   },
   streakSubtitle: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
+    color: withAlpha('#FFFFFF', ALPHA.onLight),
     marginTop: 2,
   },
   // Stok Uyarısı
@@ -1074,7 +1074,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: withAlpha('#000000', 0.5),
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1283,7 +1283,7 @@ const styles = StyleSheet.create({
   // Expiry Modal Styles
   expiryModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: withAlpha('#000000', ALPHA.scrim),
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,

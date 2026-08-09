@@ -4,6 +4,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { withAlpha, ALPHA } from '../../utils/colors'; // Sprint 103.4
 import { createSettingsStyles } from './styles';
 
 interface PremiumCardProps {
@@ -43,7 +44,11 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({ isPremium, remainingDa
         <View
           style={[
             styles.premiumIconContainer,
-            { backgroundColor: isPremium ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)' },
+            {
+              backgroundColor: isPremium
+                ? withAlpha('#000000', ALPHA.veil)
+                : withAlpha('#FFFFFF', ALPHA.over),
+            },
           ]}
         >
           <MaterialCommunityIcons
@@ -65,7 +70,11 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({ isPremium, remainingDa
           <Text
             style={[
               styles.premiumSubtitle,
-              { color: isPremium ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' },
+              {
+                color: isPremium
+                  ? withAlpha('#000000', ALPHA.scrimStrong)
+                  : withAlpha('#FFFFFF', ALPHA.onLight),
+              },
             ]}
           >
             {getSubtitle()}

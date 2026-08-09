@@ -5,6 +5,7 @@ import { SettingRow } from './SettingRow';
 import { OptionPicker } from './OptionPicker';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { withAlpha, ALPHA } from '../../utils/colors'; // Sprint 103.4
 import { Settings } from './types';
 
 interface NotificationSectionProps {
@@ -140,7 +141,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 10,
-        backgroundColor: enabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(156, 163, 175, 0.18)',
+        backgroundColor: enabled
+          ? withAlpha('#10B981', ALPHA.veil)
+          : withAlpha('#9CA3AF', ALPHA.veilStrong),
         marginRight: 8,
       }}
       accessibilityElementsHidden
