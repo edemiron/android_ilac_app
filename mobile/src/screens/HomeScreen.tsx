@@ -44,6 +44,7 @@ import { TimelineItem } from './HomeScreen/components/TimelineItem';
 import { Header } from './HomeScreen/components/Header';
 import { StatsGrid } from './HomeScreen/components/StatsGrid';
 import { SectionHeader } from './HomeScreen/components/SectionHeader';
+import { BulkActions } from './HomeScreen/components/BulkActions';
 import { TrustBadge } from './HomeScreen/components/TrustBadge';
 import type { TodayReminder } from './HomeScreen/types';
 import { HomeScreenLayoutSwitcher } from '../components/layouts/HomeScreenLayoutSwitcher';
@@ -85,6 +86,9 @@ export default function HomeScreen() {
   const getTodayReminders = useMedicineStore(state => state.getTodayReminders);
   const logMedicineTaken = useMedicineStore(state => state.logMedicineTaken);
   const logMedicineSkipped = useMedicineStore(state => state.logMedicineSkipped);
+  // Sprint 104.2: Bulk actions (Karol-style "Tümünü Al" / "Tümünü Atla")
+  const logBulkMedicinesTaken = useMedicineStore(state => state.logBulkMedicinesTaken);
+  const logBulkMedicinesSkipped = useMedicineStore(state => state.logBulkMedicinesSkipped);
   const getAdherenceRate = useMedicineStore(state => state.getAdherenceRate);
   const getCurrentStreak = useMedicineStore(state => state.getCurrentStreak);
   const createSnooze = useMedicineStore(state => state.createSnooze);
@@ -225,6 +229,41 @@ export default function HomeScreen() {
     },
     [todayReminders, logMedicineSkipped]
   );
+
+  // Sprint 104.2: Pending reminders memo (gelecek + log yok) — BulkActions kullanir.
+  const pendingReminders = useMemo(() => {
+    return todayReminders.filter(r => !r.log);
+  }, [todayReminders]);
+
+  const handleBulkTake = useCallback(() => {
+    if (pendingReminders.length === 0) return;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    logBulkMedicinesTaken(
+      pendingReminders.map(r => ({
+        reminderTimeId: r.reminderTime.id,
+        scheduledTime: `${todayStr}T${r.reminderTime.time}:00`,
+        medicineId: r.medicine.id,
+      }))
+    );
+    showSuccess(
+      language === 'tr' ? 'Tümü alındı' : 'All taken',
+      language === 'tr'
+        ? `${pendingReminders.length} ilaç işaretlendi.`
+        : `${pendingReminders.length} marked.`
+    );
+  }, [pendingReminders, logBulkMedicinesTaken, language, showSuccess]);
+
+  const handleBulkSkip = useCallback(() => {
+    if (pendingReminders.length === 0) return;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    logBulkMedicinesSkipped(
+      pendingReminders.map(r => ({
+        reminderTimeId: r.reminderTime.id,
+        scheduledTime: `${todayStr}T${r.reminderTime.time}:00`,
+        medicineId: r.medicine.id,
+      }))
+    );
+  }, [pendingReminders, logBulkMedicinesSkipped]);
 
   const handleSnooze = useCallback(
     async (reminder: TodayReminder, minutes: number) => {
@@ -505,11 +544,18 @@ export default function HomeScreen() {
         <InlineAdBanner />
 
         <View style={styles.sectionContainer}>
-          {/* Sprint 98: SectionHeader "Tümü >" pattern'i */}
+          {/* Sprint 104.2: SectionHeader "BUGÜNÜN DOZLARI" (Karol wording) */}
           <SectionHeader
             icon="📅"
-            title={language === 'tr' ? 'BUGÜNÜN PLANI' : "TODAY'S PLAN"}
+            title={language === 'tr' ? 'BUGÜNÜN DOZLARI' : "TODAY'S DOSES"}
             onSeeAll={() => navigation.navigate('Medicines' as never)}
+          />
+
+          {/* Sprint 104.2: Karol-style bulk actions — Tümünü Al / Tümünü Atla */}
+          <BulkActions
+            pendingCount={pendingReminders.length}
+            onTakeAll={handleBulkTake}
+            onSkipAll={handleBulkSkip}
           />
 
           {/* Filtre Tabları */}

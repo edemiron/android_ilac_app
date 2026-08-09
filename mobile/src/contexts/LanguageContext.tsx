@@ -41,6 +41,16 @@ const tr = {
   home_next_reminder: 'Sonraki hatırlatma',
   home_adherence: 'Uyum Oranı',
   home_taken: 'Alındı',
+  // Sprint 104.2: BulkActions (Karol-style 2-buton)
+  home_bulk_take: 'Tümünü Al',
+  home_bulk_skip: 'Tümünü Atla',
+  home_bulk_take_confirm_title: 'Tümünü Onayla',
+  home_bulk_take_confirm_body: '{count} ilacı şimdi aldım olarak işaretle?',
+  home_bulk_skip_confirm_title: 'Tümünü Atla',
+  home_bulk_skip_confirm_body: '{count} ilacı atlandı olarak işaretle?',
+  home_bulk_taken_toast: '{count} ilaç işaretlendi',
+  // Sprint 104.2: SectionHeader wording (Karol)
+  home_section_today_doses: 'BUGÜNÜN DOZLARI',
   home_mark_taken: 'Aldım',
   home_pending: 'Bekliyor',
   home_skipped: 'Atlandı',
@@ -225,6 +235,16 @@ const en: typeof tr = {
   home_next_reminder: 'Next reminder',
   home_adherence: 'Adherence Rate',
   home_taken: 'Taken',
+  // Sprint 104.2: BulkActions (Karol-style 2-buton)
+  home_bulk_take: 'Take All',
+  home_bulk_skip: 'Skip All',
+  home_bulk_take_confirm_title: 'Confirm All',
+  home_bulk_take_confirm_body: 'Mark {count} medicines as taken now?',
+  home_bulk_skip_confirm_title: 'Skip All',
+  home_bulk_skip_confirm_body: 'Mark {count} medicines as skipped?',
+  home_bulk_taken_toast: '{count} marked',
+  // Sprint 104.2: SectionHeader wording (Karol)
+  home_section_today_doses: "TODAY'S DOSES",
   home_mark_taken: 'Take',
   home_pending: 'Pending',
   home_skipped: 'Skipped',

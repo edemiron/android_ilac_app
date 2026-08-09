@@ -265,6 +265,9 @@ interface MedicineState {
     medicineIdFallback?: string,
     note?: string
   ) => void;
+  // Sprint 104.2: Bulk actions (Karol-style "Tümünü Al" / "Tümünü Atla")
+  logBulkMedicinesTaken: (reminders: { reminderTimeId: string; scheduledTime: string; medicineId: string }[]) => void;
+  logBulkMedicinesSkipped: (reminders: { reminderTimeId: string; scheduledTime: string; medicineId: string }[]) => void;
   markMissedReminders: () => void;
 
   createSnooze: (
@@ -1083,6 +1086,24 @@ export const useMedicineStore = create<MedicineState>()(
             }
           }, 500);
         }
+      },
+
+      // Sprint 104.2: Bulk action — birden fazla pending reminder'i tek seferde taken/skipped isaretle.
+      // Sequential (Promise.all degil) — Zustand sync mutation, notification cancel idempotent.
+      // Her reminder icin mevcut logMedicineTaken/logMedicineSkipped davranisi korunur
+      // (caregiver notification, _cleanupNotifications, decrementStock, widget update, cloud save).
+      logBulkMedicinesTaken: (reminders) => {
+        log.debug('logBulkMedicinesTaken called', { count: reminders.length });
+        reminders.forEach(r => {
+          get().logMedicineTaken(r.reminderTimeId, r.scheduledTime, r.medicineId);
+        });
+      },
+
+      logBulkMedicinesSkipped: (reminders) => {
+        log.debug('logBulkMedicinesSkipped called', { count: reminders.length });
+        reminders.forEach(r => {
+          get().logMedicineSkipped(r.reminderTimeId, r.scheduledTime, r.medicineId);
+        });
       },
 
       markMissedReminders: () => {
