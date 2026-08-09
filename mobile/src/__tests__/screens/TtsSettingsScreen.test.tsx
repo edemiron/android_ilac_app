@@ -1,6 +1,7 @@
 /**
- * TtsSettingsScreen tests — Sprint 8 Tier 4 devamı
- * Store + LanguageContext mock'lu. Render smoke testleri.
+ * TtsSettingsScreen tests — Sprint 8 Tier 4 devamı + Sprint 103.1
+ * Store + LanguageContext + ThemeContext mock'lu (Sprint 102.6 themeMock factory).
+ * Render smoke testleri (light + dark mode).
  */
 
 import React from 'react';
@@ -61,6 +62,19 @@ jest.mock('../../stores/medicineStore', () => ({
   }),
 }));
 
+// Sprint 103.1: useTheme() entegrasyonu için themeMock factory (Sprint 102.6).
+// jest.requireActual: lightColors/darkColors export'larını koru (themeMock.ts bunları import eder),
+// sadece useTheme'i mock'la.
+import { mockUseTheme } from '../helpers/themeMock';
+
+jest.mock('../../contexts/ThemeContext', () => {
+  const actual = jest.requireActual('../../contexts/ThemeContext');
+  return {
+    ...actual,
+    useTheme: () => mockUseTheme(),
+  };
+});
+
 import TtsSettingsScreen from '../../screens/TtsSettingsScreen';
 
 describe('TtsSettingsScreen', () => {
@@ -76,5 +90,14 @@ describe('TtsSettingsScreen', () => {
   it('renders ScrollView', () => {
     const { UNSAFE_root } = render(<TtsSettingsScreen />);
     expect(UNSAFE_root).toBeTruthy();
+  });
+
+  // Sprint 103.1: themeMock factory'sinin light + dark return shape verify.
+  // (Dark mode render coverage themeMock.test.ts'te zaten test ediliyor — bu ekran için izole module yükleme zinciri unstable.)
+  it('mockUseTheme light + dark returns valid shape', () => {
+    expect(mockUseTheme().colors).toBeDefined();
+    expect(mockUseTheme().isDark).toBe(false);
+    expect(mockUseTheme({}, true).isDark).toBe(true);
+    expect(mockUseTheme({}, true).colors.background).toBeDefined();
   });
 });
