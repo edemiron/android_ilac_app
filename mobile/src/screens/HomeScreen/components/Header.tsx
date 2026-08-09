@@ -8,12 +8,12 @@
  * Streak chip currentStreak > 0 ise sağ üstte gösterilir.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { MotiView } from 'moti';
-import { useTheme } from '../../../contexts/ThemeContext';
+import { useTheme, type ThemeColors } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { motiTransitions } from '../../../theme/moti-config';
 
@@ -50,6 +50,9 @@ export function Header({
   const gradientColors = isDark
     ? ([colors.primaryDark ?? '#6B7CDF', colors.gradientEnd] as const)
     : ([colors.gradientStart, colors.gradientEnd] as const);
+
+  // Sprint 102.3: Gradient içi text/icon token adoption (theme-aware styles)
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     // Sprint 100: mount fade + slide-down (gradient hero yumuşak giriş)
@@ -102,64 +105,70 @@ export function Header({
   );
 }
 
-const styles = StyleSheet.create({
-  heroCard: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
-    overflow: 'hidden',
-  },
-  streakChip: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-  },
-  streakChipText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  greeting: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: -0.4,
-    marginRight: 80, // streak chip için alan
-  },
-  subtitle: {
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 13,
-    marginTop: 4,
-  },
-  progressTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    marginTop: 14,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 3,
-  },
-  progressLabel: {
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 6,
-  },
-});
+/**
+ * makeStyles — Sprint 102.3
+ * Hero gradient içi text/icon token adoption. useTheme() ile accent değişiminde
+ * bile okunur kalır (textOnGradient accent-independent).
+ */
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    heroCard: {
+      marginHorizontal: 16,
+      marginTop: 8,
+      borderRadius: 20,
+      padding: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      elevation: 6,
+      overflow: 'hidden',
+    },
+    streakChip: {
+      position: 'absolute',
+      top: 16,
+      right: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      backgroundColor: colors.gradientTrackTint,
+    },
+    streakChipText: {
+      color: colors.textOnGradient,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    greeting: {
+      color: colors.textOnGradient,
+      fontSize: 24,
+      fontWeight: '700',
+      letterSpacing: -0.4,
+      marginRight: 80,
+    },
+    subtitle: {
+      color: colors.textOnGradientMuted,
+      fontSize: 13,
+      marginTop: 4,
+    },
+    progressTrack: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.gradientTrackTint,
+      marginTop: 14,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: colors.textOnGradient,
+      borderRadius: 3,
+    },
+    progressLabel: {
+      color: colors.textOnGradientMuted,
+      fontSize: 12,
+      fontWeight: '600',
+      marginTop: 6,
+    },
+  });

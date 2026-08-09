@@ -8,12 +8,12 @@
  * MotiPressable ile sarılı: basıldığında "Hakkında" alert gösterir.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Alert, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { MotiView } from 'moti';
-import { useTheme } from '../../../contexts/ThemeContext';
+import { useTheme, type ThemeColors } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { MotiPressable } from '../../../components/common/MotiPressable';
 import { motiTransitions } from '../../../theme/moti-config';
@@ -33,6 +33,9 @@ export function TrustBadge({ bottom = 100, right = 16, style }: TrustBadgeProps)
   const gradientColors = isDark
     ? ([colors.primaryDark ?? '#6B7CDF', colors.gradientEnd] as const)
     : ([colors.gradientStart, colors.gradientEnd] as const);
+
+  // Sprint 102.3: Gradient içi text/icon token adoption (theme-aware styles)
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const onPress = useCallback(() => {
     Alert.alert(
@@ -126,3 +129,46 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
 });
+
+/**
+ * makeStyles — Sprint 102.3
+ * TrustBadge gradient içi text/icon token adoption (textOnGradient + gradientTrackTint).
+ */
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    wrapper: {
+      position: 'absolute',
+      zIndex: 5,
+    },
+    badge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 18,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 8,
+    },
+    iconBox: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.gradientTrackTint,
+    },
+    textGroup: {
+      alignItems: 'flex-start',
+    },
+    line: {
+      color: colors.textOnGradient,
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 0.6,
+      lineHeight: 13,
+    },
+  });
