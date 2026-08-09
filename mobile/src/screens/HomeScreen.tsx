@@ -46,6 +46,7 @@ import { StatsGrid } from './HomeScreen/components/StatsGrid';
 import { SectionHeader } from './HomeScreen/components/SectionHeader';
 import { BulkActions } from './HomeScreen/components/BulkActions';
 import { DailyTipCard } from './HomeScreen/components/DailyTipCard';
+import { UpcomingDoses } from './HomeScreen/components/UpcomingDoses';
 import { TrustBadge } from './HomeScreen/components/TrustBadge';
 import type { TodayReminder } from './HomeScreen/types';
 import { HomeScreenLayoutSwitcher } from '../components/layouts/HomeScreenLayoutSwitcher';
@@ -481,6 +482,7 @@ export default function HomeScreen() {
         <HomeScreenLayoutSwitcher
           greeting={greeting}
           dynamicDate={dynamicDate}
+          displayName={user?.displayName ?? ''}
           reminder={currentReminder}
           reminders={todayReminders}
           adherence={_adherenceRate}
@@ -514,6 +516,7 @@ export default function HomeScreen() {
           totalDoses={totalCount}
           completedCount={completedCount}
           currentStreak={currentStreak}
+          displayName={user?.displayName ?? ''}
         />
 
         {/* Sprint 98: 2x2 StatsGrid (Bugün / Alınan / Bekleyen / Stok Uyarısı) */}
@@ -541,6 +544,9 @@ export default function HomeScreen() {
             />
           </View>
         )}
+
+        {/* Sprint 104.4: Karol-style "YAKLASAN DOZLAR" vertical mini list (gelecek 60dk, max 3). */}
+        <UpcomingDoses todayReminders={todayReminders} />
 
         {/* Sprint 104.3: Karol-style "Günün İpucu" mint pastel kartı (Layout A). */}
         <DailyTipCard />

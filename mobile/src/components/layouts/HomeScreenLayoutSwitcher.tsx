@@ -43,6 +43,8 @@ interface SwitcherProps {
   greeting: string;
   /** Sprint 99: LayoutB Header için dinamik tarih metni. */
   dynamicDate: string;
+  /** Sprint 104.4: UserAvatar için displayName (AuthContext'ten). */
+  displayName?: string;
   reminder?: TodayReminder;
   reminders?: TodayReminder[];
   adherence?: number;
@@ -67,6 +69,7 @@ interface SwitcherProps {
 export function HomeScreenLayoutSwitcher({
   greeting,
   dynamicDate,
+  displayName,
   reminder,
   reminders = [],
   adherence = 0,
@@ -117,6 +120,7 @@ export function HomeScreenLayoutSwitcher({
       <HomeScreenLayoutB
         greeting={greeting}
         dynamicDate={dynamicDate}
+        displayName={displayName}
         reminder={reminder}
         reminders={reminders}
         streak={streak}

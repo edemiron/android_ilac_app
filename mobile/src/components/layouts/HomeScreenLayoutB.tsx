@@ -42,6 +42,8 @@ interface LayoutBProps {
   greeting: string;
   /** Sprint 99: Header icin dinamik tarih metni. */
   dynamicDate: string;
+  /** Sprint 104.4: UserAvatar icin AuthContext displayName. */
+  displayName?: string;
   reminder?: TodayReminder;
   reminders?: TodayReminder[];
   streak?: number;
@@ -63,6 +65,7 @@ interface LayoutBProps {
 export function HomeScreenLayoutB({
   greeting,
   dynamicDate,
+  displayName,
   reminder,
   reminders = [],
   streak = 0,
@@ -101,6 +104,7 @@ export function HomeScreenLayoutB({
         totalDoses={totalCount}
         completedCount={completedCount}
         currentStreak={streak}
+        displayName={displayName}
       />
 
       {/* Sprint 99: 2x2 StatsGrid */}

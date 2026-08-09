@@ -16,6 +16,7 @@ import { MotiView } from 'moti';
 import { useTheme, type ThemeColors } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { motiTransitions } from '../../../theme/moti-config';
+import { UserAvatar } from './UserAvatar';
 
 export interface HeaderProps {
   /** Selamlama metni ("Merhaba, Ahmet" veya sadece "Günaydın"). */
@@ -28,6 +29,8 @@ export interface HeaderProps {
   completedCount: number;
   /** Üst üste tamamlanan gün sayısı. 0 ise streak chip gösterilmez. */
   currentStreak: number;
+  /** Sprint 104.4: Kullanici displayName (AuthContext) — UserAvatar icin. */
+  displayName?: string;
   /** Dış container stili (margin vb.). */
   style?: StyleProp<ViewStyle>;
 }
@@ -38,6 +41,7 @@ export function Header({
   totalDoses,
   completedCount,
   currentStreak,
+  displayName,
   style,
 }: HeaderProps) {
   const { colors, isDark } = useTheme();
@@ -68,7 +72,10 @@ export function Header({
         end={{ x: 1, y: 1 }}
         style={styles.heroCard}
       >
-        {/* Streak chip — sağ üstte */}
+        {/* Sprint 104.4: Kullanici avatar — sol ust (Karol target) */}
+        {displayName && <UserAvatar displayName={displayName} size={36} />}
+
+        {/* Streak chip — sağ üstte (mevcut korunur) */}
         {showStreak && (
           <View style={styles.streakChip} accessibilityLabel={`Streak ${currentStreak}`}>
             <Ionicons name="flame" size={14} color="#FFFFFF" />
@@ -78,7 +85,7 @@ export function Header({
           </View>
         )}
 
-        {/* Greeting */}
+        {/* Greeting — marginRight 120 (avatar + streak chip yan yana) */}
         <Text style={styles.greeting} numberOfLines={1}>
           {greeting}
         </Text>
@@ -146,7 +153,8 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 24,
       fontWeight: '700',
       letterSpacing: -0.4,
-      marginRight: 80,
+      marginRight: 120,
+      marginTop: 12,
     },
     subtitle: {
       color: colors.textOnGradientMuted,
