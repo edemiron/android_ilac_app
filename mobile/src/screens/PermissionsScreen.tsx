@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { withAlpha, ALPHA } from '../utils/colors'; // Sprint 103.3
 import {
   checkAllPermissions,
   requestNotificationPermissions,
@@ -135,7 +136,7 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
           {/* Bildirim İzni */}
           <View style={styles.permissionItem}>
             <View style={styles.permissionInfo}>
-              <View style={[styles.permissionIcon, { backgroundColor: permissions?.notifications ? '#10B98120' : '#EF444420' }]}>
+              <View style={[styles.permissionIcon, { backgroundColor: permissions?.notifications ? withAlpha('#10B981', ALPHA.fill) : withAlpha('#EF4444', ALPHA.fill) }]}>
                 <Ionicons 
                   name={permissions?.notifications ? "checkmark-circle" : "notifications-outline"} 
                   size={24} 
@@ -173,7 +174,7 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
           {Platform.OS === 'android' && (
             <View style={styles.permissionItem}>
               <View style={styles.permissionInfo}>
-                <View style={[styles.permissionIcon, { backgroundColor: permissions?.exactAlarm ? '#10B98120' : '#F59E0B20' }]}>
+                <View style={[styles.permissionIcon, { backgroundColor: permissions?.exactAlarm ? withAlpha('#10B981', ALPHA.fill) : withAlpha('#F59E0B', ALPHA.fill) }]}>
                   <Ionicons 
                     name={permissions?.exactAlarm ? "checkmark-circle" : "alarm-outline"} 
                     size={24} 
@@ -211,7 +212,7 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
           {Platform.OS === 'android' && Platform.Version >= 34 && (
             <View style={styles.permissionItem}>
               <View style={styles.permissionInfo}>
-                <View style={[styles.permissionIcon, { backgroundColor: permissions?.fullScreenIntent ? '#10B98120' : '#EF444420' }]}>
+                <View style={[styles.permissionIcon, { backgroundColor: permissions?.fullScreenIntent ? withAlpha('#10B981', ALPHA.fill) : withAlpha('#EF4444', ALPHA.fill) }]}>
                   <Ionicons
                     name={permissions?.fullScreenIntent ? "checkmark-circle" : "expand-outline"}
                     size={24}
@@ -249,7 +250,7 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
           {Platform.OS === 'android' && (
             <View style={styles.permissionItem}>
               <View style={styles.permissionInfo}>
-                <View style={[styles.permissionIcon, { backgroundColor: permissions?.batteryOptimization ? '#10B98120' : '#EF444420' }]}>
+                <View style={[styles.permissionIcon, { backgroundColor: permissions?.batteryOptimization ? withAlpha('#10B981', ALPHA.fill) : withAlpha('#EF4444', ALPHA.fill) }]}>
                   <Ionicons
                     name={permissions?.batteryOptimization ? "checkmark-circle" : "battery-charging-outline"}
                     size={24}
@@ -287,7 +288,7 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
           {Platform.OS === 'android' && permissions?.powerManagerRestricted && (
             <View style={styles.permissionItem}>
               <View style={styles.permissionInfo}>
-                <View style={[styles.permissionIcon, { backgroundColor: '#F59E0B20' }]}>
+                <View style={[styles.permissionIcon, { backgroundColor: withAlpha('#F59E0B', ALPHA.fill) }]}>
                   <Ionicons
                     name="phone-portrait-outline"
                     size={24}
@@ -321,7 +322,7 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
           {/* Bildirim Kanalı Ayarları */}
           <View style={styles.permissionItem}>
             <View style={styles.permissionInfo}>
-              <View style={[styles.permissionIcon, { backgroundColor: '#3B82F620' }]}>
+              <View style={[styles.permissionIcon, { backgroundColor: withAlpha('#3B82F6', ALPHA.fill) }]}>
                 <Ionicons name="settings-outline" size={24} color="#3B82F6" />
               </View>
               <View style={styles.permissionText}>
@@ -405,7 +406,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.primary + '20',
+    backgroundColor: withAlpha(colors.primary, ALPHA.fill),
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -472,7 +473,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 8,
   },
   optionalButton: {
-    backgroundColor: colors.primary + '20',
+    backgroundColor: withAlpha(colors.primary, ALPHA.fill),
   },
   permissionButtonText: {
     fontSize: 14,
@@ -482,7 +483,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.primary + '10',
+    backgroundColor: withAlpha(colors.primary, ALPHA.tint),
     padding: 16,
     borderRadius: 12,
     marginBottom: 24,

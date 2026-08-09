@@ -31,6 +31,7 @@ import {
   dismissAllPersistentNotifications,
 } from '../utils/persistentNotification';
 import { createScopedLogger } from '../utils/logger';
+import { withAlpha, ALPHA } from '../utils/colors'; // Sprint 103.3
 
 const log = createScopedLogger('HomeScreen');
 import { refreshWidget } from '../services/widgetService';
@@ -622,7 +623,7 @@ export default function HomeScreen() {
                       <View
                         style={[
                           styles.timeSlotProgress,
-                          { backgroundColor: slotDone ? '#10B98115' : colors.primary + '15' },
+                          { backgroundColor: slotDone ? withAlpha('#10B981', ALPHA.wash) : withAlpha(colors.primary, ALPHA.wash) },
                         ]}
                       >
                         <Text
@@ -707,7 +708,7 @@ export default function HomeScreen() {
                     <View
                       style={[
                         styles.expiryMedicineIcon,
-                        { backgroundColor: medicine.color + '20' },
+                        { backgroundColor: withAlpha(medicine.color, ALPHA.fill) },
                       ]}
                     >
                       <Ionicons name="medical" size={16} color={medicine.color} />

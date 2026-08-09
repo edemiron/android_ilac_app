@@ -23,6 +23,7 @@ import {
 } from '../services/pdfReportService';
 import { useAlert } from '../contexts/AlertContext';
 import { createScopedLogger } from '../utils/logger';
+import { withAlpha, ALPHA } from '../utils/colors'; // Sprint 103.3
 import { CircularProgress } from '../components/common/CircularProgress'; // Sprint 87A: Ana Sayfa hero pattern tutarlılığı
 
 // Sprint 6.1: StatisticsScreen.tsx (910 -> 849 satir) modularizasyonu.
@@ -344,7 +345,7 @@ export default function StatisticsScreen() {
               styles.periodButton,
               {
                 backgroundColor:
-                  selectedPeriod === 'weekly' ? colors.primary + '15' : 'transparent',
+                  selectedPeriod === 'weekly' ? withAlpha(colors.primary, ALPHA.wash) : 'transparent',
               },
               selectedPeriod === 'weekly' && { borderColor: colors.primary, borderWidth: 1 },
             ]}
@@ -372,7 +373,7 @@ export default function StatisticsScreen() {
               styles.periodButton,
               {
                 backgroundColor:
-                  selectedPeriod === 'monthly' ? colors.primary + '15' : 'transparent',
+                  selectedPeriod === 'monthly' ? withAlpha(colors.primary, ALPHA.wash) : 'transparent',
               },
               selectedPeriod === 'monthly' && { borderColor: colors.primary, borderWidth: 1 },
             ]}
@@ -407,7 +408,7 @@ export default function StatisticsScreen() {
       >
         <View style={styles.statGrid}>
           <View style={[styles.statTile, { backgroundColor: colors.surfaceContainerLow }]}>
-            <View style={[styles.statTileIcon, { backgroundColor: colors.success + '20' }]}>
+            <View style={[styles.statTileIcon, { backgroundColor: withAlpha(colors.success, ALPHA.fill) }]}>
               <Ionicons name="checkmark-circle" size={20} color={colors.success} />
             </View>
             <Text style={[styles.statTileValue, { color: colors.success }]}>
@@ -418,7 +419,7 @@ export default function StatisticsScreen() {
             </Text>
           </View>
           <View style={[styles.statTile, { backgroundColor: colors.surfaceContainerLow }]}>
-            <View style={[styles.statTileIcon, { backgroundColor: colors.warning + '20' }]}>
+            <View style={[styles.statTileIcon, { backgroundColor: withAlpha(colors.warning, ALPHA.fill) }]}>
               <Ionicons name="play-skip-forward" size={20} color={colors.warning} />
             </View>
             <Text style={[styles.statTileValue, { color: colors.warning }]}>
@@ -429,7 +430,7 @@ export default function StatisticsScreen() {
             </Text>
           </View>
           <View style={[styles.statTile, { backgroundColor: colors.surfaceContainerLow }]}>
-            <View style={[styles.statTileIcon, { backgroundColor: colors.error + '20' }]}>
+            <View style={[styles.statTileIcon, { backgroundColor: withAlpha(colors.error, ALPHA.fill) }]}>
               <Ionicons name="close-circle" size={20} color={colors.error} />
             </View>
             <Text style={[styles.statTileValue, { color: colors.error }]}>
@@ -440,7 +441,7 @@ export default function StatisticsScreen() {
             </Text>
           </View>
           <View style={[styles.statTile, { backgroundColor: colors.surfaceContainerLow }]}>
-            <View style={[styles.statTileIcon, { backgroundColor: colors.primary + '20' }]}>
+            <View style={[styles.statTileIcon, { backgroundColor: withAlpha(colors.primary, ALPHA.fill) }]}>
               <Ionicons name="medkit" size={20} color={colors.primary} />
             </View>
             <Text style={[styles.statTileValue, { color: colors.text }]}>{overallStats.total}</Text>
@@ -545,7 +546,7 @@ export default function StatisticsScreen() {
                       {displayValue}
                     </Text>
                   </View>
-                  <View style={[styles.distributionBarBg, { backgroundColor: item.color + '15' }]}>
+                  <View style={[styles.distributionBarBg, { backgroundColor: withAlpha(item.color, ALPHA.wash) }]}>
                     <View
                       style={[
                         styles.distributionBarFill,
@@ -587,7 +588,7 @@ export default function StatisticsScreen() {
               >
                 <View style={styles.historyInfo}>
                   {/* Sprint 88A: medkit ikonu + hafif renkli daire */}
-                  <View style={[styles.iconContainer, { backgroundColor: accentColor + '20' }]}>
+                  <View style={[styles.iconContainer, { backgroundColor: withAlpha(accentColor, ALPHA.fill) }]}>
                     <Ionicons name="medical" size={18} color={accentColor} />
                   </View>
                   <View style={styles.historyTextContainer}>
@@ -605,7 +606,7 @@ export default function StatisticsScreen() {
                       {/* Sprint 88A: sadece taken > 0 ise ✓ badge */}
                       {day.taken > 0 && (
                         <View
-                          style={[styles.historyBadge, { backgroundColor: colors.success + '20' }]}
+                          style={[styles.historyBadge, { backgroundColor: withAlpha(colors.success, ALPHA.fill) }]}
                         >
                           <Ionicons name="checkmark" size={11} color={colors.success} />
                           <Text style={[styles.historyBadgeText, { color: colors.success }]}>
@@ -615,7 +616,7 @@ export default function StatisticsScreen() {
                       )}
                       {(day.skipped > 0 || day.missed > 0) && (
                         <View
-                          style={[styles.historyBadge, { backgroundColor: colors.error + '20' }]}
+                          style={[styles.historyBadge, { backgroundColor: withAlpha(colors.error, ALPHA.fill) }]}
                         >
                           <Ionicons name="close" size={11} color={colors.error} />
                           <Text style={[styles.historyBadgeText, { color: colors.error }]}>
