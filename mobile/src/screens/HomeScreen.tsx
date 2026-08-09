@@ -45,6 +45,7 @@ import { Header } from './HomeScreen/components/Header';
 import { StatsGrid } from './HomeScreen/components/StatsGrid';
 import { SectionHeader } from './HomeScreen/components/SectionHeader';
 import { BulkActions } from './HomeScreen/components/BulkActions';
+import { DailyTipCard } from './HomeScreen/components/DailyTipCard';
 import { TrustBadge } from './HomeScreen/components/TrustBadge';
 import type { TodayReminder } from './HomeScreen/types';
 import { HomeScreenLayoutSwitcher } from '../components/layouts/HomeScreenLayoutSwitcher';
@@ -540,6 +541,9 @@ export default function HomeScreen() {
             />
           </View>
         )}
+
+        {/* Sprint 104.3: Karol-style "Günün İpucu" mint pastel kartı (Layout A). */}
+        <DailyTipCard />
 
         <InlineAdBanner />
 
