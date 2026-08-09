@@ -82,6 +82,26 @@ export const lightColors = {
   cardTaken: '#D1FAE5', // Emerald 100
   cardSkipped: '#FEE2E2', // Red 100
   cardPending: '#FFFFFF',
+
+  // MD3 Container tokens — Sprint 102.1 (Clinical Clarity)
+  warningContainer: '#FEF3C7', // Amber 100 — LowStockCard bg, snooze button
+  onWarningContainer: '#78350F', // Amber 900 — LowStockCard title, snooze text
+  successContainer: '#D1FAE5', // Emerald 100 — TimelineItem taken, StatsGrid taken cell
+  onSuccessContainer: '#064E3B', // Emerald 900 — taken text/icon
+  errorContainer: '#FFDAD6', // MD3 spec — CurrentDoseCard skip, ErrorState wrap
+  onErrorContainer: '#410002', // MD3 spec — skip text/icon
+
+  // MD3 Inverse + Fixed tokens — Sprint 102.1
+  inversePrimary: '#4FDBC8', // Mint 300 — snackbar (ileride)
+  primaryFixed: '#71F8E4', // Mint 200 — FAB shadow tint
+  inverseOnSurface: '#EEF0FF', // Light text on inverse surface
+  tertiaryContainer: '#99F6E4', // Mint 100 — accent container
+  onTertiaryContainer: '#0F766E', // Teal 700 — on accent container
+
+  // Gradient içi text/icon — Sprint 102.1 (Header, TrustBadge)
+  textOnGradient: '#FFFFFF', // Beyaz text on mint/teal hero gradient
+  textOnGradientMuted: 'rgba(255, 255, 255, 0.92)', // subtitle, progressLabel
+  gradientTrackTint: 'rgba(255, 255, 255, 0.25)', // streak chip, progress track
 };
 
 export const darkColors = {
@@ -158,6 +178,26 @@ export const darkColors = {
   cardTaken: '#1A3D2E', // Yeşil tonlu
   cardSkipped: '#3D1A2A', // Kırmızı tonlu
   cardPending: '#1A2035', // Surface Variant
+
+  // MD3 Container tokens — Sprint 102.1 (Clinical Clarity)
+  warningContainer: '#3B2A0A', // Deep amber (mevcut hardcoded ile uyumlu)
+  onWarningContainer: '#FCD34D', // Amber 300 — snooze text/icon
+  successContainer: '#1A3D2E', // Deep emerald (cardTaken ile uyumlu)
+  onSuccessContainer: '#6EE7B7', // Emerald 300 — taken text/icon
+  errorContainer: '#3D1A2A', // Deep rose (cardSkipped ile uyumlu)
+  onErrorContainer: '#FB7185', // Rose 400 — skip text/icon
+
+  // MD3 Inverse + Fixed tokens — Sprint 102.1
+  inversePrimary: '#14B8A6', // Mint 500 — dark mode inverse
+  primaryFixed: '#0D9488', // Teal 600 — dark mode FAB tint
+  inverseOnSurface: '#E9ECFF', // onSurface ile aynı
+  tertiaryContainer: '#134E4A', // Teal 900 — dark accent container
+  onTertiaryContainer: '#5EEAD4', // Teal 300 — on dark accent container
+
+  // Gradient içi text/icon — Sprint 102.1 (Header, TrustBadge)
+  textOnGradient: '#E9ECFF', // Light text on dark mint gradient
+  textOnGradientMuted: 'rgba(233, 236, 255, 0.88)',
+  gradientTrackTint: 'rgba(11, 13, 20, 0.25)',
 };
 
 export type ThemeColors = typeof lightColors;
