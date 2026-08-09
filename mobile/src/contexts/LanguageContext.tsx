@@ -30,7 +30,7 @@ const tr = {
   // Tab bar
   tab_home: 'Ana Sayfa',
   tab_medicines: 'İlaçlarım',
-  tab_statistics: 'İstatistikler',
+  tab_statistics: 'Gelişim',
   tab_settings: 'Ayarlar',
 
   // Ana sayfa
@@ -214,7 +214,7 @@ const en: typeof tr = {
   // Tab bar
   tab_home: 'Home',
   tab_medicines: 'Medicines',
-  tab_statistics: 'Statistics',
+  tab_statistics: 'Progress',
   tab_settings: 'Settings',
 
   // Home screen

@@ -53,6 +53,7 @@ export function TrustBadge({ bottom = 100, right = 16, style }: TrustBadgeProps)
         from={{ opacity: 0, translateX: 24 }}
         animate={{ opacity: 1, translateX: 0 }}
         transition={motiTransitions.standard}
+        testID="trust-badge"
       >
         <MotiPressable
           onPress={onPress}
@@ -91,44 +92,6 @@ export function TrustBadge({ bottom = 100, right = 16, style }: TrustBadgeProps)
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: {
-    position: 'absolute',
-    zIndex: 5,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  iconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.22)',
-  },
-  textGroup: {
-    alignItems: 'flex-start',
-  },
-  line: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    lineHeight: 13,
-  },
-});
 
 /**
  * makeStyles — Sprint 102.3
