@@ -42,6 +42,9 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
   } = getRelativeTimeText(reminder.reminderTime.time, language, reminder.log);
 
   // Sprint 80B: statusPill renk paleti — soluk secondary yerine primaryContainer
+  // Not: Sprint 102.2'de errorContainer token adoption'ı planlandı, ancak
+  // mevcut hardcoded tonlarla (#FEE2E2/#B91C1C) farklılık gösterdiği için
+  // (token: #FFDAD6/#410002) sıfır davranış değişimi için inline korundu.
   const statusBg = isNow
     ? colors.primaryContainer
     : isPast

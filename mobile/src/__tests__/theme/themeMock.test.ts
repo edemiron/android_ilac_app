@@ -9,7 +9,7 @@ import {
   createThemeMock,
   mockUseTheme,
 } from '../helpers/themeMock';
-import { lightColors, darkColors } from '../../contexts/ThemeContext';
+import { lightColors } from '../../contexts/ThemeContext';
 
 describe('themeMock factory', () => {
   describe('createThemeMock (light default)', () => {

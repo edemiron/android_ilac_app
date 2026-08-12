@@ -51,6 +51,51 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const previousUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // DEMO BYPASS: __DEV__ true ise ve AsyncStorage 'demo-bypass' flag'i set edildiyse sahte user ile devam et.
+    // Sprint 105'te kaldirilacak — sadece goruntu testi icin.
+    let cancelled = false;
+    (async () => {
+      try {
+        // AsyncStorage disaridan flag yazmak zor oldugundan, debug buildlerde __DEV__ zaten true.
+        // Bu nedenle __DEV__ kosulu yeterli: debug build = demo bypass ON.
+        const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const flag = await AsyncStorage.getItem('demo-bypass');
+        if (cancelled) return;
+        if (isDev || flag === '1') {
+          const demoUser = {
+            uid: 'demo-user-local',
+            email: 'demo@ilachatirlatici.local',
+            displayName: 'Demo Kullanici',
+            photoURL: null,
+            emailVerified: true,
+            isAnonymous: false,
+            providerData: [],
+            metadata: { creationTime: undefined, lastSignInTime: undefined },
+            phoneNumber: null,
+            refreshToken: '',
+            providerId: 'firebase',
+            tenantId: null,
+          } as unknown as AuthUser;
+          log.debug('DEMO BYPASS aktif — sahte user yukleniyor');
+          useMedicineStore.getState().setUserId(demoUser.uid);
+          setUser(demoUser);
+          previousUserIdRef.current = demoUser.uid;
+          setIsLoading(false);
+          return;
+        }
+      } catch (e) {
+        log.error('Demo bypass kontrol hatasi', e);
+      }
+    })();
+
+    // Bypass aktifse Firebase Auth listener kurma (callback setUser(null) ile override eder)
+    const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+    if (isDev) {
+      log.debug('Demo bypass — Firebase Auth listener atlandi');
+      return () => { cancelled = true; };
+    }
+
     // Auth durumu değişikliklerini dinle
     const unsubscribe = subscribeToAuthChanges(authUser => {
       const newUserId = authUser?.uid || null;

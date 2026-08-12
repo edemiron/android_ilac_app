@@ -45,8 +45,6 @@ import { Header } from './HomeScreen/components/Header';
 import { StatsGrid } from './HomeScreen/components/StatsGrid';
 import { SectionHeader } from './HomeScreen/components/SectionHeader';
 import { BulkActions } from './HomeScreen/components/BulkActions';
-import { DailyTipCard } from './HomeScreen/components/DailyTipCard';
-import { UpcomingDoses } from './HomeScreen/components/UpcomingDoses';
 import { TrustBadge } from './HomeScreen/components/TrustBadge';
 import type { TodayReminder } from './HomeScreen/types';
 import { HomeScreenLayoutSwitcher } from '../components/layouts/HomeScreenLayoutSwitcher';
@@ -545,11 +543,8 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Sprint 104.4: Karol-style "YAKLASAN DOZLAR" vertical mini list (gelecek 60dk, max 3). */}
-        <UpcomingDoses todayReminders={todayReminders} />
-
-        {/* Sprint 104.3: Karol-style "Günün İpucu" mint pastel kartı (Layout A). */}
-        <DailyTipCard />
+        {/* Sprint 104.4 + 104.3 kaldırıldı (Sprint 105): YAKLASAN DOZLAR + Günün İpucu
+            "sade ve anlaşılır" hedefi için DailyTipCard + UpcomingDoses kaldırıldı. */}
 
         <InlineAdBanner />
 
