@@ -21,6 +21,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SettingsSection } from './SettingsSection';
+import { Pill } from '../common/Pill';
 import { useTheme, type ThemeColors } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -87,17 +88,7 @@ const createStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       color: colors.error,
     },
-    statusBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      borderRadius: 8,
-      marginRight: 8,
-    },
-    statusBadgeText: {
-      fontSize: 10,
-      fontWeight: '700',
-      textTransform: 'uppercase',
-    },
+    // Sprint 106.6: statusBadge Pill'e migrate — style kaldırıldı
     inviteForm: {
       paddingHorizontal: 16,
       paddingTop: 12,
@@ -310,11 +301,12 @@ export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInvite
             </View>
             <View style={styles.info}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.statusBadge, { backgroundColor: colors.warning + '20' }]}>
-                  <Text style={[styles.statusBadgeText, { color: colors.warning }]}>
-                    {tr ? 'Bekliyor' : 'Pending'}
-                  </Text>
-                </View>
+                <Pill
+                  label={tr ? 'Bekliyor' : 'Pending'}
+                  variant="warning"
+                  size="xs"
+                  style={{ marginRight: 8 }}
+                />
                 <Text style={[styles.name, { flex: 1 }]} numberOfLines={1}>
                   {invite.caregiverEmail}
                 </Text>

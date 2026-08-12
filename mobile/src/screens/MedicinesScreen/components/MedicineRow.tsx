@@ -18,6 +18,7 @@ import { format, parseISO } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
 import { ThemeColors } from '../../../contexts/ThemeContext';
 import { TranslationKey } from '../../../contexts/LanguageContext';
+import { Pill } from '../../../components/common/Pill';
 import { Medicine } from '../../../types';
 import { formatTimeDisplay, getInstructionText } from '../../../utils/timeCalculator';
 import {
@@ -242,11 +243,12 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
               {medicine.name}
             </Text>
             {!medicine.isActive && (
-              <View style={[styles.pausedBadge, { backgroundColor: colors.warning + '20' }]}>
-                <Text style={[styles.pausedText, { color: colors.warning }]}>
-                  {language === 'tr' ? 'Duraklatıldı' : 'Paused'}
-                </Text>
-              </View>
+              <Pill
+                label={language === 'tr' ? 'Duraklatıldı' : 'Paused'}
+                variant="warning"
+                size="xs"
+                style={{ marginRight: 6 }}
+              />
             )}
             {renderExpiryBadge()}
             {renderStockBadge()}
@@ -366,16 +368,7 @@ const styles = StyleSheet.create({
   medicineDetails: {
     fontSize: 12,
   },
-  pausedBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginRight: 6,
-  },
-  pausedText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
+  // Sprint 106.6: pausedBadge Pill'e migrate — style kaldırıldı
   expiryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
