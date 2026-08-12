@@ -3,9 +3,9 @@ import { Switch, LayoutAnimation, View, Text } from 'react-native';
 import { SettingsSection } from './SettingsSection';
 import { SettingRow } from './SettingRow';
 import { OptionPicker } from './OptionPicker';
+import { Pill } from '../common/Pill';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { withAlpha, ALPHA } from '../../utils/colors'; // Sprint 103.4
 import { Settings } from './types';
 
 interface NotificationSectionProps {
@@ -135,31 +135,15 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
   };
 
   // Sprint 83: Visible ON/OFF badge so state reads at a glance.
+  // Sprint 106.3: Pill shared component migration.
   const renderStateBadge = (enabled: boolean) => (
-    <View
-      style={{
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 10,
-        backgroundColor: enabled
-          ? withAlpha('#10B981', ALPHA.veil)
-          : withAlpha('#9CA3AF', ALPHA.veilStrong),
-        marginRight: 8,
-      }}
-      accessibilityElementsHidden
-      importantForAccessibility="no"
-    >
-      <Text
-        style={{
-          fontSize: 11,
-          fontWeight: '700',
-          color: enabled ? '#10B981' : '#6B7280',
-          letterSpacing: 0.3,
-        }}
-      >
-        {enabled ? (language === 'tr' ? 'AÇIK' : 'ON') : language === 'tr' ? 'KAPALI' : 'OFF'}
-      </Text>
-    </View>
+    <Pill
+      label={enabled ? (language === 'tr' ? 'AÇIK' : 'ON') : language === 'tr' ? 'KAPALI' : 'OFF'}
+      variant={enabled ? 'success' : 'muted'}
+      size="sm"
+      style={{ marginRight: 8 }}
+      accessibilityElementsHidden // decorative — Switch already announces state
+    />
   );
 
   return (
