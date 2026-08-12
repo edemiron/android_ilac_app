@@ -7,11 +7,12 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { formatTimeDisplay } from '../../../utils/timeCalculator';
 import { ThemeColors } from '../../../contexts/ThemeContext';
 import { radius } from '../../../theme/tokens';
+import { ModalSheet } from '../../../components/common/ModalSheet';
 import { SOFT_RED, SNOOZE_OPTIONS, type TodayReminder } from '../types';
 import { getRelativeTimeText } from '../helpers';
 import { MedicineAvatar } from './MedicineAvatar';
@@ -192,40 +193,28 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
         </View>
       </View>
 
-      <Modal
+      <ModalSheet
         visible={showSnoozeOptions}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSnoozeOptions(false)}
+        title={language === 'tr' ? 'Ne kadar erteleyelim?' : 'Snooze for how long?'}
+        onClose={() => setShowSnoozeOptions(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSnoozeOptions(false)}
-        >
-          <View style={[styles.snoozeModal, { backgroundColor: colors.card }]}>
-            <Text style={[styles.snoozeModalTitle, { color: colors.text }]}>
-              {language === 'tr' ? 'Ne kadar erteleyelim?' : 'Snooze for how long?'}
-            </Text>
-            <View style={styles.snoozeOptionsGrid}>
-              {SNOOZE_OPTIONS.map(minutes => (
-                <TouchableOpacity
-                  key={minutes}
-                  style={[styles.snoozeOption, { backgroundColor: colors.background }]}
-                  onPress={() => {
-                    setShowSnoozeOptions(false);
-                    onSnooze(minutes);
-                  }}
-                >
-                  <Text style={[styles.snoozeOptionText, { color: colors.primary }]}>
-                    {minutes} {language === 'tr' ? 'dk' : 'min'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+        <View style={styles.snoozeOptionsGrid}>
+          {SNOOZE_OPTIONS.map(minutes => (
+            <TouchableOpacity
+              key={minutes}
+              style={[styles.snoozeOption, { backgroundColor: colors.background }]}
+              onPress={() => {
+                setShowSnoozeOptions(false);
+                onSnooze(minutes);
+              }}
+            >
+              <Text style={[styles.snoozeOptionText, { color: colors.primary }]}>
+                {minutes} {language === 'tr' ? 'dk' : 'min'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ModalSheet>
     </>
   );
 };
@@ -314,24 +303,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 13,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Static — modal scrim Android standard
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  snoozeModal: {
-    borderRadius: radius.lg,
-    padding: 20,
-    width: '80%',
-    maxWidth: 320,
-  },
-  snoozeModalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
+  // Sprint 106.4: ModalSheet shared component (overlay/title/sheet layout centralized).
   snoozeOptionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
