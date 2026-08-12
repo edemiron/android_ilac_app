@@ -129,13 +129,19 @@ export const createSettingsStyles = (colors: ThemeColors, isDark: boolean) =>
     premiumCard: {
       marginTop: 16,
       marginHorizontal: 16,
-      borderRadius: 16,
-      padding: 14,
+      borderRadius: 14, // Sprint 106.5 — radius.lg (Life360 continuous)
+      padding: 0, // Sprint 106.5 — LinearGradient sarmal, padding gradient içinde
+      overflow: 'hidden',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 12,
-      elevation: 6,
+      shadowOpacity: 0.08, // Sprint 106.5 — Life360 subtle elevation (was 0.2)
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    premiumCardGradient: {
+      // Sprint 106.5: gradient fills entire card with padding
+      borderRadius: 14,
+      padding: 14,
     },
     premiumCardContent: {
       flexDirection: 'row',
