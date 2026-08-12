@@ -179,15 +179,15 @@ const styles = StyleSheet.create({
     flexBasis: '47%',
     flexGrow: 1,
     borderRadius: 16,
-    padding: 14,
+    padding: 10,
     borderWidth: 1,
   },
   cellInner: {
     alignItems: 'flex-start',
-    gap: 6,
+    gap: 4,
   },
   value: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     letterSpacing: -0.5,
     marginTop: 2,

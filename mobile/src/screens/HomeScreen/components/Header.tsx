@@ -121,9 +121,9 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     heroCard: {
       marginHorizontal: 16,
-      marginTop: 8,
+      marginTop: 6,
       borderRadius: 20,
-      padding: 20,
+      padding: 16,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.12,
@@ -150,11 +150,11 @@ const makeStyles = (colors: ThemeColors) =>
     },
     greeting: {
       color: colors.textOnGradient,
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: '700',
       letterSpacing: -0.4,
-      marginRight: 120,
-      marginTop: 12,
+      marginRight: 80,
+      marginTop: 10,
     },
     subtitle: {
       color: colors.textOnGradientMuted,
