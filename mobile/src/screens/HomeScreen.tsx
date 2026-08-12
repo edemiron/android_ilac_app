@@ -44,7 +44,6 @@ import { TimelineItem } from './HomeScreen/components/TimelineItem';
 import { Header } from './HomeScreen/components/Header';
 import { StatsGrid } from './HomeScreen/components/StatsGrid';
 import { SectionHeader } from './HomeScreen/components/SectionHeader';
-import { TrustBadge } from './HomeScreen/components/TrustBadge';
 import type { TodayReminder } from './HomeScreen/types';
 import { HomeScreenLayoutSwitcher } from '../components/layouts/HomeScreenLayoutSwitcher';
 
@@ -753,9 +752,6 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
-
-      {/* Sprint 98: Karol-inspired floating trust badge — sağ alt köşede */}
-      <TrustBadge bottom={100} right={16} />
     </SafeAreaView>
   );
 }

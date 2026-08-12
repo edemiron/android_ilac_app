@@ -28,7 +28,6 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { CurrentDoseCard } from '../../screens/HomeScreen/components/CurrentDoseCard';
 import { TimelineItem } from '../../screens/HomeScreen/components/TimelineItem';
-import { TrustBadge } from '../../screens/HomeScreen/components/TrustBadge';
 import { CircularProgress } from '../common/CircularProgress';
 import type { TodayReminder } from '../../screens/HomeScreen/types';
 
@@ -201,9 +200,6 @@ export function HomeScreenLayoutA({
           ))}
         </View>
       )}
-
-      {/* Sprint 104.1: Karol-style floating trust badge (sağ alt köşe). */}
-      <TrustBadge bottom={100} right={16} />
     </ScrollView>
   );
 }

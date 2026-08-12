@@ -273,17 +273,5 @@ describe('HomeScreenLayoutB', () => {
     expect(getByText('25% uyum')).toBeTruthy();
   });
 
-  // Sprint 104.1: Karol-style floating trust badge her iki layout'ta da görünür
-  it('renders TrustBadge (ANLIK · SESSİZ · GÜVENLİ) sağ alt köşede', () => {
-    const { UNSAFE_root } = render(<HomeScreenLayoutB {...baseProps} />);
-    const trustBadges = UNSAFE_root.findAllByProps({ testID: 'trust-badge' });
-    expect(trustBadges.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('TrustBadge tüm üç trust mesajını render eder', () => {
-    const { getByText } = render(<HomeScreenLayoutB {...baseProps} />);
-    expect(getByText('ANLIK')).toBeTruthy();
-    expect(getByText('SESSİZ')).toBeTruthy();
-    expect(getByText('GÜVENLİ')).toBeTruthy();
-  });
+  // Sprint 104.1: TrustBadge 105.3'te kaldirildi (sade+anlasilir hedefi)
 });

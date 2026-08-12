@@ -152,24 +152,5 @@ describe('HomeScreenLayoutA', () => {
     expect(UNSAFE_root.findAllByProps({ children: expect.stringMatching(/5/) }).length).toBeGreaterThanOrEqual(0);
   });
 
-  // Sprint 104.1: Karol-style TrustBadge LayoutA render
-  it('renders TrustBadge (ANLIK · SESSİZ · GÜVENLİ) sag alt kose', () => {
-    const { UNSAFE_root } = render(<HomeScreenLayoutA reminders={[fakeReminder]} />);
-    const trustBadges = UNSAFE_root.findAllByProps({ testID: 'trust-badge' });
-    expect(trustBadges.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('renders all three trust messages', () => {
-    const { getByText } = render(<HomeScreenLayoutA reminders={[fakeReminder]} />);
-    expect(getByText('ANLIK')).toBeTruthy();
-    expect(getByText('SESSİZ')).toBeTruthy();
-    expect(getByText('GÜVENLİ')).toBeTruthy();
-  });
-
-  it('does NOT render TrustBadge in empty state branch (no reminders)', () => {
-    // Empty state farkli return — TrustBadge SADECE ana render path'inde olmali.
-    const { UNSAFE_root } = render(<HomeScreenLayoutA />);
-    const trustBadges = UNSAFE_root.findAllByProps({ testID: 'trust-badge' });
-    expect(trustBadges).toHaveLength(0);
-  });
+  // Sprint 104.1: TrustBadge 105.3'te kaldirildi (sade+anlasilir hedefi)
 });

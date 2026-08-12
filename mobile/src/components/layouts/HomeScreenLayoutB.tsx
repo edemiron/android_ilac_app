@@ -26,7 +26,6 @@ import { TimelineItem } from '../../screens/HomeScreen/components/TimelineItem';
 import { Header } from '../../screens/HomeScreen/components/Header';
 import { StatsGrid } from '../../screens/HomeScreen/components/StatsGrid';
 import { SectionHeader } from '../../screens/HomeScreen/components/SectionHeader';
-import { TrustBadge } from '../../screens/HomeScreen/components/TrustBadge';
 import {
   InlineAdBanner,
   LowStockCard,
@@ -212,9 +211,6 @@ export function HomeScreenLayoutB({
           <InlineAdBanner />
         </View>
       )}
-
-      {/* Sprint 104.1: Karol-style floating trust badge (sağ alt köşe). */}
-      <TrustBadge bottom={100} right={16} />
     </ScrollView>
   );
 }
