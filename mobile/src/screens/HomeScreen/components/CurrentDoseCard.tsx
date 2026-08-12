@@ -11,6 +11,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { formatTimeDisplay } from '../../../utils/timeCalculator';
 import { ThemeColors } from '../../../contexts/ThemeContext';
+import { radius } from '../../../theme/tokens';
 import { SOFT_RED, SNOOZE_OPTIONS, type TodayReminder } from '../types';
 import { getRelativeTimeText } from '../helpers';
 import { MedicineAvatar } from './MedicineAvatar';
@@ -231,7 +232,7 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
 
 const styles = StyleSheet.create({
   currentDoseCard: {
-    borderRadius: 16,
+    borderRadius: radius.lg,
     padding: 16,
     marginHorizontal: 16,
     marginTop: 16,
@@ -320,7 +321,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   snoozeModal: {
-    borderRadius: 16,
+    borderRadius: radius.lg,
     padding: 20,
     width: '80%',
     maxWidth: 320,

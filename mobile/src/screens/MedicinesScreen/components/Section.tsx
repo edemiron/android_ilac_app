@@ -8,6 +8,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ThemeColors } from '../../../contexts/ThemeContext';
+import { radius } from '../../../theme/tokens';
 
 interface SectionProps {
   icon: string;
@@ -48,7 +49,7 @@ export const Section: React.FC<SectionProps> = ({
 
 const styles = StyleSheet.create({
   section: {
-    borderRadius: 16,
+    borderRadius: radius.lg,
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 6,

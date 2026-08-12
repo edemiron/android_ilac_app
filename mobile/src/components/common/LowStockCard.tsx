@@ -10,6 +10,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { radius } from '../../theme/tokens';
 import type { Medicine } from '../../types';
 
 export interface LowStockMedicine {
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginTop: 12,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     padding: 16,
     position: 'relative',
   },
