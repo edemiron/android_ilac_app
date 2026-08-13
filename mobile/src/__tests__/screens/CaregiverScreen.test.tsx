@@ -29,6 +29,9 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('react-native-vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('react-native-qrcode-svg', () => 'QRCode');
+jest.mock('../../components/common/ModalSheet', () => ({
+  ModalSheet: 'ModalSheet',
+}));
 
 jest.mock('../../hooks/useCaregiver', () => ({
   useCaregiver: () => ({

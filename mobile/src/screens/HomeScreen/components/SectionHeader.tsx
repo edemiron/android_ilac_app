@@ -1,7 +1,9 @@
 /**
- * SectionHeader.tsx — Sprint 98 Karol-inspired redesign.
+ * SectionHeader.tsx — Sprint 107.2 ListSection migration.
  *
  * Karol tasarımındaki section başlığı + sağda "Tümü >" link pattern'i.
+ * Sprint 107.2: ListSection primitive'i (variant=home) kullanır.
+ *
  * 3 section'da kullanılır:
  *   - "Özet Bilgiler" (no see-all)
  *   - "Bugünün Dozları" → MedicinesScreen
@@ -9,12 +11,11 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { MotiView } from 'moti';
+import { Text, StyleSheet } from 'react-native';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { ListSection } from '../../../components/common/ListSection';
 import { MotiPressable } from '../../../components/common/MotiPressable';
-import { motiTransitions } from '../../../theme/moti-config';
 
 export interface SectionHeaderProps {
   /** Section başlığı (büyük harf zaten style'da). */
@@ -35,58 +36,35 @@ export function SectionHeader({
 }: SectionHeaderProps) {
   const { language } = useLanguage();
   const { colors } = useTheme();
-  const showSeeAll = !!onSeeAll;
   const linkText = seeAllLabel ?? (language === 'tr' ? 'Tümü' : 'See all');
 
-  return (
-    // Sprint 100: section header mount fade-in (quick, hizli gecis)
-    <MotiView
-      from={{ opacity: 0, translateX: -8 }}
-      animate={{ opacity: 1, translateX: 0 }}
-      transition={motiTransitions.quick}
-      style={styles.container}
+  const trailing = onSeeAll ? (
+    <MotiPressable
+      onPress={onSeeAll}
+      accessibilityRole="link"
+      accessibilityLabel={`${title} ${linkText}`}
+      hitSlop={8}
+      onPressHaptic="selection"
     >
-      <View style={styles.leftGroup}>
-        {icon !== undefined && <Text style={styles.icon}>{icon}</Text>}
-        <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
-      </View>
-      {showSeeAll && (
-        <MotiPressable
-          onPress={onSeeAll}
-          accessibilityRole="link"
-          accessibilityLabel={`${title} ${linkText}`}
-          hitSlop={8}
-          onPressHaptic="selection"
-        >
-          <Text style={[styles.seeAll, { color: colors.primary }]}>
-            {linkText} ›
-          </Text>
-        </MotiPressable>
-      )}
-    </MotiView>
+      <Text style={[styles.seeAll, { color: colors.primary }]}>{linkText} ›</Text>
+    </MotiPressable>
+  ) : undefined;
+
+  return (
+    <ListSection
+      variant="home"
+      icon={icon ? <Text style={styles.icon}>{icon}</Text> : undefined}
+      title={title}
+      trailing={trailing}
+    >
+      <></>
+    </ListSection>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  leftGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   icon: {
     fontSize: 14,
-  },
-  title: {
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   seeAll: {
     fontSize: 13,

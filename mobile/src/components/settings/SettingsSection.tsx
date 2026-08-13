@@ -1,8 +1,7 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { Text } from 'react-native';
 import { SettingsSectionProps } from './types';
-import { useTheme } from '../../contexts/ThemeContext';
-import { createSettingsStyles } from './styles';
+import { ListSection } from '../common/ListSection';
 
 // Icon name to emoji map for section headers
 const SECTION_ICONS: Record<string, string> = {
@@ -16,6 +15,12 @@ const SECTION_ICONS: Record<string, string> = {
   'moon-outline': '🌙',
 };
 
+/**
+ * SettingsSection — Sprint 107.2 ListSection migration.
+ *
+ * Settings ekranı section wrapper. ListSection primitive'i (variant=settings)
+ * kullanır — iOS grouped list pattern.
+ */
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
   icon,
   title,
@@ -23,19 +28,17 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   children,
   borderStyle,
 }) => {
-  const { colors, isDark } = useTheme();
-  const styles = createSettingsStyles(colors, isDark);
-
   const iconEmoji = SECTION_ICONS[icon] || '•';
 
   return (
-    <View style={[styles.section, borderStyle]}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionIcon}>{iconEmoji}</Text>
-        <Text style={styles.sectionTitle}>{title}</Text>
-      </View>
-      {description && <Text style={styles.sectionDescription}>{description}</Text>}
+    <ListSection
+      variant="settings"
+      icon={<Text>{iconEmoji}</Text>}
+      title={title}
+      subtitle={description}
+      style={borderStyle}
+    >
       {children}
-    </View>
+    </ListSection>
   );
 };

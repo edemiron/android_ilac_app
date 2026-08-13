@@ -14,7 +14,6 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -24,6 +23,7 @@ import { useCaregiver } from '../hooks/useCaregiver';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme, type ThemeColors } from '../contexts/ThemeContext';
 import { useAlert } from '../contexts/AlertContext';
+import { ModalSheet } from '../components/common/ModalSheet';
 
 const createStyles = (colors: ThemeColors, _isDark: boolean) =>
   StyleSheet.create({
@@ -516,32 +516,33 @@ export default function CaregiverScreen() {
         </View>
       </ScrollView>
 
-      {/* QR Code Modal */}
-      <Modal visible={showQRModal} transparent animationType="fade">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            {currentInviteCode && (
-              <>
-                <QRCode
-                  value={qrCodeData || currentInviteCode}
-                  size={200}
-                  color={colors.text}
-                  backgroundColor="transparent"
-                />
-                <Text style={styles.inviteCodeText}>{currentInviteCode}</Text>
-                <Text style={styles.qrSubtitle}>{t.qrSubtitle}</Text>
-                <TouchableOpacity style={styles.shareButton} onPress={handleShareInvite}>
-                  <Ionicons name="share-outline" size={20} color={colors.textOnPrimary} />
-                  <Text style={styles.shareButtonText}>{t.shareInvite}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.closeButton} onPress={hideQRCode}>
-                  <Text style={styles.closeButtonText}>{t.close}</Text>
-                </TouchableOpacity>
-              </>
-            )}
+      {/* Sprint 107.2: QR Code Modal — ModalSheet primitive */}
+      <ModalSheet
+        visible={showQRModal}
+        onClose={hideQRCode}
+        showCloseButton
+        actions={
+          currentInviteCode ? (
+            <TouchableOpacity style={styles.shareButton} onPress={handleShareInvite}>
+              <Ionicons name="share-outline" size={20} color={colors.textOnPrimary} />
+              <Text style={styles.shareButtonText}>{t.shareInvite}</Text>
+            </TouchableOpacity>
+          ) : null
+        }
+      >
+        {currentInviteCode && (
+          <View style={{ alignItems: 'center' }}>
+            <QRCode
+              value={qrCodeData || currentInviteCode}
+              size={200}
+              color={colors.text}
+              backgroundColor="transparent"
+            />
+            <Text style={styles.inviteCodeText}>{currentInviteCode}</Text>
+            <Text style={styles.qrSubtitle}>{t.qrSubtitle}</Text>
           </View>
-        </View>
-      </Modal>
+        )}
+      </ModalSheet>
     </SafeAreaView>
   );
 }

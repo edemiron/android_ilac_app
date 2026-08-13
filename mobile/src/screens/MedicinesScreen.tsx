@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Modal,
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +18,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { useAlert } from '../contexts/AlertContext';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { ActionSheetMenu, type ActionSheetMenuAction } from '../components/common/ActionSheetMenu';
 
 // Sprint 5.1: MedicinesScreen.tsx (1317 -> 989 satir) modularizasyonu.
 // Component'ler ve helpers screens/MedicinesScreen/* altinda.
@@ -509,205 +510,96 @@ export default function MedicinesScreen() {
         </View>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <Modal
+      {/* Sprint 107.2: Toplu silme onayı — ConfirmDialog primitive */}
+      <ConfirmDialog
         visible={deleteModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={cancelDelete}
+        title={language === 'tr' ? 'Toplu Silme' : 'Bulk Delete'}
+        message={
+          language === 'tr'
+            ? `${selectedIds.size} ilacı silmek istediğinize emin misiniz?`
+            : `Are you sure you want to delete ${selectedIds.size} medicine(s)?`
+        }
+        confirmLabel={language === 'tr' ? 'Sil' : 'Delete'}
+        cancelLabel={t('cancel')}
+        destructive
+        onConfirm={confirmDeleteSelected}
+        onClose={cancelDelete}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <View style={[styles.modalIconContainer, { backgroundColor: colors.error + '20' }]}>
-                <Ionicons name="trash" size={28} color={colors.error} />
-              </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {language === 'tr' ? 'Toplu Silme' : 'Bulk Delete'}
-              </Text>
-            </View>
-
-            <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
+        <View style={styles.modalMedicineList}>
+          {Array.from(selectedIds)
+            .slice(0, 3)
+            .map(id => {
+              const medicine = medicines.find(m => m.id === id);
+              if (!medicine) return null;
+              return (
+                <View key={id} style={styles.modalMedicineItem}>
+                  <View
+                    style={[
+                      styles.modalMedicineIcon,
+                      { backgroundColor: medicine.color + '20' },
+                    ]}
+                  >
+                    <Ionicons name="medical" size={16} color={medicine.color} />
+                  </View>
+                  <Text
+                    style={[styles.modalMedicineName, { color: colors.text }]}
+                    numberOfLines={1}
+                  >
+                    {medicine.name}
+                  </Text>
+                </View>
+              );
+            })}
+          {selectedIds.size > 3 && (
+            <Text style={[styles.modalMoreText, { color: colors.textMuted }]}>
               {language === 'tr'
-                ? `${selectedIds.size} ilacı silmek istediğinize emin misiniz?`
-                : `Are you sure you want to delete ${selectedIds.size} medicine(s)?`}
+                ? `+${selectedIds.size - 3} ilaç daha`
+                : `+${selectedIds.size - 3} more`}
             </Text>
-
-            <View style={styles.modalMedicineList}>
-              {Array.from(selectedIds)
-                .slice(0, 3)
-                .map(id => {
-                  const medicine = medicines.find(m => m.id === id);
-                  if (!medicine) return null;
-                  return (
-                    <View key={id} style={styles.modalMedicineItem}>
-                      <View
-                        style={[
-                          styles.modalMedicineIcon,
-                          { backgroundColor: medicine.color + '20' },
-                        ]}
-                      >
-                        <Ionicons name="medical" size={16} color={medicine.color} />
-                      </View>
-                      <Text
-                        style={[styles.modalMedicineName, { color: colors.text }]}
-                        numberOfLines={1}
-                      >
-                        {medicine.name}
-                      </Text>
-                    </View>
-                  );
-                })}
-              {selectedIds.size > 3 && (
-                <Text style={[styles.modalMoreText, { color: colors.textMuted }]}>
-                  {language === 'tr'
-                    ? `+${selectedIds.size - 3} ilaç daha`
-                    : `+${selectedIds.size - 3} more`}
-                </Text>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: colors.error }]}
-              onPress={confirmDeleteSelected}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.modalButtonText}>{language === 'tr' ? 'Sil' : 'Delete'}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.modalCancelButton, { borderColor: colors.border }]}
-              onPress={cancelDelete}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>
-                {t('cancel')}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          )}
         </View>
-      </Modal>
+      </ConfirmDialog>
 
-      {/* Action Menu Modal (Single Medicine) */}
-      <Modal
+      {/* Sprint 107.2: Action Menu — ActionSheetMenu primitive */}
+      <ActionSheetMenu
         visible={actionMenuVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={closeActionMenu}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <View
-                style={[
-                  styles.modalIconContainer,
-                  { backgroundColor: (actionMenuMedicine?.color || colors.primary) + '20' },
-                ]}
-              >
-                <Ionicons
-                  name="medical"
-                  size={24}
-                  color={actionMenuMedicine?.color || colors.primary}
-                />
-              </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={2}>
-                {actionMenuMedicine?.name}
-              </Text>
-            </View>
+        title={actionMenuMedicine?.name}
+        actions={[
+          {
+            key: 'toggle',
+            label: actionMenuMedicine?.isActive
+              ? language === 'tr' ? 'Durakla' : 'Pause'
+              : language === 'tr' ? 'Devam Et' : 'Resume',
+            icon: actionMenuMedicine?.isActive ? 'pause-circle' : 'play-circle',
+            onPress: handleActionMenuToggle,
+          },
+          {
+            key: 'delete',
+            label: language === 'tr' ? 'Sil' : 'Delete',
+            icon: 'trash',
+            destructive: true,
+            onPress: handleActionMenuDelete,
+          },
+        ] satisfies ActionSheetMenuAction[]}
+        cancelLabel={t('cancel')}
+        onClose={closeActionMenu}
+      />
 
-            <View style={styles.actionMenuButtons}>
-              <TouchableOpacity
-                style={[styles.actionMenuButton, { backgroundColor: colors.primary + '15' }]}
-                onPress={handleActionMenuToggle}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={actionMenuMedicine?.isActive ? 'pause-circle' : 'play-circle'}
-                  size={22}
-                  color={colors.primary}
-                />
-                <Text style={[styles.actionMenuButtonText, { color: colors.primary }]}>
-                  {actionMenuMedicine?.isActive
-                    ? language === 'tr'
-                      ? 'Durakla'
-                      : 'Pause'
-                    : language === 'tr'
-                      ? 'Devam Et'
-                      : 'Resume'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionMenuButton, { backgroundColor: colors.error + '15' }]}
-                onPress={handleActionMenuDelete}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="trash" size={22} color={colors.error} />
-                <Text style={[styles.actionMenuButtonText, { color: colors.error }]}>
-                  {language === 'tr' ? 'Sil' : 'Delete'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.modalCancelButton, { borderColor: colors.border }]}
-              onPress={closeActionMenu}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>
-                {t('cancel')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Single Delete Confirmation Modal */}
-      <Modal
+      {/* Sprint 107.2: Tek ilaç silme onayı — ConfirmDialog primitive */}
+      <ConfirmDialog
         visible={singleDeleteVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={cancelSingleDelete}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <View style={[styles.modalIconContainer, { backgroundColor: colors.error + '20' }]}>
-                <Ionicons name="trash" size={28} color={colors.error} />
-              </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {language === 'tr' ? 'İlacı Sil' : 'Delete Medicine'}
-              </Text>
-            </View>
-
-            <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
-              {language === 'tr'
-                ? `"${actionMenuMedicine?.name}" ilacını silmek istediğinize emin misiniz?`
-                : `Are you sure you want to delete "${actionMenuMedicine?.name}"?`}
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: colors.error }]}
-              onPress={confirmSingleDelete}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.modalButtonText}>{language === 'tr' ? 'Sil' : 'Delete'}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.modalCancelButton, { borderColor: colors.border }]}
-              onPress={cancelSingleDelete}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>
-                {t('cancel')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        title={language === 'tr' ? 'İlacı Sil' : 'Delete Medicine'}
+        message={
+          language === 'tr'
+            ? `"${actionMenuMedicine?.name}" ilacını silmek istediğinize emin misiniz?`
+            : `Are you sure you want to delete "${actionMenuMedicine?.name}"?`
+        }
+        confirmLabel={language === 'tr' ? 'Sil' : 'Delete'}
+        cancelLabel={t('cancel')}
+        destructive
+        onConfirm={confirmSingleDelete}
+        onClose={cancelSingleDelete}
+      />
     </SafeAreaView>
   );
 }

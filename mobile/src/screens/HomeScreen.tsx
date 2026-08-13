@@ -6,13 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Modal,
   AppState,
   AppStateStatus,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
@@ -673,85 +673,71 @@ export default function HomeScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Son Kullanma Tarihi Uyarı Modal */}
-      <Modal
+      {/* Sprint 107.2: SKT uyarı — ConfirmDialog primitive (tek butonlu info) */}
+      <ConfirmDialog
         visible={expiryModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setExpiryModalVisible(false)}
+        title={language === 'tr' ? 'Son Kullanma Tarihi Uyarısı' : 'Expiry Date Warning'}
+        message={
+          language === 'tr'
+            ? 'Aşağıdaki ilaçların son kullanma tarihi yaklaşıyor veya dolmuş:'
+            : 'The following medicines are expiring soon or have expired:'
+        }
+        confirmLabel={language === 'tr' ? 'Tamam' : 'OK'}
+        hideCancel
+        onConfirm={() => setExpiryModalVisible(false)}
+        onClose={() => setExpiryModalVisible(false)}
       >
-        <View style={styles.expiryModalOverlay}>
-          <View style={[styles.expiryModalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.expiryModalHeader}>
-              <Ionicons name="warning" size={32} color="#F59E0B" />
-              <Text style={[styles.expiryModalTitle, { color: colors.text }]}>
-                {language === 'tr' ? 'Son Kullanma Tarihi Uyarısı' : 'Expiry Date Warning'}
-              </Text>
-            </View>
-            <Text style={[styles.expiryModalSubtitle, { color: colors.textMuted }]}>
-              {language === 'tr'
-                ? 'Aşağıdaki ilaçların son kullanma tarihi yaklaşıyor veya dolmuş:'
-                : 'The following medicines are expiring soon or have expired:'}
-            </Text>
-            <View style={styles.expiryMedicineList}>
-              {expiringMedicines.map(medicine => {
-                const expiryDate = medicine.expiryDate ? parseISO(medicine.expiryDate) : null;
-                const daysLeft = expiryDate
-                  ? differenceInDays(startOfDay(expiryDate), startOfDay(new Date()))
-                  : 0;
-                const isExpired = daysLeft < 0;
-                const formattedDate = expiryDate
-                  ? format(expiryDate, 'd MMM yyyy', { locale: dateLocale })
-                  : '';
+        <View style={styles.expiryMedicineList}>
+          {expiringMedicines.map(medicine => {
+            const expiryDate = medicine.expiryDate ? parseISO(medicine.expiryDate) : null;
+            const daysLeft = expiryDate
+              ? differenceInDays(startOfDay(expiryDate), startOfDay(new Date()))
+              : 0;
+            const isExpired = daysLeft < 0;
+            const formattedDate = expiryDate
+              ? format(expiryDate, 'd MMM yyyy', { locale: dateLocale })
+              : '';
 
-                return (
-                  <View
-                    key={medicine.id}
-                    style={[styles.expiryMedicineItem, { backgroundColor: colors.inputBackground }]}
+            return (
+              <View
+                key={medicine.id}
+                style={[styles.expiryMedicineItem, { backgroundColor: colors.inputBackground }]}
+              >
+                <View
+                  style={[
+                    styles.expiryMedicineIcon,
+                    { backgroundColor: withAlpha(medicine.color, ALPHA.fill) },
+                  ]}
+                >
+                  <Ionicons name="medical" size={16} color={medicine.color} />
+                </View>
+                <View style={styles.expiryMedicineInfo}>
+                  <Text
+                    style={[styles.expiryMedicineName, { color: colors.text }]}
+                    numberOfLines={1}
                   >
-                    <View
-                      style={[
-                        styles.expiryMedicineIcon,
-                        { backgroundColor: withAlpha(medicine.color, ALPHA.fill) },
-                      ]}
-                    >
-                      <Ionicons name="medical" size={16} color={medicine.color} />
-                    </View>
-                    <View style={styles.expiryMedicineInfo}>
-                      <Text
-                        style={[styles.expiryMedicineName, { color: colors.text }]}
-                        numberOfLines={1}
-                      >
-                        {medicine.name}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.expiryMedicineDate,
-                          { color: isExpired ? '#EF4444' : '#F59E0B' },
-                        ]}
-                      >
-                        {isExpired
-                          ? language === 'tr'
-                            ? `Süresi doldu (${formattedDate})`
-                            : `Expired (${formattedDate})`
-                          : language === 'tr'
-                            ? `${daysLeft} gün kaldı (${formattedDate})`
-                            : `${daysLeft} days left (${formattedDate})`}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-            <TouchableOpacity
-              style={[styles.expiryModalButton, { backgroundColor: colors.primary }]}
-              onPress={() => setExpiryModalVisible(false)}
-            >
-              <Text style={styles.expiryModalButtonText}>{language === 'tr' ? 'Tamam' : 'OK'}</Text>
-            </TouchableOpacity>
-          </View>
+                    {medicine.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.expiryMedicineDate,
+                      { color: isExpired ? '#EF4444' : '#F59E0B' },
+                    ]}
+                  >
+                    {isExpired
+                      ? language === 'tr'
+                        ? `Süresi doldu (${formattedDate})`
+                        : `Expired (${formattedDate})`
+                      : language === 'tr'
+                        ? `${daysLeft} gün kaldı (${formattedDate})`
+                        : `${daysLeft} days left (${formattedDate})`}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
         </View>
-      </Modal>
+      </ConfirmDialog>
     </SafeAreaView>
   );
 }
