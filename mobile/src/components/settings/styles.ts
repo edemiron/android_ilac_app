@@ -127,45 +127,14 @@ export const createSettingsStyles = (colors: ThemeColors, isDark: boolean) =>
       fontWeight: '600',
     },
     premiumCard: {
+      // Sprint 107.1: HeroCard primitive sarmalayıcı — borderRadius/padding/elevation HeroCard'da.
+      // Sadece dış margin gerekli.
       marginTop: 16,
       marginHorizontal: 16,
-      borderRadius: 14, // Sprint 106.5 — radius.lg (Life360 continuous)
-      padding: 0, // Sprint 106.5 — LinearGradient sarmal, padding gradient içinde
-      overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08, // Sprint 106.5 — Life360 subtle elevation (was 0.2)
-      shadowRadius: 8,
-      elevation: 3,
     },
-    premiumCardGradient: {
-      // Sprint 106.5: gradient fills entire card with padding
-      borderRadius: 14,
-      padding: 14,
-    },
-    premiumCardContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    premiumIconContainer: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 12,
-    },
-    premiumTextContainer: {
-      flex: 1,
-    },
-    premiumTitle: {
-      fontSize: 17,
-      fontWeight: '700',
-    },
-    premiumSubtitle: {
-      fontSize: 13,
-      marginTop: 2,
-    },
+    // Sprint 107.1: premiumCardGradient / premiumCardContent / premiumIconContainer /
+    // premiumTextContainer / premiumTitle / premiumSubtitle stilleri kaldırıldı —
+    // HeroCard primitive bunları birebir karşılıyor.
   });
 
 export type SettingsStyles = ReturnType<typeof createSettingsStyles>;

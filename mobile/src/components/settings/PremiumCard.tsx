@@ -1,11 +1,19 @@
+/**
+ * PremiumCard — Sprint 107.1 HeroCard migration.
+ *
+ * SettingsScreen üstündeki premium CTA kartı. HeroCard primitive'i (Sprint 107.1)
+ * kullanarak gradient + icon + title + subtitle + chevron'u tek API'de birleştirir.
+ *
+ * Görsel: Sprint 106.5 gradient (gold→orange premium, accent→teal free) korunur.
+ * Border radius radius.lg (14) → radius.xl (20) — HeroCard primitive'inin parçası.
+ */
+
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { withAlpha, ALPHA } from '../../utils/colors'; // Sprint 103.4
+import { HeroCard } from '../common/HeroCard';
 import { createSettingsStyles } from './styles';
 
 interface PremiumCardProps {
@@ -19,77 +27,48 @@ export const PremiumCard: React.FC<PremiumCardProps> = ({ isPremium, remainingDa
   const { language } = useLanguage();
   const styles = createSettingsStyles(colors, isDark);
 
-  const getSubtitle = () => {
-    if (isPremium) {
-      return remainingDays !== null
-        ? `${remainingDays} ${language === 'tr' ? 'gün kaldı' : 'days remaining'}`
-        : language === 'tr'
-          ? 'Tüm özelliklerin keyfini çıkarın'
-          : 'Enjoy all features';
-    }
-    return language === 'tr' ? 'Sınırsız ilaç, reklamsız kullanım' : 'Unlimited meds, ad-free';
-  };
+  const tr = language === 'tr';
 
-  // Sprint 106.5: Diagonal gradient — premium = gold→orange, free = accent gradient
-  const gradientColors = isPremium
-    ? (['#FFD700', '#FFA500'] as const)
-    : ([colors.gradientStart, colors.gradientEnd] as const);
+  const subtitle = isPremium
+    ? remainingDays !== null
+      ? `${remainingDays} ${tr ? 'gün kaldı' : 'days remaining'}`
+      : tr
+        ? 'Tüm özelliklerin keyfini çıkarın'
+        : 'Enjoy all features'
+    : tr
+      ? 'Sınıksız ilaç, reklamsız kullanım'
+      : 'Unlimited meds, ad-free';
+
+  const title = isPremium
+    ? tr
+      ? 'Premium Üyesiniz!'
+      : "You're Premium!"
+    : tr
+      ? "Premium'a Geçin"
+      : 'Go Premium';
+
+  // Icon + chevron foreground color — variant-specific contrast
+  const fg = isPremium ? '#1A1A2E' : '#FFFFFF';
 
   return (
-    <TouchableOpacity
-      style={styles.premiumCard}
+    <HeroCard
+      variant={isPremium ? 'premium' : 'free'}
       onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <LinearGradient
-        colors={gradientColors as unknown as readonly [string, string, ...string[]]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.premiumCardGradient}
-      >
-        <View style={styles.premiumCardContent}>
-          <View
-            style={[
-              styles.premiumIconContainer,
-              {
-                backgroundColor: isPremium
-                  ? withAlpha('#000000', ALPHA.veil)
-                  : withAlpha('#FFFFFF', ALPHA.over),
-              },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name={isPremium ? 'crown' : 'star-four-points'}
-              size={24}
-              color={isPremium ? '#1A1A2E' : '#FFFFFF'}
-            />
-          </View>
-          <View style={styles.premiumTextContainer}>
-            <Text style={[styles.premiumTitle, { color: isPremium ? '#1A1A2E' : '#FFFFFF' }]}>
-              {isPremium
-                ? language === 'tr'
-                  ? 'Premium Üyesiniz!'
-                  : "You're Premium!"
-                : language === 'tr'
-                  ? "Premium'a Geçin"
-                  : 'Go Premium'}
-            </Text>
-            <Text
-              style={[
-                styles.premiumSubtitle,
-                {
-                  color: isPremium
-                    ? withAlpha('#000000', ALPHA.scrimStrong)
-                    : withAlpha('#FFFFFF', ALPHA.onLight),
-                },
-              ]}
-            >
-              {getSubtitle()}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={isPremium ? '#1A1A2E' : '#FFFFFF'} />
-        </View>
-      </LinearGradient>
-    </TouchableOpacity>
+      title={title}
+      subtitle={subtitle}
+      icon={
+        <MaterialCommunityIcons
+          name={isPremium ? 'crown' : 'star-four-points'}
+          size={24}
+          color={fg}
+        />
+      }
+      trailing={<Ionicons name="chevron-forward" size={20} color={fg} />}
+      accessibilityLabel={title}
+      accessibilityHint={tr ? 'Premium detaylarını görmek için dokun' : 'Tap to view Premium details'}
+      style={styles.premiumCard}
+    />
   );
 };
+
+export default PremiumCard;

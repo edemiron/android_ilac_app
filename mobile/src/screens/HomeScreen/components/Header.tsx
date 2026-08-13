@@ -1,21 +1,26 @@
 /**
- * Header.tsx — Sprint 98 Karol-inspired redesign.
+ * Header.tsx — Sprint 107.1 HeroCard migration.
  *
- * Karol tasarımındaki gradient hero header'ın İlaç Hatırlatıcı uyarlaması.
- * LinearGradient + greeting + dynamic date + inline progress bar + streak chip.
+ * HomeScreen üstündeki gradient hero header. HeroCard primitive'i (Sprint 107.1)
+ * kullanarak LinearGradient + avatar + streak chip + progress bar'ı tek API'de
+ * birleştirir.
  *
- * CircularProgress (70px SVG) kaldırıldı; yerine 4pt inline progress bar.
- * Streak chip currentStreak > 0 ise sağ üstte gösterilir.
+ * Sprint 100: mount fade + slide-down animasyonu MotiView ile korunur.
+ * Sprint 102.3: gradient içi text/icon token adoption korunur.
+ * Sprint 104.4: UserAvatar sol üst korunur.
+ *
+ * Davranış: önceki Header.tsx ile birebir (görsel: padding 16→gradient default,
+ * radius 20→HeroCard radius.xl aynı, shadow HeroCard elevation.level2).
  */
 
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { MotiView } from 'moti';
 import { useTheme, type ThemeColors } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { motiTransitions } from '../../../theme/moti-config';
+import { HeroCard } from '../../../components/common/HeroCard';
 import { UserAvatar } from './UserAvatar';
 
 export interface HeaderProps {
@@ -44,19 +49,30 @@ export function Header({
   displayName,
   style,
 }: HeaderProps) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { language } = useLanguage();
 
   const progressPercent =
     totalDoses > 0 ? Math.min(100, Math.round((completedCount / totalDoses) * 100)) : 0;
 
   const showStreak = currentStreak > 0;
-  const gradientColors = isDark
-    ? ([colors.primaryDark ?? '#6B7CDF', colors.gradientEnd] as const)
-    : ([colors.gradientStart, colors.gradientEnd] as const);
-
-  // Sprint 102.3: Gradient içi text/icon token adoption (theme-aware styles)
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  // Subtitle: dynamicDate + doz sayısı — HeroCard subtitle slot
+  const subtitle = `${dynamicDate} · ${totalDoses} ${language === 'tr' ? 'doz planı' : 'doses'}`;
+
+  // UserAvatar — HeroCard icon slot (leading)
+  const avatar = displayName ? <UserAvatar displayName={displayName} size={36} /> : undefined;
+
+  // Streak chip — HeroCard trailing slot
+  const streakChip = showStreak ? (
+    <View style={styles.streakChip} accessibilityLabel={`Streak ${currentStreak}`}>
+      <Ionicons name="flame" size={14} color="#FFFFFF" />
+      <Text style={styles.streakChipText}>
+        {currentStreak} {language === 'tr' ? 'gün' : 'days'}
+      </Text>
+    </View>
+  ) : undefined;
 
   return (
     // Sprint 100: mount fade + slide-down (gradient hero yumuşak giriş)
@@ -66,75 +82,42 @@ export function Header({
       transition={motiTransitions.standard}
       style={style}
     >
-      <LinearGradient
-        colors={gradientColors}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.heroCard}
+      <HeroCard
+        variant="header"
+        title={greeting}
+        subtitle={subtitle}
+        icon={avatar}
+        trailing={streakChip}
+        accessibilityLabel={`${greeting}, ${progressPercent}% ${language === 'tr' ? 'uyum' : 'adherence'}`}
+        style={styles.headerOuter}
       >
-        {/* Sprint 104.4: Kullanici avatar — sol ust (Karol target) */}
-        {displayName && <UserAvatar displayName={displayName} size={36} />}
-
-        {/* Streak chip — sağ üstte (mevcut korunur) */}
-        {showStreak && (
-          <View style={styles.streakChip} accessibilityLabel={`Streak ${currentStreak}`}>
-            <Ionicons name="flame" size={14} color="#FFFFFF" />
-            <Text style={styles.streakChipText}>
-              {currentStreak} {language === 'tr' ? 'gün' : 'days'}
-            </Text>
-          </View>
-        )}
-
-        {/* Greeting — marginRight 120 (avatar + streak chip yan yana) */}
-        <Text style={styles.greeting} numberOfLines={1}>
-          {greeting}
-        </Text>
-
-        {/* Dynamic date + doz sayısı */}
-        <Text style={styles.subtitle} numberOfLines={1}>
-          {dynamicDate} · {totalDoses} {language === 'tr' ? 'doz planı' : 'doses'}
-        </Text>
-
-        {/* Inline progress bar */}
-        <View style={styles.progressTrack} accessibilityLabel={`Adherence ${progressPercent} percent`}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${progressPercent}%` },
-            ]}
-          />
+        {/* Progress bar + label — HeroCard children slot */}
+        <View
+          style={styles.progressTrack}
+          accessibilityLabel={`Adherence ${progressPercent} percent`}
+        >
+          <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
         </View>
         <Text style={styles.progressLabel}>
           {progressPercent}% {language === 'tr' ? 'uyum' : 'adherence'}
         </Text>
-      </LinearGradient>
+      </HeroCard>
     </MotiView>
   );
 }
 
 /**
- * makeStyles — Sprint 102.3
- * Hero gradient içi text/icon token adoption. useTheme() ile accent değişiminde
- * bile okunur kalır (textOnGradient accent-independent).
+ * makeStyles — Sprint 102.3 + 107.1
+ * HeroCard primitive sarmaladığı için sadece dış margin + progress bar
+ * gradient-içi token adoption stilleri korunur.
  */
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    heroCard: {
+    headerOuter: {
       marginHorizontal: 16,
       marginTop: 6,
-      borderRadius: 20,
-      padding: 16,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.12,
-      shadowRadius: 12,
-      elevation: 6,
-      overflow: 'hidden',
     },
     streakChip: {
-      position: 'absolute',
-      top: 16,
-      right: 16,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
@@ -147,19 +130,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textOnGradient,
       fontSize: 12,
       fontWeight: '700',
-    },
-    greeting: {
-      color: colors.textOnGradient,
-      fontSize: 22,
-      fontWeight: '700',
-      letterSpacing: -0.4,
-      marginRight: 80,
-      marginTop: 10,
-    },
-    subtitle: {
-      color: colors.textOnGradientMuted,
-      fontSize: 13,
-      marginTop: 4,
     },
     progressTrack: {
       height: 6,

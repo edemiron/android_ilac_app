@@ -1,5 +1,5 @@
 import React from 'react';
-import { Switch, LayoutAnimation, View, Text } from 'react-native';
+import { Switch, LayoutAnimation, View } from 'react-native';
 import { SettingsSection } from './SettingsSection';
 import { SettingRow } from './SettingRow';
 import { OptionPicker } from './OptionPicker';

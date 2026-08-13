@@ -11,7 +11,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import { MotiView } from 'moti';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { motiTransitions } from '../../../theme/moti-config';
