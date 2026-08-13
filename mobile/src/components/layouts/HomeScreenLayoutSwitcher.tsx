@@ -7,10 +7,12 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { LayoutAnimation, Platform, UIManager } from 'react-native';
+import { LayoutAnimation, Platform, UIManager, View } from 'react-native';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { HomeScreenLayoutA } from './HomeScreenLayoutA';
 import { HomeScreenLayoutB } from './HomeScreenLayoutB';
+import { SkeletonListItem } from '../common/SkeletonListItem';
+import { spacing } from '../../theme/tokens';
 import type { TodayReminder } from '../../screens/HomeScreen/types';
 import type { Medicine } from '../../types';
 import type { MiniChartDatum } from '../common/MiniChart';
@@ -101,16 +103,13 @@ export function HomeScreenLayoutSwitcher({
 
   if (isLoading) {
     return (
-      <HomeScreenLayoutA
-        reminder={reminder}
-        reminders={reminders}
-        adherence={adherence}
-        streak={streak}
-        completedCount={completedCount}
-        totalCount={totalCount}
-        remainingCount={remainingCount}
-        onAddPress={onAddPress}
-      />
+      <View style={{ padding: spacing.lg }}>
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+      </View>
     );
   }
 
