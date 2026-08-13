@@ -16,7 +16,6 @@ import {
   Text,
   StyleSheet,
   Dimensions,
-  TouchableOpacity,
   FlatList,
   ListRenderItemInfo,
   Platform,
@@ -27,6 +26,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useOnboarding, SlideIndex } from '../hooks/useOnboarding';
 import { PillboxIllustration } from '../components/common/PillboxIllustration';
+import { OnboardingControls } from '../components/common/OnboardingControls';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -144,21 +144,6 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.skipRow}>
-        {!isLast && (
-          <TouchableOpacity
-            onPress={handleSkip}
-            accessibilityRole="button"
-            accessibilityLabel={tr ? 'Atla' : 'Skip'}
-            style={styles.skipBtn}
-          >
-            <Text style={[styles.skipText, { color: colors.textSecondary }]}>
-              {tr ? 'Atla' : 'Skip'}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
       <FlatList
         ref={listRef}
         data={SLIDES}
@@ -175,48 +160,22 @@ export default function OnboardingScreen() {
         })}
       />
 
-      <View style={styles.dots}>
-        {SLIDES.map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              {
-                backgroundColor: i === currentSlide ? colors.primary : colors.outlineVariant,
-                width: i === currentSlide ? 24 : 8,
-              },
-            ]}
-          />
-        ))}
-      </View>
-
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.nextBtn, { backgroundColor: colors.primary }]}
-          onPress={handleNext}
-          accessibilityRole="button"
-          accessibilityLabel={isLast ? (tr ? 'Başla' : 'Get Started') : tr ? 'İleri' : 'Next'}
-        >
-          <Text style={styles.nextBtnText}>
-            {isLast ? (tr ? 'Başla' : 'Get Started') : tr ? 'İleri' : 'Next'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <OnboardingControls
+        total={totalSlides}
+        currentIndex={currentSlide}
+        isLast={isLast}
+        onNext={handleNext}
+        onSkip={handleSkip}
+        nextLabel={tr ? 'İleri' : 'Next'}
+        startLabel={tr ? 'Başla' : 'Get Started'}
+        skipLabel={tr ? 'Atla' : 'Skip'}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  skipRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    height: 44,
-  },
-  skipBtn: { padding: 8 },
-  skipText: { fontSize: 16, fontWeight: '600' },
   slide: {
     flex: 1,
     alignItems: 'center',
@@ -245,32 +204,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     maxWidth: 360,
-  },
-  dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 4,
-  },
-  actions: {
-    paddingHorizontal: 32,
-    paddingBottom: 24,
-  },
-  nextBtn: {
-    paddingVertical: 16,
-    borderRadius: 32,
-    alignItems: 'center',
-    minHeight: 56,
-    justifyContent: 'center',
-  },
-  nextBtnText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
   },
 });
