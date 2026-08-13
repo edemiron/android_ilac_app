@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { SegmentTabs } from '../components/common/SegmentTabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
 import { tr, enUS } from 'date-fns/locale';
@@ -516,42 +517,20 @@ export default function HomeScreen() {
             onSeeAll={() => navigation.navigate('Medicines' as never)}
           />
 
-          {/* Filtre Tabları */}
-
-          {/* Filtre Tabları */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterTabsContainer}
-          >
-            {[
-              { id: 'all', label: language === 'tr' ? 'Tümü' : 'All' },
-              { id: 'pending', label: language === 'tr' ? 'Bekleyenler' : 'Pending' },
-              { id: 'taken', label: language === 'tr' ? 'Alınanlar' : 'Taken' },
-              { id: 'missed', label: language === 'tr' ? 'Atlananlar' : 'Missed' },
-            ].map(tab => (
-              <TouchableOpacity
-                key={tab.id}
-                style={[
-                  styles.filterTab,
-                  activeTab === tab.id && { backgroundColor: colors.primary },
-                  activeTab !== tab.id && {
-                    backgroundColor: isDark ? withAlpha('#FFFFFF', ALPHA.haze) : '#F3F4F6',
-                  },
-                ]}
-                onPress={() => setActiveTab(tab.id as FilterTab)}
-              >
-                <Text
-                  style={[
-                    styles.filterTabText,
-                    activeTab === tab.id ? { color: '#fff' } : { color: colors.textMuted },
-                  ]}
-                >
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          {/* Filtre Tabları — Sprint 107.3: SegmentTabs primitive */}
+          <SegmentTabs
+            scrollable
+            items={[
+              { key: 'all', label: language === 'tr' ? 'Tümü' : 'All' },
+              { key: 'pending', label: language === 'tr' ? 'Bekleyenler' : 'Pending' },
+              { key: 'taken', label: language === 'tr' ? 'Alınanlar' : 'Taken' },
+              { key: 'missed', label: language === 'tr' ? 'Atlananlar' : 'Missed' },
+            ]}
+            value={activeTab}
+            onChange={key => setActiveTab(key as FilterTab)}
+            style={styles.filterTabsContainer}
+            testID="home-filter-tabs"
+          />
 
           {/* İlaç Listesi — Zaman Dilimine Göre Gruplandırılmış */}
           <View style={[styles.medicineList, { paddingHorizontal: 16 }]}>
@@ -1091,23 +1070,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // Filter Tabs - Sprint 55: WCAG 2.5.5 touch target min 36pt
+  // Filter Tabs - Sprint 107.3: SegmentTabs primitive
   filterTabsContainer: {
-    paddingHorizontal: 16,
     paddingBottom: 12,
-    gap: 8,
-  },
-  filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8, // 8 + 8 = 16pt padding
-    minHeight: 36, // WCAG 2.5.5 minimum touch target
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterTabText: {
-    fontSize: 13,
-    fontWeight: '600',
   },
 
   // Medicine Card Styles - Ayrı kartlar

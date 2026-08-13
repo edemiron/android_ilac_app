@@ -24,6 +24,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme, type ThemeColors } from '../contexts/ThemeContext';
 import { useAlert } from '../contexts/AlertContext';
 import { ModalSheet } from '../components/common/ModalSheet';
+import { AvatarGroup } from '../components/common/AvatarGroup';
 
 const createStyles = (colors: ThemeColors, _isDark: boolean) =>
   StyleSheet.create({
@@ -55,6 +56,14 @@ const createStyles = (colors: ThemeColors, _isDark: boolean) =>
       fontWeight: '600',
       color: colors.text,
       marginBottom: 12,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    caregiverAvatarGroup: {
+      marginBottom: 8,
     },
     card: {
       backgroundColor: colors.card,
@@ -466,7 +475,23 @@ export default function CaregiverScreen() {
 
         {/* Caregivers List */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.caregiversTitle}</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>{t.caregiversTitle}</Text>
+            {caregivers.length > 0 && (
+              <AvatarGroup
+                items={caregivers.slice(0, 4).map(c => ({
+                  id: c.id,
+                  name:
+                    c.caregiverName ||
+                    c.caregiverEmail ||
+                    t.unnamedCaregiver,
+                }))}
+                maxVisible={4}
+                size="sm"
+                style={styles.caregiverAvatarGroup}
+              />
+            )}
+          </View>
 
           {isLoading ? (
             <View style={styles.emptyState}>
