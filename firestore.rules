@@ -34,11 +34,6 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Validate timestamp is not in the future (with 5 min tolerance)
-    function isValidTimestamp(ts) {
-      return ts is timestamp && ts <= request.time + duration.value(5, 'm');
-    }
-
     // Validate string length only
     function isValidString(str, minLen, maxLen) {
       return str is string && str.size() >= minLen && str.size() <= maxLen;
@@ -67,6 +62,14 @@ service cloud.firestore {
       return str is string
           && str.size() <= 500
           && str.matches('^[\\s\\S]*$');
+    }
+
+    // Note OPSIYONELDIR. Istemci not girilmediginde alani hic gondermez:
+    // sanitizeForFirestore() undefined alanlari nesneden siler. Alan zorunlu
+    // tutuldugunda notsuz her "ilaci aldim" kaydi reddediliyor, writeBatch
+    // atomik oldugu icin de tum senkronizasyon partisi dusuyordu.
+    function hasValidOptionalNote(data) {
+      return !('note' in data) || isValidNote(data.note);
     }
 
     // Bakici yetki kontrolu.
@@ -166,14 +169,14 @@ service cloud.firestore {
           && request.resource.data.medicineId is string
           && request.resource.data.medicineId.size() > 0
           && exists(/databases/$(database)/documents/users/$(userId)/medicines/$(request.resource.data.medicineId))
-          && isValidNote(request.resource.data.note);
+          && hasValidOptionalNote(request.resource.data);
 
         // Update: status corrections within the same medicineId.
         // medicineId degistirilemez (immutable audit trail).
         allow update: if isOwner(userId)
           && request.resource.data.status in ['taken', 'skipped', 'missed']
           && request.resource.data.medicineId == resource.data.medicineId
-          && isValidNote(request.resource.data.note);
+          && hasValidOptionalNote(request.resource.data);
 
         allow delete: if isOwner(userId);
       }
@@ -214,10 +217,17 @@ service cloud.firestore {
     // ============================================
 
     match /caregiverInvites/{inviteCode} {
-      // Davet kodunun kendisi sirdir: dokuman ID'sini bilen kimlik
+      // GET: davet kodunun kendisi sirdir — dokuman ID'sini bilen kimlik
       // dogrulanmis kullanici daveti okuyabilir. Kabul akisi bunu gerektirir
       // (bakici, iliski kurulmadan once daveti okumak zorunda).
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated();
+
+      // LIST: yalnizca hasta KENDI davetlerini listeleyebilir.
+      // Onceden `allow read` (= get + list) herkese aciykti; bu, herhangi bir
+      // kullanicinin tum koleksiyonu cekip patientId + davet kodu toplamasina,
+      // ardindan istedigi hastanin bakicisi olup saglik gecmisini okumasina
+      // izin veriyordu (yetki yukseltme).
+      allow list: if isAuthenticated() && resource.data.patientId == request.auth.uid;
 
       // Daveti yalnizca hasta kendi adina olusturur.
       allow create: if isAuthenticated()
@@ -228,11 +238,18 @@ service cloud.firestore {
       // Hasta kendi davetini yonetebilir. Davetli bakici ise SADECE
       // status/acceptedAt alanlarini degistirebilir (kabul/expire akisi) —
       // patientId veya permissions degistiremez.
+      //
+      // Bakici dali artik kimlik dogruluyor: token'daki e-posta davetteki
+      // caregiverEmail ile eslesmeli. Aksi halde davet ID'sini ele geciren
+      // herhangi bir kullanici daveti 'expired' yapip gercek bakicinin
+      // kabulunu engelleyebilirdi.
       allow update: if isAuthenticated()
         && (
           resource.data.patientId == request.auth.uid
           || (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt'])
+            request.auth.token.email != null
+            && request.auth.token.email.lower() == resource.data.caregiverEmail
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt'])
             && request.resource.data.status in ['accepted', 'expired']
           )
         );
@@ -257,12 +274,24 @@ service cloud.firestore {
         && request.resource.data.caregiverId == request.auth.uid
         && isActiveCaregiverFor(request.resource.data.patientId);
 
-      // Taraflar guncelleyebilir; ancak taraf kimlikleri immutable.
+      // Taraf kimlikleri immutable.
+      //
+      // YETKI ALANLARINI SADECE HASTA DEGISTIREBILIR. Bakici dali daha once
+      // tum alanlari kapsiyordu; bakici kendi canViewHistory/canReceiveAlerts
+      // bayraklarini acabiliyordu (kendi yetkisini yukseltme). Bakicinin tek
+      // mesru yazma ihtiyaci kendi FCM token'ini guncellemek
+      // (updateCaregiverFcmToken).
       allow update: if isAuthenticated()
-        && (resource.data.patientId == request.auth.uid
-            || resource.data.caregiverId == request.auth.uid)
         && request.resource.data.patientId == resource.data.patientId
-        && request.resource.data.caregiverId == resource.data.caregiverId;
+        && request.resource.data.caregiverId == resource.data.caregiverId
+        && (
+          resource.data.patientId == request.auth.uid
+          || (
+            resource.data.caregiverId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['caregiverFcmToken', 'updatedAt'])
+          )
+        );
 
       allow delete: if isAuthenticated()
         && (resource.data.patientId == request.auth.uid
@@ -274,9 +303,16 @@ service cloud.firestore {
     // ============================================
 
     match /config/{configId} {
-      // Salt okunur; yazma yalnizca backend/console uzerinden.
-      allow read: if isAuthenticated();
-      allow write: if false;
+      // ISTEMCIYE TAMAMEN KAPALI.
+      //
+      // Onceden `allow read: if isAuthenticated()` idi ve `config/ai`
+      // dokumani geminiApiKey / openaiApiKey alanlarini DUZ METIN tutuyordu.
+      // Yani uygulamaya kaydolan herkes AI API anahtarlarini cekebiliyordu.
+      //
+      // Anahtarlar Secret Manager'a tasindi (server/functions/index.js).
+      // Bu dokumanda yalnizca provider/model gibi sir olmayan alanlar kalir ve
+      // onlari da yalnizca Admin SDK (kurallari baypas eder) okur.
+      allow read, write: if false;
     }
 
     // ============================================
