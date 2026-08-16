@@ -35,7 +35,7 @@ import { createScopedLogger } from '../utils/logger';
 import { withAlpha, ALPHA } from '../utils/colors'; // Sprint 103.3
 
 const log = createScopedLogger('HomeScreen');
-import { refreshWidget } from '../services/widgetService';
+import { refreshWidget, consumePendingWidgetActions } from '../services/widgetService';
 import { useAlert } from '../contexts/AlertContext';
 
 // Sprint 4.2: HomeScreen.tsx (1962 -> ~1400 satir) modularizasyonu.
@@ -201,6 +201,47 @@ export default function HomeScreen() {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 500);
   }, []);
+
+  // Widget'taki "Aldım" butonundan biriken aksiyonları gerçek doz kaydına çevir.
+  //
+  // Buton native tarafta kuyruğa yazar (MedicineTakenReceiver); uygulama
+  // kapalıyken basılsa bile aksiyon kaybolmaz. Burada açılışta ve her ön plana
+  // gelişte kuyruk boşaltılır. Kendi effect'i var — kalıcı bildirim effect'i
+  // ayarla kapatılabildiği için oraya bağlanamaz.
+  useEffect(() => {
+    const applyPendingWidgetActions = async () => {
+      const actions = await consumePendingWidgetActions();
+      if (actions.length === 0) return;
+
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+      actions.forEach(action => {
+        const reminderTime = reminderTimes.find(rt => rt.id === action.reminderTimeId);
+
+        if (!reminderTime) {
+          log.warn('Widget aksiyonu icin reminderTime bulunamadi', {
+            reminderTimeId: action.reminderTimeId,
+          });
+          return;
+        }
+
+        const scheduledTime = `${todayStr}T${reminderTime.time}:00`;
+        logMedicineTaken(action.reminderTimeId, scheduledTime, action.medicineId);
+      });
+
+      log.debug('Widget aksiyonlari uygulandi', { count: actions.length });
+    };
+
+    void applyPendingWidgetActions();
+
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        void applyPendingWidgetActions();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [reminderTimes, logMedicineTaken]);
 
   const handleTake = useCallback(
     (reminderTimeId: string) => {
@@ -488,10 +529,7 @@ export default function HomeScreen() {
 
         {currentReminder && (
           <View style={styles.sectionContainer}>
-            <SectionHeader
-              icon="💊"
-              title={language === 'tr' ? 'ŞU AN' : 'CURRENT'}
-            />
+            <SectionHeader icon="💊" title={language === 'tr' ? 'ŞU AN' : 'CURRENT'} />
             <CurrentDoseCard
               reminder={currentReminder}
               colors={colors}
@@ -606,7 +644,11 @@ export default function HomeScreen() {
                       <View
                         style={[
                           styles.timeSlotProgress,
-                          { backgroundColor: slotDone ? withAlpha('#10B981', ALPHA.wash) : withAlpha(colors.primary, ALPHA.wash) },
+                          {
+                            backgroundColor: slotDone
+                              ? withAlpha('#10B981', ALPHA.wash)
+                              : withAlpha(colors.primary, ALPHA.wash),
+                          },
                         ]}
                       >
                         <Text

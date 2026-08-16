@@ -17,11 +17,10 @@ class MedicineWidgetProvider : AppWidgetProvider() {
     companion object {
         const val PREFS_NAME = "MedicineWidgetPrefs"
         const val KEY_MEDICINES = "widget_medicines"
-        const val ACTION_MEDICINE_TAKEN = "com.ilachatirlatici.MEDICINE_TAKEN"
-        
+
         // Widget boyutları
         const val WIDGET_SMALL = "small"
-        const val WIDGET_MEDIUM = "medium" 
+        const val WIDGET_MEDIUM = "medium"
         const val WIDGET_LARGE = "large"
     }
 
@@ -35,23 +34,9 @@ class MedicineWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        
-        when (intent.action) {
-            ACTION_MEDICINE_TAKEN -> {
-                val medicineId = intent.getStringExtra("medicine_id")
-                val reminderTimeId = intent.getStringExtra("reminder_time_id")
-                // Burada ilaç alındı bildirimi gönderilecek
-                // React Native tarafına broadcast gönder
-                val takenIntent = Intent("com.ilachatirlatici.MEDICINE_TAKEN_FROM_WIDGET").apply {
-                    putExtra("medicine_id", medicineId)
-                    putExtra("reminder_time_id", reminderTimeId)
-                }
-                context.sendBroadcast(takenIntent)
-            }
-        }
-    }
+    // NOT: "Aldım" aksiyonu artık MedicineTakenReceiver (exported=false)
+    // tarafından işleniyor. Burada bulunan eski işleyici, dinleyicisi olmayan
+    // bir broadcast yayınlıyordu — buton hiçbir şey yapmıyordu.
 
     private fun updateWidget(
         context: Context,
@@ -289,8 +274,10 @@ class MedicineWidgetProvider : AppWidgetProvider() {
                 }
 
                 takenButtonId?.let { buttonId ->
-                    val takenIntent = Intent(context, MedicineWidgetProvider::class.java).apply {
-                        action = ACTION_MEDICINE_TAKEN
+                    // Explicit intent: exported olmayan receiver'a da ulaşır,
+                    // çünkü PendingIntent uygulamanın kendi kimliğiyle gönderilir.
+                    val takenIntent = Intent(context, MedicineTakenReceiver::class.java).apply {
+                        action = MedicineTakenReceiver.ACTION_MEDICINE_TAKEN
                         putExtra("medicine_id", medicine.optString("id"))
                         putExtra("reminder_time_id", medicine.optString("reminderTimeId"))
                     }

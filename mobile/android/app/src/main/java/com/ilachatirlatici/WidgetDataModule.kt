@@ -1,9 +1,13 @@
 package com.ilachatirlatici
 
+import android.content.Context
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.bridge.WritableArray
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -67,6 +71,52 @@ class WidgetDataModule(reactContext: ReactApplicationContext) : ReactContextBase
         } catch (e: Exception) {
             // Hata durumunda logla ama crash yapma
             android.util.Log.e("WidgetDataModule", "Widget güncellenirken hata", e)
+        }
+    }
+
+    /**
+     * Widget'taki "Aldım" butonundan biriken aksiyonları döndürür ve kuyruğu
+     * atomik olarak boşaltır (at-most-once: aynı aksiyon iki kez uygulanmaz).
+     *
+     * Uygulama kapalıyken basılan butonlar burada birikir; RN tarafı ön plana
+     * geldiğinde bu metodu çağırıp logMedicineTaken() çalıştırır.
+     */
+    @ReactMethod
+    fun consumePendingActions(promise: Promise) {
+        try {
+            val context = reactApplicationContext
+            val prefs = context.getSharedPreferences(
+                MedicineWidgetProvider.PREFS_NAME,
+                Context.MODE_PRIVATE
+            )
+
+            val raw = prefs.getString(MedicineTakenReceiver.KEY_PENDING_ACTIONS, "[]") ?: "[]"
+
+            // Once temizle, sonra dondur: RN tarafinda bir hata olursa aksiyon
+            // tekrar tekrar uygulanmasin (cift kayit riski).
+            prefs.edit().remove(MedicineTakenReceiver.KEY_PENDING_ACTIONS).apply()
+
+            val parsed = JSONArray(raw)
+            val result: WritableArray = Arguments.createArray()
+
+            for (i in 0 until parsed.length()) {
+                val item = parsed.optJSONObject(i) ?: continue
+                val medicineId = item.optString("medicineId")
+                val reminderTimeId = item.optString("reminderTimeId")
+
+                if (medicineId.isEmpty() || reminderTimeId.isEmpty()) continue
+
+                val map = Arguments.createMap()
+                map.putString("medicineId", medicineId)
+                map.putString("reminderTimeId", reminderTimeId)
+                map.putDouble("takenAt", item.optLong("takenAt").toDouble())
+                result.pushMap(map)
+            }
+
+            promise.resolve(result)
+        } catch (e: Exception) {
+            android.util.Log.e("WidgetDataModule", "Bekleyen aksiyonlar okunamadi", e)
+            promise.resolve(Arguments.createArray())
         }
     }
 

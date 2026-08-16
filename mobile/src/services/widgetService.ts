@@ -144,6 +144,35 @@ export async function updateWidgetFromStore(): Promise<void> {
 }
 
 /**
+ * Widget'taki "Aldım" butonundan biriken aksiyonlar.
+ */
+export interface PendingWidgetAction {
+  medicineId: string;
+  reminderTimeId: string;
+  takenAt: number;
+}
+
+/**
+ * Widget'tan gelen bekleyen "Aldım" aksiyonlarını alır ve native kuyruğu boşaltır.
+ *
+ * Widget butonu eskiden dinleyicisi olmayan bir broadcast yayınlıyordu; yani
+ * kullanıcı dozu işaretlediğini sanıyor ama hiçbir kayıt oluşmuyordu. Artık
+ * aksiyonlar native tarafta kuyruklanıyor ve uygulama ön plana geldiğinde
+ * buradan tüketiliyor.
+ */
+export async function consumePendingWidgetActions(): Promise<PendingWidgetAction[]> {
+  if (Platform.OS !== 'android') return [];
+
+  try {
+    const actions = await WidgetDataModule?.consumePendingActions?.();
+    return Array.isArray(actions) ? (actions as PendingWidgetAction[]) : [];
+  } catch (error) {
+    log.error('Bekleyen widget aksiyonlari alinamadi', error);
+    return [];
+  }
+}
+
+/**
  * Widget'ı yenile (force update)
  */
 export async function refreshWidget(): Promise<void> {
