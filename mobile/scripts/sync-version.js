@@ -2,7 +2,12 @@
  * Versiyon Senkronizasyon Script'i
  *
  * Bu script src/config/version.ts dosyasındaki versiyon bilgisini
- * app.json ve package.json dosyalarına senkronize eder.
+ * app.config.json ve package.json dosyalarına senkronize eder.
+ *
+ * NOT: Hedef app.config.json'dur, app.json DEĞİL. @expo/config dosyaları
+ * ['app.config.json', 'app.json'] sırasıyla arar; app.config.json varken
+ * app.json hiç okunmaz. Script eskiden app.json'u güncelliyordu, yani
+ * etkin config'e hiç dokunmuyordu.
  *
  * Kullanım:
  *   node scripts/sync-version.js
@@ -15,7 +20,7 @@ const path = require('path');
 // Dosya yolları
 const rootDir = path.join(__dirname, '..');
 const versionConfigPath = path.join(rootDir, 'src/config/version.ts');
-const appJsonPath = path.join(rootDir, 'app.json');
+const appConfigPath = path.join(rootDir, 'app.config.json');
 const packageJsonPath = path.join(rootDir, 'package.json');
 
 /**
@@ -45,36 +50,40 @@ function readVersionFromConfig() {
 }
 
 /**
- * app.json dosyasını günceller
+ * app.config.json dosyasını günceller.
+ *
+ * Alanlar expo.* altına yazılır. Eski sürüm bunları kök seviyeye
+ * (appJson.android.versionCode / appJson.version) yazıyordu; Expo oraya
+ * bakmadığı için versionCode senkronizasyonu hiç çalışmıyordu.
  */
-function updateAppJson(versionInfo) {
-  if (!fs.existsSync(appJsonPath)) {
-    throw new Error('app.json bulunamadı!');
+function updateAppConfig(versionInfo) {
+  if (!fs.existsSync(appConfigPath)) {
+    throw new Error('app.config.json bulunamadı!');
   }
 
-  const content = fs.readFileSync(appJsonPath, 'utf-8');
-  const appJson = JSON.parse(content);
+  const content = fs.readFileSync(appConfigPath, 'utf-8');
+  const appConfig = JSON.parse(content);
 
-  // Expo version
-  appJson.expo.version = versionInfo.version;
-
-  // Android versionCode
-  if (!appJson.android) {
-    appJson.android = {};
+  if (!appConfig.expo) {
+    throw new Error('app.config.json içinde "expo" anahtarı yok!');
   }
-  appJson.android.versionCode = versionInfo.androidCode;
 
-  // iOS buildNumber
-  if (!appJson.ios) {
-    appJson.ios = {};
+  appConfig.expo.version = versionInfo.version;
+
+  if (!appConfig.expo.android) {
+    appConfig.expo.android = {};
   }
-  appJson.ios.buildNumber = versionInfo.iosBuild;
+  appConfig.expo.android.versionCode = versionInfo.androidCode;
 
-  // Root version (bazı tool'lar bunu kullanır)
-  appJson.version = versionInfo.version;
+  if (!appConfig.expo.ios) {
+    appConfig.expo.ios = {};
+  }
+  appConfig.expo.ios.buildNumber = versionInfo.iosBuild;
 
-  fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + '\n');
-  console.log(`✅ app.json güncellendi: ${versionInfo.version}`);
+  fs.writeFileSync(appConfigPath, JSON.stringify(appConfig, null, 2) + '\n');
+  console.log(
+    `✅ app.config.json güncellendi: ${versionInfo.version} (versionCode ${versionInfo.androidCode})`
+  );
 }
 
 /**
@@ -107,7 +116,7 @@ function main() {
     console.log(`🤖 Android Code: ${versionInfo.androidCode}`);
     console.log(`🍎 iOS Build: ${versionInfo.iosBuild}\n`);
 
-    updateAppJson(versionInfo);
+    updateAppConfig(versionInfo);
     updatePackageJson(versionInfo);
 
     console.log('\n✨ Tüm versiyon bilgileri senkronize edildi!');

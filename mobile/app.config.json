@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -57,8 +57,7 @@
         "POST_NOTIFICATIONS",
         "CAMERA",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_SPECIAL_USE",
-        "SYSTEM_ALERT_WINDOW"
+        "FOREGROUND_SERVICE_SPECIAL_USE"
       ]
     },
     "web": {
@@ -110,7 +109,8 @@
       "@react-native-firebase/app-check",
       "@react-native-firebase/crashlytics",
       "./plugins/withAlarmActivity.js",
-      "./plugins/withBootReceiver.js"
+      "./plugins/withBootReceiver.js",
+      "./plugins/withMedicineWidget.js"
     ],
     "extra": {
       "eas": {
@@ -125,9 +125,7 @@
         "projectId": "ilachatirlatici-15a71",
         "storageBucket": "ilachatirlatici-15a71.firebasestorage.app",
         "messagingSenderId": "506876057044",
-        "appId": "1:506876057044:web:cc6229ad867dc9fbd53241",
-        "functionsBaseUrl": "REPLACE_WITH_ENV_FUNCTIONS_BASE_URL",
-        "aiProvider": "gemini"
+        "appId": "1:506876057044:web:cc6229ad867dc9fbd53241"
       },
       "google": {
         "androidClientId": "506876057044-61gujph23tf9gf0366ohpsi3pdp70phi.apps.googleusercontent.com",

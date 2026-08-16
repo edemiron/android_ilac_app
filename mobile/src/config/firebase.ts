@@ -16,7 +16,8 @@ import { initializeFirebaseAppCheck } from './appCheck';
 const log = createScopedLogger('Firebase');
 
 /**
- * Firebase config from app.json extra.firebase
+ * Firebase config from app.config.json extra.firebase
+ * (@expo/config app.config.json'u app.json'dan once okur — tek kaynak odur)
  *
  * SECURITY NOTE: Firebase client credentials are meant to be public.
  * Security is enforced through:
