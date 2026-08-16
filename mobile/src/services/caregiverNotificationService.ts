@@ -181,8 +181,14 @@ export function formatCaregiverNotification(data: CaregiverNotificationData): {
 /**
  * Bakıcıya bildirim gönder (Cloud Functions ile)
  *
- * Not: Bu fonksiyon client-side'da çalışır ancak production'da
- * Cloud Functions kullanılmalıdır. Şimdilik mock implementasyon.
+ * UYARI — HENÜZ UYGULANMADI: FCM gönderimi bir Cloud Function gerektirir
+ * (client'tan başka bir kullanıcıya push gönderilemez; FCM server key
+ * client'a konulamaz). `server/functions/` altında böyle bir fonksiyon
+ * henüz yok, dolayısıyla bu çağrı hiçbir bildirim göndermez.
+ *
+ * Bu fonksiyon bilerek `success: false` döner — daha önce `success: true`
+ * dönüyordu ve çağıranlar bildirimin gittiğini sanıyordu (sessiz hata).
+ * Cloud Function eklendiğinde aşağıdaki yorum satırları devreye alınmalı.
  */
 export async function sendCaregiverNotification(
   caregiverId: string,
@@ -197,19 +203,21 @@ export async function sendCaregiverNotification(
 
     const notification = formatCaregiverNotification(data);
 
-    // TODO: Cloud Functions ile FCM gönder
-    // Şimdilik sadece log
-    log.info('Bakıcı bildirimi gönderiliyor', {
+    log.warn('Bakıcı bildirimi gönderilemedi — FCM Cloud Function eksik', {
       caregiverId,
       notification,
     });
 
-    // Production'da burada Cloud Functions call yapılacak:
+    // Cloud Function eklendiginde burasi acilacak:
     // const functions = getFunctions();
     // const sendNotification = httpsCallable(functions, 'sendCaregiverNotification');
     // await sendNotification({ caregiverId, ...data });
+    // return { success: true };
 
-    return { success: true };
+    return {
+      success: false,
+      error: 'FCM gönderimi henüz uygulanmadı (Cloud Function eksik)',
+    };
   } catch (error) {
     log.error('Bakıcı bildirimi gönderme hatası', error);
     return {

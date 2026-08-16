@@ -69,6 +69,16 @@ service cloud.firestore {
           && str.matches('^[\\s\\S]*$');
     }
 
+    // Bakici yetki kontrolu.
+    // Uyelik kaydi hastanin alt koleksiyonunda deterministik ID ile tutulur:
+    //   users/{patientId}/caregivers/{caregiverId}
+    // Boylece kural tek exists() ile dogrular; caregiverRelationships
+    // dokumanlarinin rastgele UUID id'si kural icinden aranmak zorunda kalmaz.
+    function isActiveCaregiverFor(patientId) {
+      return isAuthenticated()
+          && exists(/databases/$(database)/documents/users/$(patientId)/caregivers/$(request.auth.uid));
+    }
+
     // Check if request has App Check token (when enforced)
     // Note: This can be enabled once App Check is fully configured
     // function hasValidAppCheckToken() {
@@ -80,11 +90,37 @@ service cloud.firestore {
     // ============================================
 
     match /users/{userId} {
-      // Users can only access their own document
-      allow read: if isOwner(userId);
+      // Sahibi tam erisir; aktif bakici SADECE okuyabilir
+      // (CaregiverScreen hasta adi/profilini gosterir).
+      allow read: if isOwner(userId) || isActiveCaregiverFor(userId);
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
       allow delete: if isOwner(userId);
+
+      // ----------------------------------------
+      // BAKICI UYELIK KAYITLARI
+      // ----------------------------------------
+      // Deterministik ID (= bakicinin uid'i) sayesinde diger kurallar
+      // exists() ile ucuza yetki dogrulayabilir.
+      match /caregivers/{caregiverId} {
+        allow read: if isOwner(userId) || request.auth.uid == caregiverId;
+
+        // Bakici YALNIZCA kendi uyeligini olusturabilir ve bunun icin
+        // bu hastaya ait, bekleyen bir davet kodunu bilmesi gerekir.
+        // Aksi halde herhangi bir kullanici kendini istedigi hastanin
+        // bakicisi yapabilirdi (yetki yukseltme).
+        allow create: if isAuthenticated()
+          && request.auth.uid == caregiverId
+          && request.resource.data.inviteCode is string
+          && get(/databases/$(database)/documents/caregiverInvites/$(request.resource.data.inviteCode)).data.patientId == userId
+          && get(/databases/$(database)/documents/caregiverInvites/$(request.resource.data.inviteCode)).data.status == 'pending';
+
+        // Yetki degisimi iliski dokumaninda tutulur; uyelik kaydi immutable.
+        allow update: if false;
+
+        // Hasta bakiciyi cikarabilir, bakici kendi ayrilabilir.
+        allow delete: if isOwner(userId) || request.auth.uid == caregiverId;
+      }
 
       // ----------------------------------------
       // MEDICINES SUBCOLLECTION
@@ -117,12 +153,15 @@ service cloud.firestore {
       // MEDICINE LOGS SUBCOLLECTION
       // ----------------------------------------
       match /medicineLogs/{logId} {
-        allow read: if isOwner(userId);
+        // Bakici hasta gecmisini gorebilir (canViewHistory UI'da ayrica kontrol edilir).
+        allow read: if isOwner(userId) || isActiveCaregiverFor(userId);
 
         // Create: status enum + foreign key medicineId must reference
         // an existing medicine owned by the same user. Prevents orphaned
         // and injected log entries.
-        allow create: if isOwner(userId)
+        // Bakici da kayit yazabilir (caregiverService.addCaregiverMedicineLog —
+        // 'ilaci verdim' aksiyonu); ayni dogrulamalar gecerlidir.
+        allow create: if (isOwner(userId) || isActiveCaregiverFor(userId))
           && request.resource.data.status in ['taken', 'skipped', 'missed']
           && request.resource.data.medicineId is string
           && request.resource.data.medicineId.size() > 0
@@ -168,6 +207,76 @@ service cloud.firestore {
       // Client queries must include isVerified == true.
       allow read: if isAuthenticated() && resource.data.isVerified == true;
       allow create, update, delete: if false;
+    }
+
+    // ============================================
+    // BAKICI DAVETLERI
+    // ============================================
+
+    match /caregiverInvites/{inviteCode} {
+      // Davet kodunun kendisi sirdir: dokuman ID'sini bilen kimlik
+      // dogrulanmis kullanici daveti okuyabilir. Kabul akisi bunu gerektirir
+      // (bakici, iliski kurulmadan once daveti okumak zorunda).
+      allow read: if isAuthenticated();
+
+      // Daveti yalnizca hasta kendi adina olusturur.
+      allow create: if isAuthenticated()
+        && request.resource.data.patientId == request.auth.uid
+        && isValidString(request.resource.data.patientName, 1, 100)
+        && request.resource.data.status == 'pending';
+
+      // Hasta kendi davetini yonetebilir. Davetli bakici ise SADECE
+      // status/acceptedAt alanlarini degistirebilir (kabul/expire akisi) —
+      // patientId veya permissions degistiremez.
+      allow update: if isAuthenticated()
+        && (
+          resource.data.patientId == request.auth.uid
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt'])
+            && request.resource.data.status in ['accepted', 'expired']
+          )
+        );
+
+      allow delete: if isAuthenticated() && resource.data.patientId == request.auth.uid;
+    }
+
+    // ============================================
+    // BAKICI ILISKILERI
+    // ============================================
+
+    match /caregiverRelationships/{relationshipId} {
+      // Taraflardan biri okuyabilir. Client sorgulari patientId veya
+      // caregiverId uzerinde filtreledigi icin list islemleri de gecerlidir.
+      allow read: if isAuthenticated()
+        && (resource.data.patientId == request.auth.uid
+            || resource.data.caregiverId == request.auth.uid);
+
+      // Iliskiyi bakici olusturur; uyelik kaydinin (users/{p}/caregivers/{c})
+      // ONCE yazilmis olmasi gerekir — yetki tek kaynaktan dogrulanir.
+      allow create: if isAuthenticated()
+        && request.resource.data.caregiverId == request.auth.uid
+        && isActiveCaregiverFor(request.resource.data.patientId);
+
+      // Taraflar guncelleyebilir; ancak taraf kimlikleri immutable.
+      allow update: if isAuthenticated()
+        && (resource.data.patientId == request.auth.uid
+            || resource.data.caregiverId == request.auth.uid)
+        && request.resource.data.patientId == resource.data.patientId
+        && request.resource.data.caregiverId == resource.data.caregiverId;
+
+      allow delete: if isAuthenticated()
+        && (resource.data.patientId == request.auth.uid
+            || resource.data.caregiverId == request.auth.uid);
+    }
+
+    // ============================================
+    // UYGULAMA KONFIGURASYONU (AI ayarlari)
+    // ============================================
+
+    match /config/{configId} {
+      // Salt okunur; yazma yalnizca backend/console uzerinden.
+      allow read: if isAuthenticated();
+      allow write: if false;
     }
 
     // ============================================

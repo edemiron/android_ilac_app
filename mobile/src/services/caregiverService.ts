@@ -44,6 +44,13 @@ const INVITES_COLLECTION = 'caregiverInvites';
 const RELATIONSHIPS_COLLECTION = 'caregiverRelationships';
 const MEDICINE_LOGS_SUBCOLLECTION = 'medicineLogs'; // Sprint 72: hasta medicineLogs subcollection
 
+// Bakici uyelik kaydi: users/{patientId}/caregivers/{caregiverId}
+// Deterministik ID sayesinde firestore.rules tek exists() ile yetki
+// dogrulayabiliyor (caregiverRelationships id'si rastgele UUID oldugu icin
+// kural icinden aranamiyor). Yetki ayrintilari iliski dokumaninda kalir;
+// bu kayit yalnizca "bu kisi bu hastanin bakicisidir" bilgisini tutar.
+const CAREGIVERS_SUBCOLLECTION = 'caregivers';
+
 // Davet kodu geçerlilik süresi (7 gün)
 const INVITE_EXPIRY_DAYS = 7;
 
@@ -231,6 +238,17 @@ export async function acceptCaregiverInvite(
       caregiverFcmToken,
     };
 
+    // SIRA ONEMLI — firestore.rules bu sirayi zorunlu kilar:
+    // 1) Uyelik kaydi: davet HENUZ 'pending' iken yazilabilir.
+    // 2) Iliski: uyelik kaydi var oldugu icin isActiveCaregiverFor() gecer.
+    // 3) Davet 'accepted' yapilir.
+    await setDoc(doc(db, 'users', invite.patientId, CAREGIVERS_SUBCOLLECTION, caregiverId), {
+      inviteCode,
+      caregiverId,
+      patientId: invite.patientId,
+      createdAt: new Date().toISOString(),
+    });
+
     await setDoc(doc(db, RELATIONSHIPS_COLLECTION, relationshipId), relationship);
 
     // Daveti güncelle (accepted)
@@ -283,7 +301,18 @@ export async function removeCaregiver(
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
-    await deleteDoc(doc(db, RELATIONSHIPS_COLLECTION, relationshipId));
+    // Once uyelik kaydini sil: erisim yetkisi ANINDA kalkar.
+    // Ters sirada bir hata olursa yetim uyelik kaydi bakiciya erisim
+    // vermeye devam ederdi.
+    const relationshipRef = doc(db, RELATIONSHIPS_COLLECTION, relationshipId);
+    const relationshipSnap = await getDoc(relationshipRef);
+
+    if (relationshipSnap.exists()) {
+      const { patientId, caregiverId } = relationshipSnap.data() as CaregiverRelationship;
+      await deleteDoc(doc(db, 'users', patientId, CAREGIVERS_SUBCOLLECTION, caregiverId));
+    }
+
+    await deleteDoc(relationshipRef);
 
     log.info('Bakıcı ilişkisi kaldırıldı', { relationshipId });
 
