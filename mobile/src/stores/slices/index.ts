@@ -22,7 +22,6 @@
  *
  * Sprint 46'da factory pattern eklendi: her slice'in hem isolated store'u
  * (geriye uyumlu) hem de createXxxSlice(set, get) factory fonksiyonu var.
- * medicineStore.combined.ts'te combine ornegi bulunabilir.
  *
  * NOT: Sprint 4'ün bu oturumunda SADECE slice mimarisinin TEMELI atildi:
  *   - types/index.ts'e imageStoragePath, imageMimeType, imageSize,

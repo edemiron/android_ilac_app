@@ -93,3 +93,27 @@ tmp/
 # Sprint 96 smoke test runtime artifacts
 mobile/.smoke-logs/
 
+# build-apk.sh build loglari
+mobile/build-logs/
+
+# build-apk script'inin kok dizine kopyaladigi artifact.
+# ASLA commit edilmemeli: ~70 MB, daha once repo'ya girip sisirmisti.
+/*.apk
+/*.aab
+
+# Windows long-path build workaround scratch dirs (tekrar olusmasin)
+short-node-modules/
+cxx/
+cxx-shortsafe/
+mods/
+sac/
+safe-area-context/
+safe-area-context-build/
+r/
+r-copy/
+
+# Tooling / OS artifacts
+.playwright-cli/
+desktop.ini
+logs/
+
