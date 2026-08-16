@@ -42,8 +42,10 @@ import {
   getBootRecoveryResult,
   clearBootRecoveryResult,
   registerBootTask,
+  rescheduleNextOccurrence,
   type BootRecoveryResult,
 } from '../../utils/bootHandler';
+import { scheduleMedicineNotification } from '../../utils/notifications';
 import { STORAGE_KEYS } from '../../constants';
 
 const RECOVERY_KEY = STORAGE_KEYS.BOOT_RECOVERY;
@@ -123,6 +125,67 @@ describe('bootHandler', () => {
       // which is not available in jest testEnvironment: 'node'.
       // Function coverage counted if import succeeds; runtime check skipped.
       expect(() => registerBootTask()).not.toThrow();
+    });
+  });
+
+  describe('rescheduleNextOccurrence', () => {
+    const MED = { id: 'med-1', name: 'Aspirin', dosage: '1 tablet', isActive: true };
+    const RT = { id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: true };
+
+    async function seed(medicines: unknown[], reminderTimes: unknown[]): Promise<void> {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.MEDICINE_STORAGE,
+        JSON.stringify({ state: { medicines, reminderTimes, snoozes: [] } })
+      );
+    }
+
+    beforeEach(() => {
+      (scheduleMedicineNotification as jest.Mock).mockClear();
+    });
+
+    it('schedules the next occurrence and never cancels the ringing alarm', async () => {
+      await seed([MED], [RT]);
+
+      const result = await rescheduleNextOccurrence('med-1', 'rt-1');
+
+      expect(result).toBe('scheduled-id');
+      expect(scheduleMedicineNotification).toHaveBeenCalledTimes(1);
+
+      // skipCancel sart: notifee.cancelNotification ayni ID'nin GOSTERILEN
+      // bildirimini de siler, yani calan alarmi susturur.
+      const options = (scheduleMedicineNotification as jest.Mock).mock.calls[0][4];
+      expect(options.skipCancel).toBe(true);
+    });
+
+    it('uses a forward-shifted reference time so it cannot schedule seconds away', async () => {
+      await seed([MED], [RT]);
+      const before = Date.now();
+
+      await rescheduleNextOccurrence('med-1', 'rt-1');
+
+      const options = (scheduleMedicineNotification as jest.Mock).mock.calls[0][4];
+      // Ileri kaydirilmis referans olmadan "bugun HH:mm" hala gelecekte
+      // gorunup 5 sn sonrasina alarm kurulabilir (sonsuz alarm dongusu).
+      expect(options.referenceNow.getTime()).toBeGreaterThan(before);
+    });
+
+    it('does not schedule for an inactive medicine', async () => {
+      await seed([{ ...MED, isActive: false }], [RT]);
+
+      expect(await rescheduleNextOccurrence('med-1', 'rt-1')).toBeNull();
+      expect(scheduleMedicineNotification).not.toHaveBeenCalled();
+    });
+
+    it('does not schedule for a disabled reminder time', async () => {
+      await seed([MED], [{ ...RT, isEnabled: false }]);
+
+      expect(await rescheduleNextOccurrence('med-1', 'rt-1')).toBeNull();
+      expect(scheduleMedicineNotification).not.toHaveBeenCalled();
+    });
+
+    it('returns null when there is no stored state', async () => {
+      expect(await rescheduleNextOccurrence('med-1', 'rt-1')).toBeNull();
+      expect(scheduleMedicineNotification).not.toHaveBeenCalled();
     });
   });
 });

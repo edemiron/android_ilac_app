@@ -45,8 +45,8 @@ export async function createNotificationChannels(): Promise<void> {
 
     await notifee.createChannel({
       id: ALARM_NO_VIBRATION_CHANNEL_ID,
-      name: 'Ilac Alarmlari (Sessiz Titre?im)',
-      description: 'Kritik ilac hatirlatmalari - titre?im kapali',
+      name: 'Ilac Alarmlari (Sessiz Titresim)',
+      description: 'Kritik ilac hatirlatmalari - titresim kapali',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PRIVATE,
       sound: 'alarm',
@@ -68,8 +68,8 @@ export async function createNotificationChannels(): Promise<void> {
 
     await notifee.createChannel({
       id: REMINDER_NO_VIBRATION_CHANNEL_ID,
-      name: 'Ilac Hatirlatmalari (Sessiz Titre?im)',
-      description: 'Normal ilac hatirlatmalari - titre?im kapali',
+      name: 'Ilac Hatirlatmalari (Sessiz Titresim)',
+      description: 'Normal ilac hatirlatmalari - titresim kapali',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PRIVATE,
       sound: 'default',

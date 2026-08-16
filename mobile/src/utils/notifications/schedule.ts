@@ -28,6 +28,20 @@ import { getAlarmNotificationId } from './ids';
 import type { Medicine, ReminderTime, UserSettings } from '../../types';
 
 const log = createScopedLogger('NotificationSchedule');
+
+/**
+ * scheduleMedicineNotification opsiyonlari.
+ *
+ * Alarm CALARKEN (DELIVERED event'i) bir sonraki gunun alarmini kurmak icin
+ * eklendi — o anda normal iptal+kur akisi calan alarmi susturuyordu.
+ */
+export interface ScheduleMedicineOptions {
+  /** true ise mevcut bildirim iptal EDILMEZ (calan alarm korunur). */
+  skipCancel?: boolean;
+  /** Tetikleme zamani hesabinda kullanilacak referans an. */
+  referenceNow?: Date;
+}
+
 /**
  * Son kullanma tarihi hatirlatma bildirimi planla
  */
@@ -177,10 +191,9 @@ export async function scheduleSnoozeNotification(
     await notifee.createTriggerNotification(
       {
         id: notificationId,
-        title: `?? ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
+        title: `🔔 ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
         subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!
-? ${timeStr}`,
+        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
         android: {
           channelId: behavior.channelId,
           category: AndroidCategory.ALARM,
@@ -352,7 +365,8 @@ export async function scheduleMedicineNotification(
   medicine: Medicine,
   reminderTime: ReminderTime,
   settingsOrFullScreen: UserSettings | boolean = true,
-  bypassBuffer: boolean = false
+  bypassBuffer: boolean = false,
+  options: ScheduleMedicineOptions = {}
 ): Promise<string | null> {
   if (!medicine?.id || !reminderTime?.id || !reminderTime?.time) {
     log.warn('scheduleMedicineNotification: Gecersiz parametre, bildirim planlanmadi', {
@@ -365,9 +379,17 @@ export async function scheduleMedicineNotification(
   }
 
   try {
-    await cancelNotification(`alarm-${medicine.id}-${reminderTime.id}`);
+    // skipCancel: alarm CALARKEN yeniden planlama yapiliyorsa iptal edilmemeli.
+    // notifee.cancelNotification ayni ID'nin GOSTERILEN bildirimini de siler
+    // (notifee dokumantasyonu) — yani calan alarmi susturur.
+    if (!options.skipCancel) {
+      await cancelNotification(`alarm-${medicine.id}-${reminderTime.id}`);
+    }
 
-    const now = new Date();
+    // referenceNow ileri alinabilir: DELIVERED aninda "bugun HH:mm" saat
+    // kaymasi yuzunden hala gelecekte gorunurse 5 sn sonrasina alarm kurulup
+    // dongu olusurdu. Ileri kaydirilmis referans bunu imkansiz kilar.
+    const now = options.referenceNow ?? new Date();
     const triggerDate = resolveReminderTriggerDate(reminderTime, bypassBuffer, now);
 
     const behavior = resolveNotificationBehavior(medicine, settingsOrFullScreen, triggerDate);
@@ -396,10 +418,9 @@ export async function scheduleMedicineNotification(
     const notificationId = await notifee.createTriggerNotification(
       {
         id: getAlarmNotificationId(medicine.id, reminderTime.id),
-        title: `?? ${medicine.name}`,
+        title: `💊 ${medicine.name}`,
         subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!
-? ${timeStr}`,
+        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
         android: {
           channelId: behavior.channelId,
           category: AndroidCategory.ALARM,

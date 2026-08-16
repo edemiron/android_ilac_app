@@ -269,6 +269,56 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
   }
 }
 
+/**
+ * Tek bir hatirlatmanin BIR SONRAKI tekrarini kur.
+ *
+ * Neden gerekli: her hatirlatmanin tek bir bekleyen TIMESTAMP trigger'i var.
+ * Alarm caldiktan sonra yenisi yalnizca kullanici AlarmScreen'de aksiyon
+ * alirsa kuruluyordu; kullanici bildirimi kaydirip gecerse veya hic
+ * ilgilenmezse o ilac icin uygulama bir daha acilana (ya da telefon yeniden
+ * baslayana) kadar alarm kalmiyordu.
+ *
+ * skipCancel=true zorunlu: alarm CALARKEN cagriliyor ve normal iptal akisi
+ * gosterilen bildirimi de sildigi icin calan alarmi susturuyordu.
+ *
+ * referenceNow ileri alinir ki "bugun HH:mm" saat kaymasi yuzunden hala
+ * gelecekte gorunup 5 sn sonrasina alarm kurulmasin (sonsuz alarm dongusu).
+ */
+export async function rescheduleNextOccurrence(
+  medicineId: string,
+  reminderTimeId: string
+): Promise<string | null> {
+  try {
+    const storedData = await AsyncStorage.getItem(STORAGE_KEYS.MEDICINE_STORAGE);
+    if (!storedData) return null;
+
+    const parsed: StoredState = JSON.parse(storedData);
+    const { medicines, reminderTimes } = parsed.state;
+    if (!medicines || !reminderTimes) return null;
+
+    const medicine = medicines.find(m => m.id === medicineId && m.isActive);
+    if (!medicine) return null;
+
+    const reminderTime = reminderTimes.find(rt => rt.id === reminderTimeId && rt.isEnabled);
+    if (!reminderTime) return null;
+
+    const notificationId = await scheduleMedicineNotification(
+      medicine as Medicine,
+      reminderTime as ReminderTime,
+      true,
+      false,
+      { skipCancel: true, referenceNow: new Date(Date.now() + 60_000) }
+    );
+
+    log.debug('Sonraki tekrar kuruldu', { medicineId, reminderTimeId, notificationId });
+
+    return notificationId;
+  } catch (error) {
+    log.error('Sonraki tekrar kurulamadi', error);
+    return null;
+  }
+}
+
 async function ReRegisterAlarmsTask(taskData: TaskData): Promise<void> {
   const { trigger = 'unknown', timestamp } = taskData || {};
 

@@ -3,7 +3,7 @@ import notifee, { EventType, Event, TriggerType, AlarmType } from '@notifee/reac
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import App from './App';
-import { registerBootTask } from './src/utils/bootHandler';
+import { registerBootTask, rescheduleNextOccurrence } from './src/utils/bootHandler';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { stopAlarmSound } from './src/utils/alarmSoundManager';
 import { stopSpeaking } from './src/utils/speech';
@@ -128,6 +128,34 @@ async function cancelAlarmCompletely(notification: any): Promise<void> {
   }
 }
 
+/**
+ * Calan alarmin bir sonraki tekrarini kur (alarm zinciri devamliligi).
+ *
+ * Yalnizca gercek ilac alarmlari icin calisir — snooze, son kullanma
+ * tarihi ve test bildirimleri kendi akislarina sahip.
+ *
+ * NOT: cancelAlarmCompletely ayni ID'yi ('alarm-{med}-{rt}') iptal ettigi
+ * icin DISMISSED akisinda bu fonksiyon iptalden SONRA cagrilmali; aksi
+ * halde yeni kurulan trigger da silinir.
+ */
+async function rescheduleFiredAlarm(notification: any): Promise<void> {
+  const medId = notification?.data?.medicineId as string | undefined;
+  const remId = notification?.data?.reminderTimeId as string | undefined;
+  const isSnooze = notification?.data?.isSnooze;
+  const id = notification?.id as string | undefined;
+
+  if (!medId || !remId) return;
+  if (isSnooze === 'true' || isSnooze === true) return;
+  if (!id || !id.startsWith('alarm-')) return;
+
+  try {
+    const nextId = await rescheduleNextOccurrence(medId, remId);
+    console.log('[BG] next occurrence scheduled:', nextId);
+  } catch (_e) {
+    console.log('[BG] next occurrence FAILED:', medId, remId);
+  }
+}
+
 // ============================================================
 // BACKGROUND EVENT HANDLER
 // Uygulama kapalıyken/arka plandayken çalışır.
@@ -145,6 +173,12 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
       'fullScreen:',
       notification?.data?.fullScreenAlarm
     );
+
+    // Alarm zincirini burada devam ettir. Aksi halde kullanici bildirimi
+    // kaydirip gecerse veya hic ilgilenmezse bir sonraki alarm KURULMUYOR
+    // (her hatirlatmanin tek bir trigger'i var, o da bu anda tuketildi).
+    // Sadece gercek ilac alarmlari: snooze/expiry/test bildirimleri haric.
+    await rescheduleFiredAlarm(notification);
     if (notification?.data?.fullScreenAlarm === 'true') {
       const key = getAlarmKey(notification.data);
       const handled = await isAlarmHandled(key);
@@ -210,6 +244,9 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
     const key = getAlarmKey(notification.data);
     await markAlarmHandled(key);
     await cancelAlarmCompletely(notification);
+    // Iptal ayni ID'yi sildigi icin DELIVERED'da kurulan yarinki trigger da
+    // gitti — burada yeniden kur, yoksa zincir bu noktada kopar.
+    await rescheduleFiredAlarm(notification);
     return;
   }
 
