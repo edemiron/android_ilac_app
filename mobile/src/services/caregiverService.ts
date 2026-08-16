@@ -79,22 +79,25 @@ export async function createCaregiverInvite(
   try {
     const db = await import('firebase/firestore').then(m => m.getFirestore());
 
-    // Aynı e-posta için zaten aktif davet var mı kontrol et
+    // Bu HASTANIN ayni e-postaya bekleyen daveti var mi kontrol et.
+    // patientId filtresi iki nedenle zorunlu:
+    // 1) firestore.rules artik caregiverInvites list'i yalnizca kendi
+    //    davetleriyle sinirliyor (koleksiyon numaralandirmasi engellendi).
+    // 2) Filtresiz sorgu, BASKA bir hastanin ayni bakiciya gonderdigi davet
+    //    yuzunden bu hastanin davet olusturmasini haksiz yere engelliyordu.
     const existingQuery = query(
       collection(db, INVITES_COLLECTION),
+      where('patientId', '==', patientId),
       where('caregiverEmail', '==', caregiverEmail.toLowerCase()),
       where('status', '==', 'pending')
     );
 
     const existingSnapshot = await getDocs(existingQuery);
     if (!existingSnapshot.empty) {
-      log.warn('Zaten pending davet var', { caregiverEmail });
+      log.warn('Zaten pending davet var');
       return {
         success: false,
-        error:
-          caregiverEmail === 'tr'
-            ? 'Bu e-posta adresine zaten bekleyen bir davet var.'
-            : 'There is already a pending invite for this email.',
+        error: 'Bu e-posta adresine zaten bekleyen bir davet var.',
       };
     }
 
@@ -108,13 +111,10 @@ export async function createCaregiverInvite(
 
     const relationshipSnapshot = await getDocs(relationshipQuery);
     if (!relationshipSnapshot.empty) {
-      log.warn('Zaten aktif bakıcı ilişkisi var', { caregiverEmail });
+      log.warn('Zaten aktif bakıcı ilişkisi var');
       return {
         success: false,
-        error:
-          caregiverEmail === 'tr'
-            ? 'Bu kişi zaten bakıcınız olarak ekli.'
-            : 'This person is already your caregiver.',
+        error: 'Bu kişi zaten bakıcınız olarak ekli.',
       };
     }
 
