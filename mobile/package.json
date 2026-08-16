@@ -10,6 +10,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:settings": "jest --testPathPatterns \"[Ss]ettings\"",
+    "test:caregiver": "jest --testPathPatterns \"[Cc]aregiver\"",
+    "test:critical": "jest --testPathPatterns \"(medicineStore|notifications|[Aa]larm|boot|reminder)\"",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
@@ -17,8 +20,9 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,json}\"",
     "prepare": "cd .. && husky mobile/.husky",
     "bundle": "npx react-native bundle --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res",
-    "build:release": "npm run bundle && cd android && ./gradlew assembleRelease",
-    "build:device": "npm run build:release && adb install -r android/app/build/outputs/apk/release/app-release.apk && adb shell am start -n com.ilachatirlatici/.MainActivity",
+    "build:release": "bash scripts/build-apk.sh",
+    "build:device": "bash scripts/build-apk.sh --install --launch",
+    "build:aab": "bash scripts/build-apk.sh --aab",
     "sync-version": "node scripts/sync-version.js"
   },
   "dependencies": {

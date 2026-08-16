@@ -2,6 +2,18 @@
 
 Bu dosya projede karşılaşılan sorunları ve çözümlerini içerir.
 
+> **Aşağıdaki §1 ve §2 artık otomatik çözülüyor.** Elle gradle çağırmak yerine
+> build script'ini kullanın — `clean` adımını hep uygular ve %99 timeout'unda
+> exit code yerine APK'nın gerçekten üretilip üretilmediğine bakar:
+>
+> ```bash
+> npm run build:release          # veya: bash mobile/scripts/build-apk.sh
+> npm run build:device           # kur + başlat
+> ```
+>
+> cmd.exe için: `mobile\scripts\build-apk.bat` (Git Bash gerektirmez).
+> Uzun build'e girmeden ortamı kontrol etmek için: `--dry-run`.
+
 **Detaylı Çözüm:** [docs/sorun-cozumleri/02-build-timeout-99-percent.md](sorun-cozumleri/02-build-timeout-99-percent.md)
 
 ---
