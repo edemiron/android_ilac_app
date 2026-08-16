@@ -1,6 +1,4 @@
 import { AISearchResult } from '../types';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createScopedLogger } from '../utils/logger';
 // Sprint 7.1 + 8.1: Pure prompt + response helper'lari inline tanimlar silindi.
@@ -16,10 +14,20 @@ import {
 
 const log = createScopedLogger('AIMedicineService');
 
-// ============ FIREBASE FUNCTIONS CONFIG ============
-
-// Firebase Functions kullanarak API çağrıları
-// API key'ler sunucu tarafında kalır, client'a gitmez
+// ============ AI ERISIMI ============
+//
+// TUM AI cagrilari `aiGenerate` callable Cloud Function'i uzerinden gider.
+//
+// Onceki surumde bu dosya `config/ai` Firestore dokumanindan geminiApiKey ve
+// openaiApiKey alanlarini okuyup generativelanguage.googleapis.com ile
+// api.openai.com adreslerine DOGRUDAN istek atiyordu. Kural
+// `allow read: if isAuthenticated()` oldugu icin bu, kaydolan her kullanicinin
+// ham API anahtarlarini cekebilmesi demekti. Dogrudan cagri yollari ve config
+// okumasi tamamen kaldirildi; anahtarlar artik yalnizca sunucuda (Secret
+// Manager) bulunuyor.
+//
+// Prompt uretimi ve yanit ayristirma istemcide kalir; sunucu yalnizca modeli
+// gizli anahtarla cagirir.
 
 let functions: ReturnType<typeof getFunctions> | null = null;
 
@@ -30,232 +38,85 @@ function getFunctionsInstance() {
   return functions;
 }
 
-// ============ FALLBACK: Direct API (API key gerekli) ============
+interface AiGenerateRequest {
+  prompt: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+}
 
-interface FallbackAIConfig {
-  geminiApiKey: string;
-  model: string;
+interface AiGenerateResponse {
+  text?: string;
+  provider?: string;
+}
+
+interface AiGenerateOptions {
+  temperature?: number;
+  maxOutputTokens?: number;
+}
+
+interface AiGenerateOutcome {
+  text: string;
+  provider: string;
 }
 
 /**
- * Fallback: Firebase'den AI config al (direct API için)
+ * `aiGenerate` callable'ini cagirir.
+ *
+ * Basarisizlikta null doner — cagiran taraf kullaniciya gosterilecek mesaji
+ * kendi baglamina gore uretir. Sunucudan gelen HttpsError mesajlari
+ * (kimlik dogrulama, kota asimi) kullaniciya gosterilebilir niteliktedir.
  */
-async function getAIConfigDirect(): Promise<FallbackAIConfig | null> {
+async function callAiGenerate(
+  prompt: string,
+  options: AiGenerateOptions = {}
+): Promise<{ outcome: AiGenerateOutcome | null; error?: string }> {
   try {
-    const configRef = doc(db, 'config', 'ai');
-    const snapshot = await getDoc(configRef);
+    const fn = httpsCallable<AiGenerateRequest, AiGenerateResponse>(
+      getFunctionsInstance(),
+      'aiGenerate'
+    );
 
-    if (!snapshot.exists()) {
-      return null;
+    const result = await fn({
+      prompt,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+    });
+
+    const text = result.data?.text?.trim();
+
+    if (!text) {
+      log.warn('aiGenerate bos yanit dondu');
+      return { outcome: null, error: 'AI yanit vermedi.' };
     }
 
-    const data = snapshot.data();
-    return {
-      geminiApiKey: data.geminiApiKey || '',
-      model: data.geminiModel || 'gemini-2.5-flash',
-    };
-  } catch (error) {
-    log.error('AI config getirme hatasi', error);
-    return null;
+    return { outcome: { text, provider: result.data?.provider || 'AI' } };
+  } catch (error: unknown) {
+    log.error('aiGenerate cagrisi basarisiz', error);
+    const message = error instanceof Error ? error.message : 'AI servisi su anda kullanilamiyor.';
+    return { outcome: null, error: message };
   }
 }
 
-async function getAIConfig(): Promise<{
-  provider: string;
-  geminiApiKey: string;
-  openaiApiKey: string;
-  model: string;
-} | null> {
-  try {
-    const configRef = doc(db, 'config', 'ai');
-    const snapshot = await getDoc(configRef);
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    const data = snapshot.data();
-    return {
-      provider: data.provider || 'gemini',
-      geminiApiKey: data.geminiApiKey || '',
-      openaiApiKey: data.openaiApiKey || '',
-      model: data.geminiModel || 'gemini-2.5-flash',
-    };
-  } catch (error) {
-    log.error('AI config getirme hatasi', error);
-    return null;
-  }
+function failure(error: string): AISearchResult {
+  return { success: false, confidence: 0, error };
 }
 
 // ============ BARKOD İLE İLAÇ ARAMA ============
 
 /**
- * Barkod ile web'te arama yapıp AI ile ilaç bilgilerini çıkar
- * Firebase Functions kullanarak - API key'ler sunucu tarafında kalır
+ * Barkod ile ilaç bilgilerini AI'dan çıkar.
  */
 export async function searchMedicineByBarcodeAI(barcode: string): Promise<AISearchResult> {
-  try {
-    // Firebase Functions kullanarak sunucu tarafında AI çağrısı yap
-    // API key'ler client'a gitmez
-    const fn = getFunctionsInstance();
+  const { outcome, error } = await callAiGenerate(createSearchPrompt(barcode), {
+    temperature: 0.1,
+    maxOutputTokens: 2048,
+  });
 
-    try {
-      const geminiSearch = httpsCallable(fn, 'geminiSearch');
-      const result = await geminiSearch({ barcode });
-      const data = result.data as { success?: boolean; result?: unknown } | undefined;
-
-      if (data?.success) {
-        return parseAIResponse(data.result as string, barcode, 'Gemini (Function)');
-      }
-
-      // Function başarısız olursa fallback olarak direct API dene
-      log.warn('Firebase Function başarısız, fallback denenecek', result.data);
-    } catch (fnError) {
-      log.warn('Firebase Function hatası, fallback denenecek', fnError);
-    }
-
-    // Fallback: Direct API (eski yöntem - API key gerekli)
-    const config = await getAIConfigDirect();
-
-    if (config?.geminiApiKey) {
-      return await searchWithGemini(barcode, config.geminiApiKey, config.model);
-    }
-
-    return {
-      success: false,
-      confidence: 0,
-      error: 'AI servisi şu anda kullanılamıyor.',
-    };
-  } catch (error: unknown) {
-    log.error('AI arama hatasi', error);
-    const errorMessage = error instanceof Error ? error.message : 'AI araması başarısız oldu.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
+  if (!outcome) {
+    return failure(error || 'AI araması başarısız oldu.');
   }
-}
 
-// ============ GEMİNİ İLE ARAMA ============
-
-async function searchWithGemini(
-  barcode: string,
-  apiKey: string,
-  model: string = 'gemini-2.5-flash'
-): Promise<AISearchResult> {
-  const prompt = createSearchPrompt(barcode);
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 2048,
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Gemini API hatası');
-    }
-
-    const data = await response.json();
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!textResponse) {
-      return {
-        success: false,
-        confidence: 0,
-        error: 'AI yanıt vermedi.',
-      };
-    }
-
-    return parseAIResponse(textResponse, barcode, 'Gemini');
-  } catch (error: unknown) {
-    log.error('Gemini arama hatasi', error);
-    const errorMessage = error instanceof Error ? error.message : 'Gemini araması başarısız.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
-  }
-}
-
-// ============ OPENAİ İLE ARAMA ============
-
-async function _searchWithOpenAI(
-  barcode: string,
-  apiKey: string,
-  model: string = 'gpt-4o-mini'
-): Promise<AISearchResult> {
-  const prompt = createSearchPrompt(barcode);
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Sen bir ilaç veritabanı asistanısın. Barkod numaralarına göre ilaç bilgilerini JSON formatında döndürürsün.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 2048,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'OpenAI API hatası');
-    }
-
-    const data = await response.json();
-    const textResponse = data.choices?.[0]?.message?.content;
-
-    if (!textResponse) {
-      return {
-        success: false,
-        confidence: 0,
-        error: 'AI yanıt vermedi.',
-      };
-    }
-
-    return parseAIResponse(textResponse, barcode, 'OpenAI');
-  } catch (error: unknown) {
-    log.error('OpenAI arama hatasi', error);
-    const errorMessage = error instanceof Error ? error.message : 'OpenAI araması başarısız.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
-  }
+  return parseAIResponse(outcome.text, barcode, outcome.provider);
 }
 
 // ============ İSİM İLE İLAÇ ARAMA ============
@@ -264,102 +125,16 @@ async function _searchWithOpenAI(
  * İlaç adı ile arama yap
  */
 export async function searchMedicineByNameAI(name: string): Promise<AISearchResult> {
-  try {
-    const config = await getAIConfig();
+  const { outcome, error } = await callAiGenerate(createNameSearchPrompt(name), {
+    temperature: 0.1,
+    maxOutputTokens: 2048,
+  });
 
-    if (!config) {
-      return {
-        success: false,
-        confidence: 0,
-        error: 'AI yapılandırması bulunamadı.',
-      };
-    }
-
-    const prompt = createNameSearchPrompt(name);
-
-    if (config.provider === 'gemini' && config.geminiApiKey) {
-      return await searchNameWithGemini(prompt, config.geminiApiKey, config.model);
-    } else if (config.provider === 'openai' && config.openaiApiKey) {
-      return await searchNameWithOpenAI(prompt, config.openaiApiKey, config.model);
-    }
-
-    return {
-      success: false,
-      confidence: 0,
-      error: 'Geçerli bir AI API key bulunamadı.',
-    };
-  } catch (error: unknown) {
-    log.error('AI isim aramasi hatasi', error);
-    const errorMessage = error instanceof Error ? error.message : 'AI isim araması başarısız oldu.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
+  if (!outcome) {
+    return failure(error || 'AI isim araması başarısız oldu.');
   }
-}
 
-async function searchNameWithGemini(
-  prompt: string,
-  apiKey: string,
-  model: string = 'gemini-2.5-flash'
-): Promise<AISearchResult> {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
-        }),
-      }
-    );
-
-    const data = await response.json();
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    return parseNameSearchResponse(textResponse, 'Gemini');
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Arama hatasi';
-    return { success: false, confidence: 0, error: errorMessage };
-  }
-}
-
-async function searchNameWithOpenAI(
-  prompt: string,
-  apiKey: string,
-  model: string = 'gpt-4o-mini'
-): Promise<AISearchResult> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Sen bir ilaç bilgi asistanısın. İlaç adlarına göre doğru bilgileri sağlarsın.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 2048,
-      }),
-    });
-
-    const data = await response.json();
-    const textResponse = data.choices?.[0]?.message?.content;
-    return parseNameSearchResponse(textResponse, 'OpenAI');
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Arama hatasi';
-    return { success: false, confidence: 0, error: errorMessage };
-  }
+  return parseNameSearchResponse(outcome.text, outcome.provider);
 }
 
 // ============ İLAÇ HAKKINDA BİLGİ GETIR ============
@@ -371,103 +146,17 @@ export async function getMedicineInfoAI(
   medicineName: string,
   dosage?: string
 ): Promise<AISearchResult> {
-  try {
-    const config = await getAIConfig();
+  const { outcome, error } = await callAiGenerate(createInfoPrompt(medicineName, dosage), {
+    temperature: 0.2,
+    maxOutputTokens: 4096,
+  });
 
-    if (!config) {
-      return {
-        success: false,
-        confidence: 0,
-        error: 'AI yapılandırması bulunamadı.',
-      };
-    }
-
-    const prompt = createInfoPrompt(medicineName, dosage);
-
-    if (config.provider === 'gemini' && config.geminiApiKey) {
-      return await getInfoWithGemini(prompt, config.geminiApiKey, config.model);
-    } else if (config.provider === 'openai' && config.openaiApiKey) {
-      return await getInfoWithOpenAI(prompt, config.openaiApiKey, config.model);
-    }
-
-    return {
-      success: false,
-      confidence: 0,
-      error: 'Geçerli bir AI API key bulunamadı.',
-    };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme başarısız.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
+  if (!outcome) {
+    return failure(error || 'Bilgi getirme başarısız.');
   }
+
+  return parseProspectusResponse(outcome.text, outcome.provider);
 }
-
-async function getInfoWithGemini(
-  prompt: string,
-  apiKey: string,
-  model: string = 'gemini-2.5-flash'
-): Promise<AISearchResult> {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
-        }),
-      }
-    );
-
-    const data = await response.json();
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    return parseProspectusResponse(textResponse, 'Gemini (Function)');
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme hatasi';
-    return { success: false, confidence: 0, error: errorMessage };
-  }
-}
-
-async function getInfoWithOpenAI(
-  prompt: string,
-  apiKey: string,
-  model: string = 'gpt-4o-mini'
-): Promise<AISearchResult> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: 'Sen bir ilaç bilgi asistanısın. Detaylı ve doğru ilaç bilgileri sağlarsın.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.2,
-        max_tokens: 4096,
-      }),
-    });
-
-    const data = await response.json();
-    const textResponse = data.choices?.[0]?.message?.content;
-    return parseProspectusResponse(textResponse, 'OpenAI (Function)');
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme hatasi';
-    return { success: false, confidence: 0, error: errorMessage };
-  }
-}
-
-// ============ YANIT PARSE ============
 
 // ============================================================================
 // Sprint 10.4: ServiceResult<T> wrapper alternatifleri — geriye donuk uyumluluk
