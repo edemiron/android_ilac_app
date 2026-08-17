@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- React Native AsyncStorage SQLite veritabanlarını yedekten dışla -->
+    <exclude domain="database" path="RKStorage" />
+    
+    <!-- Shared Preferences'i yedekten dışla -->
+    <exclude domain="sharedpref" path="." />
+    
+    <!-- Özel verileri yedekten dışla -->
+    <exclude domain="root" path="." />
+    <!-- Sadece belli başlı gereksiz verilere (cache) veya kullanıcı tercihine bırakılmışsa allow ekleyebilirsiniz,
+         bu haliyle uygulamanın tüm local data'sı yedeklenmeyecektir. -->
+</full-backup-content>

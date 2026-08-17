@@ -40,6 +40,33 @@ yarn-error.*
 # test coverage
 coverage/
 
-# generated native folders
+# Native klasorler
+#
+# ios/ : tamamen prebuild ile uretilir, izlenmiyor.
+#
+# android/ : "uretilen klasor" DEGIL. Icinde hicbir config plugin tarafindan
+# uretilmeyen, elle yazilmis kaynaklar var: MainActivity, MainApplication,
+# AlarmPackage, AlarmCheckWorker, WidgetPackage, widget layout'lari
+# (widget_small/medium/large.xml) ve activity_fullscreen_alarm.xml.
+#
+# Tum klasor yok sayildigi icin:
+#   - temiz bir clone uygulamayi DERLEYEMIYORDU (izlenen Kotlin dosyalari
+#     R.layout.widget_large ve MainActivity'e referans veriyor, ikisi de
+#     git'te yoktu),
+#   - AndroidManifest.xml versiyon kontrolu disinda oldugu icin widget
+#     kaydinin silinmesi kimsenin gozune carpmamisti.
+#
+# Artik KAYNAKLAR izleniyor; yalnizca build cikti ve onbellekleri haric.
 /ios
-/android
+
+android/build/
+android/.gradle/
+android/.kotlin/
+android/.idea/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+android/*.log
+
+# JS bundle: `npm run bundle` uretir (~7 MB), kaynak degil.
+android/app/src/main/assets/index.android.bundle

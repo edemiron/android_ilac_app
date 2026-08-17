@@ -1,0 +1,7 @@
+<resources>
+  <string name="app_name">İlaç Hatırlatıcı</string>
+  <string name="default_notification_channel_id">medicine-reminders-v4</string>
+  <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
+  <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+  <string name="widget_description">Bugünkü ilaçlarınızı ana ekrandan görüntüleyin</string>
+</resources>
