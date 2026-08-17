@@ -60,6 +60,7 @@ import {
   cancelMedicineNotifications,
   cleanupOrphanNotifications,
   cancelAllNotifications,
+  type NotificationData,
 } from './src/utils/notifications';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { generateId } from './src/utils/idGenerator';
@@ -109,7 +110,8 @@ function getTriggerDisplayName(trigger: string): string {
 // Auth Navigator - Giriş yapmamış kullanıcılar için
 function AuthNavigator() {
   const { colors } = useTheme();
-  const { t, language } = useLanguage();
+  // Deger kullanilmiyor; cagri dil degisiminde yeniden render icin korunuyor.
+  useLanguage();
 
   return (
     <AuthStack.Navigator
@@ -154,7 +156,9 @@ interface CustomTabBarProps {
 
 function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
   const { colors, isDark } = useTheme();
-  const { t, language } = useLanguage();
+  // Deger kullanilmiyor (etiketler descriptors'tan gelir); cagri dil
+  // degisiminde yeniden render icin korunuyor.
+  useLanguage();
 
   const TAB_COLORS = getTabColors(isDark);
 
@@ -470,16 +474,8 @@ function AppContent() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const {
-    setAlarmActive,
-    getMedicineById,
-    getReminderTimesForMedicine,
-    settings,
-    setUserId,
-    syncFromCloud,
-    logMedicineTaken,
-    logMedicineSkipped,
-  } = useMedicineStore();
+  const { settings, setUserId, syncFromCloud, logMedicineTaken, logMedicineSkipped } =
+    useMedicineStore();
 
   // Pending alarm queue + navigation — Sprint 6 DRY refactor:
   // Hook artık sadece React state'i tutar; tüm alarm validation/snooze/navigate
@@ -487,12 +483,12 @@ function AppContent() {
   // pure fonksiyonuna delege edilir. Hook kendisi useMedicineStore.getState()
   // ile store action'larına erişir, dolayısıyla App.tsx options yüzeyi
   // 8 callback'ten 4'e indi.
-  const { pendingAlarm, setPendingAlarm, handleIncomingAlarm } = useAlarmNavigation({
+  const { setPendingAlarm, handleIncomingAlarm } = useAlarmNavigation({
     isNavigationReady: () => navigationRef.current?.isReady() ?? false,
     isAlarmAlreadyHandled: async (
       medicineId: string,
       reminderTimeId: string,
-      scheduledTime: string
+      _scheduledTime: string
     ) => {
       const today = new Date().toISOString().split('T')[0];
       return await isAlarmHandled(`${medicineId}-${reminderTimeId}-${today}`);
@@ -545,7 +541,7 @@ function AppContent() {
   // Inline 115 satirlik callback buradan cikarildi — bkz: src/hooks/useAlarmNavigation.ts.
 
   // Aksiyon işle (bildirim butonlarından)
-  const handleAction = async (actionId: string, data: any) => {
+  const handleAction = async (actionId: string, data: NotificationData | undefined) => {
     console.log('Aksiyon:', actionId, data);
 
     if (!data?.medicineId || !data?.reminderTimeId) return;
@@ -845,7 +841,6 @@ function AppContent() {
 
   useEffect(() => {
     if (bootRecovery) {
-      const total = bootRecovery.reminders + bootRecovery.snoozes;
       const triggerName = getTriggerDisplayName(bootRecovery.trigger);
 
       Alert.alert(

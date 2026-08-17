@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import App from './App';
 import { registerBootTask } from './src/utils/bootHandler';
-import { rescheduleFiredAlarm } from './src/utils/alarmChain';
+import { rescheduleFiredAlarm, type FiredNotificationLike } from './src/utils/alarmChain';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { stopAlarmSound } from './src/utils/alarmSoundManager';
 import { stopSpeaking } from './src/utils/speech';
@@ -89,9 +89,9 @@ async function getSnoozeSettings(): Promise<{ snoozeDuration: number; maxSnoozeC
 // ============================================================
 // HELPER: Alarm key oluştur (medicineId-reminderTimeId-tarih)
 // ============================================================
-function getAlarmKey(data: any): string {
-  const medId = data?.medicineId || 'unknown';
-  const remId = data?.reminderTimeId || 'unknown';
+function getAlarmKey(data: Record<string, unknown> | undefined): string {
+  const medId = (data?.medicineId as string) || 'unknown';
+  const remId = (data?.reminderTimeId as string) || 'unknown';
   const today = new Date().toISOString().split('T')[0];
   return `${medId}-${remId}-${today}`;
 }
@@ -99,7 +99,9 @@ function getAlarmKey(data: any): string {
 // ============================================================
 // HELPER: Bildirimi iptal et
 // ============================================================
-async function cancelAlarmCompletely(notification: any): Promise<void> {
+async function cancelAlarmCompletely(
+  notification: FiredNotificationLike | undefined
+): Promise<void> {
   if (notification?.id) {
     try {
       await notifee.cancelNotification(notification.id);

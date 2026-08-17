@@ -14,8 +14,8 @@
     "test:caregiver": "jest --testPathPatterns \"[Cc]aregiver\"",
     "test:critical": "jest --testPathPatterns \"(medicineStore|notifications|[Aa]larm|boot|reminder)\"",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
+    "lint": "eslint src/ App.tsx index.ts",
+    "lint:fix": "eslint src/ App.tsx index.ts --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,json}\"",
     "prepare": "cd .. && husky mobile/.husky",
@@ -26,7 +26,6 @@
     "sync-version": "node scripts/sync-version.js"
   },
   "dependencies": {
-    "@expo/metro-config": "^54.0.14",
     "@expo/vector-icons": "^15.0.3",
     "@notifee/react-native": "^9.1.8",
     "@react-native-async-storage/async-storage": "^2.2.0",
