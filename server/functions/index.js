@@ -3,24 +3,31 @@
  *
  * GUVENLIK MODELI
  * ---------------
- * API anahtarlari Secret Manager'da tutulur ve istemciye HICBIR kosulda
+ * API anahtari Secret Manager'da tutulur ve istemciye HICBIR kosulda
  * gitmez. Onceki surumde anahtarlar Firestore'daki `config/ai` dokumaninda
  * duz metin duruyordu ve kural `allow read: if isAuthenticated()` oldugu icin
  * kaydolan HERKES anahtarlari cekebiliyordu. Artik:
  *
  *   1. `config/ai` istemciye tamamen kapali (firestore.rules).
- *   2. Anahtarlar yalnizca bu fonksiyonun calisma ortamina enjekte edilir.
+ *   2. Anahtar yalnizca bu fonksiyonun calisma ortamina enjekte edilir.
  *   3. Cagrilar onCall'dir — Firebase kimlik dogrulamasi zorunlu.
  *   4. Kullanici basina gunluk kota Firestore transaction'i ile uygulanir.
  *
  * Onceki surum `onRequest` kullaniyordu: kimlik dogrulamasi, kota veya App
- * Check olmadan herkese acikti (fatura suistimali). Ayrica istemci
+ * Check olmadan herkese aciykti (fatura suistimali). Ayrica istemci
  * `httpsCallable` ile cagirdigi icin protokol hic uyusmuyordu — yani AI
  * ozelligi her zaman istemci tarafi anahtarla calisan yedek yola dusuyordu.
  *
+ * SAGLAYICI
+ * ---------
+ * Yalnizca Gemini destekleniyor. OpenAI yolu kaldirildi: hic kullanilmiyordu
+ * ve `secrets` listesindeki her secret deploy aninda var olmak zorunda oldugu
+ * icin kullanilmayan bir OPENAI_API_KEY dagitimi gereksiz yere blokluyordu.
+ * Geri eklemek gerekirse: defineSecret('OPENAI_API_KEY') + secrets dizisine
+ * ekle + asagidaki callGemini'nin esdegeri bir callOpenAI yaz.
+ *
  * DAGITIM
  *   firebase functions:secrets:set GEMINI_API_KEY
- *   firebase functions:secrets:set OPENAI_API_KEY
  *   firebase deploy --only functions
  */
 
@@ -34,10 +41,8 @@ admin.initializeApp();
 const db = admin.firestore();
 
 const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
-const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
 
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
-const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
 
 /** Prompt'lar istemcide uretilir; kotuye kullanimi sinirlamak icin ust sinir. */
 const MAX_PROMPT_CHARS = 4000;
@@ -79,26 +84,18 @@ async function consumeQuota(uid) {
 }
 
 /**
- * Saglayici/model tercihini Firestore'dan okur.
- * Bu dokuman artik SIR ICERMEZ — yalnizca provider ve model adlari.
- * Anahtarlar Secret Manager'dadir.
+ * Model tercihini Firestore'dan okur.
+ * Bu dokuman SIR ICERMEZ — yalnizca model adi. Dokuman yoksa varsayilan
+ * kullanilir (normal durum: config/ai sizinti temizliginde silindi).
  */
-async function loadProviderConfig() {
+async function loadModel() {
   try {
     const snap = await db.collection('config').doc('ai').get();
     const data = snap.exists ? snap.data() : {};
-    return {
-      provider: data.provider === 'openai' ? 'openai' : 'gemini',
-      geminiModel: data.geminiModel || DEFAULT_GEMINI_MODEL,
-      openaiModel: data.openaiModel || DEFAULT_OPENAI_MODEL,
-    };
+    return data.geminiModel || DEFAULT_GEMINI_MODEL;
   } catch (error) {
-    logger.warn('config/ai okunamadi, varsayilanlar kullanilacak', error);
-    return {
-      provider: 'gemini',
-      geminiModel: DEFAULT_GEMINI_MODEL,
-      openaiModel: DEFAULT_OPENAI_MODEL,
-    };
+    logger.warn('config/ai okunamadi, varsayilan model kullanilacak', error);
+    return DEFAULT_GEMINI_MODEL;
   }
 }
 
@@ -133,37 +130,6 @@ async function callGemini(prompt, model, apiKey, options) {
   return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
-async function callOpenAI(prompt, model, apiKey, options) {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: 'Sen bir ilac bilgi asistanisin. Dogru ve olculu bilgi verirsin.',
-        },
-        { role: 'user', content: prompt },
-      ],
-      temperature: options.temperature,
-      max_tokens: options.maxOutputTokens,
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    logger.error('OpenAI API hatasi', { status: response.status, body });
-    throw new HttpsError('internal', 'AI servisi su anda yanit veremiyor.');
-  }
-
-  const data = await response.json();
-  return data?.choices?.[0]?.message?.content || '';
-}
-
 /**
  * Tek genel amacli AI ucu.
  *
@@ -178,7 +144,7 @@ async function callOpenAI(prompt, model, apiKey, options) {
  */
 exports.aiGenerate = onCall(
   {
-    secrets: [GEMINI_API_KEY, OPENAI_API_KEY],
+    secrets: [GEMINI_API_KEY],
     enforceAppCheck: false,
     maxInstances: 10,
     timeoutSeconds: 60,
@@ -211,23 +177,14 @@ exports.aiGenerate = onCall(
 
     await consumeQuota(request.auth.uid);
 
-    const config = await loadProviderConfig();
-    const options = { temperature, maxOutputTokens };
-
-    if (config.provider === 'openai') {
-      const key = OPENAI_API_KEY.value();
-      if (!key) {
-        throw new HttpsError('failed-precondition', 'AI servisi yapilandirilmamis.');
-      }
-      const text = await callOpenAI(prompt, config.openaiModel, key, options);
-      return { text, provider: 'OpenAI' };
-    }
-
     const key = GEMINI_API_KEY.value();
     if (!key) {
       throw new HttpsError('failed-precondition', 'AI servisi yapilandirilmamis.');
     }
-    const text = await callGemini(prompt, config.geminiModel, key, options);
+
+    const model = await loadModel();
+    const text = await callGemini(prompt, model, key, { temperature, maxOutputTokens });
+
     return { text, provider: 'Gemini' };
   }
 );
