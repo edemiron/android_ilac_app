@@ -56,7 +56,7 @@ describe('crashlyticsService', () => {
   describe('init', () => {
     it('skips initialization in development (__DEV__ is true)', async () => {
       // @ts-expect-error test fixture
-      (global).__DEV__ = true;
+      global.__DEV__ = true;
       await crashlyticsService.init();
       expect(crashlyticsMock.setUserId).not.toHaveBeenCalled();
     });
@@ -68,11 +68,21 @@ describe('crashlyticsService', () => {
       expect(hash.length).toBeLessThanOrEqual(16);
     });
 
-    it.skip('returns fallback on crypto error (mock chain complex)', async () => {
-      // Mock crypto failure — skip: jest.requireActual + ES modules mock zinciri
-      // karmasik. Production'da fallback islenir (lutfen utils/crashlytics.ts:101-105).
+    // Bu test "mock zinciri karmasik" gerekcesiyle kapaliydi, ama expo-crypto
+    // zaten jest.fn() ile mock'lu — tek gereken cagriyi reddettirmek.
+    // Fallback onemli: hash uretilemezse Crashlytics'e DUZ userId gitmemeli
+    // (KVKK). Bu yuzden fallback'in cikti bicimi de dogrulaniyor.
+    it('returns fallback on crypto error', async () => {
+      const crypto = jest.requireMock('expo-crypto') as {
+        digestStringAsync: jest.Mock;
+      };
+      crypto.digestStringAsync.mockRejectedValueOnce(new Error('digest failed'));
+
       const hash = await hashUserIdForCrashlytics('user-test-12345');
-      expect(typeof hash).toBe('string');
+
+      expect(hash).toBe('fallback-user-tes');
+      // Duz userId sizmamali: yalnizca ilk 8 karakter kullanilir.
+      expect(hash).not.toContain('12345');
     });
 
     it('handles short user IDs', async () => {

@@ -27,6 +27,15 @@ jest.mock('../../utils/notifications', () => ({
   scheduleMedicineNotification: jest.fn().mockResolvedValue('scheduled-id'),
 }));
 
+// registerBootTask AppRegistry.registerHeadlessTask cagirir. Testi
+// "native bridge yok" gerekcesiyle atlamak yerine AppRegistry'yi mock'la:
+// boylece boot task'inin DOGRU ISIMLE kaydedildigi de dogrulanabilir —
+// isim BootReceiver'in native tarafiyla eslesmezse alarm kurtarma sessizce
+// hic calismaz.
+jest.mock('react-native', () => ({
+  AppRegistry: { registerHeadlessTask: jest.fn() },
+}));
+
 jest.mock('../../utils/logger', () => ({
   createScopedLogger: () => ({
     debug: jest.fn(),
@@ -120,11 +129,25 @@ describe('bootHandler', () => {
   });
 
   describe('registerBootTask', () => {
-    it.skip('does not throw when called (AppRegistry native mock required)', () => {
-      // AppRegistry.registerHeadlessTask requires React Native native bridge
-      // which is not available in jest testEnvironment: 'node'.
-      // Function coverage counted if import succeeds; runtime check skipped.
+    it('does not throw when called', () => {
       expect(() => registerBootTask()).not.toThrow();
+    });
+
+    // Task adi native tarafla (BootTaskService -> getTaskConfig) eslesmek
+    // ZORUNDA. Eslesmezse boot sonrasi alarm yeniden kaydi sessizce hic
+    // calismaz — bir ilac uygulamasinda en pahali sessiz hata tipi.
+    it('ReRegisterAlarmsTask adiyla kaydeder', () => {
+      const { AppRegistry } = jest.requireMock('react-native') as {
+        AppRegistry: { registerHeadlessTask: jest.Mock };
+      };
+      AppRegistry.registerHeadlessTask.mockClear();
+
+      registerBootTask();
+
+      expect(AppRegistry.registerHeadlessTask).toHaveBeenCalledWith(
+        'ReRegisterAlarmsTask',
+        expect.any(Function)
+      );
     });
   });
 

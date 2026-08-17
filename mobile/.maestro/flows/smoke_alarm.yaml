@@ -73,8 +73,12 @@ appId: com.ilachatirlatici
 # Alarm pipeline smoke — bypassBuffer=false yolu için seedSmoke seed'i
 # UI flow bypassBuffer=true olduğu için bu flow sadece UI doğrulama yapar.
 # Gerçek BootReceiver yolu için bkz: bash mobile/scripts/trigger-boot.sh
+# Yol DUZELTILDI: flow'lar mobile/.maestro/flows/ altina tasindiginda
+# '../mobile/scripts/...' → 'mobile/.maestro/mobile/scripts/...' oluyordu.
+# optional: true oldugu icin bu adim SESSIZCE atlaniyordu, yani BootReceiver
+# yolu hic tetiklenmiyordu.
 - runScript:
-    path: ../mobile/scripts/trigger-boot.sh
+    path: ../../scripts/trigger-boot.sh
     optional: true
 
 # Ana ekrana dön + screenshot

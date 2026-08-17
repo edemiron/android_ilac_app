@@ -16,7 +16,12 @@ describe('drugInteraction local functions', () => {
       expect(result).toBeNull();
     });
 
-    it.skip('returns null for empty strings (impl returns match — design quirk)', () => {
+    // Bu test "design quirk" gerekcesiyle kapaliydi: implementasyon bos
+    // string icin ESLESME donuyordu. Quirk degil hataydi —
+    // `'aspirin'.includes('')` daima true oldugu icin adi yalnizca noktalama
+    // olan bir ilac gercek bir ilacla eslesip ilgisiz 'high' uyari
+    // uretiyordu. drugMatches artik bos normalize sonuclarini reddediyor.
+    it('returns null for empty strings', () => {
       const result = checkInteractionLocal('', '');
       expect(result).toBeNull();
     });

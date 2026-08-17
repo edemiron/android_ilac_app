@@ -1,14 +1,58 @@
+# Alarm akisi — tam ekran alarm testi uzerinden.
+#
+# ONCEKI HALI CALISMIYORDU: uygulamada VAR OLMAYAN uc secici kullaniyordu —
+# "Test Alarm" (boyle bir buton yok), "İlaç Zamanı" (gercegi "İlaç zamanı!")
+# ve "Anasayfa" (sekme etiketi "Ana Sayfa"). Ustelik alarm ekranindaki buton
+# "Aldım" degil "Şimdi Al" (Aldım HomeScreen'in butonu). Yani CI'da ilk
+# assertVisible'da duserdi.
+#
+# Seciciler artik kaynaktan dogrulandi:
+#   Ana Sayfa / İlaçlarım / Ayarlar -> LanguageContext tab_* anahtarlari
+#   "Tam Ekran Alarm Testi"         -> components/settings/NotificationSection.tsx
+#   "İlaç zamanı!" / "Şimdi Al"     -> LanguageContext alarm_time_to_take / alarm_take_now
+#
+# UYARI: bu flow CIHAZDA DOGRULANMADI (ortamda maestro + emulator yok).
+# Tam ekran alarm; bildirim izni, USE_FULL_SCREEN_INTENT izni ve ~5 sn
+# bekleme gerektirir. Ilk CI kosusunda navigasyon adimlarinin gerceklikle
+# ortusup ortusmedigi kontrol edilmeli.
+
 appId: com.ilachatirlatici
 ---
 - launchApp:
     clearState: true
-# NOT: Bu test gerçek alarm için saat beklemez; bunun yerine
-# debug butonu veya manuel notification trigger kullanır.
-- assertVisible: "İlaçlarım"
-# Alarm simülasyonu: deep link veya debug menüden "Test Alarm" tetikle
+
+# Izin diyaloglari (cihaza gore degisir, hepsi optional)
 - tapOn:
-    text: "Test Alarm"
-- assertVisible: "İlaç Zamanı"
+    text: "İzin Ver"
+    optional: true
 - tapOn:
-    text: "Aldım"
-- assertVisible: "Anasayfa"
+    text: "Allow"
+    optional: true
+
+- extendedWaitUntil:
+    visible: "İlaçlarım"
+    timeout: 30000
+
+# Ayarlar -> tam ekran alarm testi
+- tapOn:
+    text: "Ayarlar"
+- scrollUntilVisible:
+    element:
+      text: "Tam Ekran Alarm Testi"
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    text: "Tam Ekran Alarm Testi"
+
+# Alarm en az 5 sn sonrasina kurulur (Android kisiti).
+- extendedWaitUntil:
+    visible: "İlaç zamanı!"
+    timeout: 30000
+
+- tapOn:
+    text: "Şimdi Al"
+
+# Alarm kapandiktan sonra uygulamaya donulur.
+- extendedWaitUntil:
+    visible: "İlaçlarım"
+    timeout: 20000
