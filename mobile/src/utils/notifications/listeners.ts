@@ -48,11 +48,17 @@ export interface AlarmPressData {
  *
  * @param onAlarmPress Alarm ekranina yonlendirilecek callback
  * @param onAction Notification action (snooze/take) callback
+ * @param onDelivered Alarm teslim edildiginde cagrilir — zinciri devam ettirmek
+ *   icin (bkz. utils/alarmChain). Bagimlilik olarak enjekte edilir; boylece
+ *   bu modul bootHandler'i import etmek zorunda kalmaz (dongusel import).
  * @returns Unsubscribe function (event listener cleanup)
  */
 export function setupNotificationListeners(
   onAlarmPress: (data: AlarmPressData) => void,
-  onAction: (actionId: string, data: NotificationData | undefined) => void
+  onAction: (actionId: string, data: NotificationData | undefined) => void,
+  onDelivered?: (
+    notification: { id?: string; data?: Record<string, unknown> } | undefined
+  ) => Promise<unknown>
 ): () => void {
   return notifee.onForegroundEvent(async ({ type, detail }: Event) => {
     const { notification, pressAction } = detail;
@@ -61,6 +67,24 @@ export function setupNotificationListeners(
 
     // ─── DELIVERED ───
     if (type === EventType.DELIVERED) {
+      // KRITIK: Alarm zincirini devam ettir.
+      //
+      // notifee her olayi TEK isleyiciye yonlendirir; uygulama on plandayken
+      // onBackgroundEvent HIC tetiklenmez. Bu cagri eksikken alarm uygulama
+      // acikken calarsa bir sonraki tekrar kurulmuyordu ve o ilac, uygulama
+      // tamamen kapatilip yeniden acilana kadar bir daha hic alarm vermiyordu.
+      //
+      // fullScreenAlarm kontrolunden ONCE calisir — arka plan yolundaki sira
+      // ile ayni (index.ts). Boylece sessiz saatlerdeki veya tam ekran
+      // olmayan alarmlar da zincirlenir.
+      if (onDelivered) {
+        try {
+          await onDelivered(notification);
+        } catch (error) {
+          log.error('Alarm zinciri devam ettirilemedi', error);
+        }
+      }
+
       if (notification?.data?.fullScreenAlarm === 'true' && notification?.id) {
         const medId = notification.data.medicineId as string;
         const remId = notification.data.reminderTimeId as string;

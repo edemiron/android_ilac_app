@@ -77,6 +77,7 @@ import { CaregiverEventBridge } from './src/components/CaregiverEventBridge'; //
 import { usePermissionsGate } from './src/hooks/usePermissionsGate';
 import { useSecurityGate } from './src/hooks/useSecurityGate';
 import { useBootRecovery } from './src/hooks/useBootRecovery';
+import { rescheduleFiredAlarm } from './src/utils/alarmChain';
 import { useAlarmNavigation, type PendingAlarmData } from './src/hooks/useAlarmNavigation';
 import {
   getBootRecoveryResult,
@@ -709,8 +710,15 @@ function AppContent() {
 
   // Notifee event listener'larını kur
   useEffect(() => {
-    // Foreground event listener
-    const unsubscribe = setupNotificationListeners(handleIncomingAlarm, handleAction);
+    // Foreground event listener.
+    // 3. parametre: alarm on plandayken caldiginda da zinciri devam ettirir —
+    // index.ts'teki arka plan yolunun aynisi. Bu olmadan uygulama acikken
+    // calan alarmin bir sonraki tekrari hic kurulmuyordu.
+    const unsubscribe = setupNotificationListeners(
+      handleIncomingAlarm,
+      handleAction,
+      rescheduleFiredAlarm
+    );
 
     // Background event handler artık index.ts'te register ediliyor
 

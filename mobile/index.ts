@@ -3,7 +3,8 @@ import notifee, { EventType, Event, TriggerType, AlarmType } from '@notifee/reac
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import App from './App';
-import { registerBootTask, rescheduleNextOccurrence } from './src/utils/bootHandler';
+import { registerBootTask } from './src/utils/bootHandler';
+import { rescheduleFiredAlarm } from './src/utils/alarmChain';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { stopAlarmSound } from './src/utils/alarmSoundManager';
 import { stopSpeaking } from './src/utils/speech';
@@ -128,33 +129,16 @@ async function cancelAlarmCompletely(notification: any): Promise<void> {
   }
 }
 
-/**
- * Calan alarmin bir sonraki tekrarini kur (alarm zinciri devamliligi).
- *
- * Yalnizca gercek ilac alarmlari icin calisir — snooze, son kullanma
- * tarihi ve test bildirimleri kendi akislarina sahip.
- *
- * NOT: cancelAlarmCompletely ayni ID'yi ('alarm-{med}-{rt}') iptal ettigi
- * icin DISMISSED akisinda bu fonksiyon iptalden SONRA cagrilmali; aksi
- * halde yeni kurulan trigger da silinir.
- */
-async function rescheduleFiredAlarm(notification: any): Promise<void> {
-  const medId = notification?.data?.medicineId as string | undefined;
-  const remId = notification?.data?.reminderTimeId as string | undefined;
-  const isSnooze = notification?.data?.isSnooze;
-  const id = notification?.id as string | undefined;
-
-  if (!medId || !remId) return;
-  if (isSnooze === 'true' || isSnooze === true) return;
-  if (!id || !id.startsWith('alarm-')) return;
-
-  try {
-    const nextId = await rescheduleNextOccurrence(medId, remId);
-    console.log('[BG] next occurrence scheduled:', nextId);
-  } catch (_e) {
-    console.log('[BG] next occurrence FAILED:', medId, remId);
-  }
-}
+// Alarm zinciri devamliligi src/utils/alarmChain.ts'e tasindi.
+//
+// Buradaki private kopya yalnizca arka plan yolundan cagrilabiliyordu; alarm
+// uygulama ON PLANDAYKEN caldiginda (notifee o durumda onBackgroundEvent'i
+// tetiklemez) zincir sessizce kopuyordu. Artik App.tsx da ayni yardimciyi
+// on plan dinleyicisine gecirir.
+//
+// NOT: cancelAlarmCompletely ayni ID'yi ('alarm-{med}-{rt}') iptal ettigi
+// icin DISMISSED akisinda bu fonksiyon iptalden SONRA cagrilmali; aksi
+// halde yeni kurulan trigger da silinir.
 
 // ============================================================
 // BACKGROUND EVENT HANDLER
