@@ -60,6 +60,12 @@ jobs:
             exit 1
           fi
 
+      # Baglanmamis store action'lari: ts-prune'un koru noktasi.
+      # markMissedReminders tam yazilmis olmasina ragmen hic cagrilmadigi icin
+      # bir yil boyunca uyum oranini sessizce sisirmisti.
+      - name: Check for unwired store actions
+        run: npm run check:unwired
+
       - name: Run typecheck
         id: mobile_typecheck
         shell: bash

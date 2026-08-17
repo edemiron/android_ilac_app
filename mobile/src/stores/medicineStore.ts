@@ -64,8 +64,6 @@ import {
   removeMedicineById,
   deactivateSnoozeById,
   deactivateSnoozesForMedicine,
-  findActiveSnoozeForReminder,
-  findActiveSnoozeByNotificationId,
   getReminderTimesForMedicinePure,
   buildMedicineLogBase,
   withTakenAt,
@@ -78,7 +76,6 @@ import {
   hasActiveReminderTime,
   filterMedicineLogsByMedicineId,
   filterSnoozesByMedicineId,
-  updateReminderTimeInList,
   filterSnoozesExcluding,
 } from './medicineStoreHelpers';
 import {
@@ -227,7 +224,6 @@ interface MedicineState {
   setUserId: (userId: string | null) => void;
   syncToCloud: () => Promise<void>;
   syncFromCloud: () => Promise<void>;
-  clearSyncError: () => void;
 
   addMedicine: (
     medicine: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt' | 'isActive'> &
@@ -237,7 +233,6 @@ interface MedicineState {
   deleteMedicine: (id: string) => void;
   toggleMedicineActive: (id: string) => Promise<void>;
 
-  updateReminderTime: (id: string, updates: Partial<ReminderTime>) => void;
   regenerateReminderTimes: (medicineId: string) => void;
 
   // Ortak log fonksiyonları (private - sadece internal kullanım)
@@ -277,8 +272,6 @@ interface MedicineState {
   ) => Snooze;
   deactivateSnooze: (snoozeId: string) => void;
   deactivateSnoozesForMedicine: (medicineId: string) => void;
-  getActiveSnooze: (medicineId: string, reminderTimeId: string) => Snooze | undefined;
-  getSnoozeByNotificationId: (notificationId: string) => Snooze | undefined;
   cleanupStaleSnoozes: () => Promise<number>;
   runNotificationSelfHeal: () => Promise<NotificationSelfHealResult>;
 
@@ -295,7 +288,6 @@ interface MedicineState {
 
   // Stok yönetimi
   getLowStockMedicines: () => Medicine[];
-  updateMedicineStock: (medicineId: string, newCount: number) => void;
   decrementStock: (medicineId: string, amount?: number) => void;
 
   // Renk yönetimi
@@ -499,11 +491,6 @@ export const useMedicineStore = create<MedicineState>()(
             throw error; // Re-throw to allow caller to handle
           }
         });
-      },
-
-      // Sync hatasını temizle
-      clearSyncError: () => {
-        set({ syncError: null });
       },
 
       // İlaç ekleme — Sprint 4 devamı: wrapper pattern.
@@ -798,14 +785,6 @@ export const useMedicineStore = create<MedicineState>()(
         // Widget'? g?ncelle
         const { medicines: currentMedicines, reminderTimes, medicineLogs } = get();
         updateWidgetData(currentMedicines, reminderTimes, medicineLogs);
-      },
-
-      // Hatırlatma zamanı güncelleme
-      updateReminderTime: (id, updates) => {
-        set(state => ({
-          // Sprint 41.1: pure helper'a delege edildi
-          reminderTimes: updateReminderTimeInList(state.reminderTimes, id, updates),
-        }));
       },
 
       // Zamanları yeniden hesapla
@@ -1194,16 +1173,6 @@ export const useMedicineStore = create<MedicineState>()(
         log.debug('Ilaca ait tum snoozelar deaktif edildi', { medicineId });
       },
 
-      // Sprint 27.1: pure helper'a delege edildi
-      getActiveSnooze: (medicineId, reminderTimeId) => {
-        return findActiveSnoozeForReminder(get().snoozes, medicineId, reminderTimeId);
-      },
-
-      // Sprint 27.1: pure helper'a delege edildi
-      getSnoozeByNotificationId: notificationId => {
-        return findActiveSnoozeByNotificationId(get().snoozes, notificationId);
-      },
-
       cleanupStaleSnoozes: async () => {
         const { snoozes, medicines, reminderTimes } = get();
         const now = new Date();
@@ -1462,20 +1431,6 @@ export const useMedicineStore = create<MedicineState>()(
       getLowStockMedicines: () => {
         const { medicines } = get();
         return filterLowStockMedicines(medicines);
-      },
-
-      updateMedicineStock: (medicineId, newCount) => {
-        const { userId } = get();
-        // Sprint 23.3: pure helper'a delege edildi
-        set(state => ({
-          medicines: updateMedicineInList(state.medicines, medicineId, {
-            stockCount: Math.max(0, newCount),
-          }),
-        }));
-
-        if (userId) {
-          scheduleBackgroundSync(() => get().syncToCloud());
-        }
       },
 
       decrementStock: (medicineId, amount = 1) => {
