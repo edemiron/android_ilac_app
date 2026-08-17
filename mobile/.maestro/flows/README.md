@@ -21,20 +21,24 @@ maestro test .maestro/flows/
 ## Akışlar
 
 ### login.yaml
+
 - Kullanıcı girişi akışını test eder
 - Email + password input + Giriş Yap butonu + HomeScreen'e geçiş
 
 ### add_medicine.yaml
+
 - Yeni ilaç ekleme akışı
 - Medicines → + butonu → form → kaydet → listede görün
 
 ### alarm.yaml
+
 - Alarm tetikleme + dismiss akışı
 - Bildirim gelir → AlarmScreen → Aldım/Ertele → HomeScreen
 
 ## CI Entegrasyonu
 
 Sprint 11'de `.github/workflows/e2e.yml` eklenecek:
+
 - macos-latest runner
 - Android emulator kurulumu
 - Maestro çalıştırma
