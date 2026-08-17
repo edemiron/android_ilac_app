@@ -24,7 +24,7 @@
     "build:device": "bash scripts/build-apk.sh --install --launch",
     "build:aab": "bash scripts/build-apk.sh --aab",
     "sync-version": "node scripts/sync-version.js",
-    "check:unwired": "node scripts/check-unwired-store-actions.js",
+    "check:unwired": "node scripts/check-unwired-store-actions.js && node scripts/check-unwired-exports.js",
     "check:deadcode": "npx --yes ts-prune -p tsconfig.json"
   },
   "dependencies": {
