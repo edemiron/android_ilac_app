@@ -5,6 +5,7 @@
  */
 
 import {
+  checkInteractionLocal,
   checkInteraction,
   checkMultipleInteractions,
   getSeverityColor,
@@ -26,21 +27,22 @@ jest.mock('../../utils/logger', () => ({
 // Mock fetch for API tests
 global.fetch = jest.fn();
 
-// NOT: Bu test suite Sprint 4'te (medicineStore slice mimarisi) yeniden aktif edilecek.
-// Şu an drugInteraction.ts'te checkInteraction fonksiyonu kayıp.
-// Sprint 4 sonu: drugInteraction.ts'e checkInteraction wrapper'i eklendi,
-// ama mevcut test API uyumsuz (eski API'yi bekliyor). Tam migration
-// sonraki sprint'e birakildi. describe.skip ile test'i atla, böylece
-// CI yesil kalsin.
-describe.skip('DrugInteraction Service', () => {
+// Bu suite uzun sure describe.skip ile kapaliydi ("tam migration sonraki
+// sprint'e birakildi"). Kapali kalma nedeni API kaymasiydi, veri eksigi degil:
+//   - Testler senkron ve dogrudan DrugInteraction donen ESKI imzayi
+//     kullaniyordu; checkInteraction artik async ve InteractionCheckResult
+//     donuyor. Senkron cagrilar checkInteractionLocal'a tasindi (ayni imza).
+//   - checkMultipleInteractions cagrilarina eksik olan `await` eklendi;
+//     Promise'e assertion yapildigi icin hepsi undefined donuyordu.
+describe('DrugInteraction Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   describe('checkInteraction', () => {
     describe('Known Interactions', () => {
-      it('should detect aspirin-warfarin interaction (high severity)', () => {
-        const result = checkInteraction('aspirin', 'warfarin');
+      it('should detect aspirin-warfarin interaction (high severity)', async () => {
+        const result = checkInteractionLocal('aspirin', 'warfarin');
 
         expect(result).not.toBeNull();
         expect(result?.severity).toBe('high');
@@ -49,40 +51,40 @@ describe.skip('DrugInteraction Service', () => {
         expect(result?.description).toContain('kanama riski');
       });
 
-      it('should detect aspirin-ibuprofen interaction (moderate severity)', () => {
-        const result = checkInteraction('aspirin', 'ibuprofen');
+      it('should detect aspirin-ibuprofen interaction (moderate severity)', async () => {
+        const result = checkInteractionLocal('aspirin', 'ibuprofen');
 
         expect(result).not.toBeNull();
         expect(result?.severity).toBe('moderate');
         expect(result?.description).toContain('mide kanaması');
       });
 
-      it('should detect omeprazol-clopidogrel interaction', () => {
-        const result = checkInteraction('omeprazol', 'clopidogrel');
+      it('should detect omeprazol-clopidogrel interaction', async () => {
+        const result = checkInteractionLocal('omeprazol', 'clopidogrel');
 
         expect(result).not.toBeNull();
         expect(result?.severity).toBe('moderate');
         expect(result?.description).toContain('etkinliğini azaltabilir');
       });
 
-      it('should detect metformin-alkol interaction (high severity)', () => {
-        const result = checkInteraction('metformin', 'alkol');
+      it('should detect metformin-alkol interaction (high severity)', async () => {
+        const result = checkInteractionLocal('metformin', 'alkol');
 
         expect(result).not.toBeNull();
         expect(result?.severity).toBe('high');
         expect(result?.description).toContain('laktik asidoz');
       });
 
-      it('should detect fluoxetine-tramadol interaction (serotonin syndrome)', () => {
-        const result = checkInteraction('fluoxetine', 'tramadol');
+      it('should detect fluoxetine-tramadol interaction (serotonin syndrome)', async () => {
+        const result = checkInteractionLocal('fluoxetine', 'tramadol');
 
         expect(result).not.toBeNull();
         expect(result?.severity).toBe('high');
         expect(result?.description).toContain('Serotonin sendromu');
       });
 
-      it('should detect ciprofloxacin-tizanidine interaction', () => {
-        const result = checkInteraction('ciprofloxacin', 'tizanidine');
+      it('should detect ciprofloxacin-tizanidine interaction', async () => {
+        const result = checkInteractionLocal('ciprofloxacin', 'tizanidine');
 
         expect(result).not.toBeNull();
         expect(result?.severity).toBe('high');
@@ -91,18 +93,18 @@ describe.skip('DrugInteraction Service', () => {
     });
 
     describe('Bidirectional Matching', () => {
-      it('should detect interaction regardless of drug order', () => {
-        const result1 = checkInteraction('aspirin', 'warfarin');
-        const result2 = checkInteraction('warfarin', 'aspirin');
+      it('should detect interaction regardless of drug order', async () => {
+        const result1 = checkInteractionLocal('aspirin', 'warfarin');
+        const result2 = checkInteractionLocal('warfarin', 'aspirin');
 
         expect(result1).not.toBeNull();
         expect(result2).not.toBeNull();
         expect(result1?.severity).toBe(result2?.severity);
       });
 
-      it('should detect simvastatin-amlodipine in both directions', () => {
-        const result1 = checkInteraction('simvastatin', 'amlodipine');
-        const result2 = checkInteraction('amlodipine', 'simvastatin');
+      it('should detect simvastatin-amlodipine in both directions', async () => {
+        const result1 = checkInteractionLocal('simvastatin', 'amlodipine');
+        const result2 = checkInteractionLocal('amlodipine', 'simvastatin');
 
         expect(result1).not.toBeNull();
         expect(result2).not.toBeNull();
@@ -110,72 +112,72 @@ describe.skip('DrugInteraction Service', () => {
     });
 
     describe('Case and Character Normalization', () => {
-      it('should match drugs case-insensitively', () => {
-        const result = checkInteraction('ASPIRIN', 'WARFARIN');
+      it('should match drugs case-insensitively', async () => {
+        const result = checkInteractionLocal('ASPIRIN', 'WARFARIN');
 
         expect(result).not.toBeNull();
         expect(result?.severity).toBe('high');
       });
 
-      it('should handle mixed case', () => {
-        const result = checkInteraction('AsPiRiN', 'WaRfArIn');
+      it('should handle mixed case', async () => {
+        const result = checkInteractionLocal('AsPiRiN', 'WaRfArIn');
 
         expect(result).not.toBeNull();
       });
 
-      it('should handle leading/trailing whitespace', () => {
-        const result = checkInteraction('  aspirin  ', '  warfarin  ');
+      it('should handle leading/trailing whitespace', async () => {
+        const result = checkInteractionLocal('  aspirin  ', '  warfarin  ');
 
         expect(result).not.toBeNull();
       });
 
-      it('should handle Turkish characters', () => {
+      it('should handle Turkish characters', async () => {
         // Test with potential Turkish character input
-        const result = checkInteraction('aspirin', 'warfarin');
+        const result = checkInteractionLocal('aspirin', 'warfarin');
 
         expect(result).not.toBeNull();
       });
     });
 
     describe('Partial Name Matching', () => {
-      it('should match when drug name contains known interaction drug', () => {
-        const result = checkInteraction('aspirin tablet 500mg', 'warfarin');
+      it('should match when drug name contains known interaction drug', async () => {
+        const result = checkInteractionLocal('aspirin tablet 500mg', 'warfarin');
 
         expect(result).not.toBeNull();
       });
 
-      it('should match brand names containing generic names', () => {
+      it('should match brand names containing generic names', async () => {
         // Simvastatin in a longer name
-        const result = checkInteraction('simvastatine 20mg', 'grapefruit');
+        const result = checkInteractionLocal('simvastatine 20mg', 'grapefruit');
 
         expect(result).not.toBeNull();
       });
     });
 
     describe('No Interaction Cases', () => {
-      it('should return null for non-interacting drugs', () => {
-        const result = checkInteraction('paracetamol', 'vitamin c');
+      it('should return null for non-interacting drugs', async () => {
+        const result = checkInteractionLocal('paracetamol', 'vitamin c');
 
         expect(result).toBeNull();
       });
 
-      it('should return null for same drug', () => {
-        const result = checkInteraction('aspirin', 'aspirin');
+      it('should return null for same drug', async () => {
+        const result = checkInteractionLocal('aspirin', 'aspirin');
 
         expect(result).toBeNull();
       });
 
-      it('should return null for unknown drugs', () => {
-        const result = checkInteraction('unknowndrug', 'anotherdrug');
+      it('should return null for unknown drugs', async () => {
+        const result = checkInteractionLocal('unknowndrug', 'anotherdrug');
 
         expect(result).toBeNull();
       });
 
-      it('should handle empty drug names gracefully', () => {
+      it('should handle empty drug names gracefully', async () => {
         // Empty strings get normalized and may match due to substring matching
         // This is expected behavior - the function handles this edge case
         // eslint-disable-next-line unused-imports/no-unused-vars
-        const result = checkInteraction('', '');
+        const result = checkInteractionLocal('', '');
 
         // The result depends on the normalization logic
         // What matters is no crash occurs
@@ -184,9 +186,9 @@ describe.skip('DrugInteraction Service', () => {
     });
 
     describe('ID Generation', () => {
-      it('should generate unique IDs for each interaction result', () => {
-        const result1 = checkInteraction('aspirin', 'warfarin');
-        const result2 = checkInteraction('aspirin', 'warfarin');
+      it('should generate unique IDs for each interaction result', async () => {
+        const result1 = checkInteractionLocal('aspirin', 'warfarin');
+        const result2 = checkInteractionLocal('aspirin', 'warfarin');
 
         expect(result1?.id).toBeDefined();
         expect(result2?.id).toBeDefined();
@@ -197,42 +199,42 @@ describe.skip('DrugInteraction Service', () => {
   });
 
   describe('checkMultipleInteractions', () => {
-    it('should check all drug pairs', () => {
+    it('should check all drug pairs', async () => {
       const drugs = ['aspirin', 'warfarin', 'ibuprofen'];
 
-      const result = checkMultipleInteractions(drugs);
+      const result = await checkMultipleInteractions(drugs);
 
       expect(result.hasInteractions).toBe(true);
       // Should find aspirin-warfarin and aspirin-ibuprofen
       expect(result.interactions.length).toBe(2);
     });
 
-    it('should return empty interactions for non-interacting drugs', () => {
+    it('should return empty interactions for non-interacting drugs', async () => {
       const drugs = ['paracetamol', 'vitamin c', 'vitamin d'];
 
-      const result = checkMultipleInteractions(drugs);
+      const result = await checkMultipleInteractions(drugs);
 
       expect(result.hasInteractions).toBe(false);
       expect(result.interactions).toEqual([]);
     });
 
-    it('should handle single drug input', () => {
-      const result = checkMultipleInteractions(['aspirin']);
+    it('should handle single drug input', async () => {
+      const result = await checkMultipleInteractions(['aspirin']);
 
       expect(result.hasInteractions).toBe(false);
       expect(result.interactions).toEqual([]);
     });
 
-    it('should handle empty drug list', () => {
-      const result = checkMultipleInteractions([]);
+    it('should handle empty drug list', async () => {
+      const result = await checkMultipleInteractions([]);
 
       expect(result.hasInteractions).toBe(false);
       expect(result.interactions).toEqual([]);
     });
 
-    it('should include checkedAt timestamp', () => {
+    it('should include checkedAt timestamp', async () => {
       const before = new Date().toISOString();
-      const result = checkMultipleInteractions(['aspirin', 'warfarin']);
+      const result = await checkMultipleInteractions(['aspirin', 'warfarin']);
       const after = new Date().toISOString();
 
       expect(result.checkedAt).toBeDefined();
@@ -240,20 +242,20 @@ describe.skip('DrugInteraction Service', () => {
       expect(result.checkedAt <= after).toBe(true);
     });
 
-    it('should find all interactions in complex drug list', () => {
+    it('should find all interactions in complex drug list', async () => {
       const drugs = ['aspirin', 'warfarin', 'metformin', 'alkol', 'fluoxetine', 'tramadol'];
 
-      const result = checkMultipleInteractions(drugs);
+      const result = await checkMultipleInteractions(drugs);
 
       // Should find: aspirin-warfarin, metformin-alkol, fluoxetine-tramadol
       expect(result.hasInteractions).toBe(true);
       expect(result.interactions.length).toBeGreaterThanOrEqual(3);
     });
 
-    it('should not duplicate interactions', () => {
+    it('should not duplicate interactions', async () => {
       const drugs = ['aspirin', 'warfarin'];
 
-      const result = checkMultipleInteractions(drugs);
+      const result = await checkMultipleInteractions(drugs);
 
       // Should only have one interaction, not two
       expect(result.interactions.length).toBe(1);
@@ -261,25 +263,25 @@ describe.skip('DrugInteraction Service', () => {
   });
 
   describe('getSeverityColor', () => {
-    it('should return red for high severity', () => {
+    it('should return red for high severity', async () => {
       const color = getSeverityColor('high');
 
       expect(color).toBe('#F44336');
     });
 
-    it('should return orange for moderate severity', () => {
+    it('should return orange for moderate severity', async () => {
       const color = getSeverityColor('moderate');
 
       expect(color).toBe('#FF9800');
     });
 
-    it('should return yellow for low severity', () => {
+    it('should return yellow for low severity', async () => {
       const color = getSeverityColor('low');
 
       expect(color).toBe('#FFC107');
     });
 
-    it('should return gray for unknown severity', () => {
+    it('should return gray for unknown severity', async () => {
       const color = getSeverityColor('unknown' as DrugInteraction['severity']);
 
       expect(color).toBe('#9E9E9E');
@@ -287,25 +289,25 @@ describe.skip('DrugInteraction Service', () => {
   });
 
   describe('getSeverityIcon', () => {
-    it('should return warning icon for high severity', () => {
+    it('should return warning icon for high severity', async () => {
       const icon = getSeverityIcon('high');
 
       expect(icon).toBe('⚠️');
     });
 
-    it('should return lightning icon for moderate severity', () => {
+    it('should return lightning icon for moderate severity', async () => {
       const icon = getSeverityIcon('moderate');
 
       expect(icon).toBe('⚡');
     });
 
-    it('should return info icon for low severity', () => {
+    it('should return info icon for low severity', async () => {
       const icon = getSeverityIcon('low');
 
       expect(icon).toBe('ℹ️');
     });
 
-    it('should return question icon for unknown severity', () => {
+    it('should return question icon for unknown severity', async () => {
       const icon = getSeverityIcon('unknown' as DrugInteraction['severity']);
 
       expect(icon).toBe('❓');
@@ -462,29 +464,29 @@ describe.skip('DrugInteraction Service', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should handle special characters in drug names', () => {
-      const result = checkInteraction('aspirin-100mg', 'warfarin');
+    it('should handle special characters in drug names', async () => {
+      const result = checkInteractionLocal('aspirin-100mg', 'warfarin');
 
       // Should still match after normalization
       expect(result).not.toBeNull();
     });
 
-    it('should handle numeric-only input', () => {
-      const result = checkInteraction('12345', '67890');
+    it('should handle numeric-only input', async () => {
+      const result = checkInteractionLocal('12345', '67890');
 
       expect(result).toBeNull();
     });
 
-    it('should handle very long drug names', () => {
+    it('should handle very long drug names', async () => {
       const longName = 'aspirin'.repeat(100);
-      const result = checkInteraction(longName, 'warfarin');
+      const result = checkInteractionLocal(longName, 'warfarin');
 
       // Should still match since it contains 'aspirin'
       expect(result).not.toBeNull();
     });
 
-    it('should handle unicode characters', () => {
-      const result = checkInteraction('aspirín', 'warfarin');
+    it('should handle unicode characters', async () => {
+      const result = checkInteractionLocal('aspirín', 'warfarin');
 
       // After normalization, should match
       expect(result).not.toBeNull();
@@ -492,8 +494,8 @@ describe.skip('DrugInteraction Service', () => {
   });
 
   describe('Interaction Result Structure', () => {
-    it('should have all required fields in interaction result', () => {
-      const result = checkInteraction('aspirin', 'warfarin');
+    it('should have all required fields in interaction result', async () => {
+      const result = checkInteractionLocal('aspirin', 'warfarin');
 
       expect(result).toHaveProperty('id');
       expect(result).toHaveProperty('drug1');
@@ -503,8 +505,8 @@ describe.skip('DrugInteraction Service', () => {
       expect(result).toHaveProperty('recommendation');
     });
 
-    it('should have all required fields in multiple interaction result', () => {
-      const result = checkMultipleInteractions(['aspirin', 'warfarin']);
+    it('should have all required fields in multiple interaction result', async () => {
+      const result = await checkMultipleInteractions(['aspirin', 'warfarin']);
 
       expect(result).toHaveProperty('hasInteractions');
       expect(result).toHaveProperty('interactions');

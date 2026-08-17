@@ -94,30 +94,41 @@ export default function InteractionsScreen() {
         </View>
       ) : result ? (
         <View style={styles.resultsContainer}>
-          {/* Özet */}
-          <View
-            style={[
-              styles.summaryCard,
-              {
-                backgroundColor: result.hasInteractions
-                  ? colors.error + '15'
-                  : colors.success + '15',
-                borderColor: result.hasInteractions ? colors.error + '30' : colors.success + '30',
-              },
-            ]}
-          >
-            <Text style={styles.summaryIcon}>{result.hasInteractions ? '⚠️' : '✅'}</Text>
-            <Text
-              style={[
-                styles.summaryText,
-                { color: result.hasInteractions ? colors.error : colors.success },
-              ]}
-            >
-              {result.hasInteractions
-                ? t('interaction_found', { count: result.interactions?.length || 0 })
-                : t('interaction_none')}
-            </Text>
-          </View>
+          {/* Özet — ÜÇ durum var, iki değil:
+              etkileşim bulundu / etkileşim yok / KONTROL EDİLEMEDİ.
+              Üçüncüsü eskiden yeşil onay işareti olarak gösteriliyordu, yani
+              başarısız bir kontrol kullanıcıya "güvenli" görünüyordu. */}
+          {(() => {
+            const checkFailed = result.source === 'error';
+            const summaryColor = checkFailed
+              ? colors.warning
+              : result.hasInteractions
+                ? colors.error
+                : colors.success;
+
+            return (
+              <View
+                style={[
+                  styles.summaryCard,
+                  {
+                    backgroundColor: summaryColor + '15',
+                    borderColor: summaryColor + '30',
+                  },
+                ]}
+              >
+                <Text style={styles.summaryIcon}>
+                  {checkFailed ? '❓' : result.hasInteractions ? '⚠️' : '✅'}
+                </Text>
+                <Text style={[styles.summaryText, { color: summaryColor }]}>
+                  {checkFailed
+                    ? 'Etkileşim kontrolü yapılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin; bu sonuç "etkileşim yok" anlamına GELMEZ.'
+                    : result.hasInteractions
+                      ? t('interaction_found', { count: result.interactions?.length || 0 })
+                      : t('interaction_none')}
+                </Text>
+              </View>
+            );
+          })()}
 
           {/* Etkileşim Listesi */}
           {result.interactions && result.interactions.length > 0 && (

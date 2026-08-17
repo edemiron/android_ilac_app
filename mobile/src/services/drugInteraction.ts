@@ -21,7 +21,10 @@ export interface InteractionCheckResult {
   interactions: DrugInteraction[];
   checkedAt: string;
   // Sprint 4: 'local' | 'api' — kaynak göstergesi
-  source?: 'local' | 'api';
+  // 'error': kontrol YAPILAMADI. hasInteractions=false ile karıştırılmamalı;
+  // "etkileşim yok" ile "kontrol edemedik" farklı şeylerdir ve kullanıcıya
+  // farklı gösterilmeleri gerekir.
+  source?: 'local' | 'api' | 'error';
 }
 
 // Bilinen ilaç etkileşimleri veritabanı (örnek)
@@ -256,17 +259,55 @@ function normalizeDrugName(name: string): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
-// İlaç adının eşleşip eşleşmediğini kontrol et
+/**
+ * Alt dize eşleşmesi için gereken en az uzunluk.
+ *
+ * Bundan kısa parçalar için yalnızca tam eşleşme kabul edilir. Aksi halde
+ * "Al" gibi bir ilaç adı 'alkol' içinde bulunup parasetamol+alkol uyarısını
+ * tetikliyordu.
+ */
+const MIN_SUBSTRING_MATCH_LENGTH = 4;
+
+/**
+ * İlaç adının etkileşim tablosundaki bir ilaçla eşleşip eşleşmediğini kontrol eder.
+ *
+ * Eşleşme kuralları (sıra önemli):
+ *   1. Normalize sonucu boş olan isimler HİÇBİR şeyle eşleşmez.
+ *   2. Tam eşleşme her zaman geçerlidir.
+ *   3. Alt dize eşleşmesi yalnızca içerilen parça yeterince uzunsa geçerlidir
+ *      ("Aspirin 100mg" → 'aspirin' gibi doz ekli isimler için gerekli).
+ *
+ * DÜZELTİLEN HATA: önceki sürüm koşulsuz iki yönlü alt dize kontrolü
+ * yapıyordu. Normalize sonucu boş olan bir isim için
+ * `normalizedInteraction.includes('')` DAİMA true döndüğü için, adı yalnızca
+ * noktalama içeren bir ilaç ("...", "+", "---" — Firestore kuralları bunlara
+ * izin veriyor) gerçek bir ilaçla eşleşiyor ve tamamen ilgisiz bir 'high'
+ * şiddetli uyarı üretiyordu (ör. "..." + "Aspirin" → "Aspirin ve Warfarin
+ * birlikte kanama riski"). İlaç uyarısında bu tür yanlış pozitifler hem
+ * paniğe yol açar hem de gerçek uyarılara olan güveni aşındırır.
+ */
 function drugMatches(drugName: string, interactionDrug: string): boolean {
   const normalizedName = normalizeDrugName(drugName);
   const normalizedInteraction = normalizeDrugName(interactionDrug);
 
-  // Tam eşleşme veya içerme kontrolü
-  return (
-    normalizedName.includes(normalizedInteraction) ||
-    normalizedInteraction.includes(normalizedName) ||
-    normalizedName === normalizedInteraction
-  );
+  if (!normalizedName || !normalizedInteraction) return false;
+  if (normalizedName === normalizedInteraction) return true;
+
+  if (
+    normalizedInteraction.length >= MIN_SUBSTRING_MATCH_LENGTH &&
+    normalizedName.includes(normalizedInteraction)
+  ) {
+    return true;
+  }
+
+  if (
+    normalizedName.length >= MIN_SUBSTRING_MATCH_LENGTH &&
+    normalizedInteraction.includes(normalizedName)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 // İki ilaç arasındaki yerel etkileşimi kontrol et (Fallback)
@@ -462,7 +503,10 @@ export async function getRxCuiForDrug(drugName: string): Promise<string | null> 
 // RxNav Interaction API üzerinden RxCUI'leri kullanarak etkileşimleri çeker
 export async function checkInteractionsFromAPI(
   rxcuis: string[],
-  originalDrugNames: string[]
+  // Varsayilan [] : cagrilan yerde atlanirsa asagidaki .find() TypeError
+  // atiyordu ve catch bunu "etkilesim yok" olarak raporluyordu — yani
+  // programlama hatasi kullaniciya YESIL ISIK olarak gorunuyordu.
+  originalDrugNames: string[] = []
 ): Promise<InteractionCheckResult> {
   try {
     // https://rxnav.nlm.nih.gov/InteractionAPIs.html
@@ -507,14 +551,20 @@ export async function checkInteractionsFromAPI(
       hasInteractions: interactions.length > 0,
       interactions,
       checkedAt: new Date().toISOString(),
+      source: 'api',
     };
   } catch (error) {
     log.error('API etkilesim kontrolu hatasi', error);
-    // API başarısız olursa yerel veritabanını kullan
+    // KONTROL YAPILAMADI — "etkilesim yok" DEGIL.
+    // Onceden burada source verilmiyordu ve cagiran taraf bu sonucu temiz
+    // bir kontrolle ayirt edemiyordu: InteractionsScreen kullaniciya yesil
+    // onay isareti gosteriyordu. Ilac etkilesiminde bu, guvenli yonun tam
+    // tersi bir yanlistir.
     return {
       hasInteractions: false,
       interactions: [],
       checkedAt: new Date().toISOString(),
+      source: 'error',
     };
   }
 }
