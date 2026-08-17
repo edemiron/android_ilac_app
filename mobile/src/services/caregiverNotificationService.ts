@@ -183,8 +183,11 @@ export function formatCaregiverNotification(data: CaregiverNotificationData): {
  *
  * UYARI — HENÜZ UYGULANMADI: FCM gönderimi bir Cloud Function gerektirir
  * (client'tan başka bir kullanıcıya push gönderilemez; FCM server key
- * client'a konulamaz). `server/functions/` altında böyle bir fonksiyon
- * henüz yok, dolayısıyla bu çağrı hiçbir bildirim göndermez.
+ * client'a konulamaz). Projede böyle bir fonksiyon yok, dolayısıyla bu
+ * çağrı hiçbir bildirim göndermez.
+ *
+ * NOT: Cloud Functions v2 Blaze planı gerektirir; proje şu an Spark'ta
+ * (faturalandırma kapalı). Bu özellik önce billing açılmasını bekliyor.
  *
  * Bu fonksiyon bilerek `success: false` döner — daha önce `success: true`
  * dönüyordu ve çağıranlar bildirimin gittiğini sanıyordu (sessiz hata).

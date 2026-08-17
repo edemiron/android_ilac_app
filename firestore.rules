@@ -309,9 +309,9 @@ service cloud.firestore {
       // dokumani geminiApiKey / openaiApiKey alanlarini DUZ METIN tutuyordu.
       // Yani uygulamaya kaydolan herkes AI API anahtarlarini cekebiliyordu.
       //
-      // Anahtarlar Secret Manager'a tasindi (server/functions/index.js).
-      // Bu dokumanda yalnizca provider/model gibi sir olmayan alanlar kalir ve
-      // onlari da yalnizca Admin SDK (kurallari baypas eder) okur.
+      // AI ozelligi tamamen kaldirildi ve config/ai dokumani silindi.
+      // Kural savunma amaciyla duruyor: ileride buraya bir sey yazilirsa
+      // istemciye acik olmasin.
       allow read, write: if false;
     }
 

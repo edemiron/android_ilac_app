@@ -52,16 +52,16 @@ export type MedicineInstruction =
   | 'any_time'; // Herhangi bir zaman
 // İlaç kategorileri
 export type MedicineCategory =
-  | 'painkiller'      // Ağrı Kesici
-  | 'vitamin'         // Vitamin/Takviye
-  | 'heart'           // Kalp/Tansiyon
-  | 'nervous'         // Sinir Sistemi
-  | 'antibiotic'      // Antibiyotik
-  | 'respiratory'     // Solunum
-  | 'digestive'       // Sindirim
-  | 'diabetes'        // Diyabet
-  | 'bone'            // Kemik/Eklem
-  | 'other';          // Diğer
+  | 'painkiller' // Ağrı Kesici
+  | 'vitamin' // Vitamin/Takviye
+  | 'heart' // Kalp/Tansiyon
+  | 'nervous' // Sinir Sistemi
+  | 'antibiotic' // Antibiyotik
+  | 'respiratory' // Solunum
+  | 'digestive' // Sindirim
+  | 'diabetes' // Diyabet
+  | 'bone' // Kemik/Eklem
+  | 'other'; // Diğer
 
 // Hatırlatma zamanı
 export interface ReminderTime {
@@ -342,26 +342,10 @@ export interface ActiveIngredient {
   amount: string; // örn: "500mg"
 }
 
-// ============ AI YAPILANDIRMASI ============
-
-export type AIProvider = 'gemini' | 'openai';
-
-export interface AIConfig {
-  provider: AIProvider;
-  geminiApiKey?: string;
-  openaiApiKey?: string;
-  model?: string;
-  maxTokens?: number;
-}
-
-// AI arama sonucu
-export interface AISearchResult {
-  success: boolean;
-  medicine?: Partial<GlobalMedicine>;
-  confidence: number; // 0-100 arası güven skoru
-  source?: string; // Veri kaynağı
-  error?: string;
-}
+// NOT: AIProvider / AIConfig / AISearchResult tipleri kaldırıldı.
+// AI ilaç araması Türk ilaçları için güvenilir sonuç vermediğinden önce
+// medicineSearchOrchestrator'dan, ardından prospektüs ekranından çıkarıldı.
+// Arama artık globalMedicines + TİTCK cache üzerinden yürüyor.
 
 // ============ HİBRİT ARAMA SİSTEMİ ============
 

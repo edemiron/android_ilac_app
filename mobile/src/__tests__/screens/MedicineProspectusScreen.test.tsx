@@ -51,14 +51,7 @@ jest.mock('../../contexts/LanguageContext', () => ({
   }),
 }));
 
-jest.mock('../../services/aiMedicineService', () => ({
-  getMedicineInfoAI: jest.fn().mockResolvedValue({
-    indication: 'Test indication',
-    dosage: '500mg',
-    warnings: [],
-  }),
-}));
-
+// AI yedegi kaldirildi — prospektus artik yalnizca globalMedicines'ten gelir.
 jest.mock('../../services/globalMedicineService', () => ({
   getMedicineById: jest.fn().mockResolvedValue({
     id: 'med-1',

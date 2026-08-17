@@ -14,7 +14,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme, ThemeColors } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { RootStackParamList, MedicineProspectus } from '../types';
-import { getMedicineInfoAI } from '../services/aiMedicineService';
 import { getMedicineById } from '../services/globalMedicineService';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -39,24 +38,21 @@ export default function MedicineProspectusScreen() {
     setError(null);
 
     try {
-      // Önce veritabanından prospektüs kontrol et
-      if (medicineId) {
-        const dbMedicine = await getMedicineById(medicineId);
-        if (dbMedicine?.prospectus) {
-          setProspectus(dbMedicine.prospectus);
-          setIsLoading(false);
-          setIsRefreshing(false);
-          return;
-        }
-      }
+      // Prospektüs yalnızca doğrulanmış globalMedicines kaydından gelir.
+      //
+      // Buradaki AI yedeği kaldırıldı: model Türk ilaçları için güvenilir
+      // sonuç vermiyordu (aynı gerekçeyle medicineSearchOrchestrator'dan da
+      // çıkarılmıştı) ve tek kullanıcısı bu ekrandı. İlaç prospektüsünde
+      // uydurulmuş doz/yan etki bilgisi kabul edilebilir bir risk değil.
+      const dbMedicine = medicineId ? await getMedicineById(medicineId) : null;
 
-      // Veritabanında yoksa AI'dan getir
-      const result = await getMedicineInfoAI(medicineName, dosage);
-
-      if (result.success && result.medicine?.prospectus) {
-        setProspectus(result.medicine.prospectus);
+      if (dbMedicine?.prospectus) {
+        setProspectus(dbMedicine.prospectus);
       } else {
-        setError(result.error || 'Prospektüs bilgisi alınamadı');
+        setError(
+          'Bu ilaç için doğrulanmış prospektüs bilgisi bulunmuyor. ' +
+            'Kutu içindeki kullanma talimatına veya eczacınıza başvurun.'
+        );
       }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Bir hata oluştu';
