@@ -84,6 +84,7 @@ export default function HomeScreen() {
   // Fonksiyonları ayrı çek
   const getTodayReminders = useMedicineStore(state => state.getTodayReminders);
   const logMedicineTaken = useMedicineStore(state => state.logMedicineTaken);
+  const markMissedReminders = useMedicineStore(state => state.markMissedReminders);
   const logMedicineSkipped = useMedicineStore(state => state.logMedicineSkipped);
   const getAdherenceRate = useMedicineStore(state => state.getAdherenceRate);
   const getCurrentStreak = useMedicineStore(state => state.getCurrentStreak);
@@ -201,6 +202,34 @@ export default function HomeScreen() {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 500);
   }, []);
+
+  // Kaçırılan dozları işaretle.
+  //
+  // markMissedReminders() tam yazılmıştı ama HİÇBİR YERDEN çağrılmıyordu, yani
+  // uygulamada hiç 'missed' kaydı oluşmuyordu. calculateAdherenceRate ise
+  // oranı `alınan / KAYIT_SAYISI` olarak hesaplıyor — kaydı olmayan doz
+  // hesaba hiç girmiyordu. Sonuç: görmezden gelinen dozlar uyum oranını
+  // düşürmüyordu. 7 günde 1 doz alıp 6'sını görmezden gelen kullanıcı
+  // %100 uyum görüyordu (missed kayıtlarıyla doğru değer %14).
+  //
+  // Bu oran istatistik ekranında ve PDF raporunda doktora gösterildiği için
+  // yanlış olması tedavi kararını etkileyebilir.
+  //
+  // Açılışta ve her ön plana gelişte süpürülür; kaçırılan dozlar uygulama
+  // kapalıyken birikir. Store hidrasyonunu beklemek için medicines guard'ı var.
+  useEffect(() => {
+    if (medicines.length === 0 || reminderTimes.length === 0) return;
+
+    markMissedReminders();
+
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        markMissedReminders();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [medicines, reminderTimes, markMissedReminders]);
 
   // Widget'taki "Aldım" butonundan biriken aksiyonları gerçek doz kaydına çevir.
   //
