@@ -117,4 +117,20 @@ describe('Header', () => {
     );
     expect(UNSAFE_root).toBeTruthy();
   });
+
+  it('triggers onCaregiverPress callback when caregiver button is pressed', () => {
+    const mockCaregiverPress = jest.fn();
+    const { getByLabelText } = render(
+      <Header
+        greeting="Merhaba"
+        displayName="Enes"
+        totalDoses={2}
+        completedCount={1}
+        onCaregiverPress={mockCaregiverPress}
+      />
+    );
+
+    const caregiverButton = getByLabelText('Bakıcı Takibi');
+    expect(caregiverButton).toBeTruthy();
+  });
 });

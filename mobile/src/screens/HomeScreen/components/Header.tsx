@@ -34,6 +34,8 @@ export interface HeaderProps {
   onNotificationPress?: () => void;
   /** Ayarlar ikonuna tıklandığında çalışacak callback. */
   onSettingsPress?: () => void;
+  /** Bakıcı / Caregiver ikonuna tıklandığında çalışacak callback. */
+  onCaregiverPress?: () => void;
   /** Dış container stili (margin vb.). */
   style?: StyleProp<ViewStyle>;
 }
@@ -48,6 +50,7 @@ export function Header({
   onAvatarPress,
   onNotificationPress,
   onSettingsPress,
+  onCaregiverPress,
   style,
 }: HeaderProps) {
   const { colors, isDark } = useTheme();
@@ -81,7 +84,7 @@ export function Header({
       transition={motiTransitions.standard}
       style={[styles.container, style]}
     >
-      {/* 1. Top Bar: Avatar + Greeting + Action Buttons (Bell + Settings) */}
+      {/* 1. Top Bar: Avatar + Greeting + Action Buttons (Caregiver + Bell + Settings) */}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.topLeft}
@@ -96,6 +99,15 @@ export function Header({
         </TouchableOpacity>
 
         <View style={styles.topRightActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={onCaregiverPress}
+            activeOpacity={0.7}
+            accessibilityLabel={language === 'tr' ? 'Bakıcı Takibi' : 'Caregiver'}
+          >
+            <Ionicons name="people-outline" size={21} color={isDark ? '#2DD4BF' : '#0F766E'} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={onNotificationPress}
