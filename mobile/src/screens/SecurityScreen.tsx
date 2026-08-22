@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Alt Bileşenler (Modular UI)
 import { PinFormView } from './SecurityScreen/components/PinFormView';
@@ -48,100 +49,111 @@ export default function SecurityScreen() {
 
   if (isLoading) {
     return (
-      <View
+      <SafeAreaView
         style={[
           styles.container,
           { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' },
         ]}
+        edges={['top', 'bottom']}
       >
         <Text style={{ color: colors.text }}>
           {language === 'tr' ? 'Yükleniyor...' : 'Loading...'}
         </Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   // PIN formu modu aktifse PIN ekranını göster
   if (pinMode !== 'none') {
     return (
-      <PinFormView
-        pinMode={pinMode}
-        onBack={() => setPinMode('none')}
-        pin={pin}
-        onChangePin={setPin}
-        confirmPin={confirmPin}
-        onChangeConfirmPin={setConfirmPin}
-        oldPin={oldPin}
-        onChangeOldPin={setOldPin}
-        showPin={showPin}
-        onToggleShowPin={() => setShowPin(!showPin)}
-        hasPin={hasPin}
-        onSave={pinMode === 'create' ? handleCreatePin : handleChangePin}
-        onRemovePin={handleClearPin}
-        colors={colors}
-        language={language}
-      />
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top', 'bottom']}
+      >
+        <PinFormView
+          pinMode={pinMode}
+          onBack={() => setPinMode('none')}
+          pin={pin}
+          onChangePin={setPin}
+          confirmPin={confirmPin}
+          onChangeConfirmPin={setConfirmPin}
+          oldPin={oldPin}
+          onChangeOldPin={setOldPin}
+          showPin={showPin}
+          onToggleShowPin={() => setShowPin(!showPin)}
+          hasPin={hasPin}
+          onSave={pinMode === 'create' ? handleCreatePin : handleChangePin}
+          onRemovePin={handleClearPin}
+          colors={colors}
+          language={language}
+        />
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView
+    <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
-      showsVerticalScrollIndicator={false}
+      edges={['top', 'bottom']}
     >
-      {/* 1. Başlık */}
-      <View style={styles.header}>
-        <Text style={styles.headerEmoji}>🔒</Text>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          {language === 'tr' ? 'Güvenlik' : 'Security'}
-        </Text>
-        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-          {language === 'tr'
-            ? 'Uygulama güvenliğini ve kilitleme ayarlarını yönetin'
-            : 'Manage app security and lock settings'}
-        </Text>
-      </View>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 1. Başlık */}
+        <View style={styles.header}>
+          <Text style={styles.headerEmoji}>🔒</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            {language === 'tr' ? 'Güvenlik' : 'Security'}
+          </Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            {language === 'tr'
+              ? 'Uygulama güvenliğini ve kilitleme ayarlarını yönetin'
+              : 'Manage app security and lock settings'}
+          </Text>
+        </View>
 
-      {/* 2. Güvenlik ve Biyometrik Anahtarları */}
-      <SecurityToggleCard
-        securityEnabled={settings.securityEnabled}
-        onToggleSecurity={handleToggleSecurity}
-        biometricAvailable={biometricAvailable}
-        biometricsEnabled={settings.biometricsEnabled}
-        biometricType={biometricType}
-        onToggleBiometric={handleToggleBiometric}
-        colors={colors}
-        language={language}
-      />
+        {/* 2. Güvenlik ve Biyometrik Anahtarları */}
+        <SecurityToggleCard
+          securityEnabled={settings.securityEnabled}
+          onToggleSecurity={handleToggleSecurity}
+          biometricAvailable={biometricAvailable}
+          biometricsEnabled={settings.biometricsEnabled}
+          biometricType={biometricType}
+          onToggleBiometric={handleToggleBiometric}
+          colors={colors}
+          language={language}
+        />
 
-      {/* 3. PIN Yönetimi Kartı */}
-      <PinManagementCard
-        hasPin={hasPin}
-        onPressPinAction={() => setPinMode(hasPin ? 'change' : 'create')}
-        colors={colors}
-        language={language}
-      />
+        {/* 3. PIN Yönetimi Kartı */}
+        <PinManagementCard
+          hasPin={hasPin}
+          onPressPinAction={() => setPinMode(hasPin ? 'change' : 'create')}
+          colors={colors}
+          language={language}
+        />
 
-      {/* 4. Otomatik Kilit Zaman Aşımı Kartı */}
-      <AutoLockCard
-        lockTimeout={settings.lockTimeout}
-        onSelectTimeout={handleTimeoutChange}
-        colors={colors}
-        language={language}
-      />
+        {/* 4. Otomatik Kilit Zaman Aşımı Kartı */}
+        <AutoLockCard
+          lockTimeout={settings.lockTimeout}
+          onSelectTimeout={handleTimeoutChange}
+          colors={colors}
+          language={language}
+        />
 
-      {/* 5. Aktif Güvenlik Durumu Özeti */}
-      <SecurityStatusCard
-        hasPin={hasPin}
-        biometricAvailable={biometricAvailable}
-        securityType={settings.securityType}
-        biometricType={biometricType}
-        colors={colors}
-        language={language}
-      />
+        {/* 5. Aktif Güvenlik Durumu Özeti */}
+        <SecurityStatusCard
+          hasPin={hasPin}
+          biometricAvailable={biometricAvailable}
+          securityType={settings.securityType}
+          biometricType={biometricType}
+          colors={colors}
+          language={language}
+        />
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Alt Bileşenler (Modular UI)
 import { TtsMainToggleCard } from './TtsSettingsScreen/components/TtsMainToggleCard';
@@ -23,7 +24,6 @@ export default function TtsSettingsScreen() {
   const {
     language,
     colors,
-    insets,
     ttsEnabled,
     ttsSpeakMedicineName,
     ttsSpeakDosage,
@@ -41,78 +41,83 @@ export default function TtsSettingsScreen() {
   } = useTtsSettingsController();
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
-      showsVerticalScrollIndicator={false}
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
     >
-      {/* 1. Başlık */}
-      <View style={styles.header}>
-        <View style={[styles.iconContainer, { backgroundColor: colors.card }]}>
-          <Text style={styles.headerIcon}>🔊</Text>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 1. Başlık */}
+        <View style={styles.header}>
+          <View style={[styles.iconContainer, { backgroundColor: colors.card }]}>
+            <Text style={styles.headerIcon}>🔊</Text>
+          </View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            {language === 'tr' ? 'Sesli Bildirimler' : 'Voice Notifications'}
+          </Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            {language === 'tr'
+              ? 'Alarm sırasında ilaç bilgilerini sesli olarak duyurun'
+              : 'Announce medicine information during alarms'}
+          </Text>
         </View>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          {language === 'tr' ? 'Sesli Bildirimler' : 'Voice Notifications'}
-        </Text>
-        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-          {language === 'tr'
-            ? 'Alarm sırasında ilaç bilgilerini sesli olarak duyurun'
-            : 'Announce medicine information during alarms'}
-        </Text>
-      </View>
 
-      {/* 2. Ana Sesli Bildirim Aç/Kapa Kartı */}
-      <TtsMainToggleCard
-        ttsEnabled={ttsEnabled}
-        onToggleTts={handleToggleTts}
-        colors={colors}
-        language={language}
-      />
+        {/* 2. Ana Sesli Bildirim Aç/Kapa Kartı */}
+        <TtsMainToggleCard
+          ttsEnabled={ttsEnabled}
+          onToggleTts={handleToggleTts}
+          colors={colors}
+          language={language}
+        />
 
-      {ttsEnabled && (
-        <>
-          {/* 3. Ne Söylensin? (İlaç Adı / Dozaj / Talimatlar) */}
-          <TtsOptionsCard
-            ttsSpeakMedicineName={ttsSpeakMedicineName}
-            onToggleSpeakName={handleToggleSpeakName}
-            ttsSpeakDosage={ttsSpeakDosage}
-            onToggleSpeakDosage={handleToggleSpeakDosage}
-            ttsSpeakInstructions={ttsSpeakInstructions}
-            onToggleSpeakInstructions={handleToggleSpeakInstructions}
-            colors={colors}
-            language={language}
-          />
+        {ttsEnabled && (
+          <>
+            {/* 3. Ne Söylensin? (İlaç Adı / Dozaj / Talimatlar) */}
+            <TtsOptionsCard
+              ttsSpeakMedicineName={ttsSpeakMedicineName}
+              onToggleSpeakName={handleToggleSpeakName}
+              ttsSpeakDosage={ttsSpeakDosage}
+              onToggleSpeakDosage={handleToggleSpeakDosage}
+              ttsSpeakInstructions={ttsSpeakInstructions}
+              onToggleSpeakInstructions={handleToggleSpeakInstructions}
+              colors={colors}
+              language={language}
+            />
 
-          {/* 4. Tekrar Sayısı (1x / 2x / 3x) */}
-          <TtsRepeatCountCard
-            ttsRepeatCount={ttsRepeatCount}
-            onSelectRepeatCount={handleRepeatCountChange}
-            colors={colors}
-            language={language}
-          />
+            {/* 4. Tekrar Sayısı (1x / 2x / 3x) */}
+            <TtsRepeatCountCard
+              ttsRepeatCount={ttsRepeatCount}
+              onSelectRepeatCount={handleRepeatCountChange}
+              colors={colors}
+              language={language}
+            />
 
-          {/* 5. Ses Seviyesi (%0 - %100) */}
-          <TtsVolumeCard
-            ttsVolume={ttsVolume}
-            onVolumeChange={handleVolumeChange}
-            colors={colors}
-            language={language}
-          />
+            {/* 5. Ses Seviyesi (%0 - %100) */}
+            <TtsVolumeCard
+              ttsVolume={ttsVolume}
+              onVolumeChange={handleVolumeChange}
+              colors={colors}
+              language={language}
+            />
 
-          {/* 6. Önizleme Metni & Ses Testi */}
-          <TtsPreviewCard
-            ttsSpeakMedicineName={ttsSpeakMedicineName}
-            ttsSpeakDosage={ttsSpeakDosage}
-            ttsSpeakInstructions={ttsSpeakInstructions}
-            isTesting={isTesting}
-            onTestVoice={handleTestVoice}
-            colors={colors}
-            language={language}
-          />
-        </>
-      )}
+            {/* 6. Önizleme Metni & Ses Testi */}
+            <TtsPreviewCard
+              ttsSpeakMedicineName={ttsSpeakMedicineName}
+              ttsSpeakDosage={ttsSpeakDosage}
+              ttsSpeakInstructions={ttsSpeakInstructions}
+              isTesting={isTesting}
+              onTestVoice={handleTestVoice}
+              colors={colors}
+              language={language}
+            />
+          </>
+        )}
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

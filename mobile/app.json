@@ -7,7 +7,7 @@
   "expo": {
     "name": "İlaç Hatırlatıcı",
     "slug": "ilac-hatirlatici",
-    "version": "1.3.4",
+    "version": "1.3.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -109,11 +109,11 @@
       }
     }
   },
-  "version": "1.3.4",
+  "version": "1.3.5",
   "android": {
-    "versionCode": 17
+    "versionCode": 18
   },
   "ios": {
-    "buildNumber": "17"
+    "buildNumber": "18"
   }
 }

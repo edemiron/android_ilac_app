@@ -42,7 +42,10 @@ export default function CaregiverScreen() {
   } = useCaregiverController();
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+    >
       {/* 1. Başlık */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>{t.title}</Text>

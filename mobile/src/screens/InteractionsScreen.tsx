@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Alt Bileşenler (Modular UI)
 import { ActiveMedicinesCard } from './InteractionsScreen/components/ActiveMedicinesCard';
@@ -23,58 +24,63 @@ export default function InteractionsScreen() {
     useInteractionsController();
 
   return (
-    <ScrollView
+    <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
-      showsVerticalScrollIndicator={false}
+      edges={['top', 'bottom']}
     >
-      {/* 1. Başlık */}
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('interaction_title')}</Text>
-        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-          {language === 'tr'
-            ? `${activeMedicines.length} aktif ilaç kontrol ediliyor`
-            : `${activeMedicines.length} active medicines being checked`}
-        </Text>
-      </View>
-
-      {/* 2. Aktif İlaçlar Listesi */}
-      <ActiveMedicinesCard activeMedicines={activeMedicines} colors={colors} />
-
-      {/* 3. Etkileşim Sonuçları */}
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            {t('interaction_checking')}
-          </Text>
-        </View>
-      ) : result ? (
-        <View style={styles.resultsContainer}>
-          {/* Özet Kartı */}
-          <InteractionSummaryCard result={result} colors={colors} t={t} />
-
-          {/* Detay Kartları */}
-          {result.interactions?.map((interaction, index) => (
-            <InteractionDetailCard
-              key={index}
-              interaction={interaction}
-              getSeverityText={getSeverityText}
-              colors={colors}
-              language={language}
-            />
-          ))}
-
-          {/* Sorumluluk Reddi */}
-          <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 1. Başlık */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('interaction_title')}</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             {language === 'tr'
-              ? 'Bu bilgiler bilgilendirme amaçlıdır. Herhangi bir değişiklik yapmadan önce lütfen doktorunuza veya eczacınıza danışın.'
-              : 'This information is for informational purposes only. Please consult your doctor or pharmacist before making any changes.'}
+              ? `${activeMedicines.length} aktif ilaç kontrol ediliyor`
+              : `${activeMedicines.length} active medicines being checked`}
           </Text>
         </View>
-      ) : null}
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        {/* 2. Aktif İlaçlar Listesi */}
+        <ActiveMedicinesCard activeMedicines={activeMedicines} colors={colors} />
+
+        {/* 3. Etkileşim Sonuçları */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              {t('interaction_checking')}
+            </Text>
+          </View>
+        ) : result ? (
+          <View style={styles.resultsContainer}>
+            {/* Özet Kartı */}
+            <InteractionSummaryCard result={result} colors={colors} t={t} />
+
+            {/* Detay Kartları */}
+            {result.interactions?.map((interaction, index) => (
+              <InteractionDetailCard
+                key={index}
+                interaction={interaction}
+                getSeverityText={getSeverityText}
+                colors={colors}
+                language={language}
+              />
+            ))}
+
+            {/* Sorumluluk Reddi */}
+            <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
+              {language === 'tr'
+                ? 'Bu bilgiler bilgilendirme amaçlıdır. Herhangi bir değişiklik yapmadan önce lütfen doktorunuza veya eczacınıza danışın.'
+                : 'This information is for informational purposes only. Please consult your doctor or pharmacist before making any changes.'}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
