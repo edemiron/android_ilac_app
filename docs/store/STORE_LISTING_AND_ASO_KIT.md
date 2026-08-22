@@ -3,7 +3,7 @@
 **Uygulama Adı:** İlaç Hatırlatıcı & Takip - Kolay Mod & Nöbetçi Eczane  
 **İngilizce Adı:** Pill Reminder & Medication Tracker - Senior Mode & AI  
 **Paket Adı:** `com.ilachatirlatici`  
-**Sürüm:** 1.3.2 (Build 32)  
+**Sürüm:** 1.3.3 (Build 33 - Code 16)  
 
 ---
 
@@ -46,7 +46,7 @@ Türkiye'nin en gelişmiş, yaşlı dostu ve yapay zeka destekli İlaç Hatırla
 • Tek tuşla WhatsApp veya E-Posta ile doktorunuza ya da eczacınıza PDF formatında gönderin.
 
 👥 6. BAKICI & AİLE PAYLAŞIMI:
-• QR Kod ile tek saniyede eşleşin.
+• Ana ekrandan tek dokunuşla hızlı erişim ve QR Kod ile tek saniyede eşleşme.
 • Sevdiklerinizin ilacını alıp almadığını anlık bildirimlerle uzaktan takip edin.
 
 ⏰ 7. ASLA KAÇIRILMAYAN ALARMLAR:
@@ -63,9 +63,10 @@ Hemen ücretsiz indirin, sağlığınızı ve sevdiklerinizi güvenceye alın!
 
 ---
 
-### 3. Bu Sürümdeki Yenilikler (What's New - v1.3.2)
+### 3. Bu Sürümdeki Yenilikler (What's New - v1.3.3)
 ```markdown
-👑 v1.3.2 Yenilikleri:
+👑 v1.3.3 Yenilikleri:
+• 👥 Hızlı Bakıcı Erişimi: Ana ekran üst çubuğuna doğrudan Bakıcı Takibi ve QR Eşleşme butonu eklendi.
 • 👴 Kolay Mod (Senior Mode): Dev butonlar ve Türkçe sesli ilaç anonsu (TTS) entegrasyonu.
 • 📷 Yapay Zeka ile İlaç Kutusu Okuma: Fotoğraf çekerek formu otomatik doldurma desteği.
 • 🏥 En Yakın Nöbetçi Eczane: Stoğu azalan ilaçlar için tek tıkla nöbetçi eczaneyi bulma ve arama.
