@@ -66,11 +66,13 @@ Hemen ücretsiz indirin, sağlığınızı ve sevdiklerinizi güvenceye alın!
 ### 3. Bu Sürümdeki Yenilikler (What's New - v1.3.2)
 ```markdown
 👑 v1.3.2 Yenilikleri:
-• 👴 Kolay Mod (Senior Mode): Dev butonlar ve tek tıkla Türkçe sesli ilaç anonsu (TTS) eklendi.
-• 📷 Kamera AI Okuyucu: İlaç kutusunun fotoğrafını çekerek formu otomatik doldurma özelliği geldi.
-• 🏥 Nöbetçi Eczane Köprüsü: Stoğu azalan ilaçlar için tek dokunuşla nöbetçi eczaneleri bulma eklendi.
-• 📄 Doktora PDF Raporu: İlaç kullanım uyumunu klinik PDF belgesi olarak WhatsApp'tan paylaşma desteği.
-• 🛡️ Güvenlik Zırhı: Donanımsal PIN şifreleme ve gelişmiş veri bütünlüğü optimizasyonları yapıldı.
+• 👴 Kolay Mod (Senior Mode): Dev butonlar ve Türkçe sesli ilaç anonsu (TTS) entegrasyonu.
+• 📷 Yapay Zeka ile İlaç Kutusu Okuma: Fotoğraf çekerek formu otomatik doldurma desteği.
+• 🏥 En Yakın Nöbetçi Eczane: Stoğu azalan ilaçlar için tek tıkla nöbetçi eczaneyi bulma ve arama.
+• 📄 Doktora Klinik PDF Raporu: İlaç uyum geçmişini tek dokunuşla WhatsApp/E-posta ile paylaşma.
+• ⚡ Sıfır Donma & Ultra Hız: Tüm ekran mimarisi yeniden tasarlandı, bellek sızıntıları giderildi.
+• 🔒 Maksimum Güvenlik: 10.000 Round SHA-256 Key Stretching ve donanımsal PIN/Biyometrik kilit.
+• 🌐 Kesintisiz Çevrimdışı Çalışma: İnternet bağlantısı olmasa bile alarmlar ve kayıtlar kusursuz çalışır.
 ```
 
 ---
