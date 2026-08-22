@@ -29,6 +29,12 @@ interface Props {
   onScanPress?: () => void;
   /** Barkod zaten tarandı mı (ikon yeşile döner) */
   barcodeScanned?: boolean;
+  /** Kutu fotoğrafı / AI tarama ikonu gösterilsin mi */
+  showPhotoIcon?: boolean;
+  /** Kutu fotoğrafı AI tarama tıklanınca çağrılır */
+  onPhotoScanPress?: () => void;
+  /** Fotoğraf AI analizi devam ediyor mu */
+  isAnalyzingPhoto?: boolean;
 }
 
 export function MedicineNameInput({
@@ -44,6 +50,9 @@ export function MedicineNameInput({
   showBarcodeIcon,
   onScanPress,
   barcodeScanned,
+  showPhotoIcon,
+  onPhotoScanPress,
+  isAnalyzingPhoto,
 }: Props) {
   const styles = createStyles(colors);
   // Autocomplete kapanmasini 200ms geciktiriyoruz ki kullanici bir secenegi tiklayabilsin.
@@ -77,10 +86,7 @@ export function MedicineNameInput({
   };
 
   const renderAutocompleteItem = ({ item }: { item: MedicineAutocompleteResult }) => (
-    <TouchableOpacity
-      style={styles.autocompleteItem}
-      onPress={() => onSelectAutocomplete(item)}
-    >
+    <TouchableOpacity style={styles.autocompleteItem} onPress={() => onSelectAutocomplete(item)}>
       <View style={styles.autocompleteItemContent}>
         <Text style={styles.autocompleteItemName}>{item.name}</Text>
         <Text style={styles.autocompleteItemDosage}>
@@ -99,7 +105,7 @@ export function MedicineNameInput({
       <View style={styles.autocompleteContainer}>
         <View style={styles.inputRow}>
           <TextInput
-            style={[styles.input, showBarcodeIcon && styles.inputWithIcon]}
+            style={[styles.input, (showBarcodeIcon || showPhotoIcon) && styles.inputWithIcon]}
             value={value}
             onChangeText={handleChangeText}
             onFocus={onFocus}
@@ -107,10 +113,24 @@ export function MedicineNameInput({
             placeholder={placeholder}
             placeholderTextColor={colors.placeholder}
           />
+          {showPhotoIcon && onPhotoScanPress && (
+            <TouchableOpacity
+              style={[styles.iconBtn, { backgroundColor: colors.primary + '15' }]}
+              onPress={onPhotoScanPress}
+              disabled={isAnalyzingPhoto}
+              activeOpacity={0.7}
+            >
+              {isAnalyzingPhoto ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons name="camera-outline" size={22} color={colors.primary} />
+              )}
+            </TouchableOpacity>
+          )}
           {showBarcodeIcon && onScanPress && (
             <TouchableOpacity
               style={[
-                styles.barcodeIconBtn,
+                styles.iconBtn,
                 { backgroundColor: barcodeScanned ? '#10B981' + '20' : colors.primary + '15' },
               ]}
               onPress={onScanPress}
@@ -136,7 +156,7 @@ export function MedicineNameInput({
             <FlatList
               data={autocompleteState.results}
               renderItem={renderAutocompleteItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={item => item.id}
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled
               style={styles.autocompleteList}
@@ -179,10 +199,10 @@ const createStyles = (colors: ThemeColors) =>
     inputWithIcon: {
       // extra right padding when icon present — handled via Row gap
     },
-    barcodeIconBtn: {
-      width: 50,
-      height: 50,
-      borderRadius: 16,
+    iconBtn: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,

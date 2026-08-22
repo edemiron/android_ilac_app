@@ -18,11 +18,15 @@ module.exports = {
     '\\.woff2$': '<rootDir>/__mocks__/fileMock.js',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
-  testMatch: ['**/__tests__/**/*.(ts|tsx|js)', '**/*.(test|spec).(ts|tsx|js)'],
+  testMatch: [
+    '**/__tests__/**/*.test.(ts|tsx|js)',
+    '**/__tests__/**/*.spec.(ts|tsx|js)',
+    '**/*.(test|spec).(ts|tsx|js)',
+  ],
   testPathIgnorePatterns: [
     '<rootDir>/node_modules/',
     '<rootDir>/src/__tests__/helpers/',
+    '<rootDir>/src/__tests__/mocks/',
   ],
   testEnvironment: 'node',
   collectCoverageFrom: [

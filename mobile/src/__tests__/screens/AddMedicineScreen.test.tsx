@@ -12,11 +12,22 @@ jest.mock('react-native', () => ({
     flatten: <T,>(styles: T): T => styles,
   },
   Platform: { OS: 'android' },
+  NativeModules: {
+    WidgetDataModule: {
+      setWidgetData: jest.fn(),
+    },
+  },
   View: 'View',
   Text: 'Text',
   ScrollView: 'ScrollView',
   KeyboardAvoidingView: 'KeyboardAvoidingView',
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
+}));
+
+jest.mock('../../stores/medicineStore', () => ({
+  useMedicineStore: jest.fn((selector?: (state: { medicines: unknown[] }) => unknown) =>
+    selector ? selector({ medicines: [] }) : { medicines: [] }
+  ),
 }));
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -96,6 +107,8 @@ jest.mock('../../components/addMedicine', () => ({
   ExpirySection: () => null,
   ImagePickerSection: () => null,
   AdvancedSettingsSection: () => null,
+  ScheduleSelector: () => null,
+  DrugInteractionWarningBanner: () => null,
 }));
 
 jest.mock('../../utils/logger', () => ({

@@ -1,43 +1,42 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, ScrollView, Platform, UIManager } from 'react-native';
+/**
+ * SettingsScreen — Uygulama Ayarları ve Tercihler Ekranı
+ *
+ * Design Pattern: Presenter Pattern / Declarative View
+ * Tüm durum yönetimi, dev mode döngüleri, yedekleme ve bildirim picker akışları
+ * `useSettingsController` Presenter Hook'una devredilmiştir.
+ * Bu dosya yalnızca alt bileşenleri koordine eden salt bir görünüm katmanıdır.
+ */
+
+import React from 'react';
+import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Ortak & Ayar Bileşenleri
+import { ScreenHeader } from '../components/common/ScreenHeader';
 import {
-  PremiumCard,
-  DailyScheduleSection,
+  ProfileHeaderCard,
   AppearanceSection,
-  NotificationSection,
   DevTestSection,
-  QuietHoursSection,
-  AdditionalFeaturesSection,
-  AccountSection,
-  AboutSection,
-  CaregiverSection, // Sprint 90: Bakıcı yönetim section
   createSettingsStyles,
 } from '../components/settings';
-import { useSettingsScreen } from '../hooks/useSettingsScreen';
-import { useLanguage } from '../contexts/LanguageContext';
-import { useAlert } from '../contexts/AlertContext';
-import { useUserProfile, LayoutVariant } from '../hooks/useUserProfile';
-import { useLowStockDismiss } from '../hooks/useLowStockDismiss';
 import { AccentColorSection } from '../components/settings/AccentColorSection';
-import { createScopedLogger } from '../utils/logger';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+// Modüler Alt Bileşenler
+import { ProfileSection } from './SettingsScreen/components/ProfileSection';
+import { NotificationsSection } from './SettingsScreen/components/NotificationsSection';
+import { AccessibilitySection } from './SettingsScreen/components/AccessibilitySection';
+import { DataSecuritySection } from './SettingsScreen/components/DataSecuritySection';
+import { HelpSupportSection } from './SettingsScreen/components/HelpSupportSection';
+import { LogoutButton } from './SettingsScreen/components/LogoutButton';
 
-// Sprint 11.4: Pure helper'lar ./SettingsScreen/helpers.ts'te tasindi.
-import { DEV_MODE_TAP_COUNT, isDevModeTapExpired } from './SettingsScreen/helpers';
-
-const _log = createScopedLogger('SettingsScreen');
+// Presenter Hook
+import { useSettingsController } from './SettingsScreen/hooks/useSettingsController';
 
 export default function SettingsScreen() {
   const {
     navigation,
     colors,
     isDark,
-    // eslint-disable-next-line unused-imports/no-unused-vars
     theme,
     setTheme,
     language,
@@ -51,11 +50,6 @@ export default function SettingsScreen() {
     pickerState,
     togglePicker,
     closePicker,
-    parseTimeToDate,
-    handleTimeChange,
-    handleTestNotification,
-    handleTestVoice,
-    handleTestFullScreenAlarm,
     handleScheduleTestAlarm,
     handleAddTestMedicine,
     handleAddTestMedicine10s,
@@ -64,120 +58,74 @@ export default function SettingsScreen() {
     handleClearAllData,
     handleSync,
     handleLogout,
-    formatLastSync,
-    formatTimeDisplay,
     getThemeLabel,
     getLanguageLabel,
-  } = useSettingsScreen();
-
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  const { t } = useLanguage();
-  const { showInfo } = useAlert();
-  const { setLayout } = useUserProfile();
-  // Sprint 65A: Stok uyarısı reset (row her zaman görünür, dismiss durumu handle'da kontrol edilir)
-  const {
-    reset: resetLowStock,
-    isDismissed: isLowStockDismissed,
-  } = useLowStockDismiss();
-  const handleResetLowStock = useCallback(async () => {
-    if (!isLowStockDismissed) {
-      // Hiç dismiss edilmemiş, no-op toast
-      showInfo(
-        language === 'tr' ? 'Zaten Aktif' : 'Already Active',
-        language === 'tr' ? 'Dismiss edilmiş stok uyarısı yok.' : 'No dismissed stock alerts.'
-      );
-      return;
-    }
-    await resetLowStock();
-    showInfo(
-      language === 'tr' ? 'Stok Uyarıları Sıfırlandı' : 'Stock Alerts Reset',
-      language === 'tr'
-        ? 'Tüm dismiss edilmiş uyarılar tekrar gösterilecek.'
-        : 'All dismissed alerts will be shown again.'
-    );
-  }, [resetLowStock, showInfo, language, isLowStockDismissed]);
-  const [isDevMode, setIsDevMode] = useState(false);
-  const tapCountRef = useRef(0);
-  const lastTapTimeRef = useRef(0);
-
-  // Dev mode durumunu AsyncStorage'dan oku (kalıcı)
-  useEffect(() => {
-    AsyncStorage.getItem('dev-mode')
-      .then(val => {
-        if (val === 'true') setIsDevMode(true);
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleVersionPress = useCallback(() => {
-    const now = Date.now();
-
-    if (isDevModeTapExpired(lastTapTimeRef.current, now)) {
-      tapCountRef.current = 0;
-    }
-
-    lastTapTimeRef.current = now;
-    tapCountRef.current += 1;
-
-    if (tapCountRef.current >= DEV_MODE_TAP_COUNT) {
-      tapCountRef.current = 0;
-      const newDevMode = !isDevMode;
-      setIsDevMode(newDevMode);
-      AsyncStorage.setItem('dev-mode', newDevMode ? 'true' : 'false').catch(() => {});
-
-      showInfo(
-        newDevMode
-          ? language === 'tr'
-            ? 'Geliştirici Modu Açık'
-            : 'Developer Mode Enabled'
-          : language === 'tr'
-            ? 'Geliştirici Modu Kapalı'
-            : 'Developer Mode Disabled',
-        newDevMode
-          ? language === 'tr'
-            ? 'Geliştirici test seçenekleri artık görünür.'
-            : 'Developer test options are now visible.'
-          : language === 'tr'
-            ? 'Geliştirici test seçenekleri gizlendi.'
-            : 'Developer test options are now hidden.'
-      );
-    }
-  }, [isDevMode, language, showInfo]);
+    isDevMode,
+    handleVersionPress,
+    handleFAQPress,
+    handleExportBackup,
+  } = useSettingsController();
 
   const styles = createSettingsStyles(colors, isDark);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView style={styles.scrollView}>
-        <PremiumCard
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+    >
+      <ScreenHeader
+        title={language === 'tr' ? 'Ayarlar' : 'Settings'}
+        subtitle={
+          language === 'tr' ? 'Uygulama Tercihleri & Güvenlik' : 'App Preferences & Security'
+        }
+        showBack={Boolean(typeof navigation?.canGoBack === 'function' && navigation.canGoBack())}
+        onBack={() => {
+          if (typeof navigation?.canGoBack === 'function' && navigation.canGoBack()) {
+            navigation.goBack();
+          } else if (typeof navigation?.navigate === 'function') {
+            navigation.navigate('Home' as never);
+          }
+        }}
+      />
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* 1. Üst Profil & Premium Kartı */}
+        <ProfileHeaderCard
+          displayName={user?.displayName}
+          email={user?.email}
+          photoURL={user?.photoURL}
           isPremium={isPremium}
           remainingDays={remainingDays}
-          onPress={() => navigation.navigate('Premium')}
+          onPremiumPress={() => navigation.navigate('Premium' as never)}
         />
 
-        <DailyScheduleSection
-          wakeUpTime={settings.wakeUpTime}
-          sleepTime={settings.sleepTime}
-          showWakeUpPicker={pickerState.showWakeUpPicker}
-          showSleepPicker={pickerState.showSleepPicker}
-          onWakeUpPress={() => togglePicker('showWakeUpPicker')}
-          onSleepPress={() => togglePicker('showSleepPicker')}
-          onWakeUpChange={handleTimeChange('wakeUpTime')}
-          onSleepChange={handleTimeChange('sleepTime')}
-          parseTimeToDate={parseTimeToDate}
-          formatTimeDisplay={formatTimeDisplay}
+        {/* 2. Profil & Hesap Bölümü */}
+        <ProfileSection
+          user={user}
+          isSyncing={isSyncing}
+          onSync={handleSync}
+          navigation={navigation}
+          language={language}
         />
 
-        {/* Sprint 90: Bakıcı yönetim section */}
-        <CaregiverSection />
+        {/* 3. Bildirim Ayarları Bölümü */}
+        <NotificationsSection
+          settings={settings}
+          updateSettings={updateSettings}
+          pickerState={pickerState}
+          togglePicker={togglePicker}
+          closePicker={closePicker}
+          isDark={isDark}
+          navigation={navigation}
+          language={language}
+        />
 
+        {/* 4. Görünüm & Dil Tercihleri */}
         <AppearanceSection
           showThemePicker={pickerState.showThemePicker}
           showLanguagePicker={pickerState.showLanguagePicker}
-          showLayoutPicker={pickerState.showLayoutPicker}
           onThemePress={() => togglePicker('showThemePicker')}
           onLanguagePress={() => togglePicker('showLanguagePicker')}
-          onLayoutPress={() => togglePicker('showLayoutPicker')}
           onThemeSelect={themeValue => {
             setTheme(themeValue);
             closePicker('showThemePicker');
@@ -186,50 +134,36 @@ export default function SettingsScreen() {
             setLanguage(lang);
             closePicker('showLanguagePicker');
           }}
-          onLayoutSelect={async (layout: LayoutVariant) => {
-            await setLayout(layout);
-            closePicker('showLayoutPicker');
-          }}
           getThemeLabel={getThemeLabel}
           getLanguageLabel={getLanguageLabel}
-          getLayoutLabel={(layout: LayoutVariant) =>
-            layout === 'A'
-              ? language === 'tr'
-                ? 'Detaylı'
-                : 'Detailed'
-              : language === 'tr'
-                ? 'Sade'
-                : 'Simple'
-          }
-          getLayoutDescription={(layout: LayoutVariant) =>
-            layout === 'A'
-              ? language === 'tr'
-                ? 'Detaylı bilgi, istatistik ve grafikler'
-                : 'Detailed info, stats and charts'
-              : language === 'tr'
-                ? 'Büyük butonlar, minimal bilgi'
-                : 'Large buttons, minimal info'
-          }
         />
 
+        {/* 5. Vurgu Rengi Seçimi */}
         <AccentColorSection />
 
-        <NotificationSection
+        {/* 6. Kolay Mod (Senior Mode) */}
+        <AccessibilitySection
           settings={settings}
-          showSnoozePicker={pickerState.showSnoozePicker}
-          showSnoozeCountPicker={pickerState.showSnoozeCountPicker}
-          showVolumePicker={pickerState.showVolumePicker}
-          showConflictIntervalPicker={pickerState.showConflictIntervalPicker}
-          onSettingChange={updateSettings}
-          onSnoozePress={() => togglePicker('showSnoozePicker')}
-          onSnoozeCountPress={() => togglePicker('showSnoozeCountPicker')}
-          onVolumePress={() => togglePicker('showVolumePicker')}
-          onConflictIntervalPress={() => togglePicker('showConflictIntervalPicker')}
-          onTestNotification={handleTestNotification}
-          onTestFullScreenAlarm={handleTestFullScreenAlarm}
-          onTestVoice={handleTestVoice}
+          updateSettings={updateSettings}
+          isDark={isDark}
+          language={language}
         />
 
+        {/* 7. Güvenlik & Veri Yönetimi */}
+        <DataSecuritySection
+          onExportBackup={handleExportBackup}
+          navigation={navigation}
+          language={language}
+        />
+
+        {/* 8. Yardım & Destek */}
+        <HelpSupportSection
+          onFAQPress={handleFAQPress}
+          onVersionPress={handleVersionPress}
+          language={language}
+        />
+
+        {/* 9. Geliştirici Modu Test Bölümü (Sadece aktifse) */}
         {isDevMode && (
           <DevTestSection
             onScheduleAlarm={handleScheduleTestAlarm}
@@ -241,37 +175,8 @@ export default function SettingsScreen() {
           />
         )}
 
-        <QuietHoursSection
-          settings={settings}
-          showQuietStartPicker={pickerState.showQuietStartPicker}
-          showQuietEndPicker={pickerState.showQuietEndPicker}
-          onSettingChange={updateSettings}
-          onQuietStartPress={() => togglePicker('showQuietStartPicker')}
-          onQuietEndPress={() => togglePicker('showQuietEndPicker')}
-          onQuietStartChange={handleTimeChange('quietHoursStart')}
-          onQuietEndChange={handleTimeChange('quietHoursEnd')}
-          parseTimeToDate={parseTimeToDate}
-          formatTimeDisplay={formatTimeDisplay}
-        />
-
-        <AdditionalFeaturesSection
-          onInteractionsPress={() => navigation.navigate('Interactions')}
-          onSecurityPress={() => navigation.navigate('Security')}
-          onTtsPress={() => navigation.navigate('TtsSettings')}
-          onCaregiverPress={() => navigation.navigate('Caregiver')}
-          onResetLowStockPress={handleResetLowStock}
-          ttsEnabled={settings.ttsEnabled}
-        />
-
-        <AccountSection
-          userEmail={user?.email}
-          lastSyncFormatted={formatLastSync()}
-          isSyncing={isSyncing}
-          onSyncPress={handleSync}
-          onLogoutPress={handleLogout}
-        />
-
-        <AboutSection onVersionPress={handleVersionPress} isDevMode={isDevMode} />
+        {/* 10. Oturum Kapatma / Giriş Yap Butonu */}
+        <LogoutButton user={user} onLogout={handleLogout} language={language} />
 
         <View style={{ height: 40 }} />
       </ScrollView>

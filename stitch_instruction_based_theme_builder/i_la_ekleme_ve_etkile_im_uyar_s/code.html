@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>İlaç Ekle - Smart Add Medicine</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-container": "#f4fffc",
+                        "on-surface-variant": "#3d4947",
+                        "missed-bg": "#FEE2E2",
+                        "surface-variant": "#d3e4fe",
+                        "primary-container": "#008378",
+                        "background": "#f8f9ff",
+                        "secondary-container": "#dc2c4f",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#ffdbce",
+                        "secondary": "#b90538",
+                        "on-primary-fixed": "#00201d",
+                        "taken-bg": "#D1FAE5",
+                        "error": "#ba1a1a",
+                        "taken": "#10B981",
+                        "skipped-bg": "#FEF3C7",
+                        "surface-tint": "#006a61",
+                        "surface-container-high": "#dce9ff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#005049",
+                        "on-secondary-fixed": "#40000d",
+                        "inverse-surface": "#213145",
+                        "tertiary": "#924628",
+                        "secondary-fixed-dim": "#ffb2b7",
+                        "on-error": "#ffffff",
+                        "primary": "#00685f",
+                        "on-tertiary-container": "#fffbff",
+                        "on-tertiary-fixed-variant": "#773215",
+                        "error-container": "#ffdad6",
+                        "on-background": "#0b1c30",
+                        "bg-dark": "#0F172A",
+                        "surface-bright": "#f8f9ff",
+                        "on-secondary-fixed-variant": "#92002a",
+                        "outline": "#6d7a77",
+                        "surface-container-highest": "#d3e4fe",
+                        "inverse-on-surface": "#eaf1ff",
+                        "primary-fixed-dim": "#6bd8cb",
+                        "on-secondary-container": "#fffbff",
+                        "outline-variant": "#bcc9c6",
+                        "on-tertiary-fixed": "#370e00",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#b05e3d",
+                        "inverse-primary": "#6bd8cb",
+                        "surface-dark": "#1E293B",
+                        "skipped": "#F59E0B",
+                        "surface-dim": "#cbdbf5",
+                        "surface-container": "#e5eeff",
+                        "tertiary-fixed-dim": "#ffb59a",
+                        "surface": "#f8f9ff",
+                        "on-surface": "#0b1c30",
+                        "missed": "#EF4444",
+                        "primary-fixed": "#89f5e7",
+                        "surface-container-low": "#eff4ff",
+                        "secondary-fixed": "#ffdadb",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "24px",
+                        "touch-target": "48px",
+                        "card-padding": "16px",
+                        "gutter": "12px",
+                        "base": "4px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "body-lg-med": ["Inter"],
+                        "headline-screen": ["Plus Jakarta Sans"],
+                        "display-hero": ["Plus Jakarta Sans"],
+                        "headline-card": ["Plus Jakarta Sans"],
+                        "body-regular": ["Inter"],
+                        "time-display": ["Inter"],
+                        "label-badge": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg-med": ["16px", { "lineHeight": "22px", "fontWeight": "600" }],
+                        "headline-screen": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "display-hero": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-card": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-regular": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "time-display": ["30px", { "lineHeight": "36px", "fontWeight": "700" }],
+                        "label-badge": ["12px", { "lineHeight": "16px", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .input-glow:focus {
+            box-shadow: 0 0 0 2px rgba(0, 104, 95, 0.2);
+            border-color: #00685f;
+        }
+        .soft-shadow {
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-regular min-h-screen flex flex-col">
+<!-- Header (Transactional - No Navigation Shell) -->
+<header class="flex justify-between items-center px-margin-mobile py-4 w-full bg-background sticky top-0 z-50">
+<button aria-label="Geri" class="h-touch-target w-touch-target flex items-center justify-center rounded-full hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined text-primary">arrow_back</span>
+</button>
+<h1 class="font-headline-screen text-headline-screen text-primary">Yeni İlaç Ekle</h1>
+<div class="h-touch-target w-touch-target"></div> <!-- Spacer for centering -->
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow px-margin-mobile pb-24 pt-4 flex flex-col gap-6 max-w-md mx-auto w-full">
+<!-- Medicine Name & Scanner -->
+<div class="flex flex-col gap-2">
+<label class="font-body-lg-med text-body-lg-med text-on-surface" for="medicine-name">İlaç Adı</label>
+<div class="relative">
+<input class="w-full min-h-[48px] px-4 py-3 rounded-xl border border-outline bg-surface-container-lowest text-on-surface font-body-regular focus:outline-none input-glow transition-all pr-12" id="medicine-name" placeholder="Örn: Parol 500mg" type="text"/>
+<button aria-label="Barkod Tara" class="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center text-primary rounded-lg hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">barcode_scanner</span>
+</button>
+</div>
+</div>
+<!-- Dosage & Form Grid -->
+<div class="grid grid-cols-2 gap-4">
+<!-- Dosage -->
+<div class="flex flex-col gap-2">
+<label class="font-body-lg-med text-body-lg-med text-on-surface" for="dosage">Dozaj</label>
+<div class="relative">
+<input class="w-full min-h-[48px] px-4 py-3 rounded-xl border border-outline bg-surface-container-lowest text-on-surface font-body-regular focus:outline-none input-glow transition-all" id="dosage" placeholder="Miktar" type="number"/>
+<span class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-body-regular">mg</span>
+</div>
+</div>
+<!-- Form Picker -->
+<div class="flex flex-col gap-2">
+<label class="font-body-lg-med text-body-lg-med text-on-surface" for="form">Form</label>
+<select class="w-full min-h-[48px] px-4 py-3 rounded-xl border border-outline bg-surface-container-lowest text-on-surface font-body-regular focus:outline-none input-glow transition-all appearance-none" id="form">
+<option value="tablet">Tablet</option>
+<option value="capsule">Kapsül</option>
+<option value="syrup">Şurup</option>
+<option value="injection">İğne</option>
+</select>
+</div>
+</div>
+<!-- Schedule (Frequency) -->
+<div class="flex flex-col gap-2">
+<label class="font-body-lg-med text-body-lg-med text-on-surface">Kullanım Sıklığı</label>
+<div class="grid grid-cols-3 gap-2">
+<button class="min-h-[48px] rounded-xl border-2 border-primary bg-primary-container text-on-primary-container font-body-lg-med text-body-lg-med transition-all">Günde 1</button>
+<button class="min-h-[48px] rounded-xl border border-outline bg-surface-container-lowest text-on-surface-variant hover:bg-surface-variant/50 font-body-lg-med text-body-lg-med transition-all">Günde 2</button>
+<button class="min-h-[48px] rounded-xl border border-outline bg-surface-container-lowest text-on-surface-variant hover:bg-surface-variant/50 font-body-lg-med text-body-lg-med transition-all">Günde 3</button>
+</div>
+</div>
+<!-- Interactive Warning Card (High Risk) -->
+<div class="mt-4 p-4 rounded-xl bg-error-container text-on-error-container border-l-4 border-error flex gap-3 items-start animate-fade-in-up" role="alert">
+<span class="material-symbols-outlined text-error mt-0.5" style="font-variation-settings: 'FILL' 1;">warning</span>
+<div>
+<h4 class="font-headline-card text-headline-card text-error mb-1">Yüksek Riskli Etkileşim!</h4>
+<p class="font-body-regular text-body-regular text-on-error-container leading-relaxed">
+                    Bu ilaç, mevcut <strong>Aspirin</strong> tedavinizle birlikte kanama riskini artırabilir. Lütfen kullanmadan önce doktorunuza danışınız.
+                </p>
+</div>
+</div>
+</main>
+<!-- Bottom Action Area -->
+<div class="fixed bottom-0 left-0 w-full p-margin-mobile bg-background/90 backdrop-blur-md border-t border-outline-variant z-40 flex justify-center">
+<button class="w-full max-w-md min-h-[48px] bg-primary text-on-primary font-headline-card text-headline-card rounded-xl soft-shadow hover:bg-primary/90 active:scale-95 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">save</span>
+            İlacı Kaydet
+        </button>
+</div>
+</body></html>

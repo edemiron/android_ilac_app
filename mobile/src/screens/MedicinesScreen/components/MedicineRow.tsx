@@ -210,26 +210,32 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
             {isSelected && <Ionicons name="checkmark" size={14} color={colors.textOnPrimary} />}
           </View>
         )}
-        <View
-          style={[
-            styles.iconContainer,
-            { backgroundColor: medicine.color + '20', overflow: 'hidden' },
-          ]}
-        >
-          {medicine.imageUri ? (
-            <Image source={{ uri: medicine.imageUri }} style={{ width: 44, height: 44 }} />
-          ) : (
-            (() => {
-              const iconInfo = getMedicineFormIcon(medicine);
-              if (iconInfo.lib === 'mci') {
-                return (
-                  <MaterialCommunityIcons name={iconInfo.name} size={18} color={medicine.color} />
-                );
-              }
-              return <Ionicons name={iconInfo.name as never} size={18} color={medicine.color} />;
-            })()
-          )}
-        </View>
+        {(() => {
+          const medColor = medicine.color || colors.primary || '#0D9488';
+          const iconBg = isDark ? `${medColor}33` : `${medColor}20`;
+          const iconInfo = getMedicineFormIcon(medicine);
+          return (
+            <View
+              style={[
+                styles.iconContainer,
+                {
+                  backgroundColor: iconBg,
+                  borderColor: `${medColor}55`,
+                  borderWidth: 1,
+                  overflow: 'hidden',
+                },
+              ]}
+            >
+              {medicine.imageUri ? (
+                <Image source={{ uri: medicine.imageUri }} style={{ width: 44, height: 44 }} />
+              ) : iconInfo.lib === 'mci' ? (
+                <MaterialCommunityIcons name={iconInfo.name} size={20} color={medColor} />
+              ) : (
+                <Ionicons name={iconInfo.name as never} size={20} color={medColor} />
+              )}
+            </View>
+          );
+        })()}
         <View style={styles.medicineInfo}>
           <View style={styles.medicineHeader}>
             <Text

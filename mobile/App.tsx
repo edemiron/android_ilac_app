@@ -17,7 +17,7 @@ import {
   Animated,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler'; // Sprint 97.1
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -43,9 +43,11 @@ import {
   TtsSettingsScreen,
   CaregiverScreen,
   CaregiverInviteScreen,
+  DutyPharmacyScreen,
 } from './src/screens';
 
 import { useAppFonts } from './src/hooks/useAppFonts'; // Sprint 103.2: Clinical Clarity font gate
+import { useHaptics } from './src/hooks/useHaptics';
 
 // Lazy load BarcodeScannerScreen - vision-camera is HEAVY and slows startup by ~5s
 const BarcodeScannerScreen = lazy(() => import('./src/screens/BarcodeScannerScreen'));
@@ -144,7 +146,7 @@ const getTabColors = (isDark: boolean) => ({
   settings: { active: isDark ? '#F59E0B' : '#D97706', inactive: isDark ? '#6B8AAA' : '#94A3B8' }, // Warning - Amber
 });
 
-// Custom Tab Bar with Center FAB and swipe navigation
+// Custom Tab Bar with Center Raised Squircle FAB (+ Ekle)
 interface CustomTabBarProps {
   state: any;
   descriptors: any;
@@ -153,98 +155,156 @@ interface CustomTabBarProps {
 
 function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
   const { colors, isDark } = useTheme();
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
+  const haptics = useHaptics();
 
-  const TAB_COLORS = getTabColors(isDark);
+  const leftTabs = [
+    {
+      key: 'Home',
+      routeName: 'Home',
+      label: language === 'tr' ? 'Bugün' : 'Today',
+      iconActive: 'home',
+      iconInactive: 'home-outline',
+      onPress: () => navigation.navigate('Home'),
+      tabIndex: 0,
+    },
+    {
+      key: 'Medicines',
+      routeName: 'Medicines',
+      label: language === 'tr' ? 'İlaçlarım' : 'Medicines',
+      iconActive: 'medical',
+      iconInactive: 'medical-outline',
+      onPress: () => navigation.navigate('Medicines'),
+      tabIndex: 1,
+    },
+  ];
 
-  const tabIcons: Record<string, { name: string; colors: { active: string; inactive: string } }> = {
-    Home: { name: 'home', colors: TAB_COLORS.home },
-    Medicines: { name: 'medical', colors: TAB_COLORS.medicines },
-    Statistics: { name: 'bar-chart', colors: TAB_COLORS.statistics },
-    Settings: { name: 'settings-sharp', colors: TAB_COLORS.settings },
-  };
+  const rightTabs = [
+    {
+      key: 'Statistics',
+      routeName: 'Statistics',
+      label: language === 'tr' ? 'Takvim' : 'Calendar',
+      iconActive: 'calendar',
+      iconInactive: 'calendar-outline',
+      onPress: () => navigation.navigate('Statistics'),
+      tabIndex: 2,
+    },
+    {
+      key: 'Settings',
+      routeName: 'Settings',
+      label: language === 'tr' ? 'Ayarlar' : 'Settings',
+      iconActive: 'settings',
+      iconInactive: 'settings-outline',
+      onPress: () => navigation.navigate('Settings'),
+      tabIndex: 3,
+    },
+  ];
 
-  const handleAddMedicine = () => {
-    navigation.navigate('AddMedicine', {});
+  const handleAddPress = () => {
+    haptics.trigger('medium');
+    navigation.navigate('AddMedicine');
   };
 
   return (
-    <View style={[tabBarStyles.container, { backgroundColor: colors.tabBar }]}>
-      {state.routes.map((route: any, index: number) => {
-        const { options } = descriptors[route.key];
-        const isFocused = state.index === index;
-        const iconConfig = tabIcons[route.name];
-
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-
-          if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
-          }
-        };
-
-        // Ortaya FAB ekle (2. tab'dan sonra)
-        if (index === 2) {
+    <View style={{ backgroundColor: colors.background }}>
+      <View
+        style={[
+          tabBarStyles.container,
+          {
+            backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+            borderColor: isDark ? '#334155' : '#E2E8F0',
+          },
+        ]}
+      >
+        {/* Sol 2 Tab: Bugün & Takvim */}
+        {leftTabs.map(tab => {
+          const isFocused = state.index === tab.tabIndex;
           return (
-            <React.Fragment key={route.key}>
-              {/* Center FAB */}
-              <View style={tabBarStyles.fabWrapper}>
-                <TouchableOpacity
-                  style={[tabBarStyles.fab, { backgroundColor: colors.primary }]}
-                  onPress={handleAddMedicine}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="add" size={28} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Normal Tab */}
-              <TouchableOpacity style={tabBarStyles.tab} onPress={onPress} activeOpacity={0.7}>
-                <Ionicons
-                  name={iconConfig.name as any}
-                  size={24}
-                  color={isFocused ? iconConfig.colors.active : iconConfig.colors.inactive}
-                />
-                <Text
-                  style={[
-                    tabBarStyles.label,
-                    { color: isFocused ? iconConfig.colors.active : iconConfig.colors.inactive },
-                  ]}
-                >
-                  {options.title}
-                </Text>
-              </TouchableOpacity>
-            </React.Fragment>
-          );
-        }
-
-        return (
-          <TouchableOpacity
-            key={route.key}
-            style={tabBarStyles.tab}
-            onPress={onPress}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={iconConfig.name as any}
-              size={24}
-              color={isFocused ? iconConfig.colors.active : iconConfig.colors.inactive}
-            />
-            <Text
-              style={[
-                tabBarStyles.label,
-                { color: isFocused ? iconConfig.colors.active : iconConfig.colors.inactive },
-              ]}
+            <TouchableOpacity
+              key={tab.key}
+              style={tabBarStyles.tab}
+              onPress={tab.onPress}
+              activeOpacity={0.7}
             >
-              {options.title}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+              <Ionicons
+                name={(isFocused ? tab.iconActive : tab.iconInactive) as any}
+                size={22}
+                color={isFocused ? colors.primary : isDark ? '#94A3B8' : '#64748B'}
+              />
+              <Text
+                style={[
+                  tabBarStyles.label,
+                  {
+                    color: isFocused ? colors.primary : isDark ? '#94A3B8' : '#64748B',
+                    fontWeight: isFocused ? '700' : '500',
+                  },
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+
+        {/* Merkez: Yükseltilmiş Squircle FAB (+ Ekle) */}
+        <TouchableOpacity
+          style={tabBarStyles.centerFabContainer}
+          onPress={handleAddPress}
+          activeOpacity={0.85}
+        >
+          <View
+            style={[
+              tabBarStyles.centerSquircle,
+              {
+                backgroundColor: colors.primary,
+                shadowColor: colors.primary,
+              },
+            ]}
+          >
+            <Ionicons name="add" size={28} color="#FFFFFF" />
+          </View>
+          <Text
+            style={[
+              tabBarStyles.centerLabel,
+              {
+                color: isDark ? '#94A3B8' : '#64748B',
+              },
+            ]}
+          >
+            {language === 'tr' ? 'Ekle' : 'Add'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Sağ 2 Tab: İlaçlarım & Ayarlar */}
+        {rightTabs.map(tab => {
+          const isFocused = state.index === tab.tabIndex;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={tabBarStyles.tab}
+              onPress={tab.onPress}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={(isFocused ? tab.iconActive : tab.iconInactive) as any}
+                size={22}
+                color={isFocused ? colors.primary : isDark ? '#94A3B8' : '#64748B'}
+              />
+              <Text
+                style={[
+                  tabBarStyles.label,
+                  {
+                    color: isFocused ? colors.primary : isDark ? '#94A3B8' : '#64748B',
+                    fontWeight: isFocused ? '700' : '500',
+                  },
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -252,40 +312,52 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
 const tabBarStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
-    paddingTop: 16,
-    alignItems: 'flex-end',
+    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'space-around',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    marginTop: -24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 10,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
+    paddingVertical: 4,
   },
   label: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 11.5,
   },
-  fabWrapper: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginHorizontal: 8,
-    marginTop: -36,
-  },
-  fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  centerFabContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8B9CFF',
+    marginTop: -22,
+  },
+  centerSquircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    elevation: 12,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  centerLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 3,
   },
 });
 
@@ -371,8 +443,10 @@ function MainTabs() {
   );
 
   return (
-    <View style={{ flex: 1 }} {...panResponder.panHandlers}>
-      <Animated.View style={{ flex: 1, transform: [{ translateX }] }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }} {...panResponder.panHandlers}>
+      <Animated.View
+        style={{ flex: 1, backgroundColor: colors.background, transform: [{ translateX }] }}
+      >
         <Tab.Navigator
           tabBar={props => {
             tabNavRef.current = props.navigation;
@@ -393,17 +467,17 @@ function MainTabs() {
           <Tab.Screen
             name="Medicines"
             component={MedicinesScreen}
-            options={{ title: t('tab_medicines'), headerTitle: t('tab_medicines') }}
+            options={{ headerShown: false, title: t('tab_medicines') }}
           />
           <Tab.Screen
             name="Statistics"
             component={StatisticsScreen}
-            options={{ title: t('tab_statistics'), headerTitle: t('tab_statistics') }}
+            options={{ headerShown: false, title: t('tab_statistics') }}
           />
           <Tab.Screen
             name="Settings"
             component={SettingsScreen}
-            options={{ title: t('tab_settings'), headerTitle: t('tab_settings') }}
+            options={{ headerShown: false, title: t('tab_settings') }}
           />
         </Tab.Navigator>
       </Animated.View>
@@ -479,6 +553,21 @@ function AppContent() {
     logMedicineTaken,
     logMedicineSkipped,
   } = useMedicineStore();
+
+  const navTheme = React.useMemo(
+    () => ({
+      ...(isDark ? DarkTheme : DefaultTheme),
+      colors: {
+        ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+        background: colors.background,
+        card: colors.card,
+        text: colors.text,
+        border: colors.border,
+        primary: colors.primary,
+      },
+    }),
+    [isDark, colors]
+  );
 
   // Pending alarm queue + navigation — Sprint 6 DRY refactor:
   // Hook artık sadece React state'i tutar; tüm alarm validation/snooze/navigate
@@ -956,6 +1045,7 @@ function AppContent() {
   return (
     <NavigationContainer
       ref={navigationRef}
+      theme={navTheme}
       onReady={() => {
         // Navigation hazır olduğunda pending alarm varsa yönlendir.
         // NOT: useAlarmNavigation hook'u kendi içinde
@@ -1056,6 +1146,15 @@ function AppContent() {
           component={CaregiverInviteScreen}
           options={{
             title: language === 'tr' ? 'Daveti Kabul Et' : 'Accept Invite',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="DutyPharmacy"
+          component={DutyPharmacyScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Nöbetçi Eczaneler' : 'Duty Pharmacies',
             presentation: 'card',
           }}
         />

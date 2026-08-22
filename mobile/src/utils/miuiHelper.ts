@@ -141,12 +141,78 @@ export function getMIUIInstructions(): string {
 }
 
 /**
+ * Get device manufacturer type
+ */
+export function getDeviceManufacturer():
+  | 'xiaomi'
+  | 'samsung'
+  | 'huawei'
+  | 'oppo'
+  | 'vivo'
+  | 'other' {
+  if (Platform.OS !== 'android') return 'other';
+  const platformConstants = NativeModules?.PlatformConstants;
+  if (!platformConstants) return 'other';
+
+  const m = String(platformConstants.Manufacturer ?? '').toLowerCase();
+  const b = String(platformConstants.Brand ?? '').toLowerCase();
+
+  if (
+    m.includes('xiaomi') ||
+    m.includes('redmi') ||
+    m.includes('poco') ||
+    b.includes('xiaomi') ||
+    b.includes('redmi')
+  ) {
+    return 'xiaomi';
+  }
+  if (m.includes('samsung') || b.includes('samsung')) {
+    return 'samsung';
+  }
+  if (m.includes('huawei') || m.includes('honor') || b.includes('huawei') || b.includes('honor')) {
+    return 'huawei';
+  }
+  if (m.includes('oppo') || m.includes('realme') || m.includes('oneplus') || b.includes('oppo')) {
+    return 'oppo';
+  }
+  if (m.includes('vivo') || b.includes('vivo')) {
+    return 'vivo';
+  }
+  return 'other';
+}
+
+/**
+ * Get OEM setup instructions tailored to device manufacturer
+ */
+export function getOEMInstructions(manufacturer: string, language: 'tr' | 'en' = 'tr'): string {
+  const isTr = language === 'tr';
+
+  if (manufacturer === 'xiaomi') {
+    return getMIUIInstructions();
+  }
+
+  if (manufacturer === 'samsung') {
+    return isTr
+      ? `📱 SAMSUNG CİHAZLAR İÇİN PİL AYARI\n\nAlarmların kaçmaması için:\n1️⃣ Ayarlar → Uygulamalar → İlaç Hatırlatıcı\n2️⃣ Pil → "Kısıtlanmamış" seçeneğini işaretleyin.\n3️⃣ Arka Planda Kullanım Sınırları → "Hiçbir zaman uyku moduna alınmayan uygulamalar" listesine ekleyin.`
+      : `📱 SAMSUNG BATTERY SETTINGS\n\n1️⃣ Settings → Apps → Medicine Reminder\n2️⃣ Battery → Select "Unrestricted"\n3️⃣ Never sleeping apps → Add Medicine Reminder`;
+  }
+
+  if (manufacturer === 'huawei') {
+    return isTr
+      ? `📱 HUAWEI / HONOR CİHAZLAR İÇİN AYARLAR\n\n1️⃣ Ayarlar → Pil → Uygulama Başlatma\n2️⃣ İlaç Hatırlatıcı → "Manuel Yönet" (Otomatik Başlatma, İkincil Başlatma ve Arka Planda Çalışma'yı AÇIN).`
+      : `📱 HUAWEI BATTERY SETTINGS\n\n1️⃣ Settings → Battery → App Launch\n2️⃣ Medicine Reminder → Manage manually (Enable Auto-launch, Secondary launch & Run in background).`;
+  }
+
+  return isTr
+    ? `📱 KESİNTİSİZ ALARM & PİL REHBERİ\n\nAlarmların zamanında çalması için:\n1️⃣ Ayarlar → Uygulamalar → İlaç Hatırlatıcı\n2️⃣ Pil Tasarrufu → "Kısıtlama Yok" olarak ayarlayın.\n3️⃣ Otomatik Başlatma ve Bildirim izinlerini açık tutun.`
+    : `📱 UNINTERRUPTED ALARM GUIDE\n\n1️⃣ Settings → Apps → Medicine Reminder\n2️⃣ Battery Optimization → Set to "Unrestricted" / "Don't optimize"\n3️⃣ Keep auto-start and notifications enabled.`;
+}
+
+/**
  * Check if all MIUI settings are properly configured
  * Note: This is a best-effort check - actual status cannot be reliably detected
  */
 export async function checkMIUISettings(): Promise<MIUISettings> {
-  // We cannot reliably detect these settings programmatically on MIUI
-  // Return conservative defaults
   return {
     autoStart: false,
     batteryOptimization: false,

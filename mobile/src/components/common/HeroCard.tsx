@@ -107,7 +107,7 @@ export function HeroCard({
         return PREMIUM_COLORS;
       case 'header':
         return isDark
-          ? ([colors.primaryDark ?? '#6B7CDF', colors.gradientEnd] as const)
+          ? (['#134E4A', '#0F766E'] as const)
           : ([colors.gradientStart, colors.gradientEnd] as const);
       case 'warning':
         return WARNING_COLORS;
@@ -122,9 +122,7 @@ export function HeroCard({
   // Foreground: premium = dark text on gold, others = gradient textOnGradient.
   const fg = variant === 'premium' ? '#1A1A2E' : colors.textOnGradient;
   const fgMuted =
-    variant === 'premium'
-      ? withAlpha('#1A1A2E', ALPHA.scrimStrong)
-      : colors.textOnGradientMuted;
+    variant === 'premium' ? withAlpha('#1A1A2E', ALPHA.scrimStrong) : colors.textOnGradientMuted;
 
   // Icon container default background — variant-specific contrast.
   const computedIconBg =
@@ -208,11 +206,7 @@ export function HeroCard({
   }
 
   return (
-    <View
-      accessibilityLabel={accessibilityLabel ?? title}
-      testID={testID}
-      style={containerStyle}
-    >
+    <View accessibilityLabel={accessibilityLabel ?? title} testID={testID} style={containerStyle}>
       {inner}
     </View>
   );

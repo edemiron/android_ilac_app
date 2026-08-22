@@ -13,7 +13,9 @@ import { autocomplete } from '../services/globalMedicineService';
 import { useDebounce } from './useDebounce';
 import { useMedicinePersistence } from './useMedicinePersistence';
 import { useAlert } from '../contexts/AlertContext';
-import { checkInteractions } from '../services/drugInteractionService';
+import { checkInteractions } from '../services/drugInteraction';
+import * as ImagePicker from 'expo-image-picker';
+import { recognizeMedicineBoxPhotoAI } from '../services/aiMedicineService';
 import {
   AddMedicineFormState,
   AutocompleteState,
@@ -106,6 +108,13 @@ export function useAddMedicine() {
     requireBarcodeOnTake: existingMedicine?.requireBarcodeOnTake ?? false,
     barcode: existingMedicine?.barcode,
     vibrationPattern: existingMedicine?.vibrationPattern ?? 'default',
+    // Gelişmiş Zamanlama
+    scheduleType: existingMedicine?.scheduleType ?? 'daily',
+    specificDays: existingMedicine?.specificDays ?? [1, 2, 3, 4, 5],
+    intervalDays: existingMedicine?.intervalDays ?? 2,
+    cycleDaysOn: existingMedicine?.cycleDaysOn ?? 21,
+    cycleDaysOff: existingMedicine?.cycleDaysOff ?? 7,
+    endDate: existingMedicine?.endDate ?? null,
   });
 
   // Autocomplete state
@@ -391,6 +400,76 @@ export function useAddMedicine() {
     }
   }, [persistSave, formState, isEditing, medicines, language, showAlert]);
 
+  const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState(false);
+
+  const handleScanPhotoBox = useCallback(async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        showAlert({
+          type: 'warning',
+          title: language === 'tr' ? 'Kamera İzni Gerekli' : 'Camera Permission Required',
+          message:
+            language === 'tr'
+              ? 'İlaç kutusunu fotoğraflamak için kamera izni vermelisiniz.'
+              : 'Please grant camera access to photograph the medicine box.',
+        });
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.6,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          setIsAnalyzingPhoto(true);
+          const ocrResult = await recognizeMedicineBoxPhotoAI(asset.base64);
+          setIsAnalyzingPhoto(false);
+
+          if (ocrResult.success && ocrResult.name) {
+            setFormState(prev => ({
+              ...prev,
+              name: ocrResult.name || prev.name,
+              dosage: ocrResult.dosage || prev.dosage,
+              dosageAmount: ocrResult.dosage
+                ? parseDosageAmount(ocrResult.dosage)
+                : prev.dosageAmount,
+              medicineForm: ocrResult.form ? (ocrResult.form as any) : prev.medicineForm,
+              instruction: ocrResult.instructions
+                ? (ocrResult.instructions as any)
+                : prev.instruction,
+              imageUri: asset.uri || prev.imageUri,
+            }));
+
+            showAlert({
+              type: 'info',
+              title: language === 'tr' ? 'İlaç Kutusu Tanındı' : 'Medicine Identified',
+              message: `${ocrResult.name} (${ocrResult.dosage || ''}) başarıyla okundu ve forma aktarıldı.`,
+            });
+          } else {
+            showAlert({
+              type: 'warning',
+              title: language === 'tr' ? 'Bilgi Çıkarılamadı' : 'Recognition Incomplete',
+              message:
+                ocrResult.error ||
+                (language === 'tr'
+                  ? 'Kutudan ilaç adı okunamadı. Lütfen elle giriniz veya barkod ile deneyiniz.'
+                  : 'Could not detect medicine details. Please enter manually or scan barcode.'),
+            });
+          }
+        }
+      }
+    } catch (error) {
+      setIsAnalyzingPhoto(false);
+      log.error('Photo scan error', error);
+    }
+  }, [language, showAlert]);
+
   return {
     routeParams,
     isEditing,
@@ -414,6 +493,8 @@ export function useAddMedicine() {
     previewTimes,
     settings,
     handleScanBarcode,
+    handleScanPhotoBox,
+    isAnalyzingPhoto,
     handleSave,
     handleCancel,
     FREQUENCY_OPTIONS,

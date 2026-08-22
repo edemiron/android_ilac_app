@@ -1,12 +1,9 @@
 /**
- * Header tests — Sprint 98 Karol-inspired redesign.
+ * Header tests — Google Stitch redesign.
  *
- * Gradient hero header:
- * - Greeting + dynamic date + total dose metni render edilir
- * - Inline progress bar %percent dogru hesaplanir
- * - currentStreak > 0 ise streak chip gorunur, 0 ise gizlenir
- * - completion > total edge case: max 100
- * - Gradient renkleri isDark'a gore degisir
+ * Header:
+ * - Top Bar: Avatar + Greeting + Bell icon
+ * - Daily Progress Card: "Günlük İlerleme" + "X / Y Alındı" + %Progress Circular Gauge
  */
 
 import React from 'react';
@@ -15,15 +12,22 @@ import { render } from '@testing-library/react-native';
 jest.mock('react-native', () => ({
   View: 'View',
   Text: 'Text',
+  TouchableOpacity: 'TouchableOpacity',
   StyleSheet: {
     create: <T,>(s: T): T => s,
     flatten: <T,>(s: T): T => s,
   },
 }));
 
-jest.mock('expo-linear-gradient', () => ({
-  LinearGradient: 'LinearGradient',
-}));
+jest.mock('react-native-svg', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    default: 'Svg',
+    Circle: 'Circle',
+  };
+});
+
 jest.mock('react-native-vector-icons/Ionicons', () => 'Ionicons');
 
 jest.mock('../../../contexts/LanguageContext', () => ({
@@ -33,10 +37,11 @@ jest.mock('../../../contexts/LanguageContext', () => ({
 jest.mock('../../../contexts/ThemeContext', () => ({
   useTheme: () => ({
     colors: {
-      primary: '#4ECDC4',
-      gradientStart: '#A78BFA',
-      gradientEnd: '#5EE6FF',
-      primaryDark: '#6B7CDF',
+      primary: '#0D9488',
+      card: '#FFFFFF',
+      border: '#E2E8F0',
+      text: '#0F172A',
+      textSecondary: '#64748B',
     },
     isDark: false,
   }),
@@ -45,110 +50,66 @@ jest.mock('../../../contexts/ThemeContext', () => ({
 import { Header } from '../../../screens/HomeScreen/components/Header';
 
 describe('Header', () => {
-  it('renders greeting, date and totalDoses subtitle', () => {
+  it('renders greeting and progress title', () => {
     const { getByText } = render(
       <Header
-        greeting="Merhaba, Ahmet"
-        dynamicDate="Bugün"
-        totalDoses={7}
+        greeting="Günaydın"
+        displayName="Sarah"
+        totalDoses={4}
         completedCount={3}
         currentStreak={0}
       />
     );
-    expect(getByText('Merhaba, Ahmet')).toBeTruthy();
-    expect(getByText(/Bugün/)).toBeTruthy();
-    expect(getByText(/7 doz planı/)).toBeTruthy();
+    expect(getByText(/Günaydın/)).toBeTruthy();
+    expect(getByText('Günlük İlerleme')).toBeTruthy();
+    expect(getByText(/3 \/ 4.*Alındı/)).toBeTruthy();
   });
 
   it('computes and displays progress percent correctly', () => {
     const { getByText } = render(
       <Header
-        greeting="Merhaba"
-        dynamicDate="Bugün"
+        greeting="Günaydın"
+        displayName="Sarah"
         totalDoses={4}
         completedCount={1}
         currentStreak={0}
       />
     );
-    // 1/4 = 25%
-    expect(getByText('25% uyum')).toBeTruthy();
+    // 1/4 = 25% -> %25
+    expect(getByText('%25')).toBeTruthy();
   });
 
   it('clamps progress at 100% (completedCount > totalDoses)', () => {
     const { getByText } = render(
       <Header
-        greeting="Merhaba"
-        dynamicDate="Bugün"
+        greeting="Günaydın"
+        displayName="Sarah"
         totalDoses={3}
         completedCount={5}
         currentStreak={0}
       />
     );
-    expect(getByText('100% uyum')).toBeTruthy();
+    expect(getByText('%100')).toBeTruthy();
   });
 
   it('renders 0% when totalDoses is 0', () => {
     const { getByText } = render(
       <Header
-        greeting="Merhaba"
-        dynamicDate="Bugün"
+        greeting="Günaydın"
+        displayName="Sarah"
         totalDoses={0}
         completedCount={0}
         currentStreak={0}
       />
     );
-    expect(getByText('0% uyum')).toBeTruthy();
+    expect(getByText('%0')).toBeTruthy();
   });
 
-  it('does not render streak chip when currentStreak is 0', () => {
-    const { queryByText } = render(
-      <Header
-        greeting="Merhaba"
-        dynamicDate="Bugün"
-        totalDoses={5}
-        completedCount={0}
-        currentStreak={0}
-      />
-    );
-    // "Bugün" içinde "gün" geçer, o yüzden dynamicDate'i farkli yap ki
-    // streak chip yoklugunu net dogrulayalim.
-    expect(queryByText(/^\d+ gün$/)).toBeNull();
-  });
-
-  it('renders streak chip when currentStreak > 0', () => {
-    const { getByText } = render(
-      <Header
-        greeting="Merhaba"
-        dynamicDate="Bugün"
-        totalDoses={5}
-        completedCount={2}
-        currentStreak={5}
-      />
-    );
-    expect(getByText('5 gün')).toBeTruthy();
-  });
-
-  it('renders progress track with correct width %', () => {
+  it('renders correctly in dark mode', () => {
     const { UNSAFE_root } = render(
       <Header
-        greeting="Merhaba"
-        dynamicDate="Bugün"
-        totalDoses={4}
-        completedCount={2}
-        currentStreak={0}
-      />
-    );
-    // progressFill View genişliği width: '50%' olmali
-    const fillView = UNSAFE_root.findByProps({ accessibilityLabel: 'Adherence 50 percent' });
-    expect(fillView).toBeTruthy();
-  });
-
-  it('applies isDark-aware gradient colors via theme', () => {
-    // Sadece render edildigini dogrula — dark/light branch kontrolu coverage'a katkı saglar
-    const { UNSAFE_root } = render(
-      <Header
-        greeting="Merhaba"
-        dynamicDate="Bugün"
+        greeting="İyi akşamlar"
+        displayName="Sarah"
         totalDoses={4}
         completedCount={2}
         currentStreak={3}

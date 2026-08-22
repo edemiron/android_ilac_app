@@ -5,8 +5,9 @@ import { Language, TranslationKey } from '../../contexts/LanguageContext';
 
 export interface SettingIconProps {
   name: string;
-  color: string;
+  color?: string;
   size?: number;
+  backgroundColor?: string;
 }
 
 export interface SettingRowProps {

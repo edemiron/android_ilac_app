@@ -28,6 +28,33 @@ const MedicineInstructionSchema = z.enum([
   'any_time',
 ]);
 
+const MedicineFormSchema = z.enum([
+  'tablet',
+  'capsule',
+  'syrup',
+  'injection',
+  'cream',
+  'drops',
+  'spray',
+  'patch',
+  'suppository',
+  'powder',
+  'other',
+]);
+
+const MedicineCategorySchema = z.enum([
+  'painkiller',
+  'vitamin',
+  'heart',
+  'nervous',
+  'antibiotic',
+  'respiratory',
+  'digestive',
+  'diabetes',
+  'bone',
+  'other',
+]);
+
 /**
  * Medicine schema
  */
@@ -46,6 +73,28 @@ const MedicineSchema = z
     createdAt: z.string(),
     updatedAt: z.string(),
     customTimes: z.array(z.string().regex(TIME_REGEX)).optional(),
+    // Stok takibi
+    stockEnabled: z.boolean().optional(),
+    stockCount: z.number().optional(),
+    stockThreshold: z.number().optional(),
+    stockUnit: z.string().optional(),
+    // Son kullanma tarihi
+    expiryDate: z.string().optional(),
+    expiryReminderDays: z.number().optional(),
+    // Gelişmiş alarmlar
+    requireBarcodeOnTake: z.boolean().optional(),
+    barcode: z.string().optional(),
+    vibrationPattern: z.enum(['default', 'heartbeat', 'urgent', 'soft']).optional(),
+    // Zamanlama & Döngü
+    scheduleType: z.enum(['daily', 'specific_days', 'interval_days', 'cycle']).optional(),
+    specificDays: z.array(z.number()).optional(),
+    intervalDays: z.number().optional(),
+    cycleDaysOn: z.number().optional(),
+    cycleDaysOff: z.number().optional(),
+    // Ek alanlar
+    imageUri: z.string().optional(),
+    category: MedicineCategorySchema.optional(),
+    form: MedicineFormSchema.optional(),
   })
   .strict();
 
@@ -79,6 +128,9 @@ const MedicineLogSchema = z
     takenAt: z.string().optional(),
     status: MedicineLogStatusSchema,
     note: z.string().max(500).optional(),
+    skipReason: z.string().optional(),
+    skipReasonNote: z.string().max(500).optional(),
+    notificationId: z.string().optional(),
   })
   .strict();
 
@@ -101,6 +153,24 @@ const UserSettingsSchema = z.object({
   quietHoursEnd: z.string().regex(TIME_REGEX, 'Invalid quiet hours end time'),
   alarmModeEnabled: z.boolean(),
   conflictIntervalMinutes: z.number().min(5).max(60).default(10),
+  seniorModeEnabled: z.boolean().optional(),
+  // Güvenlik ayarları
+  securityEnabled: z.boolean().optional(),
+  securityType: z.enum(['pin', 'biometric', 'both', 'none']).optional(),
+  securityPin: z.string().optional(),
+  biometricsEnabled: z.boolean().optional(),
+  lockTimeout: z.number().optional(),
+  lastActiveTime: z.string().optional(),
+  // TTS Sesli Okuma ayarları
+  ttsEnabled: z.boolean().optional(),
+  ttsVolume: z.number().optional(),
+  ttsRepeatCount: z.number().optional(),
+  ttsSpeakMedicineName: z.boolean().optional(),
+  ttsSpeakDosage: z.boolean().optional(),
+  ttsSpeakInstructions: z.boolean().optional(),
+  // Kalıcı bildirim ayarları
+  persistentNotificationEnabled: z.boolean().optional(),
+  persistentNotificationDuration: z.number().optional(),
 });
 
 /**

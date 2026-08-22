@@ -62,11 +62,11 @@ export const ACCENT_PALETTES: Record<AccentId, AccentPalette> = {
   },
   mint: {
     id: 'mint',
-    nameTr: 'Nane',
-    nameEn: 'Mint',
-    lightPrimary: '#14B8A6', // Teal 500
-    darkPrimary: '#2DD4BF', // Teal 400
-    preview: '#14B8A6',
+    nameTr: 'Nane (Klinik Teal)',
+    nameEn: 'Mint (Clinical Teal)',
+    lightPrimary: '#0D9488', // Teal 600
+    darkPrimary: '#14B8A6', // Teal 500
+    preview: '#0D9488',
   },
 };
 

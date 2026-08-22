@@ -60,6 +60,7 @@ const translations = {
     adherenceByMedicine: 'İlaç Bazlı Uyum',
     calendarView: 'Uyum Takvimi',
     noData: 'Bu dönemde kayıt yok',
+    noteOrReason: 'Açıklama / Neden',
   },
   en: {
     title: 'Medicine Tracking Report',
@@ -91,6 +92,7 @@ const translations = {
     adherenceByMedicine: 'Adherence by Medicine',
     calendarView: 'Adherence Calendar',
     noData: 'No records for this period',
+    noteOrReason: 'Note / Reason',
   },
 };
 
@@ -327,7 +329,7 @@ ${
     ? `<div class="section">
   <div class="sec-title">${t.dailyLog}</div>
   <table>
-    <thead><tr><th>${t.date}</th><th>${t.name}</th><th>${t.time}</th><th>${t.status}</th></tr></thead>
+    <thead><tr><th>${t.date}</th><th>${t.name}</th><th>${t.time}</th><th>${t.status}</th><th>${t.noteOrReason}</th></tr></thead>
     <tbody>
     ${filteredLogs
       .sort((a, b) => new Date(b.scheduledTime).getTime() - new Date(a.scheduledTime).getTime())
@@ -336,11 +338,33 @@ ${
         const medicine = data.medicines.find(m => m.id === logEntry.medicineId);
         const scheduledDate = new Date(logEntry.scheduledTime);
         const isTaken = logEntry.status === 'taken';
+        const isSkipped = logEntry.status === 'skipped';
+        const statusLabel = isTaken
+          ? '✓ ' + escapeHtml(t.taken)
+          : isSkipped
+            ? '⊘ ' + escapeHtml(t.skipped)
+            : '✗ ' + escapeHtml(t.notTaken);
+
+        let reasonDisplay = logEntry.note || '';
+        if (logEntry.skipReason) {
+          const reasonMap: Record<string, string> = {
+            side_effect: options.language === 'tr' ? 'Yan etki' : 'Side effect',
+            out_of_stock: options.language === 'tr' ? 'İlaç bitti' : 'Out of stock',
+            felt_better: options.language === 'tr' ? 'İyi hissediyor' : 'Feeling better',
+            doctor_advised: options.language === 'tr' ? 'Doktor önerisi' : 'Doctor advised',
+            forgot: options.language === 'tr' ? 'Unutuldu' : 'Forgot',
+            other: options.language === 'tr' ? 'Diğer' : 'Other',
+          };
+          const rText = reasonMap[logEntry.skipReason] || logEntry.skipReason;
+          reasonDisplay = logEntry.skipReasonNote ? `${rText}: ${logEntry.skipReasonNote}` : rText;
+        }
+
         return `<tr>
           <td>${escapeHtml(format(scheduledDate, 'dd/MM', { locale }))}</td>
           <td>${escapeHtml(fixTurkishCharacters(medicine?.name || '-'))}</td>
           <td>${escapeHtml(format(scheduledDate, 'HH:mm'))}</td>
-          <td class="${isTaken ? 'status-taken' : 'status-not'}">${isTaken ? '✓ ' + escapeHtml(t.taken) : '✗ ' + escapeHtml(t.notTaken)}</td>
+          <td class="${isTaken ? 'status-taken' : 'status-not'}">${statusLabel}</td>
+          <td>${escapeHtml(fixTurkishCharacters(reasonDisplay || '-'))}</td>
         </tr>`;
       })
       .join('')}

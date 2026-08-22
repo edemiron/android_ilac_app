@@ -42,7 +42,7 @@ import {
   Snooze,
   MedicineCategory,
 } from '../types';
-import { calculateMedicineTimes } from '../utils/timeCalculator';
+import { calculateMedicineTimes, isMedicineScheduledForDate } from '../utils/timeCalculator';
 import { generateId } from '../utils/idGenerator';
 import { getSyncQueue } from '../utils/syncQueue';
 import { markMissedReminders as calculateMissedReminders } from '../utils/missedReminders';
@@ -263,7 +263,9 @@ interface MedicineState {
     reminderTimeId: string,
     scheduledTime: string,
     medicineIdFallback?: string,
-    note?: string
+    note?: string,
+    skipReason?: string,
+    skipReasonNote?: string
   ) => void;
   markMissedReminders: () => void;
 
@@ -337,8 +339,8 @@ export const useMedicineStore = create<MedicineState>()(
       syncToCloud: async () => {
         const { userId } = get();
 
-        if (!userId) {
-          log.debug('Kullanici girisi yapilmamis, sync atlaniyor');
+        if (!userId || userId === 'guest_local_user') {
+          log.debug('Kullanici girisi yapilmamis veya misafir, sync atlaniyor');
           return;
         }
 
@@ -377,8 +379,8 @@ export const useMedicineStore = create<MedicineState>()(
       syncFromCloud: async () => {
         const { userId } = get();
 
-        if (!userId) {
-          log.debug('Kullanici girisi yapilmamis, sync atlaniyor');
+        if (!userId || userId === 'guest_local_user') {
+          log.debug('Kullanici girisi yapilmamis veya misafir, sync atlaniyor');
           return;
         }
 
@@ -1009,8 +1011,15 @@ export const useMedicineStore = create<MedicineState>()(
 
       // İlaç atlandı olarak logla — Sprint 4 devamı: wrapper pattern.
       // logMedicineTaken ile aynı yapı, fark: decrementStock yok, status='skipped'.
-      logMedicineSkipped: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
-        log.debug('logMedicineSkipped called', { reminderTimeId, scheduledTime });
+      logMedicineSkipped: (
+        reminderTimeId,
+        scheduledTime,
+        medicineIdFallback,
+        note,
+        skipReason,
+        skipReasonNote
+      ) => {
+        log.debug('logMedicineSkipped called', { reminderTimeId, scheduledTime, skipReason });
 
         const { userId, medicines, reminderTimes, medicineLogs } = get();
         const resolvedArgs = resolveMedicineLogArgs(
@@ -1029,6 +1038,12 @@ export const useMedicineStore = create<MedicineState>()(
         );
 
         if (!medicineLog) return;
+        if (skipReason) {
+          medicineLog.skipReason = skipReason;
+        }
+        if (skipReasonNote) {
+          medicineLog.skipReasonNote = skipReasonNote;
+        }
 
         // Sprint 28.2: pure helper'a delege edildi (findMedicineById)
         const medicine = findMedicineById(medicines, medicineLog.medicineId);
@@ -1425,6 +1440,10 @@ export const useMedicineStore = create<MedicineState>()(
 
         // Sprint 29.2: pure helper'a delege edildi (filterActiveMedicines)
         filterActiveMedicines(medicines).forEach(medicine => {
+          if (!isMedicineScheduledForDate(medicine, new Date())) {
+            return;
+          }
+
           // Sprint 29.1: pure helper'a delege edildi (filterReminderTimesByMedicine)
           const times = filterReminderTimesByMedicine(reminderTimes, medicine.id).filter(
             rt => rt.isEnabled

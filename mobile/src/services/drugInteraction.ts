@@ -287,6 +287,43 @@ export function checkInteractionLocal(drug1: string, drug2: string): DrugInterac
   return null;
 }
 
+export interface ActiveInteractionCheckItem {
+  severity: 'low' | 'moderate' | 'high';
+  description: string;
+  sourceMedicineName: string;
+  targetMedicineName: string;
+  action: string;
+}
+
+/**
+ * Mevcut ilaçlar ile yeni/düzenlenen ilaç arasındaki olası etkileşimleri kontrol eder.
+ */
+export function checkInteractions(
+  newMedicineName: string,
+  existingMedicines: { name: string; isActive?: boolean }[]
+): ActiveInteractionCheckItem[] {
+  const interactions: ActiveInteractionCheckItem[] = [];
+  if (!newMedicineName || !existingMedicines || existingMedicines.length === 0) return interactions;
+
+  for (const med of existingMedicines) {
+    if (med.isActive === false) continue;
+    if (med.name.trim().toLowerCase() === newMedicineName.trim().toLowerCase()) continue;
+
+    const localMatch = checkInteractionLocal(newMedicineName, med.name);
+    if (localMatch) {
+      interactions.push({
+        severity: localMatch.severity,
+        description: localMatch.description,
+        sourceMedicineName: newMedicineName,
+        targetMedicineName: med.name,
+        action: localMatch.recommendation || 'Doktorunuza danışınız.',
+      });
+    }
+  }
+
+  return interactions;
+}
+
 // İki ilaç arasındaki etkileşimi kontrol et (async wrapper).
 // Sprint 4 (skip testleri geri ekleme): `drugInteraction.test.ts` bu fonksiyonu
 // import ediyor. Önce local DB'den kontrol et, yoksa API'ye düş.

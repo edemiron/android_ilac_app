@@ -171,6 +171,39 @@ service cloud.firestore {
     }
 
     // ============================================
+    // CAREGIVER & PATIENT COLLABORATION
+    // ============================================
+
+    match /caregiverInvites/{inviteId} {
+      // Authenticated users can create invites for themselves
+      allow create: if isAuthenticated() && request.resource.data.patientId == request.auth.uid;
+      // Authenticated users can query/read invites (e.g., verifying an invite code)
+      allow read: if isAuthenticated();
+      // Only the patient owner or accepting caregiver can update/delete
+      allow update: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid ||
+        request.resource.data.caregiverId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && resource.data.patientId == request.auth.uid;
+    }
+
+    match /caregiverRelationships/{relationshipId} {
+      // Only patient or caregiver involved in the relationship can access
+      allow read: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid ||
+        resource.data.caregiverId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.patientId == request.auth.uid ||
+        request.resource.data.caregiverId == request.auth.uid
+      );
+      allow update, delete: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid ||
+        resource.data.caregiverId == request.auth.uid
+      );
+    }
+
+    // ============================================
     // DENY ALL OTHER ACCESS
     // ============================================
 

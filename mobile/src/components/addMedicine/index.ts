@@ -10,3 +10,5 @@ export { StockSection } from './StockSection';
 export { ExpirySection } from './ExpirySection';
 export { ImagePickerSection } from './ImagePickerSection';
 export { AdvancedSettingsSection } from './AdvancedSettingsSection';
+export { ScheduleSelector } from './ScheduleSelector';
+export { DrugInteractionWarningBanner } from './DrugInteractionWarningBanner';

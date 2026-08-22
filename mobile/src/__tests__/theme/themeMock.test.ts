@@ -5,10 +5,7 @@
  * Yeni token eklendikçe (Sprint 102.1+) bu test başarısız olur → factory güncellenir.
  */
 
-import {
-  createThemeMock,
-  mockUseTheme,
-} from '../helpers/themeMock';
+import { createThemeMock, mockUseTheme } from '../helpers/themeMock';
 import { lightColors } from '../../contexts/ThemeContext';
 
 describe('themeMock factory', () => {
@@ -24,12 +21,12 @@ describe('themeMock factory', () => {
       expect(mock.onWarningContainer).toBe('#78350F');
       expect(mock.successContainer).toBe('#D1FAE5');
       expect(mock.onSuccessContainer).toBe('#064E3B');
-      expect(mock.errorContainer).toBe('#FFDAD6');
-      expect(mock.onErrorContainer).toBe('#410002');
-      expect(mock.inversePrimary).toBe('#4FDBC8');
-      expect(mock.primaryFixed).toBe('#71F8E4');
-      expect(mock.inverseOnSurface).toBe('#EEF0FF');
-      expect(mock.tertiaryContainer).toBe('#99F6E4');
+      expect(mock.errorContainer).toBe('#FEE2E2');
+      expect(mock.onErrorContainer).toBe('#7F1D1D');
+      expect(mock.inversePrimary).toBe('#14B8A6');
+      expect(mock.primaryFixed).toBe('#0D9488');
+      expect(mock.inverseOnSurface).toBe('#F8FAFC');
+      expect(mock.tertiaryContainer).toBe('#CCFBF1');
       expect(mock.onTertiaryContainer).toBe('#0F766E');
       expect(mock.textOnGradient).toBe('#FFFFFF');
       expect(mock.textOnGradientMuted).toBe('rgba(255, 255, 255, 0.92)');
@@ -42,7 +39,7 @@ describe('themeMock factory', () => {
       expect(mock.primaryContainer).toBe('#CCFBF1');
       expect(mock.secondary).toBe('#2563EB');
       expect(mock.text).toBe('#0F172A');
-      expect(mock.success).toBe('#059669');
+      expect(mock.success).toBe('#10B981');
       expect(mock.cardTaken).toBe('#D1FAE5');
     });
   });
@@ -50,16 +47,16 @@ describe('themeMock factory', () => {
   describe('createThemeMock (dark mode)', () => {
     it('darkColors baz alınır', () => {
       const mock = createThemeMock({}, true);
-      expect(mock.background).toBe('#0B0D14');
-      expect(mock.text).toBe('#E9ECFF');
-      expect(mock.warningContainer).toBe('#3B2A0A');
-      expect(mock.errorContainer).toBe('#3D1A2A');
+      expect(mock.background).toBe('#0F172A');
+      expect(mock.text).toBe('#F8FAFC');
+      expect(mock.warningContainer).toBe('#78350F');
+      expect(mock.errorContainer).toBe('#7F1D1D');
     });
 
     it('dark mode gradient token (textOnGradient, gradientTrackTint)', () => {
       const mock = createThemeMock({}, true);
-      expect(mock.textOnGradient).toBe('#E9ECFF');
-      expect(mock.gradientTrackTint).toBe('rgba(11, 13, 20, 0.25)');
+      expect(mock.textOnGradient).toBe('#FFFFFF');
+      expect(mock.gradientTrackTint).toBe('rgba(255, 255, 255, 0.2)');
     });
   });
 
@@ -94,7 +91,7 @@ describe('themeMock factory', () => {
     it('isDark=true ile dark mode mocklanır', () => {
       const result = mockUseTheme({}, true);
       expect(result.isDark).toBe(true);
-      expect(result.colors.background).toBe('#0B0D14');
+      expect(result.colors.background).toBe('#0F172A');
     });
   });
 });

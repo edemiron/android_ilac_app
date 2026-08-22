@@ -16,10 +16,10 @@ import { useTheme } from '../../contexts/ThemeContext';
 export type ThemedTextVariant =
   | 'headlineLg' // 28/700/-0.4 letterSpacing — screen title
   | 'headlineMd' // 22/600/-0.2 — medication name on cards
-  | 'bodyLg'     // 16/400 — medication instructions
-  | 'bodyMd'     // 14/400 — secondary metadata
-  | 'labelMd'    // 14/500 — input labels
-  | 'labelSm';   // 12/500 — timestamps, dosage units
+  | 'bodyLg' // 16/400 — medication instructions
+  | 'bodyMd' // 14/400 — secondary metadata
+  | 'labelMd' // 14/500 — input labels
+  | 'labelSm'; // 12/500 — timestamps, dosage units
 
 interface ThemedTextProps {
   variant: ThemedTextVariant;
@@ -72,17 +72,21 @@ const VARIANT_STYLES: Record<ThemedTextVariant, TextStyle> = {
   },
 };
 
-export function ThemedText({
-  variant,
-  children,
-  color,
-  style,
-  numberOfLines,
-}: ThemedTextProps) {
-  const { colors } = useTheme();
+export function ThemedText({ variant, children, color, style, numberOfLines }: ThemedTextProps) {
+  let textColor = color;
+  if (!textColor) {
+    try {
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const theme = useTheme();
+      textColor = theme?.colors?.text ?? '#0F172A';
+    } catch {
+      textColor = '#0F172A';
+    }
+  }
+
   return (
     <Text
-      style={[VARIANT_STYLES[variant], { color: color ?? colors.text }, style]}
+      style={[VARIANT_STYLES[variant], { color: textColor }, style]}
       numberOfLines={numberOfLines}
       allowFontScaling
     >

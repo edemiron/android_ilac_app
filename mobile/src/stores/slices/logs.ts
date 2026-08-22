@@ -28,7 +28,12 @@ export interface LogsSlice {
   logMedicineSkipped: (
     reminderTimeId: string,
     scheduledTime: string,
-    options?: { medicineId?: string; note?: string }
+    options?: {
+      medicineId?: string;
+      note?: string;
+      skipReason?: string;
+      skipReasonNote?: string;
+    }
   ) => string;
 
   /** Medicine kaçirildi olarak logla */
@@ -93,6 +98,8 @@ export function createLogsSlice(
         scheduledTime,
         status: 'skipped',
         note: options?.note,
+        skipReason: options?.skipReason,
+        skipReasonNote: options?.skipReasonNote,
       };
       set(state => ({ medicineLogs: [...state.medicineLogs, newLog] }));
       log.debug('Medicine skipped logged', { reminderTimeId, id });

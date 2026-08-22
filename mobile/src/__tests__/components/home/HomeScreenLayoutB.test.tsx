@@ -149,7 +149,7 @@ describe('HomeScreenLayoutB', () => {
 
   it('renders Header with greeting and dynamic date', () => {
     const { getByText, queryAllByText } = render(<HomeScreenLayoutB {...baseProps} />);
-    expect(getByText('Merhaba, Ahmet')).toBeTruthy();
+    expect(getByText(/Merhaba, Ahmet/)).toBeTruthy();
     // "Bugün" hem Header (dynamicDate) hem StatsGrid (cell label) içinde geçer
     expect(queryAllByText(/Bugün/).length).toBeGreaterThanOrEqual(1);
   });
@@ -171,9 +171,7 @@ describe('HomeScreenLayoutB', () => {
   });
 
   it('does not render LowStockCard when lowStockMedicines is empty', () => {
-    const { UNSAFE_root } = render(
-      <HomeScreenLayoutB {...baseProps} lowStockMedicines={[]} />
-    );
+    const { UNSAFE_root } = render(<HomeScreenLayoutB {...baseProps} lowStockMedicines={[]} />);
     expect(UNSAFE_root.findAllByType('LowStockCard')).toHaveLength(0);
   });
 
@@ -191,50 +189,36 @@ describe('HomeScreenLayoutB', () => {
   });
 
   it('does not render MiniChart when miniChartData is empty', () => {
-    const { UNSAFE_root } = render(
-      <HomeScreenLayoutB {...baseProps} miniChartData={[]} />
-    );
+    const { UNSAFE_root } = render(<HomeScreenLayoutB {...baseProps} miniChartData={[]} />);
     expect(UNSAFE_root.findAllByType('MiniChart')).toHaveLength(0);
   });
 
   it('renders CurrentDoseCard when reminder is provided', () => {
-    const { UNSAFE_root } = render(
-      <HomeScreenLayoutB {...baseProps} reminder={fakeReminder} />
-    );
+    const { UNSAFE_root } = render(<HomeScreenLayoutB {...baseProps} reminder={fakeReminder} />);
     expect(UNSAFE_root.findAllByType('CurrentDoseCard')).toHaveLength(1);
   });
 
   it('renders TimelineItems when reminders are provided', () => {
     const reminders = [fakeReminder, fakeReminder, fakeReminder];
-    const { UNSAFE_root } = render(
-      <HomeScreenLayoutB {...baseProps} reminders={reminders} />
-    );
+    const { UNSAFE_root } = render(<HomeScreenLayoutB {...baseProps} reminders={reminders} />);
     expect(UNSAFE_root.findAllByType('TimelineItem')).toHaveLength(3);
   });
 
   it('renders EmptyState when reminders array is empty', () => {
-    const { UNSAFE_root } = render(
-      <HomeScreenLayoutB {...baseProps} reminders={[]} />
-    );
+    const { UNSAFE_root } = render(<HomeScreenLayoutB {...baseProps} reminders={[]} />);
     expect(UNSAFE_root.findAllByType('EmptyState')).toHaveLength(1);
   });
 
   it('renders "Tümü >" link when onSeeAllMedicines is provided', () => {
     const onSeeAll = jest.fn();
     const { getByText } = render(
-      <HomeScreenLayoutB
-        {...baseProps}
-        reminders={[fakeReminder]}
-        onSeeAllMedicines={onSeeAll}
-      />
+      <HomeScreenLayoutB {...baseProps} reminders={[fakeReminder]} onSeeAllMedicines={onSeeAll} />
     );
     expect(getByText(/Tümü/)).toBeTruthy();
   });
 
   it('does not render "Tümü >" link when onSeeAllMedicines is omitted', () => {
-    const { queryByText } = render(
-      <HomeScreenLayoutB {...baseProps} reminders={[fakeReminder]} />
-    );
+    const { queryByText } = render(<HomeScreenLayoutB {...baseProps} reminders={[fakeReminder]} />);
     expect(queryByText(/Tümü/)).toBeNull();
   });
 
@@ -263,14 +247,10 @@ describe('HomeScreenLayoutB', () => {
 
   it('passes completedCount/totalCount to Header for progress calculation', () => {
     const { getByText } = render(
-      <HomeScreenLayoutB
-        {...baseProps}
-        totalCount={4}
-        completedCount={1}
-      />
+      <HomeScreenLayoutB {...baseProps} totalCount={4} completedCount={1} />
     );
-    // 1/4 = 25%
-    expect(getByText('25% uyum')).toBeTruthy();
+    // 1/4 = 25% -> %25
+    expect(getByText('%25')).toBeTruthy();
   });
 
   // Sprint 104.1: TrustBadge 105.3'te kaldirildi (sade+anlasilir hedefi)

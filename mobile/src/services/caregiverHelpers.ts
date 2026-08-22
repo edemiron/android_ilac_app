@@ -27,7 +27,8 @@ export function generateInviteCode(length: number = INVITE_CODE_LENGTH): string 
  * I, O, Q harfleri set'te olmadigi icin otomatik reject edilir.
  */
 export function isValidInviteCode(code: string): boolean {
-  return /^[A-Z0-9]{6}$/.test(code);
+  if (!code || typeof code !== 'string') return false;
+  return /^[A-Z0-9]{6,8}$/.test(code);
 }
 
 /**

@@ -51,7 +51,7 @@ describe('caregiverService', () => {
     it('rejects codes with wrong length', () => {
       expect(isValidInviteCode('ABC')).toBe(false);
       expect(isValidInviteCode('ABCDE')).toBe(false);
-      expect(isValidInviteCode('ABCDEFG')).toBe(false);
+      expect(isValidInviteCode('ABCDEFGHI')).toBe(false); // 9 chars
       expect(isValidInviteCode('')).toBe(false);
     });
 

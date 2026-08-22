@@ -55,11 +55,12 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   // Kalıcı bildirim ayarları
   persistentNotificationEnabled: false,
   persistentNotificationDuration: 30,
+
+  // Kolay mod (Büyük yazı & Sade arayüz)
+  seniorModeEnabled: false,
 };
 
-export function createDefaultUserSettings(
-  overrides: Partial<UserSettings> = {}
-): UserSettings {
+export function createDefaultUserSettings(overrides: Partial<UserSettings> = {}): UserSettings {
   return {
     ...DEFAULT_USER_SETTINGS,
     ...overrides,

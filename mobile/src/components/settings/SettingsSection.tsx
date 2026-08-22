@@ -1,44 +1,83 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { SettingsSectionProps } from './types';
-import { ListSection } from '../common/ListSection';
+import { useTheme } from '../../contexts/ThemeContext';
 
-// Icon name to emoji map for section headers
-const SECTION_ICONS: Record<string, string> = {
-  'time-outline': '⏰',
-  'notifications-outline': '🔔',
-  'notifications': '🔔',
-  'color-palette-outline': '🎨',
-  'information-circle-outline': 'ℹ️',
-  'person-outline': '👤',
-  'flash-outline': '⚡',
-  'moon-outline': '🌙',
-};
-
-/**
- * SettingsSection — Sprint 107.2 ListSection migration.
- *
- * Settings ekranı section wrapper. ListSection primitive'i (variant=settings)
- * kullanır — iOS grouped list pattern.
- */
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
-  icon,
   title,
   description,
   children,
   borderStyle,
 }) => {
-  const iconEmoji = SECTION_ICONS[icon] || '•';
+  const { colors, isDark } = useTheme();
 
   return (
-    <ListSection
-      variant="settings"
-      icon={<Text>{iconEmoji}</Text>}
-      title={title}
-      subtitle={description}
-      style={borderStyle}
+    <View
+      style={[
+        styles.sectionCard,
+        {
+          backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+          borderColor: isDark ? '#334155' : '#E2E8F0',
+        },
+        borderStyle,
+      ]}
     >
-      {children}
-    </ListSection>
+      {/* Tinted Top Header Bar */}
+      <View
+        style={[
+          styles.headerBar,
+          {
+            backgroundColor: isDark ? '#1E293B' : '#E9EEF5',
+            borderBottomColor: isDark ? '#334155' : '#E2E8F0',
+          },
+        ]}
+      >
+        <Text style={[styles.headerTitle, { color: isDark ? '#F1F5F9' : '#1E293B' }]}>{title}</Text>
+        {description ? (
+          <Text style={[styles.headerSubtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+            {description}
+          </Text>
+        ) : null}
+      </View>
+
+      {/* Card Content Rows */}
+      <View style={styles.body}>{children}</View>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  sectionCard: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 2,
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  headerBar: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  body: {
+    paddingVertical: 2,
+  },
+});
+
+export default SettingsSection;
