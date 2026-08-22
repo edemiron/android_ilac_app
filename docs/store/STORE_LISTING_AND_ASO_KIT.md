@@ -3,7 +3,7 @@
 **Uygulama Adı:** İlaç Hatırlatıcı & Takip - Kolay Mod & Nöbetçi Eczane  
 **İngilizce Adı:** Pill Reminder & Medication Tracker - Senior Mode & AI  
 **Paket Adı:** `com.ilachatirlatici`  
-**Sürüm:** 1.3.3 (Build 33 - Code 16)  
+**Sürüm:** 1.3.4 (Build 34 - Code 17)  
 
 ---
 
@@ -63,9 +63,10 @@ Hemen ücretsiz indirin, sağlığınızı ve sevdiklerinizi güvenceye alın!
 
 ---
 
-### 3. Bu Sürümdeki Yenilikler (What's New - v1.3.3)
+### 3. Bu Sürümdeki Yenilikler (What's New - v1.3.4)
 ```markdown
-👑 v1.3.3 Yenilikleri:
+👑 v1.3.4 Yenilikleri:
+• 📱 Durum Çubuğu (Status Bar) & Güvenli Alan İyileştirmesi: İlaçlarım ve Premium ekranlarının üst başlıkları Android bildirim çubuğu ile çakışmayacak şekilde optimize edildi.
 • 👥 Hızlı Bakıcı Erişimi: Ana ekran üst çubuğuna doğrudan Bakıcı Takibi ve QR Eşleşme butonu eklendi.
 • 👴 Kolay Mod (Senior Mode): Dev butonlar ve Türkçe sesli ilaç anonsu (TTS) entegrasyonu.
 • 📷 Yapay Zeka ile İlaç Kutusu Okuma: Fotoğraf çekerek formu otomatik doldurma desteği.

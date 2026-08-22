@@ -66,7 +66,7 @@ export default function MedicinesScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['bottom']}
+      edges={['top', 'bottom']}
     >
       {/* 1. Başlık: Çoklu Seçim Modu veya Standart Başlık */}
       {isSelectionMode ? (

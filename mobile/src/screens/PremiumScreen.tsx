@@ -44,7 +44,7 @@ export default function PremiumScreen() {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: colors.background }]}
-        edges={['bottom']}
+        edges={['top', 'bottom']}
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           <PremiumActiveView
@@ -62,7 +62,7 @@ export default function PremiumScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['bottom']}
+      edges={['top', 'bottom']}
     >
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Başlık & İkon */}
