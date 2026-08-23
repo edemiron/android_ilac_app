@@ -115,7 +115,11 @@ export function NotificationsSection({
   const handleRunLockScreenTest = async () => {
     try {
       setIsTestScheduled(true);
-      await scheduleTestAlarmNotification(5 / 60, isTr ? 'tr' : 'en');
+      await scheduleTestAlarmNotification(5 / 60, isTr ? 'tr' : 'en', {
+        fullScreenAlarmEnabled: true,
+        alarmSound: settings.alarmSound,
+        alarmVolume: settings.alarmVolume,
+      });
       showInfo(
         isTr ? '🚨 5 Saniyelik Alarm Kuruldu!' : '🚨 5-Second Test Alarm Set!',
         isTr

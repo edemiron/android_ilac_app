@@ -903,7 +903,7 @@ function AppContent() {
               const key = `${pending.medicineId}-${pending.reminderTimeId}-${today}`;
               const handled = await isAlarmHandled(key);
               if (!handled) {
-                setPendingAlarm({
+                handleIncomingAlarm({
                   medicineId: pending.medicineId,
                   reminderTimeId: pending.reminderTimeId,
                   scheduledTime: pending.scheduledTime,
@@ -922,7 +922,7 @@ function AppContent() {
     });
 
     return () => appStateListener.remove();
-  }, []);
+  }, [handleIncomingAlarm]);
 
   useEffect(() => {
     if (bootRecovery) {
@@ -966,6 +966,7 @@ function AppContent() {
   // PIN giriş ekranı - Overlay olarak göster
   const renderPinOverlay = () => {
     if (!showPinEntry) return null;
+    if (pendingAlarm) return null;
 
     return (
       <View style={[styles.pinOverlay, { backgroundColor: colors.background }]}>
@@ -1042,15 +1043,31 @@ function AppContent() {
     return <LazyOnboardingScreen />;
   }
 
+  const appLinking = {
+    prefixes: ['ilachatirlatici://'],
+    config: {
+      screens: {
+        Alarm: 'alarm',
+        CaregiverInvite: 'caregiver/invite/:inviteCode',
+        Main: {
+          screens: {
+            Home: 'home',
+            Medicines: 'medicines',
+            Statistics: 'statistics',
+            Settings: 'settings',
+          },
+        },
+      },
+    },
+  };
+
   return (
     <NavigationContainer
       ref={navigationRef}
       theme={navTheme}
+      linking={appLinking}
       onReady={() => {
         // Navigation hazır olduğunda pending alarm varsa yönlendir.
-        // NOT: useAlarmNavigation hook'u kendi içinde
-        // pendingAlarm + isNavigationReady'i izliyor (effect içinde), bu yüzden
-        // tekrar tetiklemeye gerek yok. Burada boş bırakılır.
       }}
     >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
