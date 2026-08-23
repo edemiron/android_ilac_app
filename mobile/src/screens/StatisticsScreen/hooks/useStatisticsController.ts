@@ -166,58 +166,39 @@ export function useStatisticsController() {
       : `Treatment gaps detected (${rate}% adherence). Taking your medications regularly is critical for your health.`;
   }, [overallStats, language]);
 
-  // İlaç Bazlı Başarı Analizi
+  // İlaç Bazlı Başarı Analizi (Yalnızca Sistemde Kayıtlı İlaçlar)
   const medicineBreakdown: MedicineBreakdownItem[] = useMemo(() => {
     const logs = medicineLogs.filter(l => isWithinInterval(new Date(l.scheduledTime), dateRange));
 
-    const map = new Map<
-      string,
-      { taken: number; skipped: number; missed: number; total: number; name?: string }
-    >();
-
-    medicines.forEach(m => {
-      map.set(m.id, { taken: 0, skipped: 0, missed: 0, total: 0, name: m.name });
-    });
-
-    logs.forEach(l => {
-      const entry = map.get(l.medicineId) || {
-        taken: 0,
-        skipped: 0,
-        missed: 0,
-        total: 0,
-        name: l.medicineName,
-      };
-      if (l.status === 'taken') entry.taken++;
-      else if (l.status === 'skipped') entry.skipped++;
-      else if (l.status === 'missed') entry.missed++;
-      entry.total++;
-      if (l.medicineName && !entry.name) entry.name = l.medicineName;
-      map.set(l.medicineId, entry);
-    });
-
     const list: MedicineBreakdownItem[] = [];
-    map.forEach((data, medId) => {
-      const med = medicines.find(m => m.id === medId);
-      if (data.total > 0 || (med && med.isActive)) {
-        const rate = data.total > 0 ? Math.round((data.taken / data.total) * 100) : 100;
+
+    medicines.forEach(med => {
+      const medLogs = logs.filter(l => l.medicineId === med.id);
+      const taken = medLogs.filter(l => l.status === 'taken').length;
+      const skipped = medLogs.filter(l => l.status === 'skipped').length;
+      const missed = medLogs.filter(l => l.status === 'missed').length;
+      const total = medLogs.length;
+
+      // İlaç aktifse veya bu dönemde log kaydı varsa listeye dahil et
+      if (med.isActive || total > 0) {
+        const rate = total > 0 ? Math.round((taken / total) * 100) : 100;
         list.push({
-          medicineId: medId,
-          name:
-            med?.name || data.name || (language === 'tr' ? 'Bilinmeyen İlaç' : 'Unknown Medicine'),
-          dosage: med?.dosage,
-          form: med?.form,
-          color: med?.color,
-          taken: data.taken,
-          skipped: data.skipped,
-          missed: data.missed,
-          total: data.total,
+          medicineId: med.id,
+          name: med.name,
+          dosage: med.dosage,
+          form: med.form,
+          color: med.color,
+          taken,
+          skipped,
+          missed,
+          total,
           adherenceRate: rate,
         });
       }
     });
 
     return list.sort((a, b) => b.total - a.total);
-  }, [medicineLogs, dateRange, medicines, language]);
+  }, [medicineLogs, dateRange, medicines]);
 
   const suggestions = useMemo(() => {
     const logs = medicineLogs.filter(l => isWithinInterval(new Date(l.scheduledTime), dateRange));
