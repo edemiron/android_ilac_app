@@ -10,6 +10,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.modules.core.DeviceEventManagerModule
@@ -23,7 +24,7 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
 
     companion object {
         private const val TAG = "AlarmModule"
-        private const val WAKE_LOCK_TIMEOUT = 10_000L // 10 saniye
+        private const val WAKE_LOCK_TIMEOUT = 15_000L // 15 saniye
 
         @Volatile
         private var hardwareHandlingEnabled: Boolean = false
@@ -45,6 +46,17 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
             ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("AlarmHardwareButton", params)
             Log.d(TAG, "emitHardwareButtonAction: $action")
+        }
+
+        /**
+         * Alarm tetiklendiğinde JS'e anında event fırlat.
+         */
+        @JvmStatic
+        fun emitAlarmTriggered(params: WritableMap) {
+            val ctx = reactContextCached ?: return
+            ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("OnAlarmTriggered", params)
+            Log.d(TAG, "emitAlarmTriggered sent to JS")
         }
 
         /**
@@ -74,30 +86,47 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
     }
 
     /**
-     * Ekranı aç ve uygulamayı başlat.
+     * Ekranı aç, MainActivity'yi başlat ve JS'e Alarm event'i fırlat.
      * Background notification handler'dan çağrılır.
      */
     @ReactMethod
-    fun wakeAndOpenApp(promise: Promise) {
+    fun wakeAndOpenApp(data: ReadableMap?, promise: Promise) {
         try {
             val context = reactApplicationContext
+            reactContextCached = context
 
             // 1. Ekranı aç (WakeLock)
             wakeUpScreen(context)
 
+            val medId = data?.getString("medicineId") ?: "test-medicine"
+            val remId = data?.getString("reminderTimeId") ?: "test-reminder"
+            val schedTime = data?.getString("scheduledTime") ?: ""
+
             // 2. MainActivity'yi başlat (alarm deep link ile)
             val intent = Intent(context, MainActivity::class.java).apply {
                 action = Intent.ACTION_VIEW
-                data = android.net.Uri.parse("ilachatirlatici://alarm")
+                this.data = android.net.Uri.parse("ilachatirlatici://alarm?medicineId=$medId&reminderTimeId=$remId")
+                putExtra("medicineId", medId)
+                putExtra("reminderTimeId", remId)
+                putExtra("scheduledTime", schedTime)
                 addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
                 )
             }
             context.startActivity(intent)
 
-            Log.d(TAG, "wakeAndOpenApp: Ekran açıldı, uygulama başlatıldı")
+            // 3. JS'e anlık Event fırlat
+            val eventParams = Arguments.createMap().apply {
+                putString("medicineId", medId)
+                putString("reminderTimeId", remId)
+                putString("scheduledTime", schedTime)
+            }
+            emitAlarmTriggered(eventParams)
+
+            Log.d(TAG, "wakeAndOpenApp: Ekran açıldı, uygulama başlatıldı, OnAlarmTriggered emit edildi")
             promise.resolve(true)
         } catch (e: Exception) {
             Log.e(TAG, "wakeAndOpenApp hatası", e)
@@ -108,17 +137,18 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
     private fun wakeUpScreen(context: Context) {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
 
-        if (!powerManager.isInteractive) {
-            // Ekran kapalı — WakeLock ile aç
+        try {
             @Suppress("DEPRECATION")
             val wakeLock = powerManager.newWakeLock(
-                PowerManager.FULL_WAKE_LOCK or
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
                 PowerManager.ACQUIRE_CAUSES_WAKEUP or
                 PowerManager.ON_AFTER_RELEASE,
                 "$TAG:wake"
             )
             wakeLock.acquire(WAKE_LOCK_TIMEOUT)
             Log.d(TAG, "WakeLock acquired — ekran açılıyor")
+        } catch (e: Exception) {
+            Log.e(TAG, "WakeLock error", e)
         }
     }
 

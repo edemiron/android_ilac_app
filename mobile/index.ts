@@ -189,7 +189,11 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
         const { NativeModules } = require('react-native');
         const { AlarmModule } = NativeModules;
         if (AlarmModule) {
-          await AlarmModule.wakeAndOpenApp();
+          await AlarmModule.wakeAndOpenApp({
+            medicineId: notification.data?.medicineId as string,
+            reminderTimeId: notification.data?.reminderTimeId as string,
+            scheduledTime: (notification.data?.scheduledTime as string) || new Date().toISOString(),
+          });
           console.log('[BG] wakeAndOpenApp OK');
         } else {
           const { Linking } = require('react-native');

@@ -15,6 +15,8 @@ import {
   PanResponder,
   Dimensions,
   Animated,
+  DeviceEventEmitter,
+  Linking,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler'; // Sprint 97.1
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
@@ -885,18 +887,71 @@ function AppContent() {
   // icinde yonetiliyor (src/hooks/useAlarmNavigation.ts:148-153). Bu effect kaldirildi.
 
   // KRİTİK: Uygulama arka plandan öne geldiğinde pending-alarm kontrol et
-  // wakeAndOpenApp warm start'ta uygulamayı öne getirir ama checkInitialNotification
-  // sadece mount'ta çalışır — bu listener o boşluğu kapatır
+  // Native modülden gelen anlık alarm tetikleme event'i
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('OnAlarmTriggered', async (data: any) => {
+      appLog.debug('DeviceEventEmitter OnAlarmTriggered received', data);
+      if (data?.medicineId) {
+        handleIncomingAlarm({
+          medicineId: data.medicineId,
+          reminderTimeId: data.reminderTimeId || 'test-reminder',
+          scheduledTime: data.scheduledTime || new Date().toISOString(),
+          isSnooze: data.isSnooze,
+          snoozeId: data.snoozeId,
+          snoozeCount: data.snoozeCount,
+          originalScheduledTime: data.originalScheduledTime,
+        });
+      }
+    });
+
+    return () => sub.remove();
+  }, [handleIncomingAlarm]);
+
+  // Deep Link ile gelen alarm URL dinleyicisi
+  useEffect(() => {
+    const handleUrl = ({ url }: { url: string }) => {
+      appLog.debug('Linking URL received', { url });
+      if (url.includes('alarm')) {
+        AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM).then(raw => {
+          if (raw) {
+            AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
+            const pending = JSON.parse(raw);
+            handleIncomingAlarm({
+              medicineId: pending.medicineId,
+              reminderTimeId: pending.reminderTimeId,
+              scheduledTime: pending.scheduledTime,
+              isSnooze: pending.isSnooze,
+              snoozeId: pending.snoozeId,
+              snoozeCount: pending.snoozeCount,
+              originalScheduledTime: pending.originalScheduledTime,
+            });
+          } else {
+            handleIncomingAlarm({
+              medicineId: 'test-medicine',
+              reminderTimeId: 'test-reminder',
+              scheduledTime: new Date().toISOString(),
+            });
+          }
+        });
+      }
+    };
+
+    const sub = Linking.addEventListener('url', handleUrl);
+    return () => sub.remove();
+  }, [handleIncomingAlarm]);
+
+  // KRİTİK: Uygulama arka plandan öne geldiğinde (active veya inactive/kilit ekranı) pending-alarm kontrol et
   useEffect(() => {
     const appStateListener = AppState.addEventListener('change', async nextState => {
-      if (nextState === 'active') {
+      if (nextState === 'active' || nextState === 'inactive') {
         try {
           const pendingRaw = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM);
           if (pendingRaw) {
             await AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
             const pending = JSON.parse(pendingRaw);
             if (pending.ts && Date.now() - pending.ts < 60_000 && pending.medicineId) {
-              appLog.debug('AppState active: pending-alarm found', {
+              appLog.debug('AppState changed: pending-alarm found', {
+                nextState,
                 medicineId: pending.medicineId,
                 ageMs: Date.now() - pending.ts,
               });
