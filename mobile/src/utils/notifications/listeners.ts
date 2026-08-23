@@ -76,15 +76,18 @@ export function setupNotificationListeners(
         );
 
         // KRITIK: Bu alarm zaten handle edildi mi kontrol et (AsyncStorage + memory)
+        const isTest = notification.data.isTestAlarm === 'true' || medId === 'test-medicine';
         let handled = false;
-        try {
-          const raw = await AsyncStorage.getItem(STORAGE_KEYS.HANDLED_ALARMS);
-          if (raw) {
-            const arr: { key: string; ts: number }[] = JSON.parse(raw);
-            handled = arr.some(a => a.key === alarmKey && Date.now() - a.ts < 5 * 60 * 1000);
+        if (!isTest) {
+          try {
+            const raw = await AsyncStorage.getItem(STORAGE_KEYS.HANDLED_ALARMS);
+            if (raw) {
+              const arr: { key: string; ts: number }[] = JSON.parse(raw);
+              handled = arr.some(a => a.key === alarmKey && Date.now() - a.ts < 5 * 60 * 1000);
+            }
+          } catch (_) {
+            /* ignore */
           }
-        } catch (_) {
-          /* ignore */
         }
 
         if (handled) {

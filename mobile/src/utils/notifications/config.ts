@@ -11,12 +11,12 @@ export const ALARM_ACTIONS: Array<{ title: string; pressAction: { id: string } }
 
 export const FULL_SCREEN_ACTION = {
   id: 'default',
-  launchActivity: 'com.ilachatirlatici.MainActivity',
+  launchActivity: 'default',
 };
 
 export const PRESS_ACTION = {
   id: 'default',
-  launchActivity: 'com.ilachatirlatici.MainActivity',
+  launchActivity: 'default',
 };
 
 export const ANDROID_TRIGGER_INTROSPECTION_LIMIT = 50;

@@ -582,6 +582,7 @@ function AppContent() {
       reminderTimeId: string,
       scheduledTime: string
     ) => {
+      if (medicineId === 'test-medicine') return false;
       const today = new Date().toISOString().split('T')[0];
       return await isAlarmHandled(`${medicineId}-${reminderTimeId}-${today}`);
     },
@@ -899,9 +900,11 @@ function AppContent() {
                 medicineId: pending.medicineId,
                 ageMs: Date.now() - pending.ts,
               });
+              const isTest =
+                pending.medicineId === 'test-medicine' || pending.isTestAlarm === 'true';
               const today = new Date().toISOString().split('T')[0];
               const key = `${pending.medicineId}-${pending.reminderTimeId}-${today}`;
-              const handled = await isAlarmHandled(key);
+              const handled = !isTest && (await isAlarmHandled(key));
               if (!handled) {
                 handleIncomingAlarm({
                   medicineId: pending.medicineId,

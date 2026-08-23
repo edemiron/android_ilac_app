@@ -10,8 +10,8 @@ import { createDefaultUserSettings } from '../defaultSettings';
 import { isInQuietHours } from './time';
 import { getVibrationPattern } from './vibration';
 import {
-  ALARM_CHANNEL_ID,
-  ALARM_NO_VIBRATION_CHANNEL_ID,
+  getAlarmChannelId,
+  getSoundResourceName,
   REMINDER_CHANNEL_ID,
   REMINDER_NO_VIBRATION_CHANNEL_ID,
 } from './channels';
@@ -28,7 +28,7 @@ export interface ResolvedNotificationBehavior {
   vibrationEnabled: boolean;
   useAlarmChannel: boolean;
   quietHoursActive: boolean;
-  sound: 'alarm' | 'default';
+  sound: string;
   vibrationPattern?: number[];
 }
 
@@ -59,11 +59,10 @@ export function resolveNotificationBehavior(
   const fullScreenAlarm = settings.fullScreenAlarmEnabled && !quietHoursActive;
   const vibrationEnabled = settings.vibrationEnabled;
   const useAlarmChannel = settings.alarmModeEnabled;
+  const soundRes = getSoundResourceName(settings.alarmSound);
 
   const channelId = useAlarmChannel
-    ? vibrationEnabled
-      ? ALARM_CHANNEL_ID
-      : ALARM_NO_VIBRATION_CHANNEL_ID
+    ? getAlarmChannelId(settings.alarmSound, vibrationEnabled)
     : vibrationEnabled
       ? REMINDER_CHANNEL_ID
       : REMINDER_NO_VIBRATION_CHANNEL_ID;
@@ -75,7 +74,7 @@ export function resolveNotificationBehavior(
     vibrationEnabled,
     useAlarmChannel,
     quietHoursActive,
-    sound: useAlarmChannel ? 'alarm' : 'default',
+    sound: useAlarmChannel ? soundRes : 'default',
     vibrationPattern: vibrationEnabled ? getVibrationPattern(medicine.vibrationPattern) : undefined,
   };
 }

@@ -146,8 +146,11 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
       notification?.data?.fullScreenAlarm
     );
     if (notification?.data?.fullScreenAlarm === 'true') {
+      const isTest =
+        notification.data?.isTestAlarm === 'true' ||
+        notification.data?.medicineId === 'test-medicine';
       const key = getAlarmKey(notification.data);
-      const handled = await isAlarmHandled(key);
+      const handled = !isTest && (await isAlarmHandled(key));
       if (handled) {
         console.log('[BG] SKIP: Alarm already handled:', key);
         if (notification.id) {
