@@ -309,64 +309,80 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
                 style={[
                   styles.microTag,
                   {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.05)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(15, 23, 42, 0.08)',
                   },
                 ]}
               >
-                <Ionicons name={instructionIcon} size={11} color={colors.textMuted} />
-                <Text style={[styles.microTagText, { color: colors.textMuted }]}>
-                  {instructionText}
-                </Text>
+                <Ionicons
+                  name={instructionIcon}
+                  size={12}
+                  color={colors.textSecondary || colors.textMuted}
+                />
+                <Text style={[styles.microTagText, { color: colors.text }]}>{instructionText}</Text>
               </View>
             )}
 
-            {/* Sıradaki Saat Çipi */}
+            {/* Sıradaki Saat Çipi (Yüksek Kontrastlı & Net) */}
             {nextTime && (
               <View
                 style={[
                   styles.timeChip,
                   {
-                    backgroundColor:
-                      medicine.isActive && isNextFuture
-                        ? `${medColor}18`
-                        : isDark
-                          ? 'rgba(255,255,255,0.06)'
-                          : 'rgba(0,0,0,0.04)',
+                    backgroundColor: isDark
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(15, 23, 42, 0.05)',
                     borderColor:
                       medicine.isActive && isNextFuture
-                        ? `${medColor}40`
+                        ? `${medColor}99`
                         : isDark
-                          ? 'rgba(255,255,255,0.08)'
-                          : 'rgba(0,0,0,0.06)',
+                          ? 'rgba(255, 255, 255, 0.12)'
+                          : 'rgba(15, 23, 42, 0.09)',
                   },
                 ]}
               >
-                <Ionicons
-                  name="time-outline"
-                  size={11}
-                  color={medicine.isActive && isNextFuture ? medColor : colors.textMuted}
+                {/* İlaç Renk Gösterge Noktası */}
+                <View
+                  style={[
+                    styles.timeDot,
+                    {
+                      backgroundColor:
+                        medicine.isActive && isNextFuture ? medColor : colors.textMuted,
+                    },
+                  ]}
                 />
+                <Ionicons name="time-outline" size={12} color={colors.text} />
                 <Text
                   style={[
                     styles.timeChipText,
                     {
-                      color: medicine.isActive && isNextFuture ? medColor : colors.textMuted,
-                      fontWeight: isNextFuture ? '700' : '500',
+                      color: colors.text,
+                      fontWeight: isNextFuture ? '700' : '600',
                     },
                   ]}
                 >
                   {formatTimeDisplay(nextTime)}
                 </Text>
                 {otherCount > 0 && (
-                  <Text
+                  <View
                     style={[
-                      styles.otherCountText,
-                      { color: medicine.isActive && isNextFuture ? medColor : colors.textMuted },
+                      styles.otherCountBadge,
+                      {
+                        backgroundColor: isDark
+                          ? 'rgba(255, 255, 255, 0.12)'
+                          : 'rgba(15, 23, 42, 0.08)',
+                      },
                     ]}
                   >
-                    +{otherCount}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.otherCountText,
+                        { color: colors.textSecondary || colors.text },
+                      ]}
+                    >
+                      +{otherCount}
+                    </Text>
+                  </View>
                 )}
               </View>
             )}
@@ -486,25 +502,36 @@ const styles = StyleSheet.create({
   timeChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 9,
     borderWidth: 1,
-    gap: 3.5,
+    gap: 4,
+  },
+  timeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   timeChipText: {
-    fontSize: 10.5,
+    fontSize: 11,
+    letterSpacing: -0.1,
+  },
+  otherCountBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 6,
+    marginLeft: 2,
   },
   otherCountText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '700',
-    marginLeft: 1,
   },
   badgePill: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 7,
-    paddingVertical: 2.5,
+    paddingVertical: 3,
     borderRadius: 8,
     gap: 3.5,
   },
