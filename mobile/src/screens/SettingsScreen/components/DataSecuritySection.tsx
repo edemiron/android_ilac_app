@@ -1,5 +1,5 @@
 /**
- * DataSecuritySection — Veri Yedekleme, PDF Rapor, İlaç Etkileşimleri ve Eczaneler
+ * DataSecuritySection — Sağlık Araçları, Veri Yedekleme, Eczaneler ve Etkileşimler
  */
 
 import React from 'react';
@@ -18,46 +18,44 @@ export function DataSecuritySection({
   navigation,
   language,
 }: DataSecuritySectionProps) {
+  const isTr = language === 'tr';
+
   return (
     <SettingsSection
-      icon="shield-outline"
-      title={language === 'tr' ? 'Güvenlik & Veri' : 'Security & Data'}
+      icon="shield-checkmark"
+      title={isTr ? 'SAĞLIK ARAÇLARI VE VERİ' : 'HEALTH TOOLS & DATA'}
     >
       <SettingRow
-        icon={{ name: 'cloud-upload-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Veri Yedekleme' : 'Data Backup'}
-        description={
-          language === 'tr' ? 'JSON yedeği oluştur ve paylaş' : 'Create & share JSON backup'
-        }
+        icon={{ name: 'cloud-upload', color: '#0284C7' }}
+        label={isTr ? 'Veri Yedekleme & Aktarım' : 'Data Backup & Export'}
+        description={isTr ? 'JSON ve Bulut yedeği oluştur' : 'Create JSON & Cloud backup'}
         onPress={onExportBackup}
         showChevron
       />
 
       <SettingRow
-        icon={{ name: 'document-text-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'PDF Rapor Ayarları' : 'PDF Report Settings'}
+        icon={{ name: 'medkit', color: '#10B981' }}
+        label={isTr ? 'Nöbetçi Eczaneler' : 'On-Duty Pharmacies'}
         description={
-          language === 'tr' ? 'Doktor için ilaç uyum raporu' : 'Medication adherence report'
+          isTr ? 'Yakındaki açık eczaneleri haritada bul' : 'Find open pharmacies nearby'
         }
-        onPress={() => navigation.navigate('Statistics' as never)}
+        onPress={() => navigation.navigate('DutyPharmacy')}
         showChevron
       />
 
       <SettingRow
-        icon={{ name: 'flask-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'İlaç Etkileşimleri' : 'Drug Interactions'}
-        description={
-          language === 'tr' ? 'Çapraz ilaç etkileşim kontrolü' : 'Check cross-drug interactions'
-        }
+        icon={{ name: 'flask', color: '#F43F5E' }}
+        label={isTr ? 'İlaç Etkileşim Kontrolü' : 'Drug Interactions'}
+        description={isTr ? 'Çapraz ilaç etkileşimi analizi' : 'Cross-drug interaction analysis'}
         onPress={() => navigation.navigate('Interactions')}
         showChevron
       />
 
       <SettingRow
-        icon={{ name: 'medkit-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Nöbetçi Eczaneler' : 'On-Duty Pharmacies'}
-        description={language === 'tr' ? 'Yakındaki açık eczaneler' : 'Nearby open pharmacies'}
-        onPress={() => navigation.navigate('DutyPharmacy')}
+        icon={{ name: 'document-text', color: '#8B5CF6' }}
+        label={isTr ? 'Doktor & Eczacı PDF Raporu' : 'Doctor & Adherence Report'}
+        description={isTr ? 'Resmi klinik tedavi dökümü' : 'Official clinical adherence export'}
+        onPress={() => navigation.navigate('Statistics' as never)}
         showChevron
       />
     </SettingsSection>

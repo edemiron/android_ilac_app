@@ -1,5 +1,5 @@
 /**
- * HelpSupportSection — SSS (FAQ), Sürüm Bilgisi ve Dev Mode Tetikleyici
+ * HelpSupportSection — SSS (FAQ), Sürüm Bilgisi ve Geliştirici Modu
  */
 
 import React from 'react';
@@ -16,26 +16,25 @@ export function HelpSupportSection({
   onVersionPress,
   language,
 }: HelpSupportSectionProps) {
+  const isTr = language === 'tr';
+
   return (
-    <SettingsSection
-      icon="help-circle-outline"
-      title={language === 'tr' ? 'Yardım & Destek' : 'Help & Support'}
-    >
+    <SettingsSection icon="help-circle" title={isTr ? 'YARDIM VE HAKKINDA' : 'HELP & ABOUT'}>
       <SettingRow
-        icon={{ name: 'help-circle-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Sıkça Sorulan Sorular' : 'FAQ'}
-        description={language === 'tr' ? 'Kullanım ipuçları ve yardım' : 'Tips and user guide'}
+        icon={{ name: 'help-circle', color: '#0284C7' }}
+        label={isTr ? 'Sıkça Sorulan Sorular' : 'FAQ'}
+        description={isTr ? 'Kullanım ipuçları ve rehber' : 'Tips and user guide'}
         onPress={onFAQPress}
         showChevron
       />
 
       <SettingRow
-        icon={{ name: 'headset-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Bize Ulaşın & Hakkında' : 'Contact Us & About'}
+        icon={{ name: 'information-circle', color: '#64748B' }}
+        label={isTr ? 'Bize Ulaşın & Uygulama Hakkında' : 'Contact Us & About'}
         description={
-          language === 'tr'
-            ? 'Sürüm 1.3.2 (Geliştirici modu için dokun)'
-            : 'Version 1.3.2 (Tap for dev mode)'
+          isTr
+            ? 'Sürüm 1.3.5 (Geliştirici modu için 7 kez dokunun)'
+            : 'Version 1.3.5 (Tap 7 times for dev mode)'
         }
         onPress={onVersionPress}
         showChevron

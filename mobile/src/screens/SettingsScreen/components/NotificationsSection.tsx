@@ -29,15 +29,22 @@ export function NotificationsSection({
   navigation,
   language,
 }: NotificationsSectionProps) {
+  const isTr = language === 'tr';
+
   return (
     <SettingsSection
-      icon="notifications-outline"
-      title={language === 'tr' ? 'Bildirimler' : 'Notifications'}
+      icon="notifications"
+      title={isTr ? 'BİLDİRİMLER VE SESLER' : 'NOTIFICATIONS & AUDIO'}
     >
       <SettingRow
-        icon={{ name: 'volume-high-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Alarm Sesi' : 'Alarm Sound'}
-        value={language === 'tr' ? 'Soft Chime' : 'Soft Chime'}
+        icon={{ name: 'volume-high', color: '#F59E0B' }}
+        label={isTr ? 'Alarm Sesi & Melodi' : 'Alarm Sound'}
+        value={isTr ? 'Soft Chime' : 'Soft Chime'}
+        description={
+          isTr
+            ? `Ses Seviyesi: %${settings.alarmVolume || 70}`
+            : `Volume: ${settings.alarmVolume || 70}%`
+        }
         onPress={() => togglePicker('showVolumePicker')}
         showChevron
         chevronDirection={pickerState.showVolumePicker ? 'up' : 'down'}
@@ -56,9 +63,11 @@ export function NotificationsSection({
       )}
 
       <SettingRow
-        icon={{ name: 'notifications-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Kritik Hatırlatıcılar' : 'Critical Alerts'}
-        description={language === 'tr' ? 'Sessiz modda bile çalar' : 'Rings even in silent mode'}
+        icon={{ name: 'notifications', color: '#EF4444' }}
+        label={isTr ? 'Kritik Hatırlatıcılar' : 'Critical Alerts'}
+        description={
+          isTr ? 'Sessiz modda ve kilit ekranında çalar' : 'Rings even in silent & lock screen'
+        }
         rightElement={
           <Switch
             value={settings.fullScreenAlarmEnabled !== false}
@@ -70,17 +79,21 @@ export function NotificationsSection({
       />
 
       <SettingRow
-        icon={{ name: 'people-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Bakıcı Bildirimleri' : 'Caregiver Alerts'}
-        description={language === 'tr' ? 'Aile ve bakıcı takibi' : 'Family & caregiver tracking'}
+        icon={{ name: 'people', color: '#0D9488' }}
+        label={isTr ? 'Aile & Bakıcı Takibi' : 'Caregiver Alerts'}
+        description={
+          isTr ? 'Yakınlarınız için anlık doz bildirimleri' : 'Instant notifications for family'
+        }
         onPress={() => navigation.navigate('Caregiver')}
         showChevron
       />
 
       <SettingRow
-        icon={{ name: 'time-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Sesli Bildirimler' : 'Voice Announcements'}
-        description={language === 'tr' ? 'İlaç isimlerini sesli oku' : 'Speak medicine names'}
+        icon={{ name: 'mic', color: '#6366F1' }}
+        label={isTr ? 'Sesli Bildirimler (TTS)' : 'Voice Announcements'}
+        description={
+          isTr ? 'İlaç isimlerini ve dozları sesli oku' : 'Speak medicine names & dosages'
+        }
         onPress={() => navigation.navigate('TtsSettings')}
         showChevron
       />

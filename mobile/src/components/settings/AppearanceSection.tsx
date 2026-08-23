@@ -26,6 +26,7 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
 }) => {
   const { isDark, theme } = useTheme();
   const { language } = useLanguage();
+  const isTr = language === 'tr';
 
   const handleLanguagePress = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -50,44 +51,26 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
 
   return (
     <SettingsSection
-      icon="color-palette-outline"
-      title={language === 'tr' ? 'Uygulama Tercihleri' : 'App Preferences'}
+      icon="color-palette"
+      title={isTr ? 'GÖRÜNÜM VE KİŞİSELLEŞTİRME' : 'APPEARANCE & PREFERENCES'}
     >
-      {/* Dil (Language) Row */}
+      {/* Karanlık Mod (Dark Mode) Row */}
       <SettingRow
-        icon={{ name: 'globe-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Dil' : 'Language'}
-        value={getLanguageLabel(language)}
-        onPress={handleLanguagePress}
-        showChevron
-        chevronDirection={showLanguagePicker ? 'up' : 'down'}
-      />
-
-      {showLanguagePicker && (
-        <OptionPicker<Language>
-          options={['tr', 'en']}
-          selectedValue={language}
-          onSelect={handleLanguageSelect}
-          getLabel={getLanguageLabel}
-        />
-      )}
-
-      {/* Karanlık Mod (Dark Mode) Row with Segmented 3-Pill Control */}
-      <SettingRow
-        icon={{ name: 'moon-outline', color: '#0284C7' }}
-        label={language === 'tr' ? 'Karanlık Mod' : 'Dark Mode'}
+        icon={{ name: 'moon', color: '#6366F1' }}
+        label={isTr ? 'Uygulama Teması' : 'App Theme'}
+        description={isTr ? 'Açık, koyu veya sistem teması' : 'Light, dark or system theme'}
         rightElement={
           <View
             style={[
               styles.segmentedContainer,
               {
-                backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
               },
             ]}
           >
             {themeOptions.map(opt => {
               const isSelected = theme === opt.value;
-              const label = language === 'tr' ? opt.labelTr : opt.labelEn;
+              const label = isTr ? opt.labelTr : opt.labelEn;
 
               return (
                 <TouchableOpacity
@@ -97,7 +80,7 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                     isSelected && [
                       styles.segmentButtonActive,
                       {
-                        backgroundColor: isDark ? '#0F766E' : '#FFFFFF',
+                        backgroundColor: isDark ? '#0D9488' : '#FFFFFF',
                       },
                     ],
                   ]}
@@ -127,6 +110,25 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
           </View>
         }
       />
+
+      {/* Dil (Language) Row */}
+      <SettingRow
+        icon={{ name: 'globe', color: '#0284C7' }}
+        label={isTr ? 'Uygulama Dili' : 'Language'}
+        value={getLanguageLabel(language)}
+        onPress={handleLanguagePress}
+        showChevron
+        chevronDirection={showLanguagePicker ? 'up' : 'down'}
+      />
+
+      {showLanguagePicker && (
+        <OptionPicker<Language>
+          options={['tr', 'en']}
+          selectedValue={language}
+          onSelect={handleLanguageSelect}
+          getLabel={getLanguageLabel}
+        />
+      )}
     </SettingsSection>
   );
 };

@@ -10,19 +10,32 @@ interface LogoutButtonProps {
   user: { email?: string | null } | null;
   onLogout: () => void;
   language: string;
+  isDark?: boolean;
 }
 
-export function LogoutButton({ user, onLogout, language }: LogoutButtonProps) {
+export function LogoutButton({ user, onLogout, language, isDark = false }: LogoutButtonProps) {
+  const isTr = language === 'tr';
+
   return (
     <View style={styles.logoutContainer}>
-      <TouchableOpacity style={styles.logoutButton} onPress={onLogout} activeOpacity={0.75}>
-        <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+      <TouchableOpacity
+        style={[
+          styles.logoutButton,
+          {
+            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+            borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.20)',
+          },
+        ]}
+        onPress={onLogout}
+        activeOpacity={0.75}
+      >
+        <Ionicons name="log-out-outline" size={18} color="#EF4444" />
         <Text style={styles.logoutText}>
           {user
-            ? language === 'tr'
-              ? 'Oturumu Kapat'
+            ? isTr
+              ? 'Oturumu Güvenli Kapat'
               : 'Sign Out'
-            : language === 'tr'
+            : isTr
               ? 'Giriş Yap / Kaydol'
               : 'Sign In / Register'}
         </Text>
@@ -35,8 +48,9 @@ const styles = StyleSheet.create({
   logoutContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 24,
-    marginBottom: 12,
+    marginTop: 16,
+    marginBottom: 20,
+    paddingHorizontal: 16,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -45,11 +59,13 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 24,
+    borderRadius: 14,
+    borderWidth: 1,
+    width: '100%',
   },
   logoutText: {
-    color: '#DC2626',
-    fontSize: 16,
+    color: '#EF4444',
+    fontSize: 14,
     fontWeight: '700',
-    letterSpacing: -0.2,
   },
 });

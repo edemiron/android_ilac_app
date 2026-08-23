@@ -7,22 +7,30 @@ import { useTheme } from '../../contexts/ThemeContext';
 export const SettingIcon: React.FC<SettingIconProps> = ({
   name,
   color,
-  size = 20,
+  size = 18,
   backgroundColor,
 }) => {
   const { isDark } = useTheme();
 
-  // Consistent Google Stitch blue/teal accent
   const defaultIconColor = isDark ? '#38BDF8' : '#0284C7';
-  const defaultBg = isDark ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE';
-
   const iconColor = color || defaultIconColor;
-  const bg = backgroundColor || defaultBg;
+
+  const bg = backgroundColor || (isDark ? `${iconColor}22` : `${iconColor}15`);
+
+  const borderColor = isDark ? `${iconColor}40` : `${iconColor}30`;
 
   const iconName = name?.includes('-outline') ? name : `${name}-outline`;
 
   return (
-    <View style={[styles.iconContainer, { backgroundColor: bg }]}>
+    <View
+      style={[
+        styles.iconContainer,
+        {
+          backgroundColor: bg,
+          borderColor,
+        },
+      ]}
+    >
       <Ionicons name={iconName as any} size={size} color={iconColor} />
     </View>
   );
@@ -30,12 +38,13 @@ export const SettingIcon: React.FC<SettingIconProps> = ({
 
 const styles = StyleSheet.create({
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
+    borderWidth: 1,
   },
 });
 

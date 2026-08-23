@@ -176,7 +176,7 @@ export default function SettingsScreen() {
         )}
 
         {/* 10. Oturum Kapatma / Giriş Yap Butonu */}
-        <LogoutButton user={user} onLogout={handleLogout} language={language} />
+        <LogoutButton user={user} onLogout={handleLogout} language={language} isDark={isDark} />
 
         <View style={{ height: 40 }} />
       </ScrollView>

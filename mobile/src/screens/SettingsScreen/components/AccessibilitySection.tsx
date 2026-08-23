@@ -20,21 +20,19 @@ export function AccessibilitySection({
   isDark,
   language,
 }: AccessibilitySectionProps) {
+  const isTr = language === 'tr';
+
   return (
     <SettingsSection
-      icon="sparkles-outline"
-      title={language === 'tr' ? 'Erişilebilirlik & Kolay Mod' : 'Accessibility & Simple Mode'}
+      icon="eye"
+      title={isTr ? 'ERİŞİLEBİLİRLİK VE KOLAY MOD' : 'ACCESSIBILITY & EASY MODE'}
     >
       <SettingRow
-        icon={{ name: 'sparkles', color: '#0D9488' }}
-        label={
-          language === 'tr'
-            ? 'Kolay Mod (Büyük Yazı & Butonlar)'
-            : 'Senior Mode (Large Text & Buttons)'
-        }
+        icon={{ name: 'glasses', color: '#10B981' }}
+        label={isTr ? 'Kolay Mod (Büyük Yazı & Butonlar)' : 'Senior Mode (Large Text & Buttons)'}
         description={
-          language === 'tr'
-            ? 'Yaşlılar için sadeleştirilmiş dev arayüz'
+          isTr
+            ? 'Yaşlılar ve az görenler için dev butonlar'
             : 'Simplified, high-contrast UI for seniors'
         }
         rightElement={
