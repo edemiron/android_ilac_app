@@ -74,17 +74,33 @@ export function NotificationsSection({
         chevronDirection={pickerState.showSoundPicker ? 'up' : 'down'}
       />
 
-      {/* Melodi Seçim Listesi & Canlı Önizleme */}
+      {/* Melodi Seçim Listesi (Belirgin İçe Gömülü Çekmece Kapsülü) */}
       {pickerState.showSoundPicker && (
         <View
           style={[
             styles.soundListContainer,
             {
-              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.6)' : '#F8FAFC',
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : '#F0FDFA',
+              borderColor: isDark ? 'rgba(13, 148, 136, 0.40)' : 'rgba(13, 148, 136, 0.25)',
             },
           ]}
         >
+          {/* Çekmece Başlık Şeridi */}
+          <View
+            style={[
+              styles.drawerHeader,
+              {
+                backgroundColor: isDark ? 'rgba(13, 148, 136, 0.15)' : 'rgba(13, 148, 136, 0.10)',
+                borderBottomColor: isDark ? 'rgba(13, 148, 136, 0.25)' : 'rgba(13, 148, 136, 0.15)',
+              },
+            ]}
+          >
+            <Ionicons name="musical-notes" size={13} color="#0D9488" style={{ marginRight: 6 }} />
+            <Text style={[styles.drawerHeaderText, { color: isDark ? '#2DD4BF' : '#0F766E' }]}>
+              {isTr ? 'SEÇİLEBİLİR İLAÇ MELODİLERİ' : 'SELECTABLE REMINDER MELODIES'}
+            </Text>
+          </View>
+
           {ALARM_SOUND_LIST.map((sound, idx) => {
             const isSelected = currentSoundId === sound.id;
 
@@ -99,8 +115,8 @@ export function NotificationsSection({
                   },
                   isSelected && {
                     backgroundColor: isDark
-                      ? 'rgba(13, 148, 136, 0.15)'
-                      : 'rgba(13, 148, 136, 0.08)',
+                      ? 'rgba(13, 148, 136, 0.22)'
+                      : 'rgba(13, 148, 136, 0.12)',
                   },
                 ]}
                 onPress={() => handleSelectSound(sound.id)}
@@ -173,11 +189,7 @@ export function NotificationsSection({
         icon={{ name: 'volume-high', color: '#F59E0B' }}
         label={isTr ? 'Ses Seviyesi & Test' : 'Alarm Volume & Test'}
         value={`%${settings.alarmVolume || 80}`}
-        description={
-          isTr
-            ? 'Dokununca seçilen seviyede canlı ses testi çalar'
-            : 'Plays live sound test at chosen volume'
-        }
+        description={isTr ? 'Dokununca canlı ses testi çalar' : 'Plays live sound test'}
         onPress={() => togglePicker('showVolumePicker')}
         showChevron
         chevronDirection={pickerState.showVolumePicker ? 'up' : 'down'}
@@ -258,14 +270,34 @@ export function NotificationsSection({
 
 const styles = StyleSheet.create({
   soundListContainer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: 12,
+    marginVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  drawerHeaderText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   soundItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
   },
   soundIconBox: {
     width: 36,
