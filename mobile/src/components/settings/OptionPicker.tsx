@@ -35,7 +35,7 @@ export function OptionPicker<T extends string | number>({
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
 
-  const activeTint = tintColor || colors.primary;
+  const activeTint = tintColor || '#0D9488';
 
   const handleSelect = useCallback(
     (value: T) => {
@@ -50,8 +50,8 @@ export function OptionPicker<T extends string | number>({
       style={[
         styles.drawerContainer,
         {
-          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : `${activeTint}08`,
-          borderColor: isDark ? `${activeTint}40` : `${activeTint}30`,
+          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : '#F0FDFA',
+          borderColor: isDark ? `${activeTint}40` : `${activeTint}25`,
         },
       ]}
     >
@@ -61,15 +61,17 @@ export function OptionPicker<T extends string | number>({
           style={[
             styles.drawerHeader,
             {
-              backgroundColor: isDark ? `${activeTint}20` : `${activeTint}12`,
-              borderBottomColor: isDark ? `${activeTint}30` : `${activeTint}20`,
+              backgroundColor: isDark ? `${activeTint}15` : `${activeTint}10`,
+              borderBottomColor: isDark ? `${activeTint}25` : `${activeTint}15`,
             },
           ]}
         >
           {icon && (
             <Ionicons name={icon as any} size={13} color={activeTint} style={{ marginRight: 6 }} />
           )}
-          <Text style={[styles.drawerHeaderText, { color: activeTint }]}>{title}</Text>
+          <Text style={[styles.drawerHeaderText, { color: isDark ? '#2DD4BF' : '#0F766E' }]}>
+            {title}
+          </Text>
         </View>
       )}
 
@@ -87,7 +89,7 @@ export function OptionPicker<T extends string | number>({
                 borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
               },
               isSelected && {
-                backgroundColor: isDark ? `${activeTint}25` : `${activeTint}15`,
+                backgroundColor: isDark ? 'rgba(13, 148, 136, 0.22)' : 'rgba(13, 148, 136, 0.12)',
               },
             ]}
             onPress={() => handleSelect(option)}
@@ -111,7 +113,7 @@ export function OptionPicker<T extends string | number>({
               {getLabel(option)}
             </Text>
 
-            {isSelected && <Ionicons name="checkmark-circle" size={18} color={activeTint} />}
+            {isSelected && <Ionicons name="checkmark-circle" size={18} color="#0D9488" />}
           </TouchableOpacity>
         );
       })}
@@ -126,11 +128,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
   },
   drawerHeader: {
     flexDirection: 'row',

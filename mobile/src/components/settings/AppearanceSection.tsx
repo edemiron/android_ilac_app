@@ -1,8 +1,8 @@
 import React from 'react';
 import { LayoutAnimation, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SettingsSection } from './SettingsSection';
 import { SettingRow } from './SettingRow';
-import { OptionPicker } from './OptionPicker';
 import { useTheme, ThemeMode } from '../../contexts/ThemeContext';
 import { useLanguage, Language } from '../../contexts/LanguageContext';
 
@@ -16,6 +16,29 @@ interface AppearanceSectionProps {
   getThemeLabel: (theme: ThemeMode) => string;
   getLanguageLabel: (lang: Language) => string;
 }
+
+const LANGUAGES: {
+  id: Language;
+  name: string;
+  nativeName: string;
+  icon: string;
+  color: string;
+}[] = [
+  {
+    id: 'tr',
+    name: 'Türkçe',
+    nativeName: 'Varsayılan sistem dili',
+    icon: 'globe',
+    color: '#0284C7',
+  },
+  {
+    id: 'en',
+    name: 'English',
+    nativeName: 'System language (English)',
+    icon: 'globe-outline',
+    color: '#6366F1',
+  },
+];
 
 export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
   showLanguagePicker,
@@ -116,21 +139,98 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
         icon={{ name: 'globe', color: '#0284C7' }}
         label={isTr ? 'Uygulama Dili' : 'Language'}
         value={getLanguageLabel(language)}
+        description={isTr ? 'Uygulama arayüz lisanı' : 'App display language'}
         onPress={handleLanguagePress}
         showChevron
         chevronDirection={showLanguagePicker ? 'up' : 'down'}
       />
 
+      {/* Dil Seçim Çekmecesi (Alarm Melodisi ile Birebir Aynı Lüks Tasarım) */}
       {showLanguagePicker && (
-        <OptionPicker<Language>
-          options={['tr', 'en']}
-          selectedValue={language}
-          onSelect={handleLanguageSelect}
-          getLabel={getLanguageLabel}
-          title={isTr ? 'KULLANILABİLİR DİLLER' : 'AVAILABLE LANGUAGES'}
-          icon="globe"
-          tintColor="#0284C7"
-        />
+        <View
+          style={[
+            styles.drawerContainer,
+            {
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : '#F0FDFA',
+              borderColor: isDark ? 'rgba(2, 132, 199, 0.40)' : 'rgba(2, 132, 199, 0.25)',
+            },
+          ]}
+        >
+          {/* Çekmece Başlık Şeridi */}
+          <View
+            style={[
+              styles.drawerHeader,
+              {
+                backgroundColor: isDark ? 'rgba(2, 132, 199, 0.15)' : 'rgba(2, 132, 199, 0.10)',
+                borderBottomColor: isDark ? 'rgba(2, 132, 199, 0.25)' : 'rgba(2, 132, 199, 0.15)',
+              },
+            ]}
+          >
+            <Ionicons name="globe" size={13} color="#0284C7" style={{ marginRight: 6 }} />
+            <Text style={[styles.drawerHeaderText, { color: isDark ? '#38BDF8' : '#0369A1' }]}>
+              {isTr ? 'KULLANILABİLİR DİLLER' : 'AVAILABLE LANGUAGES'}
+            </Text>
+          </View>
+
+          {LANGUAGES.map((lang, idx) => {
+            const isSelected = language === lang.id;
+
+            return (
+              <TouchableOpacity
+                key={lang.id}
+                style={[
+                  styles.drawerItem,
+                  idx > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                  },
+                  isSelected && {
+                    backgroundColor: isDark ? 'rgba(2, 132, 199, 0.22)' : 'rgba(2, 132, 199, 0.12)',
+                  },
+                ]}
+                onPress={() => handleLanguageSelect(lang.id)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.iconBox,
+                    {
+                      backgroundColor: isDark ? `${lang.color}25` : `${lang.color}15`,
+                      borderColor: `${lang.color}40`,
+                    },
+                  ]}
+                >
+                  <Ionicons name={lang.icon as any} size={18} color={lang.color} />
+                </View>
+
+                <View style={styles.textCol}>
+                  <Text
+                    style={[
+                      styles.itemTitle,
+                      {
+                        color: isSelected
+                          ? isDark
+                            ? '#FFFFFF'
+                            : '#0F172A'
+                          : isDark
+                            ? '#E2E8F0'
+                            : '#1E293B',
+                        fontWeight: isSelected ? '700' : '600',
+                      },
+                    ]}
+                  >
+                    {lang.name}
+                  </Text>
+                  <Text style={[styles.itemDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    {lang.nativeName}
+                  </Text>
+                </View>
+
+                {isSelected && <Ionicons name="checkmark-circle" size={20} color="#0284C7" />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       )}
     </SettingsSection>
   );
@@ -161,6 +261,50 @@ const styles = StyleSheet.create({
   segmentText: {
     fontSize: 12,
   },
+  drawerContainer: {
+    marginHorizontal: 12,
+    marginVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  drawerHeaderText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  drawerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+  },
+  textCol: {
+    flex: 1,
+    marginRight: 8,
+  },
+  itemTitle: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  itemDesc: {
+    fontSize: 11.5,
+    lineHeight: 15,
+  },
 });
-
-export default AppearanceSection;

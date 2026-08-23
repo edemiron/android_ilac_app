@@ -5,7 +5,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { SettingsSection, SettingRow, OptionPicker } from '../../../components/settings';
+import { SettingsSection, SettingRow } from '../../../components/settings';
 import {
   ALARM_SOUND_LIST,
   getSoundDisplayName,
@@ -26,6 +26,54 @@ interface NotificationsSectionProps {
   language: string;
 }
 
+const VOLUME_LEVELS = [
+  {
+    value: 30,
+    nameTr: '%30 Düşük Seviye',
+    nameEn: '30% Low Volume',
+    descTr: 'Gece ve sessiz ortamlar için uygundur',
+    descEn: 'Suitable for night & quiet rooms',
+    icon: 'volume-low',
+    color: '#0284C7',
+  },
+  {
+    value: 50,
+    nameTr: '%50 Orta Seviye',
+    nameEn: '50% Medium Volume',
+    descTr: 'Günlük standart ilaç hatırlatmaları',
+    descEn: 'Standard daily reminder volume',
+    icon: 'volume-medium',
+    color: '#0D9488',
+  },
+  {
+    value: 70,
+    nameTr: '%70 Standart Yüksek',
+    nameEn: '70% Standard High',
+    descTr: 'Gürültülü ortamlar ve TV açıkken',
+    descEn: 'Ideal for noisy rooms and activities',
+    icon: 'volume-high',
+    color: '#F59E0B',
+  },
+  {
+    value: 85,
+    nameTr: '%85 Güçlü Ses',
+    nameEn: '85% Loud Alert',
+    descTr: 'Derin uyuyanlar ve hafif işitme güçlüğü',
+    descEn: 'For heavy sleepers & light hearing difficulty',
+    icon: 'volume-high',
+    color: '#EA580C',
+  },
+  {
+    value: 100,
+    nameTr: '%100 Maksimum Ses',
+    nameEn: '100% Maximum Volume',
+    descTr: 'Kritik alarmlar ve derin uyku modu',
+    descEn: 'Critical medical alarms & deep sleep',
+    icon: 'notifications',
+    color: '#EF4444',
+  },
+];
+
 export function NotificationsSection({
   settings,
   updateSettings,
@@ -39,6 +87,7 @@ export function NotificationsSection({
   const isTr = language === 'tr';
   const currentSoundId = settings.alarmSound || 'soft_chime';
   const currentSoundName = getSoundDisplayName(currentSoundId, language);
+  const currentVolume = settings.alarmVolume || 80;
 
   // Unmount anında sesi durdur
   useEffect(() => {
@@ -54,7 +103,6 @@ export function NotificationsSection({
 
   const handleSelectVolume = (volume: number) => {
     updateSettings({ alarmVolume: volume });
-    closePicker('showVolumePicker');
     previewAlarmSound(volume, currentSoundId, 2000);
   };
 
@@ -78,7 +126,7 @@ export function NotificationsSection({
       {pickerState.showSoundPicker && (
         <View
           style={[
-            styles.soundListContainer,
+            styles.drawerContainer,
             {
               backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : '#F0FDFA',
               borderColor: isDark ? 'rgba(13, 148, 136, 0.40)' : 'rgba(13, 148, 136, 0.25)',
@@ -108,7 +156,7 @@ export function NotificationsSection({
               <TouchableOpacity
                 key={sound.id}
                 style={[
-                  styles.soundItem,
+                  styles.drawerItem,
                   idx > 0 && {
                     borderTopWidth: StyleSheet.hairlineWidth,
                     borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
@@ -124,7 +172,7 @@ export function NotificationsSection({
               >
                 <View
                   style={[
-                    styles.soundIconBox,
+                    styles.iconBox,
                     {
                       backgroundColor: isDark ? `${sound.color}25` : `${sound.color}15`,
                       borderColor: `${sound.color}40`,
@@ -134,10 +182,10 @@ export function NotificationsSection({
                   <Ionicons name={sound.icon as any} size={18} color={sound.color} />
                 </View>
 
-                <View style={styles.soundTextCol}>
+                <View style={styles.textCol}>
                   <Text
                     style={[
-                      styles.soundTitle,
+                      styles.itemTitle,
                       {
                         color: isSelected
                           ? isDark
@@ -152,7 +200,7 @@ export function NotificationsSection({
                   >
                     {isTr ? sound.nameTr : sound.nameEn}
                   </Text>
-                  <Text style={[styles.soundDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                  <Text style={[styles.itemDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
                     {isTr ? sound.descriptionTr : sound.descriptionEn}
                   </Text>
                 </View>
@@ -188,45 +236,121 @@ export function NotificationsSection({
       <SettingRow
         icon={{ name: 'volume-high', color: '#F59E0B' }}
         label={isTr ? 'Ses Seviyesi & Test' : 'Alarm Volume & Test'}
-        value={`%${settings.alarmVolume || 80}`}
+        value={`%${currentVolume}`}
         description={isTr ? 'Dokununca canlı ses testi çalar' : 'Plays live sound test'}
         onPress={() => togglePicker('showVolumePicker')}
         showChevron
         chevronDirection={pickerState.showVolumePicker ? 'up' : 'down'}
       />
 
+      {/* Ses Seviyesi Çekmecesi (Alarm Melodisi ile Birebir Aynı Lüks Tasarım) */}
       {pickerState.showVolumePicker && (
-        <OptionPicker<number>
-          options={[30, 50, 70, 85, 100]}
-          selectedValue={settings.alarmVolume || 80}
-          onSelect={handleSelectVolume}
-          getLabel={vol =>
-            `%${vol} (${
-              vol <= 30
-                ? isTr
-                  ? 'Düşük / Gece'
-                  : 'Low / Night'
-                : vol <= 50
-                  ? isTr
-                    ? 'Orta'
-                    : 'Medium'
-                  : vol <= 70
-                    ? isTr
-                      ? 'Standart'
-                      : 'Standard'
-                    : vol <= 85
-                      ? isTr
-                        ? 'Yüksek'
-                        : 'Loud'
-                      : isTr
-                        ? 'Maksimum'
-                        : 'Maximum'
-            })`
-          }
-          title={isTr ? 'SEÇİLEBİLİR SES SEVİYELERİ' : 'SELECTABLE VOLUME LEVELS'}
-          icon="volume-high"
-          tintColor="#F59E0B"
-        />
+        <View
+          style={[
+            styles.drawerContainer,
+            {
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : '#F0FDFA',
+              borderColor: isDark ? 'rgba(13, 148, 136, 0.40)' : 'rgba(13, 148, 136, 0.25)',
+            },
+          ]}
+        >
+          {/* Çekmece Başlık Şeridi */}
+          <View
+            style={[
+              styles.drawerHeader,
+              {
+                backgroundColor: isDark ? 'rgba(13, 148, 136, 0.15)' : 'rgba(13, 148, 136, 0.10)',
+                borderBottomColor: isDark ? 'rgba(13, 148, 136, 0.25)' : 'rgba(13, 148, 136, 0.15)',
+              },
+            ]}
+          >
+            <Ionicons name="volume-high" size={13} color="#0D9488" style={{ marginRight: 6 }} />
+            <Text style={[styles.drawerHeaderText, { color: isDark ? '#2DD4BF' : '#0F766E' }]}>
+              {isTr ? 'SEÇİLEBİLİR SES SEVİYELERİ' : 'SELECTABLE VOLUME LEVELS'}
+            </Text>
+          </View>
+
+          {VOLUME_LEVELS.map((vol, idx) => {
+            const isSelected = currentVolume === vol.value;
+
+            return (
+              <TouchableOpacity
+                key={vol.value}
+                style={[
+                  styles.drawerItem,
+                  idx > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                  },
+                  isSelected && {
+                    backgroundColor: isDark
+                      ? 'rgba(13, 148, 136, 0.22)'
+                      : 'rgba(13, 148, 136, 0.12)',
+                  },
+                ]}
+                onPress={() => handleSelectVolume(vol.value)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.iconBox,
+                    {
+                      backgroundColor: isDark ? `${vol.color}25` : `${vol.color}15`,
+                      borderColor: `${vol.color}40`,
+                    },
+                  ]}
+                >
+                  <Ionicons name={vol.icon as any} size={18} color={vol.color} />
+                </View>
+
+                <View style={styles.textCol}>
+                  <Text
+                    style={[
+                      styles.itemTitle,
+                      {
+                        color: isSelected
+                          ? isDark
+                            ? '#FFFFFF'
+                            : '#0F172A'
+                          : isDark
+                            ? '#E2E8F0'
+                            : '#1E293B',
+                        fontWeight: isSelected ? '700' : '600',
+                      },
+                    ]}
+                  >
+                    {isTr ? vol.nameTr : vol.nameEn}
+                  </Text>
+                  <Text style={[styles.itemDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    {isTr ? vol.descTr : vol.descEn}
+                  </Text>
+                </View>
+
+                {/* Test Butonu & Seçim İkonu */}
+                <View style={styles.actionCol}>
+                  <TouchableOpacity
+                    style={[
+                      styles.previewButton,
+                      {
+                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : '#CBD5E1',
+                      },
+                    ]}
+                    onPress={() => previewAlarmSound(vol.value, currentSoundId, 2000)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="play" size={12} color="#0D9488" />
+                    <Text style={[styles.previewText, { color: '#0D9488' }]}>
+                      {isTr ? 'Test' : 'Test'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {isSelected && <Ionicons name="checkmark-circle" size={20} color="#0D9488" />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       )}
 
       {/* 3. Kritik Hatırlatıcılar */}
@@ -272,17 +396,12 @@ export function NotificationsSection({
 }
 
 const styles = StyleSheet.create({
-  soundListContainer: {
+  drawerContainer: {
     marginHorizontal: 12,
     marginVertical: 8,
     borderRadius: 16,
     borderWidth: 1.5,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
   },
   drawerHeader: {
     flexDirection: 'row',
@@ -296,13 +415,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.3,
   },
-  soundItem: {
+  drawerItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 11,
   },
-  soundIconBox: {
+  iconBox: {
     width: 36,
     height: 36,
     borderRadius: 12,
@@ -311,15 +430,15 @@ const styles = StyleSheet.create({
     marginRight: 12,
     borderWidth: 1,
   },
-  soundTextCol: {
+  textCol: {
     flex: 1,
     marginRight: 8,
   },
-  soundTitle: {
+  itemTitle: {
     fontSize: 14,
     marginBottom: 2,
   },
-  soundDesc: {
+  itemDesc: {
     fontSize: 11.5,
     lineHeight: 15,
   },
