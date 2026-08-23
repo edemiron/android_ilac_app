@@ -240,6 +240,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           selectedValue={settings.alarmVolume ?? 80}
           onSelect={handleVolumeSelect}
           getLabel={getVolumeLabelForPicker}
+          title={language === 'tr' ? 'SEÇİLEBİLİR SES SEVİYELERİ' : 'SELECTABLE VOLUME LEVELS'}
+          icon="volume-high"
+          tintColor="#F59E0B"
         />
       )}
 
@@ -267,6 +270,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           selectedValue={settings.snoozeDuration || 5}
           onSelect={handleSnoozeSelect}
           getLabel={getSnoozeDurationLabel}
+          title={language === 'tr' ? 'ERTELEME SÜRESİ SEÇENEKLERİ' : 'SNOOZE DURATION OPTIONS'}
+          icon="time"
+          tintColor="#F59E0B"
         />
       )}
 
@@ -286,6 +292,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           selectedValue={settings.maxSnoozeCount || 3}
           onSelect={handleSnoozeCountSelect}
           getLabel={getSnoozeCountLabel}
+          title={language === 'tr' ? 'MAKSİMUM ERTELEME HAKKI' : 'MAX SNOOZE LIMIT'}
+          icon="refresh"
+          tintColor="#10B981"
         />
       )}
 
@@ -305,6 +314,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           selectedValue={settings.conflictIntervalMinutes || 10}
           onSelect={handleConflictIntervalSelect}
           getLabel={getConflictIntervalLabel}
+          title={language === 'tr' ? 'İLAÇ ÇAKIŞMA ARALIĞI' : 'CONFLICT INTERVAL'}
+          icon="git-branch"
+          tintColor="#06B6D4"
         />
       )}
 

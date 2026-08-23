@@ -219,10 +219,13 @@ export function NotificationsSection({
                         ? 'Yüksek'
                         : 'Loud'
                       : isTr
-                        ? 'Maksimum (Derin Uyku)'
+                        ? 'Maksimum'
                         : 'Maximum'
             })`
           }
+          title={isTr ? 'SEÇİLEBİLİR SES SEVİYELERİ' : 'SELECTABLE VOLUME LEVELS'}
+          icon="volume-high"
+          tintColor="#F59E0B"
         />
       )}
 

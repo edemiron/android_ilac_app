@@ -127,6 +127,9 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
           selectedValue={language}
           onSelect={handleLanguageSelect}
           getLabel={getLanguageLabel}
+          title={isTr ? 'KULLANILABİLİR DİLLER' : 'AVAILABLE LANGUAGES'}
+          icon="globe"
+          tintColor="#0284C7"
         />
       )}
     </SettingsSection>
