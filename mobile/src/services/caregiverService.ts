@@ -22,7 +22,10 @@ import {
   where,
   onSnapshot,
   getDocs,
+  addDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { generateId } from '../utils/idGenerator';
 import { createScopedLogger } from '../utils/logger';
 // Sprint 7.3: Pure helper'lar ./caregiverHelpers.ts'e tasindi.
@@ -70,8 +73,6 @@ export async function createCaregiverInvite(
   }
 ): Promise<{ success: boolean; inviteCode?: string; error?: string }> {
   try {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
     // Aynı e-posta için zaten aktif davet var mı kontrol et
     const existingQuery = query(
       collection(db, INVITES_COLLECTION),
@@ -181,8 +182,6 @@ export async function acceptCaregiverInvite(
       };
     }
 
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
     // Daveti al
     const inviteRef = doc(db, INVITES_COLLECTION, inviteCode);
     const inviteSnap = await getDoc(inviteRef);
@@ -256,15 +255,16 @@ export async function acceptCaregiverInvite(
  */
 export async function getCaregivers(patientId: string): Promise<CaregiverRelationship[]> {
   try {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
     const q = query(collection(db, RELATIONSHIPS_COLLECTION), where('patientId', '==', patientId));
 
     const snapshot = await getDocs(q);
     const caregivers: CaregiverRelationship[] = [];
 
     snapshot.forEach(doc => {
-      caregivers.push(doc.data() as CaregiverRelationship);
+      caregivers.push({
+        ...(doc.data() as CaregiverRelationship),
+        id: doc.id,
+      });
     });
 
     return caregivers;
@@ -281,18 +281,21 @@ export async function removeCaregiver(
   relationshipId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
+    if (!relationshipId) {
+      log.warn('removeCaregiver: relationshipId boş');
+      return { success: false, error: 'Geçersiz bakıcı kimliği.' };
+    }
 
     await deleteDoc(doc(db, RELATIONSHIPS_COLLECTION, relationshipId));
 
     log.info('Bakıcı ilişkisi kaldırıldı', { relationshipId });
 
     return { success: true };
-  } catch (error) {
+  } catch (error: unknown) {
     log.error('Bakıcı kaldırma hatası', error);
     return {
       success: false,
-      error: 'Bir hata oluştu.',
+      error: error instanceof Error ? error.message : 'Bir hata oluştu.',
     };
   }
 }
@@ -310,8 +313,6 @@ export async function updateCaregiverRelationship(
   >
 ): Promise<{ success: boolean }> {
   try {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
     await updateDoc(doc(db, RELATIONSHIPS_COLLECTION, relationshipId), {
       ...updates,
       updatedAt: new Date().toISOString(),
@@ -331,8 +332,6 @@ export async function updateCaregiverRelationship(
  */
 export async function getPatientsForCaregiver(caregiverId: string): Promise<PatientInfo[]> {
   try {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
     const q = query(
       collection(db, RELATIONSHIPS_COLLECTION),
       where('caregiverId', '==', caregiverId),
@@ -343,7 +342,10 @@ export async function getPatientsForCaregiver(caregiverId: string): Promise<Pati
     const patients: PatientInfo[] = [];
 
     for (const relDoc of snapshot.docs) {
-      const relationship = relDoc.data() as CaregiverRelationship;
+      const relationship = {
+        ...(relDoc.data() as CaregiverRelationship),
+        id: relDoc.id,
+      };
 
       // Hasta bilgilerini users collection'dan al
       const userRef = doc(db, 'users', relationship.patientId);
@@ -375,24 +377,23 @@ export function subscribeToCaregivers(
   patientId: string,
   callback: (caregivers: CaregiverRelationship[]) => void
 ): () => void {
-  const unsubscribePromise = (async () => {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
+  try {
     const q = query(collection(db, RELATIONSHIPS_COLLECTION), where('patientId', '==', patientId));
 
     return onSnapshot(q, snapshot => {
       const caregivers: CaregiverRelationship[] = [];
       snapshot.forEach(doc => {
-        caregivers.push(doc.data() as CaregiverRelationship);
+        caregivers.push({
+          ...(doc.data() as CaregiverRelationship),
+          id: doc.id,
+        });
       });
       callback(caregivers);
     });
-  })();
-
-  // Unsubscribe fonksiyonu döndür
-  return () => {
-    unsubscribePromise.then(unsub => unsub());
-  };
+  } catch (error) {
+    log.error('subscribeToCaregivers hatası', error);
+    return () => {};
+  }
 }
 
 /**
@@ -411,8 +412,6 @@ export async function updateCaregiverFcmToken(
   }
 
   try {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
     // Bu bakıcının tüm aktif ilişkilerini bul ve token'ı güncelle
     const q = query(
       collection(db, RELATIONSHIPS_COLLECTION),
@@ -447,8 +446,6 @@ export async function notifyCaregivers(
   }
 ): Promise<void> {
   try {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
     // Aktif ve bildirim almaya izin veren bakıcıları bul
     const q = query(
       collection(db, RELATIONSHIPS_COLLECTION),
@@ -464,10 +461,6 @@ export async function notifyCaregivers(
       return;
     }
 
-    // FCM üzerinden bildirim gönder
-    // Not: Production'da Cloud Functions kullanılmalı
-    // Şimdilik log ile bırakıyoruz
-
     // Her bakıcıya bildirim gönder
     for (const doc of snapshot.docs) {
       const relationship = doc.data() as CaregiverRelationship;
@@ -476,21 +469,13 @@ export async function notifyCaregivers(
         continue;
       }
 
-      // Sprint 12.4: content builder helper'a delege
-      // notifyCaregivers tek dil (TR) destekliyor; ileride multi-language
-      // ihtiyacinda caregiver profile.language kullanilabilir.
       const content = formatCaregiverNotification(notification.type, notification.medicineName);
 
-      // Cloud Functions üzerinden bildirim gönder
-      // Alternatif: Client-side FCM API (sınırlı)
       log.info('Bakıcı bildirimi', {
         caregiverId: relationship.caregiverId,
         notification,
         content,
       });
-
-      // Not: Production'da Cloud Functions kullanılmalı
-      // Şimdilik log ile bırakıyoruz
     }
   } catch (error) {
     log.error('Bakıcı bildirim hatası', error);
@@ -502,8 +487,6 @@ export async function notifyCaregivers(
  */
 export async function getPendingInvites(patientId: string): Promise<CaregiverInvite[]> {
   try {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
     const q = query(
       collection(db, INVITES_COLLECTION),
       where('patientId', '==', patientId),
@@ -514,7 +497,10 @@ export async function getPendingInvites(patientId: string): Promise<CaregiverInv
     const invites: CaregiverInvite[] = [];
 
     snapshot.forEach(doc => {
-      invites.push(doc.data() as CaregiverInvite);
+      invites.push({
+        ...(doc.data() as CaregiverInvite),
+        id: doc.id,
+      });
     });
 
     return invites;
@@ -527,18 +513,21 @@ export async function getPendingInvites(patientId: string): Promise<CaregiverInv
 /**
  * Daveti iptal et
  */
-export async function cancelInvite(inviteCode: string): Promise<{ success: boolean }> {
+export async function cancelInvite(
+  inviteCode: string
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-
     await deleteDoc(doc(db, INVITES_COLLECTION, inviteCode));
 
     log.info('Davet iptal edildi', { inviteCode });
 
     return { success: true };
-  } catch (error) {
+  } catch (error: unknown) {
     log.error('Davet iptal hatası', error);
-    return { success: false };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Davet iptal edilemedi.',
+    };
   }
 }
 
@@ -666,9 +655,6 @@ export async function logMedicineTakenByCaregiver(
       };
     }
 
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-    const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
-
     const logId = generateId();
     const logDoc = {
       id: logId,
@@ -711,9 +697,6 @@ export async function logMedicineTakenByCaregiver(
 export async function getPatientPhoneNumber(patientId: string): Promise<string> {
   try {
     if (!patientId) return '';
-
-    const db = await import('firebase/firestore').then(m => m.getFirestore());
-    const { doc, getDoc } = await import('firebase/firestore');
 
     const userRef = doc(db, 'users', patientId);
     const userSnap = await getDoc(userRef);

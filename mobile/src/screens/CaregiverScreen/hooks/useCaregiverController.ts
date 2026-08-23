@@ -6,7 +6,7 @@
  * bekleyen davetleri iptal etme ve bakıcı ilişkisini kaldırma işlemlerini UI bileşeninden izole eder.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useCaregiver } from '../../../hooks/useCaregiver';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -34,53 +34,56 @@ export function useCaregiverController() {
   const [isCreating, setIsCreating] = useState(false);
   const [currentInviteCode, setCurrentInviteCode] = useState<string | null>(null);
 
-  const t = {
-    title: language === 'tr' ? 'Bakıcı Yönetimi' : 'Caregiver Management',
-    subtitle:
-      language === 'tr'
-        ? 'Sevdikleriniz ilaç takipinizi görüntüleyebilir'
-        : 'Your loved ones can view your medication schedule',
-    addCaregiver: language === 'tr' ? 'Bakıcı Ekle' : 'Add Caregiver',
-    emailPlaceholder: language === 'tr' ? 'E-posta adresi' : 'Email address',
-    inviteButton: language === 'tr' ? 'Davet Et' : 'Invite',
-    caregiversTitle: language === 'tr' ? 'Bakıcılarım' : 'My Caregivers',
-    pendingInvitesTitle: language === 'tr' ? 'Bekleyen Davetler' : 'Pending Invites',
-    noCaregivers: language === 'tr' ? 'Henüz bakıcı eklemediniz' : 'No caregivers added yet',
-    noCaregiversSubtitle:
-      language === 'tr'
-        ? 'Sevdiklerinizi davet ederek ilaç takipinizi paylaşabilirsiniz'
-        : 'Invite your loved ones to share your medication schedule',
-    noInvites: language === 'tr' ? 'Bekleyen davetiniz yok' : 'No pending invites',
-    viewSchedule: language === 'tr' ? 'Takvim' : 'Schedule',
-    viewHistory: language === 'tr' ? 'Geçmiş' : 'History',
-    receiveAlerts: language === 'tr' ? 'Bildirimler' : 'Alerts',
-    remove: language === 'tr' ? 'Kaldır' : 'Remove',
-    cancel: language === 'tr' ? 'İptal' : 'Cancel',
-    removeCaregiverTitle: language === 'tr' ? 'Bakıcı Kaldır' : 'Remove Caregiver',
-    removeCaregiverMessage: (name: string) =>
-      language === 'tr'
-        ? `${name} adlı bakıcıyı kaldırmak istediğinize emin misiniz?`
-        : `Are you sure you want to remove ${name} as your caregiver?`,
-    unnamedCaregiver: language === 'tr' ? 'İsimsiz bakıcı' : 'Unnamed caregiver',
-    qrTitle: language === 'tr' ? 'Davet Kodu' : 'Invite Code',
-    qrSubtitle:
-      language === 'tr'
-        ? 'Bakıcı bu QR kodu tarayarak daveti kabul edebilir'
-        : 'Caregiver can scan this QR code to accept the invite',
-    shareInvite: language === 'tr' ? 'Daveti Paylaş' : 'Share Invite',
-    shareOk: language === 'tr' ? 'Tamam' : 'OK',
-    close: language === 'tr' ? 'Kapat' : 'Close',
-    inviteSent: language === 'tr' ? 'Davet Gönderildi' : 'Invite Sent',
-    inviteSentBody: (code: string) =>
-      language === 'tr' ? `Davet kodu: ${code}` : `Invite code: ${code}`,
-    expired: language === 'tr' ? 'Süresi Doldu' : 'Expired',
-    expires: (date: string) => {
-      const d = new Date(date);
-      return language === 'tr'
-        ? `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`
-        : `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
-    },
-  };
+  const t = useMemo(
+    () => ({
+      title: language === 'tr' ? 'Bakıcı Yönetimi' : 'Caregiver Management',
+      subtitle:
+        language === 'tr'
+          ? 'Sevdikleriniz ilaç takipinizi görüntüleyebilir'
+          : 'Your loved ones can view your medication schedule',
+      addCaregiver: language === 'tr' ? 'Bakıcı Ekle' : 'Add Caregiver',
+      emailPlaceholder: language === 'tr' ? 'E-posta adresi' : 'Email address',
+      inviteButton: language === 'tr' ? 'Davet Et' : 'Invite',
+      caregiversTitle: language === 'tr' ? 'Bakıcılarım' : 'My Caregivers',
+      pendingInvitesTitle: language === 'tr' ? 'Bekleyen Davetler' : 'Pending Invites',
+      noCaregivers: language === 'tr' ? 'Henüz bakıcı eklemediniz' : 'No caregivers added yet',
+      noCaregiversSubtitle:
+        language === 'tr'
+          ? 'Sevdiklerinizi davet ederek ilaç takipinizi paylaşabilirsiniz'
+          : 'Invite your loved ones to share your medication schedule',
+      noInvites: language === 'tr' ? 'Bekleyen davetiniz yok' : 'No pending invites',
+      viewSchedule: language === 'tr' ? 'Takvim' : 'Schedule',
+      viewHistory: language === 'tr' ? 'Geçmiş' : 'History',
+      receiveAlerts: language === 'tr' ? 'Bildirimler' : 'Alerts',
+      remove: language === 'tr' ? 'Kaldır' : 'Remove',
+      cancel: language === 'tr' ? 'İptal' : 'Cancel',
+      removeCaregiverTitle: language === 'tr' ? 'Bakıcı Kaldır' : 'Remove Caregiver',
+      removeCaregiverMessage: (name: string) =>
+        language === 'tr'
+          ? `${name} adlı bakıcıyı kaldırmak istediğinize emin misiniz?`
+          : `Are you sure you want to remove ${name} as your caregiver?`,
+      unnamedCaregiver: language === 'tr' ? 'İsimsiz bakıcı' : 'Unnamed caregiver',
+      qrTitle: language === 'tr' ? 'Davet Kodu' : 'Invite Code',
+      qrSubtitle:
+        language === 'tr'
+          ? 'Bakıcı bu QR kodu tarayarak daveti kabul edebilir'
+          : 'Caregiver can scan this QR code to accept the invite',
+      shareInvite: language === 'tr' ? 'Daveti Paylaş' : 'Share Invite',
+      shareOk: language === 'tr' ? 'Tamam' : 'OK',
+      close: language === 'tr' ? 'Kapat' : 'Close',
+      inviteSent: language === 'tr' ? 'Davet Gönderildi' : 'Invite Sent',
+      inviteSentBody: (code: string) =>
+        language === 'tr' ? `Davet kodu: ${code}` : `Invite code: ${code}`,
+      expired: language === 'tr' ? 'Süresi Doldu' : 'Expired',
+      expires: (date: string) => {
+        const d = new Date(date);
+        return language === 'tr'
+          ? `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`
+          : `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+      },
+    }),
+    [language]
+  );
 
   const handleInvite = async () => {
     if (!email.trim()) {
@@ -120,17 +123,41 @@ export function useCaregiverController() {
             text: t.remove,
             style: 'destructive',
             onPress: async () => {
-              await removeCaregiverRel(relationshipId);
+              const res = await removeCaregiverRel(relationshipId);
+              if (res?.success) {
+                showInfo(
+                  language === 'tr' ? 'Başarılı' : 'Success',
+                  language === 'tr' ? `${name} adlı bakıcı kaldırıldı.` : `${name} removed.`
+                );
+              } else {
+                showError(
+                  language === 'tr' ? 'Hata' : 'Error',
+                  language === 'tr'
+                    ? 'Bakıcı kaldırılamadı. Lütfen bağlantınızı kontrol edin.'
+                    : 'Failed to remove caregiver.'
+                );
+              }
             },
           },
         ],
       });
     },
-    [showAlert, t, removeCaregiverRel]
+    [showAlert, showInfo, showError, language, t, removeCaregiverRel]
   );
 
   const handleCancelInvite = async (inviteCode: string) => {
-    await cancelInviteRel(inviteCode);
+    const res = await cancelInviteRel(inviteCode);
+    if (res?.success) {
+      showInfo(
+        language === 'tr' ? 'Başarılı' : 'Success',
+        language === 'tr' ? 'Davet iptal edildi.' : 'Invite cancelled.'
+      );
+    } else {
+      showError(
+        language === 'tr' ? 'Hata' : 'Error',
+        language === 'tr' ? 'Davet iptal edilemedi.' : 'Failed to cancel invite.'
+      );
+    }
   };
 
   const handleShareInvite = () => {

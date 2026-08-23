@@ -130,7 +130,7 @@ export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInvite
   const { colors } = useTheme();
   const { language } = useLanguage();
   const { user } = useAuth();
-  const { showAlert } = useAlert();
+  const { showAlert, showInfo, showError } = useAlert();
   const styles = createStyles(colors);
 
   const {
@@ -204,7 +204,20 @@ export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInvite
           text: tr ? 'Kaldır' : 'Remove',
           style: 'destructive',
           onPress: async () => {
-            await removeCaregiverRel(caregiverId);
+            const res = await removeCaregiverRel(caregiverId);
+            if (res?.success) {
+              showInfo(
+                tr ? 'Başarılı' : 'Success',
+                tr ? `${caregiverName} kaldırıldı.` : `${caregiverName} removed.`
+              );
+            } else {
+              showError(
+                tr ? 'Hata' : 'Error',
+                tr
+                  ? 'Bakıcı kaldırılamadı. Lütfen bağlantınızı kontrol edin.'
+                  : 'Failed to remove caregiver.'
+              );
+            }
           },
         },
       ],
@@ -224,7 +237,18 @@ export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInvite
           text: tr ? 'İptal Et' : 'Cancel Invite',
           style: 'destructive',
           onPress: async () => {
-            await cancelInviteRel(inviteCode);
+            const res = await cancelInviteRel(inviteCode);
+            if (res?.success) {
+              showInfo(
+                tr ? 'Başarılı' : 'Success',
+                tr ? 'Davet iptal edildi.' : 'Invite cancelled.'
+              );
+            } else {
+              showError(
+                tr ? 'Hata' : 'Error',
+                tr ? 'Davet iptal edilemedi.' : 'Failed to cancel invite.'
+              );
+            }
           },
         },
       ],
@@ -257,9 +281,7 @@ export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInvite
         {activeCaregivers.map((cg, index) => {
           // Hem isim hem email yoksa bos avatar/isim gorunmesin (H1-H3).
           const displayName =
-            cg.caregiverName ||
-            cg.caregiverEmail ||
-            (tr ? 'İsimsiz bakıcı' : 'Unnamed caregiver');
+            cg.caregiverName || cg.caregiverEmail || (tr ? 'İsimsiz bakıcı' : 'Unnamed caregiver');
           return (
             <View key={cg.id} style={[styles.row, index === 0 && { borderTopWidth: 0 }]}>
               <View style={styles.avatar}>
@@ -267,9 +289,7 @@ export const CaregiverSection: React.FC<CaregiverSectionProps> = ({ onOpenInvite
               </View>
               <View style={styles.info}>
                 <Text style={styles.name}>{displayName}</Text>
-                {cg.caregiverEmail ? (
-                  <Text style={styles.email}>{cg.caregiverEmail}</Text>
-                ) : null}
+                {cg.caregiverEmail ? <Text style={styles.email}>{cg.caregiverEmail}</Text> : null}
               </View>
               <TouchableOpacity
                 style={styles.removeBtn}
