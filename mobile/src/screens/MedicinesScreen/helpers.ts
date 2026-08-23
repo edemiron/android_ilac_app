@@ -155,13 +155,90 @@ export function getStockColor(
 
 /**
  * Sprint 81C: Belirtilen HH:MM zamani su andan sonra mi (gelecek mi?).
- * Tam Date karsilastirmasi yapar — gun sinirini dogru geciyor (ornek: su an 00:30,
- * hedef 23:30 ise bugunun 23:30'u gelecekte; 00:30'dan kucuk 23:30 "dun" degil,
- * bugun ileride bir saat).
+ * Tam Date karsilastirmasi yapar — gun sinirini dogru geciyor.
  */
 export function isFutureTime(time: string, now: Date = new Date()): boolean {
   const [hh, mm] = time.split(':').map(Number);
   const target = new Date(now);
   target.setHours(hh, mm, 0, 0);
   return target.getTime() > now.getTime();
+}
+
+/**
+ * Modern UI: Yemek/Kullanım talimatına göre şık ikon adı.
+ */
+export function getInstructionIconName(instructions?: string): string {
+  if (!instructions) return 'information-circle-outline';
+  const lower = instructions.toLowerCase();
+  if (
+    lower.includes('yemekle') ||
+    lower.includes('tok') ||
+    lower.includes('food') ||
+    lower.includes('after')
+  ) {
+    return 'restaurant-outline';
+  }
+  if (lower.includes('aç') || lower.includes('before') || lower.includes('empty')) {
+    return 'cafe-outline';
+  }
+  if (lower.includes('su') || lower.includes('water')) {
+    return 'water-outline';
+  }
+  if (
+    lower.includes('gece') ||
+    lower.includes('yatarken') ||
+    lower.includes('bed') ||
+    lower.includes('night')
+  ) {
+    return 'moon-outline';
+  }
+  if (lower.includes('sabah') || lower.includes('morning')) {
+    return 'sunny-outline';
+  }
+  return 'bookmark-outline';
+}
+
+/**
+ * Modern UI: Sıradaki doza kalan süreyi insansı metin olarak formatla.
+ */
+export function getRemainingDoseTimeFormatted(
+  targetTime: string,
+  language: 'tr' | 'en' = 'tr',
+  now: Date = new Date()
+): string {
+  try {
+    const [hh, mm] = targetTime.split(':').map(Number);
+    const target = new Date(now);
+    target.setHours(hh, mm, 0, 0);
+
+    const diffMinutes = Math.round((target.getTime() - now.getTime()) / (1000 * 60));
+    if (diffMinutes < 0) {
+      return language === 'tr' ? 'Bugün alındı / geçti' : 'Passed today';
+    }
+    if (diffMinutes === 0) {
+      return language === 'tr' ? 'Şimdi' : 'Now';
+    }
+    if (diffMinutes < 60) {
+      return language === 'tr' ? `${diffMinutes} dk sonra` : `in ${diffMinutes}m`;
+    }
+    const hours = Math.floor(diffMinutes / 60);
+    const mins = diffMinutes % 60;
+    if (mins === 0) {
+      return language === 'tr' ? `${hours} saat sonra` : `in ${hours}h`;
+    }
+    return language === 'tr' ? `${hours} sa ${mins} dk sonra` : `in ${hours}h ${mins}m`;
+  } catch {
+    return targetTime;
+  }
+}
+
+/**
+ * Modern UI: İlaç formuna / rengine göre çift renkli gradient paleti.
+ */
+export function getMedicineGradient(
+  baseColor: string | undefined,
+  fallbackPrimary: string = '#0D9488'
+): [string, string] {
+  const color = baseColor || fallbackPrimary;
+  return [color, color + 'CC'];
 }

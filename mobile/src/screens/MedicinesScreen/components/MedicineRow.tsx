@@ -1,17 +1,16 @@
 /**
- * MedicinesScreen — MedicineRow bileşeni.
+ * MedicineRow — İlaçlarım Ekranı İlaç Kartı
  *
- * Sprint 5.1: MedicinesScreen.tsx (1317 satir) modularizasyonu.
- * Tek bir ilac kart satir render eder (secim modu, expiry badge, action menu).
- *
- * Sprint 81:
- *   - 81A: SKT badge akıllı renk (kırmızı dolmuş, sarı yaklaşıyor, yeşil/muted OK)
- *   - 81B: Stok sayısı badge ("26/30 kaldı")
- *   - 81C: Saat chip zaman bazlı renk (gelecek primary, geçmiş muted)
+ * 2026 Modern Design Architecture:
+ * - Sol renk aksanlı & gölgeli Tonal Card yapısı
+ * - Degrade arka planlı 3D squircle form ikonu
+ * - Zenginleştirilmiş hiyerarşi (Dozaj, Sıklık, Yemek Talimatı, Stok Göstergesi, Sıradaki Saat)
+ * - Dokunsal geri bildirim ve pürüzsüz basış efektleri
  */
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { format, parseISO } from 'date-fns';
@@ -28,6 +27,7 @@ import {
   getExpiryColor,
   getStockColor,
   isFutureTime,
+  getInstructionIconName,
 } from '../helpers';
 
 interface MedicineRowProps {
@@ -70,8 +70,6 @@ function getNextTime(times: string[]): string | null {
   return sorted.find(t => t > currentTime) || sorted[0];
 }
 
-// getExpiryColor, getStockColor, isFutureTime helpers.ts'e tasindi (Sprint 82).
-
 export const MedicineRow: React.FC<MedicineRowProps> = ({
   medicine,
   times,
@@ -88,6 +86,9 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
   onSelect,
   onLongPressSelect,
 }) => {
+  const isTr = language === 'tr';
+  const medColor = medicine.color || colors.primary || '#0D9488';
+
   const handleLongPress = () => {
     if (onLongPressSelect) {
       onLongPressSelect();
@@ -106,10 +107,10 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
 
   const expiryStatus = getExpiryStatus(medicine.expiryDate, medicine.expiryReminderDays);
 
+  // SKT Rozeti
   const renderExpiryBadge = () => {
     if (!medicine.expiryDate) return null;
     const status = expiryStatus;
-    // Sprint 81A: Akıllı renk — gün sayısına göre 4 seviye
     const palette = getExpiryColor(medicine.expiryDate, medicine.expiryReminderDays, colors);
     const expiryIcon =
       status === 'expired'
@@ -120,29 +121,29 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
 
     if (status === 'expired') {
       return (
-        <View style={[styles.expiryBadge, { backgroundColor: palette.bg }]}>
-          <Ionicons name={expiryIcon} size={12} color={palette.fg} />
-          <Text style={[styles.expiryBadgeText, { color: palette.fg }]}>
-            {language === 'tr' ? 'Süresi doldu' : 'Expired'}
+        <View style={[styles.badgePill, { backgroundColor: palette.bg }]}>
+          <Ionicons name={expiryIcon} size={11} color={palette.fg} />
+          <Text style={[styles.badgePillText, { color: palette.fg }]}>
+            {isTr ? 'Süresi doldu' : 'Expired'}
           </Text>
         </View>
       );
     }
     if (status === 'expiring') {
       return (
-        <View style={[styles.expiryBadge, { backgroundColor: palette.bg }]}>
-          <Ionicons name={expiryIcon} size={12} color={palette.fg} />
-          <Text style={[styles.expiryBadgeText, { color: palette.fg }]}>
-            {language === 'tr' ? 'Yakında' : 'Soon'}
+        <View style={[styles.badgePill, { backgroundColor: palette.bg }]}>
+          <Ionicons name={expiryIcon} size={11} color={palette.fg} />
+          <Text style={[styles.badgePillText, { color: palette.fg }]}>
+            {isTr ? 'SKT Yakında' : 'Expiring Soon'}
           </Text>
         </View>
       );
     }
     if (status === 'ok') {
       return (
-        <View style={[styles.expiryBadge, { backgroundColor: palette.bg }]}>
+        <View style={[styles.badgePill, { backgroundColor: palette.bg }]}>
           <Ionicons name={expiryIcon} size={11} color={palette.fg} />
-          <Text style={[styles.expiryBadgeText, { color: palette.fg }]}>
+          <Text style={[styles.badgePillText, { color: palette.fg }]}>
             {formatExpiryDate(medicine.expiryDate, language)}
           </Text>
         </View>
@@ -151,32 +152,39 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
     return null;
   };
 
-  // Sprint 81B: Stok badge render
+  // Stok Rozeti
   const stockPalette = getStockColor(medicine.stockCount, medicine.stockThreshold, colors);
   const renderStockBadge = () => {
     if (!stockPalette || medicine.stockEnabled === false) return null;
     if (medicine.stockCount === undefined) return null;
-    const tr = language === 'tr';
     const label =
       stockPalette.variant === 'critical'
-        ? tr
+        ? isTr
           ? `Stok az (${medicine.stockCount})`
-          : `Low (${medicine.stockCount})`
-        : tr
+          : `Low Stock (${medicine.stockCount})`
+        : isTr
           ? `${medicine.stockCount} kaldı`
           : `${medicine.stockCount} left`;
     return (
-      <View style={[styles.stockBadge, { backgroundColor: stockPalette.bg }]}>
-        <Ionicons name="cube-outline" size={11} color={stockPalette.fg} />
-        <Text style={[styles.stockBadgeText, { color: stockPalette.fg }]}>{label}</Text>
+      <View style={[styles.badgePill, { backgroundColor: stockPalette.bg }]}>
+        <Ionicons
+          name={stockPalette.variant === 'critical' ? 'alert-circle' : 'cube-outline'}
+          size={11}
+          color={stockPalette.fg}
+        />
+        <Text style={[styles.badgePillText, { color: stockPalette.fg }]}>{label}</Text>
       </View>
     );
   };
 
   const nextTime = getNextTime(times);
   const otherCount = times.length - 1;
-  // Sprint 81C: Gelecek saat primary, geçmiş muted
   const isNextFuture = nextTime ? isFutureTime(nextTime) : false;
+  const iconInfo = getMedicineFormIcon(medicine);
+  const instructionIcon = getInstructionIconName(medicine.instructions);
+  const instructionText = medicine.instructions
+    ? getInstructionText(medicine.instructions, language)
+    : null;
 
   return (
     <TouchableOpacity
@@ -184,21 +192,34 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
         styles.medicineCard,
         {
           backgroundColor: colors.card,
-          shadowOpacity: isDark ? 0 : 0.08,
-          elevation: isDark ? 0 : 2,
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+          shadowColor: isDark ? '#000000' : medColor,
+          shadowOpacity: isDark ? 0.3 : 0.08,
+          elevation: isDark ? 1 : 3,
         },
-        !medicine.isActive && { opacity: 0.6 },
+        !medicine.isActive && { opacity: 0.65 },
         isSelected && {
-          backgroundColor: colors.primary + '15',
+          backgroundColor: `${colors.primary}12`,
           borderColor: colors.primary,
-          borderWidth: 2,
+          borderWidth: 1.5,
         },
       ]}
       onPress={handlePress}
       onLongPress={handleLongPress}
-      activeOpacity={0.7}
+      activeOpacity={0.75}
     >
-      <View style={styles.rowContent}>
+      {/* Sol Renk Aksan Çubuğu */}
+      <View
+        style={[
+          styles.accentBar,
+          {
+            backgroundColor: medicine.isActive ? medColor : colors.textMuted,
+          },
+        ]}
+      />
+
+      <View style={styles.cardInner}>
+        {/* Çoklu Seçim Checkbox */}
         {isSelectionMode && (
           <View
             style={[
@@ -210,115 +231,159 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
             {isSelected && <Ionicons name="checkmark" size={14} color={colors.textOnPrimary} />}
           </View>
         )}
-        {(() => {
-          const medColor = medicine.color || colors.primary || '#0D9488';
-          const iconBg = isDark ? `${medColor}33` : `${medColor}20`;
-          const iconInfo = getMedicineFormIcon(medicine);
-          return (
-            <View
+
+        {/* Squircle Form Avatar with Gradient */}
+        <View style={styles.avatarWrapper}>
+          {medicine.imageUri ? (
+            <Image source={{ uri: medicine.imageUri }} style={styles.avatarImage} />
+          ) : (
+            <LinearGradient
+              colors={
+                medicine.isActive
+                  ? [`${medColor}33`, `${medColor}15`]
+                  : [`${colors.textMuted}25`, `${colors.textMuted}10`]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
               style={[
-                styles.iconContainer,
+                styles.avatarGradient,
                 {
-                  backgroundColor: iconBg,
-                  borderColor: `${medColor}55`,
-                  borderWidth: 1,
-                  overflow: 'hidden',
+                  borderColor: medicine.isActive ? `${medColor}55` : `${colors.textMuted}40`,
                 },
               ]}
             >
-              {medicine.imageUri ? (
-                <Image source={{ uri: medicine.imageUri }} style={{ width: 44, height: 44 }} />
-              ) : iconInfo.lib === 'mci' ? (
-                <MaterialCommunityIcons name={iconInfo.name} size={20} color={medColor} />
+              {iconInfo.lib === 'mci' ? (
+                <MaterialCommunityIcons
+                  name={iconInfo.name}
+                  size={24}
+                  color={medicine.isActive ? medColor : colors.textMuted}
+                />
               ) : (
-                <Ionicons name={iconInfo.name as never} size={20} color={medColor} />
+                <Ionicons
+                  name={iconInfo.name as never}
+                  size={24}
+                  color={medicine.isActive ? medColor : colors.textMuted}
+                />
               )}
-            </View>
-          );
-        })()}
-        <View style={styles.medicineInfo}>
-          <View style={styles.medicineHeader}>
+            </LinearGradient>
+          )}
+        </View>
+
+        {/* İlaç Bilgi Bloğu */}
+        <View style={styles.contentContainer}>
+          {/* Başlık Satırı */}
+          <View style={styles.titleRow}>
             <Text
               style={[
-                styles.medicineName,
+                styles.medicineTitle,
                 { color: colors.text },
                 !medicine.isActive && { color: colors.textMuted },
               ]}
-              numberOfLines={2}
+              numberOfLines={1}
             >
               {medicine.name}
             </Text>
+
             {!medicine.isActive && (
               <Pill
-                label={language === 'tr' ? 'Duraklatıldı' : 'Paused'}
+                label={isTr ? 'Duraklatıldı' : 'Paused'}
                 variant="warning"
                 size="xs"
-                style={{ marginRight: 6 }}
+                style={{ marginLeft: 6 }}
               />
             )}
-            {renderExpiryBadge()}
-            {renderStockBadge()}
           </View>
-          <Text style={[styles.medicineDetails, { color: colors.textMuted }]}>
-            {decodeDosage(medicine.dosage)} •{' '}
+
+          {/* Doz & Sıklık Açıklaması */}
+          <Text style={[styles.dosageText, { color: colors.textMuted }]}>
+            {decodeDosage(medicine.dosage)}
+            {medicine.dosage ? ' • ' : ''}
             {t('medicines_times_per_day', { count: medicine.frequency })}
-            {medicine.instructions && ` • ${getInstructionText(medicine.instructions, language)}`}
           </Text>
-          {nextTime && (
-            <View style={styles.timesContainer}>
-              {/* Sprint 81C: Gelecek saat primary (medicine.color), geçmiş muted */}
+
+          {/* Mikro Etiketler ve Saat Çipleri */}
+          <View style={styles.chipsContainer}>
+            {/* Yemek / Kullanım Talimatı Rozeti */}
+            {instructionText && (
+              <View
+                style={[
+                  styles.microTag,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                  },
+                ]}
+              >
+                <Ionicons name={instructionIcon} size={11} color={colors.textMuted} />
+                <Text style={[styles.microTagText, { color: colors.textMuted }]}>
+                  {instructionText}
+                </Text>
+              </View>
+            )}
+
+            {/* Sıradaki Saat Çipi */}
+            {nextTime && (
               <View
                 style={[
                   styles.timeChip,
                   {
-                    backgroundColor: medicine.isActive
-                      ? isNextFuture
-                        ? medicine.color + '25'
-                        : colors.textMuted + '15'
-                      : colors.inputBackground,
-                    borderWidth: isNextFuture && medicine.isActive ? 1 : 0,
+                    backgroundColor:
+                      medicine.isActive && isNextFuture
+                        ? `${medColor}18`
+                        : isDark
+                          ? 'rgba(255,255,255,0.06)'
+                          : 'rgba(0,0,0,0.04)',
                     borderColor:
-                      isNextFuture && medicine.isActive ? medicine.color + '40' : 'transparent',
+                      medicine.isActive && isNextFuture
+                        ? `${medColor}40`
+                        : isDark
+                          ? 'rgba(255,255,255,0.08)'
+                          : 'rgba(0,0,0,0.06)',
                   },
                 ]}
               >
                 <Ionicons
                   name="time-outline"
                   size={11}
-                  color={
-                    medicine.isActive
-                      ? isNextFuture
-                        ? medicine.color
-                        : colors.textMuted
-                      : colors.textMuted
-                  }
+                  color={medicine.isActive && isNextFuture ? medColor : colors.textMuted}
                 />
                 <Text
                   style={[
                     styles.timeChipText,
                     {
-                      color: medicine.isActive
-                        ? isNextFuture
-                          ? medicine.color
-                          : colors.textMuted
-                        : colors.textMuted,
+                      color: medicine.isActive && isNextFuture ? medColor : colors.textMuted,
+                      fontWeight: isNextFuture ? '700' : '500',
                     },
                   ]}
                 >
                   {formatTimeDisplay(nextTime)}
                 </Text>
+                {otherCount > 0 && (
+                  <Text
+                    style={[
+                      styles.otherCountText,
+                      { color: medicine.isActive && isNextFuture ? medColor : colors.textMuted },
+                    ]}
+                  >
+                    +{otherCount}
+                  </Text>
+                )}
               </View>
-              {otherCount > 0 && (
-                <Text style={[styles.moreTimesText, { color: colors.textMuted }]}>
-                  +{otherCount}
-                </Text>
-              )}
-            </View>
-          )}
+            )}
+
+            {/* Stok ve SKT Rozetleri */}
+            {renderStockBadge()}
+            {renderExpiryBadge()}
+          </View>
         </View>
+
+        {/* Sağ Menü Butonu */}
         <TouchableOpacity
           onPress={() => onShowActionMenu(medicine, onToggleActive, onDelete)}
-          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+          style={styles.moreButton}
+          hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel={isTr ? 'İlaç Seçenekleri' : 'Medicine Options'}
         >
           <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
         </TouchableOpacity>
@@ -329,16 +394,30 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
 
 const styles = StyleSheet.create({
   medicineCard: {
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 18,
     marginVertical: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
+    marginHorizontal: 16,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  rowContent: {
+  accentBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4.5,
+    borderTopLeftRadius: 18,
+    borderBottomLeftRadius: 18,
+  },
+  cardInner: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    paddingLeft: 16,
   },
   checkbox: {
     width: 22,
@@ -349,79 +428,94 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 10,
   },
-  iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  avatarWrapper: {
+    marginRight: 13,
+  },
+  avatarGradient: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    borderWidth: 1,
   },
-  medicineInfo: {
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+  },
+  contentContainer: {
     flex: 1,
+    justifyContent: 'center',
   },
-  medicineHeader: {
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  medicineTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    flexShrink: 1,
+  },
+  dosageText: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  chipsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginBottom: 4,
+    gap: 5,
   },
-  medicineName: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginRight: 6,
-  },
-  medicineDetails: {
-    fontSize: 12,
-  },
-  // Sprint 106.6: pausedBadge Pill'e migrate — style kaldırıldı
-  expiryBadge: {
+  microTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginRight: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
   },
-  expiryBadgeText: {
-    fontSize: 10,
+  microTagText: {
+    fontSize: 10.5,
     fontWeight: '600',
-    marginLeft: 3,
-  },
-  // Sprint 81B: Stok badge stilleri
-  stockBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginRight: 6,
-  },
-  stockBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    marginLeft: 3,
-  },
-  timesContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
   },
   timeChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
     borderRadius: 8,
-    marginRight: 4,
+    borderWidth: 1,
+    gap: 3.5,
   },
   timeChipText: {
-    fontSize: 10,
-    fontWeight: '600',
-    marginLeft: 3,
+    fontSize: 10.5,
   },
-  moreTimesText: {
+  otherCountText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
+    marginLeft: 1,
+  },
+  badgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    gap: 3.5,
+  },
+  badgePillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  moreButton: {
+    padding: 6,
+    marginLeft: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

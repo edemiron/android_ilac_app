@@ -179,6 +179,36 @@ export function useMedicinesController() {
     navigation.navigate('AddMedicine', {});
   }, [canAddMedicine, medicines.length, showAlert, language, navigation]);
 
+  // Filtre sayaçları
+  const filterCounts = useMemo(() => {
+    const all = medicines.length;
+    const active = medicines.filter(m => m.isActive).length;
+    const inactive = medicines.filter(m => !m.isActive).length;
+    const lowStock = medicines.filter(
+      m => m.isActive && m.stockEnabled && (m.stockCount ?? 0) <= (m.stockThreshold ?? 5)
+    ).length;
+    return { all, active, inactive, lowStock };
+  }, [medicines]);
+
+  // Sıradaki en yakın aktif ilaç saati
+  const nextUpcomingTime = useMemo(() => {
+    const allActiveTimes: string[] = [];
+    medicines
+      .filter(m => m.isActive)
+      .forEach(m => {
+        const times = getReminderTimesForMedicine(m.id).map(rt => rt.time);
+        allActiveTimes.push(...times);
+      });
+    if (allActiveTimes.length === 0) return null;
+    const now = new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(
+      now.getMinutes()
+    ).padStart(2, '0')}`;
+    const sorted = [...allActiveTimes].sort();
+    const future = sorted.find(t => t > currentTime);
+    return future || sorted[0] || null;
+  }, [medicines, getReminderTimesForMedicine]);
+
   return {
     navigation,
     colors,
@@ -215,5 +245,7 @@ export function useMedicinesController() {
     cancelSingleDelete,
     closeActionMenu,
     handleAddMedicine,
+    filterCounts,
+    nextUpcomingTime,
   };
 }

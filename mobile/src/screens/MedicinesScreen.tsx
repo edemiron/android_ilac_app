@@ -18,6 +18,7 @@ import { ClinicalSearchBar } from '../components/common/ClinicalSearchBar';
 // Alt Bileşenler (Modular UI)
 import { MedicineRow } from './MedicinesScreen/components/MedicineRow';
 import { FilterChipRow } from './MedicinesScreen/components/FilterChipRow';
+import { MedicineSummaryCard } from './MedicinesScreen/components/MedicineSummaryCard';
 import { MedicineEmptyState } from './MedicinesScreen/components/MedicineEmptyState';
 import { SelectionActionBar } from './MedicinesScreen/components/SelectionActionBar';
 
@@ -61,6 +62,8 @@ export default function MedicinesScreen() {
     cancelSingleDelete,
     closeActionMenu,
     handleAddMedicine,
+    filterCounts,
+    nextUpcomingTime,
   } = useMedicinesController();
 
   return (
@@ -127,10 +130,30 @@ export default function MedicinesScreen() {
         onSelectFilter={setFilterMode}
         colors={colors}
         language={language}
+        isDark={isDark}
+        counts={filterCounts}
       />
 
       {/* 4. İlaç Listesi ve Boş Durum */}
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 4A. Hero Sağlık & İlaç Özeti Kartı */}
+        {medicines.length > 0 && !isSelectionMode && !searchQuery.trim() && (
+          <MedicineSummaryCard
+            totalCount={filterCounts.all}
+            activeCount={filterCounts.active}
+            lowStockCount={filterCounts.lowStock}
+            nextUpcomingTime={nextUpcomingTime}
+            onAddMedicine={handleAddMedicine}
+            colors={colors}
+            isDark={isDark}
+            language={language}
+          />
+        )}
+
         {medicines.length === 0 ? (
           <MedicineEmptyState
             onAddMedicine={handleAddMedicine}
@@ -143,11 +166,27 @@ export default function MedicinesScreen() {
             {activeMedicines.length > 0 && (
               <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeaderStandalone}>
-                  <Text style={styles.sectionIcon}>💚</Text>
-                  <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-                    {language === 'tr' ? 'AKTİF İLAÇLAR' : 'ACTIVE MEDICINES'} (
-                    {activeMedicines.length})
-                  </Text>
+                  <View
+                    style={[
+                      styles.sectionPillBadge,
+                      {
+                        backgroundColor: isDark
+                          ? 'rgba(16, 185, 129, 0.15)'
+                          : 'rgba(16, 185, 129, 0.10)',
+                        borderColor: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={13}
+                      color={colors.success || '#10B981'}
+                    />
+                    <Text style={[styles.sectionTitle, { color: colors.success || '#10B981' }]}>
+                      {language === 'tr' ? 'AKTİF TEDAVİLER' : 'ACTIVE TREATMENTS'} (
+                      {activeMedicines.length})
+                    </Text>
+                  </View>
                 </View>
                 {activeMedicines.map(medicine => {
                   const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
@@ -181,11 +220,25 @@ export default function MedicinesScreen() {
             {inactiveMedicines.length > 0 && (
               <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeaderStandalone}>
-                  <Text style={styles.sectionIcon}>⏸️</Text>
-                  <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-                    {language === 'tr' ? 'DURAKLATILAN İLAÇLAR' : 'PAUSED MEDICINES'} (
-                    {inactiveMedicines.length})
-                  </Text>
+                  <View
+                    style={[
+                      styles.sectionPillBadge,
+                      {
+                        backgroundColor: isDark
+                          ? 'rgba(148, 163, 184, 0.15)'
+                          : 'rgba(148, 163, 184, 0.12)',
+                        borderColor: isDark
+                          ? 'rgba(148, 163, 184, 0.3)'
+                          : 'rgba(148, 163, 184, 0.2)',
+                      },
+                    ]}
+                  >
+                    <Ionicons name="pause-circle" size={13} color={colors.textMuted} />
+                    <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+                      {language === 'tr' ? 'DURAKLATILAN İLAÇLAR' : 'PAUSED MEDICINES'} (
+                      {inactiveMedicines.length})
+                    </Text>
+                  </View>
                 </View>
                 {inactiveMedicines.map(medicine => {
                   const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
@@ -352,6 +405,9 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 40,
+  },
   selectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -377,23 +433,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   sectionContainer: {
-    marginTop: 16,
+    marginTop: 10,
+    marginBottom: 4,
   },
   sectionHeaderStandalone: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  sectionIcon: {
-    fontSize: 14,
+  sectionPillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 11.5,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   modalMedicineList: {
     width: '100%',
