@@ -279,7 +279,7 @@ export function useAlarmController() {
     });
 
     if (!isStoppedRef.current) {
-      playAlarmSound(settings.alarmVolume ?? 80);
+      playAlarmSound(settings.alarmVolume ?? 80, settings.alarmSound ?? 'soft_chime');
     }
 
     if (medicine) {

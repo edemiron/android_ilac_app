@@ -144,7 +144,20 @@ const UserSettingsSchema = z.object({
   vibrationEnabled: z.boolean(),
   fullScreenAlarmEnabled: z.boolean(),
   language: z.enum(['tr', 'en']),
-  alarmSound: z.enum(['alarm', 'default', 'gentle', 'urgent']).default('alarm'),
+  alarmSound: z
+    .enum([
+      'soft_chime',
+      'crystal_bell',
+      'zen_garden',
+      'clinical_pulse',
+      'urgent_alert',
+      'morning_vital',
+      'alarm',
+      'default',
+      'gentle',
+      'urgent',
+    ])
+    .default('soft_chime'),
   alarmVolume: z.number().min(0).max(100).default(80),
   snoozeDuration: z.number().min(0.25).max(60),
   maxSnoozeCount: z.number().min(1).max(20).default(3),

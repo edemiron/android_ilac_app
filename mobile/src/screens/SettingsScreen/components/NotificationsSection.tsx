@@ -1,19 +1,26 @@
 /**
- * NotificationsSection — Alarm Sesi, Kritik Hatırlatıcılar, Bakıcı ve TTS Bildirimleri
+ * NotificationsSection — Alarm Melodisi Seçimi, Canlı Ses Seviyesi Testi, Kritik Hatırlatıcılar, Bakıcı ve TTS
  */
 
-import React from 'react';
-import { Switch } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SettingsSection, SettingRow, OptionPicker } from '../../../components/settings';
+import {
+  ALARM_SOUND_LIST,
+  getSoundDisplayName,
+  previewAlarmSound,
+  stopAlarmSound,
+} from '../../../utils/alarmSoundManager';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList, UserSettings } from '../../../types';
+import type { RootStackParamList, UserSettings, AlarmSoundType } from '../../../types';
 
 interface NotificationsSectionProps {
   settings: UserSettings;
   updateSettings: (settings: Partial<UserSettings>) => void;
-  pickerState: { showVolumePicker?: boolean };
-  togglePicker: (picker: 'showVolumePicker') => void;
-  closePicker: (picker: 'showVolumePicker') => void;
+  pickerState: { showVolumePicker?: boolean; showSoundPicker?: boolean };
+  togglePicker: (picker: 'showVolumePicker' | 'showSoundPicker') => void;
+  closePicker: (picker: 'showVolumePicker' | 'showSoundPicker') => void;
   isDark: boolean;
   navigation: NativeStackNavigationProp<RootStackParamList>;
   language: string;
@@ -30,20 +37,146 @@ export function NotificationsSection({
   language,
 }: NotificationsSectionProps) {
   const isTr = language === 'tr';
+  const currentSoundId = settings.alarmSound || 'soft_chime';
+  const currentSoundName = getSoundDisplayName(currentSoundId, language);
+
+  // Unmount anında sesi durdur
+  useEffect(() => {
+    return () => {
+      stopAlarmSound();
+    };
+  }, []);
+
+  const handleSelectSound = (soundId: AlarmSoundType) => {
+    updateSettings({ alarmSound: soundId });
+    previewAlarmSound(settings.alarmVolume || 80, soundId, 2500);
+  };
+
+  const handleSelectVolume = (volume: number) => {
+    updateSettings({ alarmVolume: volume });
+    closePicker('showVolumePicker');
+    previewAlarmSound(volume, currentSoundId, 2000);
+  };
 
   return (
     <SettingsSection
       icon="notifications"
       title={isTr ? 'BİLDİRİMLER VE SESLER' : 'NOTIFICATIONS & AUDIO'}
     >
+      {/* 1. Alarm Melodisi Seçimi */}
+      <SettingRow
+        icon={{ name: 'musical-notes', color: '#0D9488' }}
+        label={isTr ? 'Alarm Melodisi' : 'Alarm Melody'}
+        value={currentSoundName}
+        description={isTr ? 'İlaç vaktinde çalacak melodi' : 'Melody to play at pill time'}
+        onPress={() => togglePicker('showSoundPicker')}
+        showChevron
+        chevronDirection={pickerState.showSoundPicker ? 'up' : 'down'}
+      />
+
+      {/* Melodi Seçim Listesi & Canlı Önizleme */}
+      {pickerState.showSoundPicker && (
+        <View
+          style={[
+            styles.soundListContainer,
+            {
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.6)' : '#F8FAFC',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+            },
+          ]}
+        >
+          {ALARM_SOUND_LIST.map((sound, idx) => {
+            const isSelected = currentSoundId === sound.id;
+
+            return (
+              <TouchableOpacity
+                key={sound.id}
+                style={[
+                  styles.soundItem,
+                  idx > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                  },
+                  isSelected && {
+                    backgroundColor: isDark
+                      ? 'rgba(13, 148, 136, 0.15)'
+                      : 'rgba(13, 148, 136, 0.08)',
+                  },
+                ]}
+                onPress={() => handleSelectSound(sound.id)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.soundIconBox,
+                    {
+                      backgroundColor: isDark ? `${sound.color}25` : `${sound.color}15`,
+                      borderColor: `${sound.color}40`,
+                    },
+                  ]}
+                >
+                  <Ionicons name={sound.icon as any} size={18} color={sound.color} />
+                </View>
+
+                <View style={styles.soundTextCol}>
+                  <Text
+                    style={[
+                      styles.soundTitle,
+                      {
+                        color: isSelected
+                          ? isDark
+                            ? '#FFFFFF'
+                            : '#0F172A'
+                          : isDark
+                            ? '#E2E8F0'
+                            : '#1E293B',
+                        fontWeight: isSelected ? '700' : '600',
+                      },
+                    ]}
+                  >
+                    {isTr ? sound.nameTr : sound.nameEn}
+                  </Text>
+                  <Text style={[styles.soundDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    {isTr ? sound.descriptionTr : sound.descriptionEn}
+                  </Text>
+                </View>
+
+                {/* Önizle Butonu & Seçim İkonu */}
+                <View style={styles.actionCol}>
+                  <TouchableOpacity
+                    style={[
+                      styles.previewButton,
+                      {
+                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF',
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : '#CBD5E1',
+                      },
+                    ]}
+                    onPress={() => previewAlarmSound(settings.alarmVolume || 80, sound.id, 2500)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="play" size={12} color="#0D9488" />
+                    <Text style={[styles.previewText, { color: '#0D9488' }]}>
+                      {isTr ? 'Dinle' : 'Play'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {isSelected && <Ionicons name="checkmark-circle" size={20} color="#0D9488" />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {/* 2. Ses Seviyesi & Canlı Test */}
       <SettingRow
         icon={{ name: 'volume-high', color: '#F59E0B' }}
-        label={isTr ? 'Alarm Sesi & Melodi' : 'Alarm Sound'}
-        value={isTr ? 'Soft Chime' : 'Soft Chime'}
+        label={isTr ? 'Ses Seviyesi & Test' : 'Alarm Volume & Test'}
+        value={`%${settings.alarmVolume || 80}`}
         description={
           isTr
-            ? `Ses Seviyesi: %${settings.alarmVolume || 70}`
-            : `Volume: ${settings.alarmVolume || 70}%`
+            ? 'Dokununca seçilen seviyede canlı ses testi çalar'
+            : 'Plays live sound test at chosen volume'
         }
         onPress={() => togglePicker('showVolumePicker')}
         showChevron
@@ -53,15 +186,35 @@ export function NotificationsSection({
       {pickerState.showVolumePicker && (
         <OptionPicker<number>
           options={[30, 50, 70, 85, 100]}
-          selectedValue={settings.alarmVolume || 70}
-          onSelect={vol => {
-            updateSettings({ alarmVolume: vol });
-            closePicker('showVolumePicker');
-          }}
-          getLabel={vol => `%${vol} (${vol < 50 ? 'Düşük' : vol > 80 ? 'Maksimum' : 'Orta'})`}
+          selectedValue={settings.alarmVolume || 80}
+          onSelect={handleSelectVolume}
+          getLabel={vol =>
+            `%${vol} (${
+              vol <= 30
+                ? isTr
+                  ? 'Düşük / Gece'
+                  : 'Low / Night'
+                : vol <= 50
+                  ? isTr
+                    ? 'Orta'
+                    : 'Medium'
+                  : vol <= 70
+                    ? isTr
+                      ? 'Standart'
+                      : 'Standard'
+                    : vol <= 85
+                      ? isTr
+                        ? 'Yüksek'
+                        : 'Loud'
+                      : isTr
+                        ? 'Maksimum (Derin Uyku)'
+                        : 'Maximum'
+            })`
+          }
         />
       )}
 
+      {/* 3. Kritik Hatırlatıcılar */}
       <SettingRow
         icon={{ name: 'notifications', color: '#EF4444' }}
         label={isTr ? 'Kritik Hatırlatıcılar' : 'Critical Alerts'}
@@ -78,6 +231,7 @@ export function NotificationsSection({
         }
       />
 
+      {/* 4. Aile & Bakıcı Takibi */}
       <SettingRow
         icon={{ name: 'people', color: '#0D9488' }}
         label={isTr ? 'Aile & Bakıcı Takibi' : 'Caregiver Alerts'}
@@ -88,6 +242,7 @@ export function NotificationsSection({
         showChevron
       />
 
+      {/* 5. Sesli Bildirimler (TTS) */}
       <SettingRow
         icon={{ name: 'mic', color: '#6366F1' }}
         label={isTr ? 'Sesli Bildirimler (TTS)' : 'Voice Announcements'}
@@ -100,3 +255,55 @@ export function NotificationsSection({
     </SettingsSection>
   );
 }
+
+const styles = StyleSheet.create({
+  soundListContainer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  soundItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  soundIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+  },
+  soundTextCol: {
+    flex: 1,
+    marginRight: 8,
+  },
+  soundTitle: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  soundDesc: {
+    fontSize: 11.5,
+    lineHeight: 15,
+  },
+  actionCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  previewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+  },
+  previewText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+});

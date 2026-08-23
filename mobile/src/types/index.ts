@@ -85,7 +85,17 @@ export interface ReminderTime {
 
 // Kullanıcı ayarları
 // Alarm sesi seçenekleri
-export type AlarmSoundType = 'alarm' | 'default' | 'gentle' | 'urgent';
+export type AlarmSoundType =
+  | 'soft_chime'
+  | 'crystal_bell'
+  | 'zen_garden'
+  | 'clinical_pulse'
+  | 'urgent_alert'
+  | 'morning_vital'
+  | 'alarm'
+  | 'default'
+  | 'gentle'
+  | 'urgent';
 
 export interface UserSettings {
   wakeUpTime: string; // "HH:mm" - varsayılan "08:00"

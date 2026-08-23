@@ -297,3 +297,25 @@ jest.mock('react-native-screens', () => {
 jest.mock('expo-font', () => ({
   useFonts: jest.fn(() => [true, null]),
 }));
+
+// Mock react-native-sound
+jest.mock('react-native-sound', () => {
+  class SoundMock {
+    static setCategory = jest.fn();
+    static MAIN_BUNDLE = '';
+    constructor(_filename, _basePath, onError) {
+      if (onError) onError(null);
+    }
+    setVolume = jest.fn();
+    setNumberOfLoops = jest.fn();
+    play = jest.fn(cb => {
+      if (cb) cb(true);
+    });
+    stop = jest.fn(cb => {
+      if (cb) cb();
+    });
+    release = jest.fn();
+  }
+  return SoundMock;
+});
+
