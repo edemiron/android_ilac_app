@@ -3,14 +3,18 @@
  *
  * Design Pattern: Presenter Pattern / Declarative View
  * PIN yönetimi, zayıf PIN denetimi, biyometrik doğrulama ve zaman aşımı ayarları
- * `useSecurityController` Presenter Hook'una devredilmiştir. Bu dosya yalnızca UI organizasyonundan sorumludur.
+ * `useSecurityController` Presenter Hook'una devredilmiştir.
  */
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { ScreenHeader } from '../components/common/ScreenHeader';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Alt Bileşenler (Modular UI)
+import { HeroSecurityShieldCard } from './SecurityScreen/components/HeroSecurityShieldCard';
 import { PinFormView } from './SecurityScreen/components/PinFormView';
 import { SecurityToggleCard } from './SecurityScreen/components/SecurityToggleCard';
 import { PinManagementCard } from './SecurityScreen/components/PinManagementCard';
@@ -21,8 +25,10 @@ import { SecurityStatusCard } from './SecurityScreen/components/SecurityStatusCa
 import { useSecurityController } from './SecurityScreen/hooks/useSecurityController';
 
 export default function SecurityScreen() {
+  const navigation = useNavigation();
+  const { colors, isDark } = useTheme();
+
   const {
-    colors,
     language,
     settings,
     isLoading,
@@ -96,22 +102,36 @@ export default function SecurityScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top', 'bottom']}
     >
+      <ScreenHeader
+        title={language === 'tr' ? 'Güvenlik & PIN' : 'Security & PIN'}
+        subtitle={
+          language === 'tr'
+            ? 'Uygulama Kilit ve Biyometri Ayarları'
+            : 'App Lock and Biometric Settings'
+        }
+        showBack={Boolean(typeof navigation?.canGoBack === 'function' && navigation.canGoBack())}
+        onBack={() => {
+          if (typeof navigation?.canGoBack === 'function' && navigation.canGoBack()) {
+            navigation.goBack();
+          } else if (typeof navigation?.navigate === 'function') {
+            navigation.navigate('Settings' as never);
+          }
+        }}
+      />
+
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* 1. Başlık */}
-        <View style={styles.header}>
-          <Text style={styles.headerEmoji}>🔒</Text>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            {language === 'tr' ? 'Güvenlik' : 'Security'}
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            {language === 'tr'
-              ? 'Uygulama güvenliğini ve kilitleme ayarlarını yönetin'
-              : 'Manage app security and lock settings'}
-          </Text>
-        </View>
+        {/* 1. Canlı Güvenlik Kalkanı & Sağlık Gizliliği Paneli */}
+        <HeroSecurityShieldCard
+          securityEnabled={settings.securityEnabled}
+          hasPin={hasPin}
+          biometricsEnabled={settings.biometricsEnabled}
+          colors={colors}
+          isDark={isDark}
+          language={language}
+        />
 
         {/* 2. Güvenlik ve Biyometrik Anahtarları */}
         <SecurityToggleCard
@@ -122,6 +142,7 @@ export default function SecurityScreen() {
           biometricType={biometricType}
           onToggleBiometric={handleToggleBiometric}
           colors={colors}
+          isDark={isDark}
           language={language}
         />
 
@@ -130,6 +151,7 @@ export default function SecurityScreen() {
           hasPin={hasPin}
           onPressPinAction={() => setPinMode(hasPin ? 'change' : 'create')}
           colors={colors}
+          isDark={isDark}
           language={language}
         />
 
@@ -138,6 +160,7 @@ export default function SecurityScreen() {
           lockTimeout={settings.lockTimeout}
           onSelectTimeout={handleTimeoutChange}
           colors={colors}
+          isDark={isDark}
           language={language}
         />
 
@@ -148,6 +171,7 @@ export default function SecurityScreen() {
           securityType={settings.securityType}
           biometricType={biometricType}
           colors={colors}
+          isDark={isDark}
           language={language}
         />
 
@@ -160,22 +184,5 @@ export default function SecurityScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 24,
-  },
-  headerEmoji: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
   },
 });

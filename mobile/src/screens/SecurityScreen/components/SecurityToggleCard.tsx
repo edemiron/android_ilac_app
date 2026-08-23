@@ -15,6 +15,7 @@ interface SecurityToggleCardProps {
   biometricType: string;
   onToggleBiometric: (enabled: boolean) => void;
   colors: ThemeColors;
+  isDark?: boolean;
   language: string;
 }
 
@@ -26,98 +27,158 @@ export function SecurityToggleCard({
   biometricType,
   onToggleBiometric,
   colors,
+  isDark = false,
   language,
 }: SecurityToggleCardProps) {
+  const isTr = language === 'tr';
+
   return (
-    <>
-      {/* Güvenlik Aktif Switch Kartı */}
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        <View style={styles.settingRow}>
-          <View style={[styles.iconContainer, { backgroundColor: '#4ECDC420' }]}>
-            <Ionicons name="shield-checkmark" size={20} color="#4ECDC4" />
+    <View style={styles.container}>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="lock-closed" size={13} color={colors.primary} style={{ marginRight: 6 }} />
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+          {isTr ? 'GİRİŞ KORUMASI VE BİYOMETRİ' : 'AUTHENTICATION & BIOMETRICS'}
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: colors.card,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+          },
+        ]}
+      >
+        {/* Güvenlik Aktif Switch Satırı */}
+        <View style={styles.row}>
+          <View
+            style={[
+              styles.iconContainer,
+              {
+                backgroundColor: isDark ? 'rgba(13, 148, 136, 0.22)' : 'rgba(13, 148, 136, 0.15)',
+                borderColor: isDark ? 'rgba(13, 148, 136, 0.40)' : 'rgba(13, 148, 136, 0.30)',
+              },
+            ]}
+          >
+            <Ionicons name="shield-checkmark" size={18} color="#0D9488" />
           </View>
-          <View style={styles.settingContent}>
-            <Text style={[styles.settingTitle, { color: colors.text }]}>
-              {language === 'tr' ? 'Güvenlik Aktif' : 'Security Enabled'}
+          <View style={styles.textContainer}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              {isTr ? 'Uygulama Kilidi' : 'App Security Lock'}
             </Text>
-            <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>
-              {language === 'tr'
-                ? 'Uygulamayı açarken PIN veya biyometrik doğrulama iste'
-                : 'Require authentication to open app'}
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              {isTr
+                ? 'Uygulamayı açarken PIN veya biyometrik iste'
+                : 'Require PIN or biometrics to open'}
             </Text>
           </View>
           <Switch
             value={securityEnabled}
             onValueChange={onToggleSecurity}
-            trackColor={{ false: '#767577', true: '#4ECDC4' }}
-            thumbColor="#fff"
+            trackColor={{ false: isDark ? '#334155' : '#CBD5E1', true: '#0D9488' }}
+            thumbColor={securityEnabled ? '#FFFFFF' : '#F8FAFC'}
           />
         </View>
-      </View>
 
-      {/* Biyometrik Doğrulama Kartı */}
-      {biometricAvailable && (
-        <View style={[styles.card, { backgroundColor: colors.card, marginTop: 12 }]}>
-          <View style={styles.settingRow}>
-            <View style={[styles.iconContainer, { backgroundColor: '#96CEB420' }]}>
-              <Ionicons name="finger-print" size={20} color="#96CEB4" />
+        {/* Biyometrik Doğrulama Satırı */}
+        {biometricAvailable && (
+          <View
+            style={[
+              styles.row,
+              {
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.iconContainer,
+                {
+                  backgroundColor: isDark ? 'rgba(99, 102, 241, 0.22)' : 'rgba(99, 102, 241, 0.15)',
+                  borderColor: isDark ? 'rgba(99, 102, 241, 0.40)' : 'rgba(99, 102, 241, 0.30)',
+                },
+              ]}
+            >
+              <Ionicons name="finger-print" size={18} color="#6366F1" />
             </View>
-            <View style={styles.settingContent}>
-              <Text style={[styles.settingTitle, { color: colors.text }]}>{biometricType}</Text>
-              <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>
-                {language === 'tr'
-                  ? 'Parmak izi veya yüz tanıma ile hızlı erişim'
-                  : 'Quick access with biometrics'}
+            <View style={styles.textContainer}>
+              <Text style={[styles.title, { color: colors.text }]}>
+                {isTr ? `Biyometrik Giriş (${biometricType})` : `Biometrics (${biometricType})`}
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+                {isTr ? 'Parmak izi veya yüz tanıma ile anında aç' : 'Fast unlock with biometrics'}
               </Text>
             </View>
             <Switch
               value={biometricsEnabled}
               onValueChange={onToggleBiometric}
-              trackColor={{ false: '#767577', true: '#96CEB4' }}
-              thumbColor="#fff"
+              trackColor={{ false: isDark ? '#334155' : '#CBD5E1', true: '#6366F1' }}
+              thumbColor={biometricsEnabled ? '#FFFFFF' : '#F8FAFC'}
             />
           </View>
-        </View>
-      )}
-    </>
+        )}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  container: {
     marginHorizontal: 16,
-    borderRadius: 16,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingBottom: 6,
+  },
+  sectionTitle: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  card: {
+    borderRadius: 20,
+    borderWidth: 1,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 2,
   },
-  settingRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
+    marginRight: 14,
+    borderWidth: 1,
   },
-  settingContent: {
+  textContainer: {
     flex: 1,
-    marginRight: 8,
+    marginRight: 10,
   },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '500',
+  title: {
+    fontSize: 15,
+    fontWeight: '600',
     marginBottom: 2,
+    letterSpacing: -0.2,
   },
-  settingSubtitle: {
-    fontSize: 13,
+  subtitle: {
+    fontSize: 12,
+    lineHeight: 16,
   },
 });
