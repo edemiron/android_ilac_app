@@ -1,11 +1,13 @@
 /**
- * NotificationsSection — Alarm Melodisi Seçimi, Canlı Ses Seviyesi Testi, Kritik Hatırlatıcılar, Bakıcı ve TTS
+ * NotificationsSection — Alarm Melodisi Seçimi, Canlı Ses Seviyesi Testi, Kritik Hatırlatıcılar & Canlı Kilit Ekranı Testi, Bakıcı ve TTS
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SettingsSection, SettingRow } from '../../../components/settings';
+import { useAlert } from '../../../contexts/AlertContext';
+import { scheduleTestAlarmNotification } from '../../../utils/notifications';
 import {
   ALARM_SOUND_LIST,
   getSoundDisplayName,
@@ -85,6 +87,10 @@ export function NotificationsSection({
   language,
 }: NotificationsSectionProps) {
   const isTr = language === 'tr';
+  const { showInfo } = useAlert();
+  const [showCriticalDrawer, setShowCriticalDrawer] = useState(false);
+  const [isTestScheduled, setIsTestScheduled] = useState(false);
+
   const currentSoundId = settings.alarmSound || 'soft_chime';
   const currentSoundName = getSoundDisplayName(currentSoundId, language);
   const currentVolume = settings.alarmVolume || 80;
@@ -104,6 +110,22 @@ export function NotificationsSection({
   const handleSelectVolume = (volume: number) => {
     updateSettings({ alarmVolume: volume });
     previewAlarmSound(volume, currentSoundId, 2000);
+  };
+
+  const handleRunLockScreenTest = async () => {
+    try {
+      setIsTestScheduled(true);
+      await scheduleTestAlarmNotification(5 / 60, isTr ? 'tr' : 'en');
+      showInfo(
+        isTr ? '🚨 5 Saniyelik Alarm Kuruldu!' : '🚨 5-Second Test Alarm Set!',
+        isTr
+          ? 'Lütfen hemen telefonunuzun güç düğmesine basarak EKRANINIZI KİLİTLEYİN. 5 saniye sonra tam ekran alarm uyanacaktır.'
+          : 'Please LOCK YOUR SCREEN now using the power button. The full-screen alarm will ring in 5 seconds.'
+      );
+      setTimeout(() => setIsTestScheduled(false), 6000);
+    } catch {
+      setIsTestScheduled(false);
+    }
   };
 
   return (
@@ -353,13 +375,16 @@ export function NotificationsSection({
         </View>
       )}
 
-      {/* 3. Kritik Hatırlatıcılar */}
+      {/* 3. Kritik Hatırlatıcılar (Genişletilebilir Akıllı Inset Drawer) */}
       <SettingRow
         icon={{ name: 'notifications', color: '#EF4444' }}
         label={isTr ? 'Kritik Hatırlatıcılar' : 'Critical Alerts'}
         description={
           isTr ? 'Sessiz modda ve kilit ekranında çalar' : 'Rings even in silent & lock screen'
         }
+        onPress={() => setShowCriticalDrawer(!showCriticalDrawer)}
+        showChevron
+        chevronDirection={showCriticalDrawer ? 'up' : 'down'}
         rightElement={
           <Switch
             value={settings.fullScreenAlarmEnabled !== false}
@@ -369,6 +394,139 @@ export function NotificationsSection({
           />
         }
       />
+
+      {/* Kritik Hatırlatıcı Detay & Canlı Kilit Ekranı Test Çekmecesi */}
+      {showCriticalDrawer && (
+        <View
+          style={[
+            styles.drawerContainer,
+            {
+              backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : '#FEF2F2',
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.40)' : 'rgba(239, 68, 68, 0.25)',
+            },
+          ]}
+        >
+          {/* Çekmece Başlık Şeridi */}
+          <View
+            style={[
+              styles.drawerHeader,
+              {
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.10)',
+                borderBottomColor: isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.15)',
+              },
+            ]}
+          >
+            <Ionicons
+              name="shield-checkmark"
+              size={13}
+              color="#EF4444"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.drawerHeaderText, { color: isDark ? '#FCA5A5' : '#DC2626' }]}>
+              {isTr
+                ? 'KİLİT EKRANI & KRİTİK ALARM KORUMASI'
+                : 'LOCK SCREEN & CRITICAL ALARM SHIELD'}
+            </Text>
+          </View>
+
+          {/* 1. Bilgilendirme Satırı */}
+          <View style={styles.drawerItem}>
+            <View
+              style={[
+                styles.iconBox,
+                {
+                  backgroundColor: isDark ? '#EF444425' : '#EF444415',
+                  borderColor: '#EF444440',
+                },
+              ]}
+            >
+              <Ionicons name="heart-circle" size={18} color="#EF4444" />
+            </View>
+
+            <View style={styles.textCol}>
+              <Text
+                style={[
+                  styles.itemTitle,
+                  { color: isDark ? '#FFFFFF' : '#0F172A', fontWeight: '700' },
+                ]}
+              >
+                {isTr ? 'Hayati Doz Kaçırma Koruması' : 'Life-saving Dose Protection'}
+              </Text>
+              <Text style={[styles.itemDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                {isTr
+                  ? 'İlaç vaktinde kilit ekranını uyandırır ve tam ekran acil alarm arayüzünü açar.'
+                  : 'Wakes lock screen and opens full-screen emergency alarm.'}
+              </Text>
+            </View>
+          </View>
+
+          {/* 2. Canlı 5 Saniyelik Kilit Ekranı Alarm Testi */}
+          <View
+            style={[
+              styles.drawerItem,
+              {
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.06)',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.iconBox,
+                {
+                  backgroundColor: isDark ? '#10B98125' : '#10B98115',
+                  borderColor: '#10B98140',
+                },
+              ]}
+            >
+              <Ionicons name="timer" size={18} color="#10B981" />
+            </View>
+
+            <View style={styles.textCol}>
+              <Text
+                style={[
+                  styles.itemTitle,
+                  { color: isDark ? '#FFFFFF' : '#0F172A', fontWeight: '700' },
+                ]}
+              >
+                {isTr ? 'Kilit Ekranında Canlı Test Et' : 'Live Test on Lock Screen'}
+              </Text>
+              <Text style={[styles.itemDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                {isTr
+                  ? 'Butona basın, güç tuşuyla ekranı kilitleyin ve 5 sn sonra alarmı görün.'
+                  : 'Press button, lock phone with power key, and watch alarm pop up in 5s.'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.previewButton,
+                {
+                  backgroundColor: isTestScheduled ? '#10B981' : '#EF4444',
+                  borderColor: isTestScheduled ? '#059669' : '#DC2626',
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                },
+              ]}
+              onPress={handleRunLockScreenTest}
+              disabled={isTestScheduled}
+              activeOpacity={0.8}
+            >
+              <Ionicons name={isTestScheduled ? 'checkmark' : 'flash'} size={12} color="#FFFFFF" />
+              <Text style={[styles.previewText, { color: '#FFFFFF' }]}>
+                {isTestScheduled
+                  ? isTr
+                    ? 'Kuruldu!'
+                    : 'Armed!'
+                  : isTr
+                    ? 'Test Et (5s)'
+                    : 'Test (5s)'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* 4. Aile & Bakıcı Takibi */}
       <SettingRow
