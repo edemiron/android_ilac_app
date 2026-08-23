@@ -1,20 +1,16 @@
 /**
- * StatisticsScreen — Sağlık İstatistikleri ve Raporlama Ekranı
+ * StatisticsScreen — Sağlık & Tedavi Karnesi Ekranı
  *
  * Design Pattern: Presenter Pattern / Declarative View
- * Tüm veri türetme ve PDF akışları `useStatisticsController` Presenter Hook'una
- * delege edilmiştir. Bu dosya yalnızca UI düzeni ve sekme organizasyonundan sorumludur.
+ * 2026 Modern Health Scorecard & Adherence Architecture:
+ * - 🏆 Hero Sağlık Karnesi (Dairesel İlerleme, Başarı Derecesi, Streak ve İnsani Klinik İçgörü)
+ * - 📅 Haftalık Doz Takip Çubukları (Borsa çizgisi yerine gün gün net ilaç tamamlama)
+ * - 💊 İlaç Bazlı Başarı Analizi (Her ilacın kendi renk aksanlı disiplin karnesi)
+ * - 🩺 Hekim & Eczacı Resmi Klinik PDF Raporu Paylaşımı
  */
 
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { ScreenHeader } from '../components/common/ScreenHeader';
@@ -24,10 +20,8 @@ import { Section } from './StatisticsScreen/components/Section';
 import { MonthCalendarView } from './StatisticsScreen/components/MonthCalendarView';
 import { HeroAdherenceCard } from './StatisticsScreen/components/HeroAdherenceCard';
 import { PeriodSelector } from './StatisticsScreen/components/PeriodSelector';
-import { SummaryStatGrid } from './StatisticsScreen/components/SummaryStatGrid';
-import { AdherenceLineChart } from './StatisticsScreen/components/AdherenceLineChart';
-import { DistributionBars } from './StatisticsScreen/components/DistributionBars';
-import { RecentAdherenceHistory } from './StatisticsScreen/components/RecentAdherenceHistory';
+import { WeeklyDoseTracker } from './StatisticsScreen/components/WeeklyDoseTracker';
+import { MedicineBreakdownList } from './StatisticsScreen/components/MedicineBreakdownList';
 import { DoctorReportCard } from './StatisticsScreen/components/DoctorReportCard';
 
 // Presenter Hook
@@ -47,14 +41,16 @@ export default function StatisticsScreen() {
     isGeneratingPDF,
     dailyStats,
     overallStats,
+    healthInsight,
+    medicineBreakdown,
     suggestions,
-    chartData,
-    chartConfig,
     medicines,
     reminderTimes,
     medicineLogs,
     showPDFOptions,
   } = useStatisticsController();
+
+  const isTr = language === 'tr';
 
   return (
     <SafeAreaView
@@ -63,25 +59,26 @@ export default function StatisticsScreen() {
     >
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         <ScreenHeader
-          title={language === 'tr' ? 'Sağlık İstatistikleri' : 'Health Statistics'}
+          title={isTr ? 'Sağlık & Tedavi Karnesi' : 'Health Scorecard'}
           subtitle={
-            language === 'tr'
-              ? `%${overallStats.adherenceRate} genel uyum oranı`
-              : `${overallStats.adherenceRate}% adherence rate`
+            isTr
+              ? `%${overallStats.adherenceRate} Uyum • ${selectedPeriod === 'weekly' ? 'Haftalık Rapor' : 'Aylık Rapor'}`
+              : `${overallStats.adherenceRate}% Adherence • ${selectedPeriod === 'weekly' ? 'Weekly' : 'Monthly'}`
           }
         />
 
-        {/* 2-Sekmeli Görünüm Seçici (Özet & Grafikler / Uyum Takvimi) */}
+        {/* 2-Sekmeli Görünüm Seçici (Karnem & Analiz / Uyum Takvimi) */}
         <View style={styles.tabSwitcherWrapper}>
           <View
             style={[
               styles.tabSwitcher,
               {
-                backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
-                borderColor: isDark ? '#334155' : '#E2E8F0',
+                backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : '#F1F5F9',
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
               },
             ]}
           >
@@ -94,9 +91,11 @@ export default function StatisticsScreen() {
                   ...styles.activeTabShadow,
                 },
               ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeStatsTab === 'overview' }}
             >
               <Ionicons
-                name="pie-chart"
+                name="stats-chart"
                 size={16}
                 color={activeStatsTab === 'overview' ? '#FFFFFF' : colors.textSecondary}
               />
@@ -109,7 +108,7 @@ export default function StatisticsScreen() {
                   },
                 ]}
               >
-                {language === 'tr' ? 'Özet & Grafikler' : 'Overview & Charts'}
+                {isTr ? 'Sağlık Karnem' : 'Scorecard'}
               </Text>
             </TouchableOpacity>
 
@@ -122,6 +121,8 @@ export default function StatisticsScreen() {
                   ...styles.activeTabShadow,
                 },
               ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeStatsTab === 'calendar' }}
             >
               <Ionicons
                 name="calendar"
@@ -137,7 +138,7 @@ export default function StatisticsScreen() {
                   },
                 ]}
               >
-                {language === 'tr' ? 'Uyum Takvimi' : 'Adherence Calendar'}
+                {isTr ? 'Uyum Takvimi' : 'Calendar'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -145,41 +146,45 @@ export default function StatisticsScreen() {
 
         {activeStatsTab === 'overview' ? (
           <>
-            {/* 1. Hero Uyum Kartı (Circular Progress + Streak) */}
+            {/* 1. Hero Sağlık Karnesi & Canlı Başarı Paneli */}
             <HeroAdherenceCard
               overallStats={overallStats}
               selectedPeriod={selectedPeriod}
+              healthInsight={healthInsight}
               colors={colors}
               isDark={isDark}
               language={language}
             />
 
-            {/* 2. PDF Rapor Butonu */}
-            <View style={styles.pdfButtonWrapper}>
-              <TouchableOpacity
-                style={[styles.pdfButton, { backgroundColor: colors.primary }]}
-                onPress={showPDFOptions}
-                disabled={isGeneratingPDF}
-                activeOpacity={0.8}
-              >
-                {isGeneratingPDF ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.pdfButtonText}>
-                      {language === 'tr' ? 'Doktora PDF Raporu Gönder' : 'Generate & Share PDF'}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+            {/* 2. Dönem Seçici (Haftalık / Aylık) */}
+            <PeriodSelector
+              selectedPeriod={selectedPeriod}
+              onSelectPeriod={setSelectedPeriod}
+              colors={colors}
+              t={t}
+            />
 
-            {/* 3. Kaçırılan Doz Önerileri */}
+            {/* 3. Günlük Doz Takip Çubukları */}
+            <WeeklyDoseTracker
+              dailyStats={dailyStats}
+              colors={colors}
+              isDark={isDark}
+              language={language}
+            />
+
+            {/* 4. İlaç Bazlı Başarı & Disiplin Analizi */}
+            <MedicineBreakdownList
+              medicines={medicineBreakdown}
+              colors={colors}
+              isDark={isDark}
+              language={language}
+            />
+
+            {/* 5. Akıllı Hatırlatıcı & Doz Önerileri (Eğer Varsa) */}
             {suggestions.length > 0 && (
               <Section
                 icon="💡"
-                title={language === 'tr' ? 'ÖNERİLER' : 'SUGGESTIONS'}
+                title={isTr ? 'AKILLI ÖNERİLER' : 'SMART SUGGESTIONS'}
                 colors={colors}
                 isDark={isDark}
               >
@@ -194,19 +199,26 @@ export default function StatisticsScreen() {
                       },
                     ]}
                   >
-                    <View style={[styles.suggestionIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                    <View
+                      style={[
+                        styles.suggestionIconContainer,
+                        {
+                          backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7',
+                        },
+                      ]}
+                    >
                       <Text style={styles.suggestionEmoji}>⚠️</Text>
                     </View>
                     <View style={styles.suggestionContent}>
                       <Text style={[styles.suggestionText, { color: colors.text }]}>
-                        {language === 'tr'
-                          ? `${suggestion.time} dozunu sık kaçırıyorsun`
-                          : `You often miss the ${suggestion.time} dose`}
+                        {isTr
+                          ? `${suggestion.time} dozunu sık kaçırıyorsunuz`
+                          : `You frequently miss the ${suggestion.time} dose`}
                       </Text>
                       <Text style={[styles.suggestionHint, { color: colors.textMuted }]}>
-                        {language === 'tr'
-                          ? `Son ${selectedPeriod === 'weekly' ? '7' : '30'} günde ${suggestion.missedCount} kez`
-                          : `${suggestion.missedCount} times in the last ${selectedPeriod === 'weekly' ? '7' : '30'} days`}
+                        {isTr
+                          ? `Son ${selectedPeriod === 'weekly' ? '7' : '30'} günde ${suggestion.missedCount} kez atlandı. Alarm saatinizi gözden geçirebilirsiniz.`
+                          : `Missed ${suggestion.missedCount} times in the last ${selectedPeriod === 'weekly' ? '7' : '30'} days.`}
                       </Text>
                     </View>
                   </View>
@@ -214,84 +226,21 @@ export default function StatisticsScreen() {
               </Section>
             )}
 
-            {/* 4. Dönem Seçici */}
-            <Section
-              icon="📅"
-              title={language === 'tr' ? 'DÖNEM SEÇİMİ' : 'PERIOD'}
+            {/* 6. Hekim & Eczacı Klinik Raporu Paylaşım Kartı */}
+            <DoctorReportCard
+              onShowPDFOptions={showPDFOptions}
+              isGeneratingPDF={isGeneratingPDF}
               colors={colors}
               isDark={isDark}
-            >
-              <PeriodSelector
-                selectedPeriod={selectedPeriod}
-                onSelectPeriod={setSelectedPeriod}
-                colors={colors}
-                t={t}
-              />
-            </Section>
-
-            {/* 5. Özet Karo Izgarası */}
-            <Section
-              icon="📈"
-              title={language === 'tr' ? 'ÖZET' : 'SUMMARY'}
-              colors={colors}
-              isDark={isDark}
-            >
-              <SummaryStatGrid
-                overallStats={overallStats}
-                colors={colors}
-                t={t}
-                language={language}
-              />
-            </Section>
-
-            {/* 6. Uyum Çizgi Grafiği */}
-            <Section
-              icon="📉"
-              title={language === 'tr' ? 'UYUM GRAFİĞİ' : 'ADHERENCE CHART'}
-              colors={colors}
-              isDark={isDark}
-            >
-              <AdherenceLineChart
-                dailyStats={dailyStats}
-                chartData={chartData}
-                chartConfig={chartConfig}
-                colors={colors}
-                t={t}
-              />
-            </Section>
-
-            {/* 7. Alındı / Atlandı / Kaçırıldı Dağılımı */}
-            {overallStats.total > 0 && (
-              <Section
-                icon="🥧"
-                title={language === 'tr' ? 'DAĞILIM' : 'DISTRIBUTION'}
-                colors={colors}
-                isDark={isDark}
-              >
-                <DistributionBars
-                  overallStats={overallStats}
-                  colors={colors}
-                  t={t}
-                  language={language}
-                />
-              </Section>
-            )}
-
-            {/* 8. Son 7 Günlük Kompakt Geçmiş */}
-            <Section icon="📜" title={t('stats_history')} colors={colors} isDark={isDark}>
-              <RecentAdherenceHistory
-                dailyStats={dailyStats}
-                dateLocale={dateLocale}
-                colors={colors}
-              />
-            </Section>
+              language={language}
+            />
           </>
         ) : (
           <>
-            {/* 9. Aylık İnteraktif Takvim Görünümü */}
+            {/* 7. Aylık İnteraktif Takvim Görünümü */}
             <Section
               icon="🗓️"
-              title={language === 'tr' ? 'AYLIK UYUM TAKVİMİ' : 'MONTHLY ADHERENCE CALENDAR'}
+              title={isTr ? 'AYLIK UYUM TAKVİMİ' : 'MONTHLY ADHERENCE CALENDAR'}
               colors={colors}
               isDark={isDark}
             >
@@ -304,24 +253,18 @@ export default function StatisticsScreen() {
               />
             </Section>
 
-            {/* 10. Doktora PDF Raporu Gönderme Kartı */}
-            <Section
-              icon="📋"
-              title={language === 'tr' ? 'DOKTOR & ECZACI RAPORU' : 'CLINICAL REPORT'}
+            {/* 8. Doktora PDF Raporu Gönderme Kartı */}
+            <DoctorReportCard
+              onShowPDFOptions={showPDFOptions}
+              isGeneratingPDF={isGeneratingPDF}
               colors={colors}
               isDark={isDark}
-            >
-              <DoctorReportCard
-                onShowPDFOptions={showPDFOptions}
-                isGeneratingPDF={isGeneratingPDF}
-                colors={colors}
-                language={language}
-              />
-            </Section>
+              language={language}
+            />
           </>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 60 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -331,9 +274,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 30,
+  },
   tabSwitcherWrapper: {
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   tabSwitcher: {
     flexDirection: 'row',
@@ -360,39 +306,17 @@ const styles = StyleSheet.create({
   tabButtonText: {
     fontSize: 13,
   },
-  pdfButtonWrapper: {
-    paddingHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  pdfButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 14,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  pdfButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   suggestionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    gap: 12,
   },
   suggestionIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -401,14 +325,14 @@ const styles = StyleSheet.create({
   },
   suggestionContent: {
     flex: 1,
-    marginLeft: 12,
   },
   suggestionText: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 13.5,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   suggestionHint: {
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

@@ -34,6 +34,19 @@ export interface DailyStatItem {
   adherenceRate: number;
 }
 
+export interface MedicineBreakdownItem {
+  medicineId: string;
+  name: string;
+  dosage?: string;
+  form?: string;
+  color?: string;
+  taken: number;
+  skipped: number;
+  missed: number;
+  total: number;
+  adherenceRate: number;
+}
+
 export interface OverallStats {
   taken: number;
   skipped: number;
@@ -76,15 +89,15 @@ export function useStatisticsController() {
       const dayLogs = medicineLogs.filter(l => l.scheduledTime.startsWith(dayStr));
 
       const taken = dayLogs.filter(l => l.status === 'taken').length;
-      const total = dayLogs.length || 1;
+      const total = dayLogs.length;
 
       return {
         date: day,
         taken,
         skipped: dayLogs.filter(l => l.status === 'skipped').length,
         missed: dayLogs.filter(l => l.status === 'missed').length,
-        total: dayLogs.length,
-        adherenceRate: Math.round((taken / total) * 100),
+        total,
+        adherenceRate: total > 0 ? Math.round((taken / total) * 100) : 100,
       };
     });
   }, [dateRange, medicineLogs]);
@@ -95,7 +108,7 @@ export function useStatisticsController() {
     const taken = logs.filter(l => l.status === 'taken').length;
     const skipped = logs.filter(l => l.status === 'skipped').length;
     const missed = logs.filter(l => l.status === 'missed').length;
-    const total = logs.length || 1;
+    const total = logs.length;
 
     let currentStreak = 0;
     let bestStreak = 0;
@@ -107,7 +120,7 @@ export function useStatisticsController() {
         if (i === dailyStats.length - 1) {
           currentStreak = tempStreak;
         }
-      } else {
+      } else if (dailyStats[i].total > 0) {
         bestStreak = Math.max(bestStreak, tempStreak);
         tempStreak = 0;
       }
@@ -118,12 +131,93 @@ export function useStatisticsController() {
       taken,
       skipped,
       missed,
-      total: logs.length,
-      adherenceRate: Math.round((taken / total) * 100),
+      total,
+      adherenceRate: total > 0 ? Math.round((taken / total) * 100) : 100,
       currentStreak,
       bestStreak,
     };
   }, [dateRange, medicineLogs, dailyStats]);
+
+  // İnsani & Klinik Motivasyon Cümlesi
+  const healthInsight = useMemo(() => {
+    const rate = overallStats.adherenceRate;
+    const total = overallStats.total;
+    const taken = overallStats.taken;
+    const isTr = language === 'tr';
+
+    if (total === 0) {
+      return isTr
+        ? 'Bu dönemde henüz kaydedilmiş ilaç kullanım verisi bulunmuyor.'
+        : 'No medication logs recorded for this period yet.';
+    }
+
+    if (rate >= 90) {
+      return isTr
+        ? `Mükemmel bir disiplin! ${total} dozun ${taken}'ini zamanında aldınız. Tedaviniz tam koruma altında.`
+        : `Excellent discipline! You took ${taken} out of ${total} doses on time. Your treatment is fully on track.`;
+    }
+    if (rate >= 75) {
+      return isTr
+        ? `İyi bir uyum seviyesi (%${rate}). Atlanan birkaç doza dikkat ederek %100 koruma sağlayabilirsiniz.`
+        : `Good adherence level (${rate}%). Pay attention to a few missed doses to achieve 100% protection.`;
+    }
+    return isTr
+      ? `Tedavi aksamaları tespit edildi (%${rate} uyum). Dozlarınızı düzenli almanız sağlığınız için kritiktir.`
+      : `Treatment gaps detected (${rate}% adherence). Taking your medications regularly is critical for your health.`;
+  }, [overallStats, language]);
+
+  // İlaç Bazlı Başarı Analizi
+  const medicineBreakdown: MedicineBreakdownItem[] = useMemo(() => {
+    const logs = medicineLogs.filter(l => isWithinInterval(new Date(l.scheduledTime), dateRange));
+
+    const map = new Map<
+      string,
+      { taken: number; skipped: number; missed: number; total: number; name?: string }
+    >();
+
+    medicines.forEach(m => {
+      map.set(m.id, { taken: 0, skipped: 0, missed: 0, total: 0, name: m.name });
+    });
+
+    logs.forEach(l => {
+      const entry = map.get(l.medicineId) || {
+        taken: 0,
+        skipped: 0,
+        missed: 0,
+        total: 0,
+        name: l.medicineName,
+      };
+      if (l.status === 'taken') entry.taken++;
+      else if (l.status === 'skipped') entry.skipped++;
+      else if (l.status === 'missed') entry.missed++;
+      entry.total++;
+      if (l.medicineName && !entry.name) entry.name = l.medicineName;
+      map.set(l.medicineId, entry);
+    });
+
+    const list: MedicineBreakdownItem[] = [];
+    map.forEach((data, medId) => {
+      const med = medicines.find(m => m.id === medId);
+      if (data.total > 0 || (med && med.isActive)) {
+        const rate = data.total > 0 ? Math.round((data.taken / data.total) * 100) : 100;
+        list.push({
+          medicineId: medId,
+          name:
+            med?.name || data.name || (language === 'tr' ? 'Bilinmeyen İlaç' : 'Unknown Medicine'),
+          dosage: med?.dosage,
+          form: med?.form,
+          color: med?.color,
+          taken: data.taken,
+          skipped: data.skipped,
+          missed: data.missed,
+          total: data.total,
+          adherenceRate: rate,
+        });
+      }
+    });
+
+    return list.sort((a, b) => b.total - a.total);
+  }, [medicineLogs, dateRange, medicines, language]);
 
   const suggestions = useMemo(() => {
     const logs = medicineLogs.filter(l => isWithinInterval(new Date(l.scheduledTime), dateRange));
@@ -251,6 +345,8 @@ export function useStatisticsController() {
     medicines,
     reminderTimes,
     medicineLogs,
+    healthInsight,
+    medicineBreakdown,
     handleGeneratePDF,
     showPDFOptions,
   };
