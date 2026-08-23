@@ -131,13 +131,13 @@ export async function handleIncomingAlarmNavigation(
     return 'queued';
   }
 
-  if (dependencies.activeAlarmKeys.has(alarmKey)) {
+  const isTestMode = data.medicineId === 'test-medicine';
+  const isSnooze = data.isSnooze === 'true';
+
+  if (!isTestMode && dependencies.activeAlarmKeys.has(alarmKey)) {
     dependencies.logger.debug('Alarm already active on screen, skipping duplicate', { alarmKey });
     return 'duplicate';
   }
-
-  const isTestMode = data.medicineId === 'test-medicine';
-  const isSnooze = data.isSnooze === 'true';
 
   if (!isTestMode) {
     const medicine = dependencies.storeState.getMedicineById(data.medicineId);

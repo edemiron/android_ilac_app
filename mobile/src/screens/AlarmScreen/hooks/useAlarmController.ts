@@ -41,12 +41,12 @@ export function useAlarmController() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const {
-    medicineId,
-    reminderTimeId,
-    scheduledTime,
+    medicineId = 'test-medicine',
+    reminderTimeId = 'test-reminder',
+    scheduledTime = new Date().toISOString(),
     snoozeCount: routeSnoozeCount,
     originalScheduledTime: routeOriginalScheduledTime,
-  } = route.params;
+  } = (route.params as any) || {};
 
   const { t, language } = useLanguage();
   const dateLocale = language === 'tr' ? tr : enUS;
