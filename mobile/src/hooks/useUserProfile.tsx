@@ -55,7 +55,7 @@ interface UserProfileContextValue {
   isLoading: boolean;
 }
 
-const UserProfileContext = createContext<UserProfileContextValue | undefined>(undefined);
+export const UserProfileContext = createContext<UserProfileContextValue | undefined>(undefined);
 
 interface ProviderProps {
   children: ReactNode;
