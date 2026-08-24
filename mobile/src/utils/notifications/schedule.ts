@@ -336,6 +336,21 @@ export async function scheduleTestAlarmNotification(
 
     const notificationId = await notifee.createTriggerNotification(notificationConfig, trigger);
 
+    // Native AlarmManager.setAlarmClock ile doğrudan MainActivity'yi kilit ekranında uyandıran PendingIntent kur
+    try {
+      const { NativeModules } = require('react-native');
+      if (NativeModules.AlarmModule?.scheduleNativeAlarm) {
+        await NativeModules.AlarmModule.scheduleNativeAlarm(
+          adjustedTime.getTime(),
+          testMedicineId,
+          testReminderId
+        );
+        log.debug('Native AlarmManager alarm kuruldu');
+      }
+    } catch (_e) {
+      log.debug('Native alarm schedule fallback');
+    }
+
     log.debug('Test alarm basariyla planlandi', { notificationId });
 
     // Planlanan bildirimleri kontrol et

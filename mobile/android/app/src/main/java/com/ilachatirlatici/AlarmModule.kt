@@ -1,11 +1,15 @@
 package com.ilachatirlatici
 
+import android.app.AlarmManager
 import android.app.KeyguardManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.util.Log
+import android.view.WindowManager
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -17,10 +21,13 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 
 /**
  * Native module: Ekran kapalıyken/kilitliyken uygulamayı açar.
- * Notifee fullScreenIntent MIUI'de güvenilir çalışmadığı için
- * bu modül WakeLock + Intent ile ekranı açıp MainActivity'yi başlatır.
+ * AlarmManager.setAlarmClock + WakeLock + Intent ile ekranı açıp MainActivity'yi başlatır.
  */
 class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+
+    init {
+        reactContextCached = reactContext
+    }
 
     companion object {
         private const val TAG = "AlarmModule"
@@ -86,8 +93,55 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
     }
 
     /**
+     * Android Native AlarmManager.setAlarmClock ile doğrudan kilit ekranını uyandıran alarm kurar.
+     */
+    @ReactMethod
+    fun scheduleNativeAlarm(triggerTimeMs: Double, medicineId: String, reminderTimeId: String, promise: Promise) {
+        try {
+            val context = reactApplicationContext
+            reactContextCached = context
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            if (alarmManager == null) {
+                promise.resolve(false)
+                return
+            }
+
+            val intent = Intent(context, MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = Uri.parse("ilachatirlatici://alarm?medicineId=$medicineId&reminderTimeId=$reminderTimeId")
+                putExtra("medicineId", medicineId)
+                putExtra("reminderTimeId", reminderTimeId)
+                putExtra("scheduledTime", System.currentTimeMillis().toString())
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                )
+            }
+
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+
+            val requestCode = (medicineId.hashCode() xor reminderTimeId.hashCode()) and 0x7FFFFFFF
+            val pendingIntent = PendingIntent.getActivity(context, requestCode, intent, flags)
+            val showIntent = PendingIntent.getActivity(context, requestCode + 1, intent, flags)
+            val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerTimeMs.toLong(), showIntent)
+
+            alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
+            Log.d(TAG, "scheduleNativeAlarm: AlarmManager.setAlarmClock kuruldu (triggerTime: $triggerTimeMs)")
+            promise.resolve(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "scheduleNativeAlarm hatası", e)
+            promise.resolve(false)
+        }
+    }
+
+    /**
      * Ekranı aç, MainActivity'yi başlat ve JS'e Alarm event'i fırlat.
-     * Background notification handler'dan çağrılır.
      */
     @ReactMethod
     fun wakeAndOpenApp(data: ReadableMap?, promise: Promise) {
@@ -105,7 +159,7 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
             // 2. MainActivity'yi başlat (alarm deep link ile)
             val intent = Intent(context, MainActivity::class.java).apply {
                 action = Intent.ACTION_VIEW
-                this.data = android.net.Uri.parse("ilachatirlatici://alarm?medicineId=$medId&reminderTimeId=$remId")
+                this.data = Uri.parse("ilachatirlatici://alarm?medicineId=$medId&reminderTimeId=$remId")
                 putExtra("medicineId", medId)
                 putExtra("reminderTimeId", remId)
                 putExtra("scheduledTime", schedTime)
@@ -154,7 +208,6 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
 
     /**
      * Sadece ekranı aç (intent olmadan)
-     * FullScreenIntent izni olmayan cihazlar için fallback
      */
     @ReactMethod
     fun wakeScreenOnly(promise: Promise) {

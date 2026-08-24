@@ -120,13 +120,7 @@ export function NotificationsSection({
         alarmSound: settings.alarmSound,
         alarmVolume: settings.alarmVolume,
       });
-      showInfo(
-        isTr ? '🚨 5 Saniyelik Alarm Kuruldu!' : '🚨 5-Second Test Alarm Set!',
-        isTr
-          ? 'Lütfen hemen telefonunuzun güç düğmesine basarak EKRANINIZI KİLİTLEYİN. 5 saniye sonra tam ekran alarm uyanacaktır.'
-          : 'Please LOCK YOUR SCREEN now using the power button. The full-screen alarm will ring in 5 seconds.'
-      );
-      setTimeout(() => setIsTestScheduled(false), 6000);
+      setTimeout(() => setIsTestScheduled(false), 7000);
     } catch {
       setIsTestScheduled(false);
     }
