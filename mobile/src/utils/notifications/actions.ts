@@ -44,6 +44,7 @@ export async function sendTestNotification(): Promise<void> {
       channelId: REMINDER_CHANNEL_ID,
       importance: AndroidImportance.HIGH,
       smallIcon: 'ic_notification',
+      largeIcon: 'ic_launcher',
       color: '#0D9488',
       colorized: true,
       pressAction: PRESS_ACTION,

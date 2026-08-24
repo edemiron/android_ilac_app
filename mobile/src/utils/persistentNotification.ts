@@ -107,8 +107,9 @@ export async function showPersistentMedicineNotification(
           },
         ],
         // Görsel ayarlar
-        smallIcon: 'ic_launcher',
-        color: '#FF6B6B',
+        smallIcon: 'ic_notification',
+        largeIcon: 'ic_launcher',
+        color: '#0D9488',
         colorized: true,
         badgeIconType: AndroidBadgeIconType.LARGE,
         // Sessiz modda bile göster (channel zaten bypassDnd: true ile oluşturuldu)
@@ -184,8 +185,9 @@ export async function showPersistentGroupNotification(
           launchActivity: 'com.ilachatirlatici.MainActivity',
         },
         actions: [{ title: '📱 Uygulamayı Aç', pressAction: { id: 'open-app' } }],
-        smallIcon: 'ic_launcher',
-        color: '#FF6B6B',
+        smallIcon: 'ic_notification',
+        largeIcon: 'ic_launcher',
+        color: '#0D9488',
         colorized: true,
         groupId: 'medicine-reminders',
         groupAlertBehavior: AndroidGroupAlertBehavior.CHILDREN,

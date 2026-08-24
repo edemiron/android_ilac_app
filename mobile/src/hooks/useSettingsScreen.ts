@@ -515,8 +515,8 @@ export function useSettingsScreen() {
           {
             id: notifId,
             title: `💊 ${medicine.name}`,
-            subtitle: notifTimeStr,
-            body: `${medicine.dosage} almanin zamani!\n⏰ ${notifTimeStr}`,
+            subtitle: `${notifTimeStr} • İlaç Vakti`,
+            body: `${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.\n⏰ Saat: ${notifTimeStr}`,
             android: {
               channelId: CHANNELS.ALARM,
               category: 'alarm' as never,
@@ -531,14 +531,16 @@ export function useSettingsScreen() {
                 launchActivity: 'com.ilachatirlatici.MainActivity',
               },
               pressAction: { id: 'default', launchActivity: 'com.ilachatirlatici.MainActivity' },
-              smallIcon: 'ic_launcher',
-              color: '#2196F3',
+              smallIcon: 'ic_notification',
+              largeIcon: 'ic_launcher',
+              color: '#0D9488',
               colorized: true,
               sound: 'alarm',
               vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
               actions: [
-                { title: '😴 Ertele', pressAction: { id: 'snooze' } },
                 { title: '✅ Aldım', pressAction: { id: 'take' } },
+                { title: '⏰ Ertele', pressAction: { id: 'snooze' } },
+                { title: '❌ Atla', pressAction: { id: 'skip' } },
               ],
             },
             data: {
