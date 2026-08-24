@@ -123,10 +123,16 @@ export function useCaregiverController() {
 
   // Mevcut geçerli bir davet kodunu getir veya yenisini oluştur
   const getOrCreateInviteCode = async (): Promise<string | null> => {
-    if (pendingInvites.length > 0 && pendingInvites[0].id) {
-      return pendingInvites[0].id;
+    // 1. Önce aktif bekleyen bir davet var mı kontrol et
+    if (pendingInvites && pendingInvites.length > 0) {
+      const active = pendingInvites.find(i => i.status === 'pending' && i.id);
+      if (active && active.id) {
+        return active.id;
+      }
     }
-    const res = await createInvite('invite@family.share');
+    // 2. Kullanıcı input'a bir e-posta yazmışsa onu kullan, yoksa benzersiz share daveti oluştur
+    const targetEmail = email.trim() || `invite_${Date.now().toString(36)}@family.share`;
+    const res = await createInvite(targetEmail);
     if (res.success && res.inviteCode) {
       return res.inviteCode;
     }

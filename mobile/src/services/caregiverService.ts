@@ -73,43 +73,43 @@ export async function createCaregiverInvite(
   }
 ): Promise<{ success: boolean; inviteCode?: string; error?: string }> {
   try {
-    // Aynı e-posta için zaten aktif davet var mı kontrol et
-    const existingQuery = query(
-      collection(db, INVITES_COLLECTION),
-      where('caregiverEmail', '==', caregiverEmail.toLowerCase()),
-      where('status', '==', 'pending')
-    );
+    const normalizedEmail = (caregiverEmail || '').trim().toLowerCase();
+    const isGenericShare = !normalizedEmail || normalizedEmail.includes('@family.share');
 
-    const existingSnapshot = await getDocs(existingQuery);
-    if (!existingSnapshot.empty) {
-      log.warn('Zaten pending davet var', { caregiverEmail });
-      return {
-        success: false,
-        error:
-          caregiverEmail === 'tr'
-            ? 'Bu e-posta adresine zaten bekleyen bir davet var.'
-            : 'There is already a pending invite for this email.',
-      };
-    }
+    if (!isGenericShare) {
+      // Aynı hasta ve aynı e-posta için zaten aktif davet var mı kontrol et
+      const existingQuery = query(
+        collection(db, INVITES_COLLECTION),
+        where('patientId', '==', patientId),
+        where('caregiverEmail', '==', normalizedEmail),
+        where('status', '==', 'pending')
+      );
 
-    // Aynı e-posta için zaten aktif ilişki var mı kontrol et
-    const relationshipQuery = query(
-      collection(db, RELATIONSHIPS_COLLECTION),
-      where('patientId', '==', patientId),
-      where('caregiverEmail', '==', caregiverEmail.toLowerCase()),
-      where('status', '==', 'active')
-    );
+      const existingSnapshot = await getDocs(existingQuery);
+      if (!existingSnapshot.empty) {
+        log.warn('Zaten pending davet var', { caregiverEmail: normalizedEmail });
+        return {
+          success: false,
+          error: 'Bu e-posta adresine zaten bekleyen bir davet var.',
+        };
+      }
 
-    const relationshipSnapshot = await getDocs(relationshipQuery);
-    if (!relationshipSnapshot.empty) {
-      log.warn('Zaten aktif bakıcı ilişkisi var', { caregiverEmail });
-      return {
-        success: false,
-        error:
-          caregiverEmail === 'tr'
-            ? 'Bu kişi zaten bakıcınız olarak ekli.'
-            : 'This person is already your caregiver.',
-      };
+      // Aynı e-posta için zaten aktif ilişki var mı kontrol et
+      const relationshipQuery = query(
+        collection(db, RELATIONSHIPS_COLLECTION),
+        where('patientId', '==', patientId),
+        where('caregiverEmail', '==', normalizedEmail),
+        where('status', '==', 'active')
+      );
+
+      const relationshipSnapshot = await getDocs(relationshipQuery);
+      if (!relationshipSnapshot.empty) {
+        log.warn('Zaten aktif bakıcı ilişkisi var', { caregiverEmail: normalizedEmail });
+        return {
+          success: false,
+          error: 'Bu kişi zaten bakıcınız olarak ekli.',
+        };
+      }
     }
 
     // Yeni davet kodu oluştur (benzersiz olmalı)
