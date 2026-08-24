@@ -92,6 +92,12 @@ jest.mock('@notifee/react-native', () => ({
   AndroidVisibility: {
     PUBLIC: 1,
   },
+  AndroidStyle: {
+    BIGTEXT: 1,
+    BIGPICTURE: 2,
+    INBOX: 3,
+    MESSAGING: 4,
+  },
   TriggerType: {
     TIMESTAMP: 0,
   },

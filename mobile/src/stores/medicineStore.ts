@@ -920,8 +920,8 @@ export const useMedicineStore = create<MedicineState>()(
 
         const { userId, medicines, reminderTimes, medicineLogs } = get();
 
-        // 1. Future guard (KORUNMALİ — early return)
-        if (isScheduledTimeInFuture(scheduledTime)) {
+        // 1. Future guard (15 dakikalık tolerans payı ile — vaktinde çalan veya erkenden alınan dozlar engellenmez)
+        if (isScheduledTimeInFuture(scheduledTime, new Date(), 15 * 60 * 1000)) {
           log.warn('Gelecekteki doz erkenden alindi olarak isaretlenemedi', {
             reminderTimeId,
             scheduledTime,

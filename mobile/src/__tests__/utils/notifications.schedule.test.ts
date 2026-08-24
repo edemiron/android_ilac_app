@@ -25,6 +25,7 @@ jest.mock('@notifee/react-native', () => ({
   AndroidImportance: { HIGH: 4 },
   AndroidVisibility: { PRIVATE: 0 },
   AndroidCategory: { ALARM: 4 },
+  AndroidStyle: { BIGTEXT: 1, BIGPICTURE: 2, INBOX: 3, MESSAGING: 4 },
 }));
 
 jest.mock('../../utils/logger', () => ({

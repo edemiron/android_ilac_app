@@ -5,8 +5,9 @@
  */
 
 export const ALARM_ACTIONS: Array<{ title: string; pressAction: { id: string } }> = [
-  { title: '😴 Ertele', pressAction: { id: 'snooze' } },
   { title: '✅ Aldım', pressAction: { id: 'take' } },
+  { title: '⏰ Ertele', pressAction: { id: 'snooze' } },
+  { title: '❌ Atla', pressAction: { id: 'skip' } },
 ];
 
 export const FULL_SCREEN_ACTION = {

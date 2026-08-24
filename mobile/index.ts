@@ -248,13 +248,25 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
       /* */
     }
 
-    // 4. Aksiyonu işle
     if (actionId === 'take' || actionId === 'taken') {
       console.log('[BG] İlaç alındı:', medicineId);
       try {
         useMedicineStore
           .getState()
           .logMedicineTaken(
+            reminderTimeId,
+            (data?.scheduledTime as string) || new Date().toISOString(),
+            medicineId
+          );
+      } catch (_e) {
+        /* ignore */
+      }
+    } else if (actionId === 'skip') {
+      console.log('[BG] İlaç atlandı:', medicineId);
+      try {
+        useMedicineStore
+          .getState()
+          .logMedicineSkipped(
             reminderTimeId,
             (data?.scheduledTime as string) || new Date().toISOString(),
             medicineId

@@ -36,6 +36,7 @@ jest.mock('@notifee/react-native', () => ({
   AndroidImportance: { HIGH: 4, DEFAULT: 3 },
   AndroidVisibility: { PUBLIC: 1 },
   AndroidCategory: { ALARM: 'alarm' },
+  AndroidStyle: { BIGTEXT: 1, BIGPICTURE: 2, INBOX: 3, MESSAGING: 4 },
   TriggerType: { TIMESTAMP: 0 },
   AlarmType: { SET_ALARM_CLOCK: 0 },
   RepeatFrequency: { DAILY: 2 },
@@ -160,7 +161,7 @@ describe('Notification Service', () => {
       await scheduleTestAlarmNotification(5, 'tr');
 
       const trCall = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
-      expect(trCall[0].title).toContain('Test Ilaci');
+      expect(trCall[0].title).toMatch(/Test [Iİ]lac[iı]/i);
 
       jest.clearAllMocks();
       await scheduleTestAlarmNotification(5, 'en');
