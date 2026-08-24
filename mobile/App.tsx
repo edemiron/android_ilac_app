@@ -1212,6 +1212,7 @@ function AppContent() {
           name="Caregiver"
           component={CaregiverScreen}
           options={{
+            headerShown: false,
             title: language === 'tr' ? 'Bakıcı Yönetimi' : 'Caregiver Management',
             presentation: 'card',
           }}

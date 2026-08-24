@@ -10,9 +10,9 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { ScreenHeader } from '../components/common/ScreenHeader';
 
 // Alt Bileşenler (Modular UI)
 import { CaregiverHeroCard } from './CaregiverScreen/components/CaregiverHeroCard';
@@ -70,27 +70,23 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
       style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top', 'bottom']}
     >
-      {/* 1. Üst Navigasyon Çubuğu */}
-      <View style={styles.header}>
-        {canGoBack && (
-          <TouchableOpacity
-            style={[
-              styles.backButton,
-              { backgroundColor: isDark ? colors.inputBackground : '#F1F5F9' },
-            ]}
-            onPress={() => navigation?.goBack?.()}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
-          </TouchableOpacity>
-        )}
-        <View style={styles.headerTextContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{t.title}</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{t.subtitle}</Text>
-        </View>
-      </View>
+      {/* 1. Standart Üst Navigasyon Çubuğu */}
+      <ScreenHeader
+        title={t.title}
+        subtitle={t.subtitle}
+        showBack={canGoBack}
+        onBack={() => {
+          if (navigation && typeof navigation.goBack === 'function') {
+            navigation.goBack();
+          }
+        }}
+      />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        style={styles.scrollView}
+      >
         {/* 2. Aile Koruma Kalkanı (Hero Card) */}
         <CaregiverHeroCard
           caregiverCount={caregivers.length}
@@ -176,34 +172,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    gap: 12,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTextContainer: {
+  scrollView: {
     flex: 1,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    marginTop: 2,
-  },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
 });
