@@ -55,9 +55,11 @@ export default function MedicinesScreen() {
     actionMenuVisible,
     actionMenuMedicine,
     showActionMenu,
+    handleActionMenuEdit,
     handleActionMenuToggle,
     handleActionMenuDelete,
     singleDeleteVisible,
+    medicineToDelete,
     confirmSingleDelete,
     cancelSingleDelete,
     closeActionMenu,
@@ -331,28 +333,39 @@ export default function MedicinesScreen() {
         </View>
       </ConfirmDialog>
 
-      {/* 7. Tekil İlaç Eylem Menüsü */}
+      {/* 7. Tekil İlaç Eylem Menüsü (Modern Bottom Sheet) */}
       <ActionSheetMenu
         visible={actionMenuVisible}
         title={actionMenuMedicine?.name}
+        message={
+          actionMenuMedicine
+            ? `${actionMenuMedicine.dosage ? `${actionMenuMedicine.dosage} • ` : ''}${language === 'tr' ? `Günde ${actionMenuMedicine.frequency} kez` : `${actionMenuMedicine.frequency}x daily`}`
+            : undefined
+        }
         actions={
           [
+            {
+              key: 'edit',
+              label: language === 'tr' ? 'Düzenle' : 'Edit',
+              icon: 'create-outline',
+              onPress: handleActionMenuEdit,
+            },
             {
               key: 'toggle',
               label: actionMenuMedicine?.isActive
                 ? language === 'tr'
-                  ? 'Durakla'
-                  : 'Pause'
+                  ? 'Tedaviyi Duraklat'
+                  : 'Pause Treatment'
                 : language === 'tr'
-                  ? 'Devam Et'
-                  : 'Resume',
-              icon: actionMenuMedicine?.isActive ? 'pause-circle' : 'play-circle',
+                  ? 'Tedaviye Devam Et'
+                  : 'Resume Treatment',
+              icon: actionMenuMedicine?.isActive ? 'pause-circle-outline' : 'play-circle-outline',
               onPress: handleActionMenuToggle,
             },
             {
               key: 'delete',
-              label: language === 'tr' ? 'Sil' : 'Delete',
-              icon: 'trash',
+              label: language === 'tr' ? 'İlacı Sil' : 'Delete Medicine',
+              icon: 'trash-outline',
               destructive: true,
               onPress: handleActionMenuDelete,
             },
@@ -362,21 +375,69 @@ export default function MedicinesScreen() {
         onClose={closeActionMenu}
       />
 
-      {/* 8. Tekil İlaç Silme Onayı */}
+      {/* 8. Tekil İlaç Klinik Silme Onayı Pop-up'ı */}
       <ConfirmDialog
         visible={singleDeleteVisible}
-        title={language === 'tr' ? 'İlacı Sil' : 'Delete Medicine'}
+        title={language === 'tr' ? 'İlacı Silmek İstiyor musunuz?' : 'Delete Medicine?'}
         message={
           language === 'tr'
-            ? `"${actionMenuMedicine?.name}" ilacını silmek istediğinize emin misiniz?`
-            : `Are you sure you want to delete "${actionMenuMedicine?.name}"?`
+            ? `"${medicineToDelete?.name || ''}" ilacını silmek istediğinize emin misiniz?`
+            : `Are you sure you want to delete "${medicineToDelete?.name || ''}"?`
         }
-        confirmLabel={language === 'tr' ? 'Sil' : 'Delete'}
+        confirmLabel={language === 'tr' ? 'Evet, İlacı Sil' : 'Delete Medicine'}
         cancelLabel={t('cancel')}
         destructive
         onConfirm={confirmSingleDelete}
         onClose={cancelSingleDelete}
-      />
+      >
+        {medicineToDelete && (
+          <View
+            style={[
+              styles.singleDeleteCard,
+              {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.modalMedicineIcon,
+                { backgroundColor: (medicineToDelete.color || colors.primary) + '25' },
+              ]}
+            >
+              <Ionicons name="medical" size={18} color={medicineToDelete.color || colors.primary} />
+            </View>
+            <View style={styles.singleDeleteInfo}>
+              <Text style={[styles.singleDeleteTitle, { color: colors.text }]} numberOfLines={1}>
+                {medicineToDelete.name}
+              </Text>
+              <Text style={[styles.singleDeleteSubtitle, { color: colors.textMuted }]}>
+                {medicineToDelete.dosage ? `${medicineToDelete.dosage} • ` : ''}
+                {language === 'tr'
+                  ? `Günde ${medicineToDelete.frequency} kez`
+                  : `${medicineToDelete.frequency} times a day`}
+              </Text>
+            </View>
+          </View>
+        )}
+        <View
+          style={[
+            styles.deleteWarningBox,
+            {
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.18)',
+            },
+          ]}
+        >
+          <Ionicons name="warning" size={16} color={colors.error || '#EF4444'} />
+          <Text style={[styles.deleteWarningText, { color: colors.error || '#EF4444' }]}>
+            {language === 'tr'
+              ? 'Bu ilaca ait tüm alarmlar, hatırlatıcılar ve geçmiş kullanım kayıtları kalıcı olarak silinecektir.'
+              : 'All alarms, reminders, and historical logs for this medicine will be permanently deleted.'}
+          </Text>
+        </View>
+      </ConfirmDialog>
     </SafeAreaView>
   );
 }
@@ -468,9 +529,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   modalMedicineIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -484,5 +545,42 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: 4,
     paddingLeft: 42,
+  },
+  singleDeleteCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+    width: '100%',
+  },
+  singleDeleteInfo: {
+    flex: 1,
+  },
+  singleDeleteTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  singleDeleteSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  deleteWarningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    width: '100%',
+  },
+  deleteWarningText: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    flex: 1,
+    fontWeight: '500',
   },
 });

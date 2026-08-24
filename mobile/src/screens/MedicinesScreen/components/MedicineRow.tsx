@@ -36,7 +36,7 @@ interface MedicineRowProps {
   onPress: () => void;
   onToggleActive: () => void;
   onDelete: () => void;
-  onShowActionMenu: (medicine: Medicine, onToggle: () => void, onDel: () => void) => void;
+  onShowActionMenu: (medicine: Medicine) => void;
   colors: ThemeColors;
   isDark: boolean;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
@@ -94,7 +94,7 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
       onLongPressSelect();
       return;
     }
-    onShowActionMenu(medicine, onToggleActive, onDelete);
+    onShowActionMenu(medicine);
   };
 
   const handlePress = () => {
@@ -395,7 +395,7 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
 
         {/* Sağ Menü Butonu */}
         <TouchableOpacity
-          onPress={() => onShowActionMenu(medicine, onToggleActive, onDelete)}
+          onPress={() => onShowActionMenu(medicine)}
           style={styles.moreButton}
           hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
           accessibilityRole="button"

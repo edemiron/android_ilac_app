@@ -40,13 +40,10 @@ export function useMedicinesController() {
   // Action menu state (for single medicine)
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [actionMenuMedicine, setActionMenuMedicine] = useState<Medicine | null>(null);
-  const [actionMenuCallbacks, setActionMenuCallbacks] = useState<{
-    onToggle: () => void;
-    onDelete: () => void;
-  } | null>(null);
 
   // Single medicine delete confirmation state
   const [singleDeleteVisible, setSingleDeleteVisible] = useState(false);
+  const [medicineToDelete, setMedicineToDelete] = useState<Medicine | null>(null);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,54 +103,87 @@ export function useMedicinesController() {
   }, []);
 
   const confirmDeleteSelected = useCallback(() => {
+    const count = selectedIds.size;
     selectedIds.forEach(id => deleteMedicine(id));
     setDeleteModalVisible(false);
     exitSelectionMode();
-  }, [selectedIds, deleteMedicine, exitSelectionMode]);
+    showAlert({
+      type: 'success',
+      title: language === 'tr' ? 'Silindi' : 'Deleted',
+      message:
+        language === 'tr'
+          ? `${count} ilaç başarıyla silindi.`
+          : `${count} medicine(s) successfully deleted.`,
+    });
+  }, [selectedIds, deleteMedicine, exitSelectionMode, showAlert, language]);
 
   const cancelDelete = useCallback(() => {
     setDeleteModalVisible(false);
   }, []);
 
   // Tekil ilaç eylem menüsü
-  const showActionMenu = useCallback(
-    (medicine: Medicine, onToggle: () => void, onDel: () => void) => {
-      setActionMenuMedicine(medicine);
-      setActionMenuCallbacks({ onToggle, onDelete: onDel });
-      setActionMenuVisible(true);
-    },
-    []
-  );
+  const showActionMenu = useCallback((medicine: Medicine) => {
+    setActionMenuMedicine(medicine);
+    setActionMenuVisible(true);
+  }, []);
+
+  const handleActionMenuEdit = useCallback(() => {
+    if (!actionMenuMedicine) return;
+    const medId = actionMenuMedicine.id;
+    setActionMenuVisible(false);
+    setActionMenuMedicine(null);
+    navigation.navigate('AddMedicine', { medicineId: medId });
+  }, [actionMenuMedicine, navigation]);
 
   const handleActionMenuToggle = useCallback(() => {
-    if (actionMenuCallbacks?.onToggle) {
-      actionMenuCallbacks.onToggle();
-    }
+    if (!actionMenuMedicine) return;
+    const med = actionMenuMedicine;
+    toggleMedicineActive(med.id);
     setActionMenuVisible(false);
-  }, [actionMenuCallbacks]);
+    setActionMenuMedicine(null);
+  }, [actionMenuMedicine, toggleMedicineActive]);
 
   const handleActionMenuDelete = useCallback(() => {
+    if (!actionMenuMedicine) return;
+    const med = actionMenuMedicine;
     setActionMenuVisible(false);
+    setActionMenuMedicine(null);
+    // Güvenli silme modalı için ilacı ayır
+    setMedicineToDelete(med);
+    setSingleDeleteVisible(true);
+  }, [actionMenuMedicine]);
+
+  // Doğrudan silme diyaloğu açma (karttan veya başka yerden)
+  const openDeleteDialog = useCallback((medicine: Medicine) => {
+    setMedicineToDelete(medicine);
     setSingleDeleteVisible(true);
   }, []);
 
   const confirmSingleDelete = useCallback(() => {
-    if (actionMenuCallbacks?.onDelete) {
-      actionMenuCallbacks.onDelete();
+    if (medicineToDelete) {
+      const medName = medicineToDelete.name;
+      deleteMedicine(medicineToDelete.id);
+      showAlert({
+        type: 'success',
+        title: language === 'tr' ? 'İlaç Silindi' : 'Medicine Deleted',
+        message:
+          language === 'tr'
+            ? `"${medName}" ilacı başarıyla silindi.`
+            : `"${medName}" has been successfully deleted.`,
+      });
     }
     setSingleDeleteVisible(false);
-    setActionMenuMedicine(null);
-    setActionMenuCallbacks(null);
-  }, [actionMenuCallbacks]);
+    setMedicineToDelete(null);
+  }, [medicineToDelete, deleteMedicine, showAlert, language]);
 
   const cancelSingleDelete = useCallback(() => {
     setSingleDeleteVisible(false);
+    setMedicineToDelete(null);
   }, []);
 
   const closeActionMenu = useCallback(() => {
     setActionMenuVisible(false);
     setActionMenuMedicine(null);
-    setActionMenuCallbacks(null);
   }, []);
 
   // İlaç ekleme (Premium kota korumalı)
@@ -238,9 +268,12 @@ export function useMedicinesController() {
     actionMenuVisible,
     actionMenuMedicine,
     showActionMenu,
+    handleActionMenuEdit,
     handleActionMenuToggle,
     handleActionMenuDelete,
+    openDeleteDialog,
     singleDeleteVisible,
+    medicineToDelete,
     confirmSingleDelete,
     cancelSingleDelete,
     closeActionMenu,
