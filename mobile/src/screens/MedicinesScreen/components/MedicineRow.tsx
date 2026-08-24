@@ -74,8 +74,8 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
   medicine,
   times,
   onPress,
-  onToggleActive,
-  onDelete,
+  onToggleActive: _onToggleActive,
+  onDelete: _onDelete,
   onShowActionMenu,
   colors,
   isDark,
@@ -187,7 +187,7 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
     : null;
 
   return (
-    <TouchableOpacity
+    <View
       style={[
         styles.medicineCard,
         {
@@ -204,9 +204,6 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
           borderWidth: 1.5,
         },
       ]}
-      onPress={handlePress}
-      onLongPress={handleLongPress}
-      activeOpacity={0.75}
     >
       {/* Sol Renk Aksan Çubuğu */}
       <View
@@ -219,192 +216,203 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
       />
 
       <View style={styles.cardInner}>
-        {/* Çoklu Seçim Checkbox */}
-        {isSelectionMode && (
-          <View
-            style={[
-              styles.checkbox,
-              { borderColor: isSelected ? colors.primary : colors.border },
-              isSelected && { backgroundColor: colors.primary },
-            ]}
-          >
-            {isSelected && <Ionicons name="checkmark" size={14} color={colors.textOnPrimary} />}
-          </View>
-        )}
-
-        {/* Squircle Form Avatar with Gradient */}
-        <View style={styles.avatarWrapper}>
-          {medicine.imageUri ? (
-            <Image source={{ uri: medicine.imageUri }} style={styles.avatarImage} />
-          ) : (
-            <LinearGradient
-              colors={
-                medicine.isActive
-                  ? [`${medColor}33`, `${medColor}15`]
-                  : [`${colors.textMuted}25`, `${colors.textMuted}10`]
-              }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+        {/* Ana İçerik Dokunma Alanı (Düzenleme / Seçim) */}
+        <TouchableOpacity
+          style={styles.mainTouchableArea}
+          onPress={handlePress}
+          onLongPress={handleLongPress}
+          activeOpacity={0.75}
+        >
+          {/* Çoklu Seçim Checkbox */}
+          {isSelectionMode && (
+            <View
               style={[
-                styles.avatarGradient,
-                {
-                  borderColor: medicine.isActive ? `${medColor}55` : `${colors.textMuted}40`,
-                },
+                styles.checkbox,
+                { borderColor: isSelected ? colors.primary : colors.border },
+                isSelected && { backgroundColor: colors.primary },
               ]}
             >
-              {iconInfo.lib === 'mci' ? (
-                <MaterialCommunityIcons
-                  name={iconInfo.name}
-                  size={24}
-                  color={medicine.isActive ? medColor : colors.textMuted}
-                />
-              ) : (
-                <Ionicons
-                  name={iconInfo.name as never}
-                  size={24}
-                  color={medicine.isActive ? medColor : colors.textMuted}
+              {isSelected && <Ionicons name="checkmark" size={14} color={colors.textOnPrimary} />}
+            </View>
+          )}
+
+          {/* Squircle Form Avatar with Gradient */}
+          <View style={styles.avatarWrapper}>
+            {medicine.imageUri ? (
+              <Image source={{ uri: medicine.imageUri }} style={styles.avatarImage} />
+            ) : (
+              <LinearGradient
+                colors={
+                  medicine.isActive
+                    ? [`${medColor}33`, `${medColor}15`]
+                    : [`${colors.textMuted}25`, `${colors.textMuted}10`]
+                }
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[
+                  styles.avatarGradient,
+                  {
+                    borderColor: medicine.isActive ? `${medColor}55` : `${colors.textMuted}40`,
+                  },
+                ]}
+              >
+                {iconInfo.lib === 'mci' ? (
+                  <MaterialCommunityIcons
+                    name={iconInfo.name}
+                    size={24}
+                    color={medicine.isActive ? medColor : colors.textMuted}
+                  />
+                ) : (
+                  <Ionicons
+                    name={iconInfo.name as never}
+                    size={24}
+                    color={medicine.isActive ? medColor : colors.textMuted}
+                  />
+                )}
+              </LinearGradient>
+            )}
+          </View>
+
+          {/* İlaç Bilgi Bloğu */}
+          <View style={styles.contentContainer}>
+            {/* Başlık Satırı */}
+            <View style={styles.titleRow}>
+              <Text
+                style={[
+                  styles.medicineTitle,
+                  { color: colors.text },
+                  !medicine.isActive && { color: colors.textMuted },
+                ]}
+                numberOfLines={1}
+              >
+                {medicine.name}
+              </Text>
+
+              {!medicine.isActive && (
+                <Pill
+                  label={isTr ? 'Duraklatıldı' : 'Paused'}
+                  variant="warning"
+                  size="xs"
+                  style={{ marginLeft: 6 }}
                 />
               )}
-            </LinearGradient>
-          )}
-        </View>
+            </View>
 
-        {/* İlaç Bilgi Bloğu */}
-        <View style={styles.contentContainer}>
-          {/* Başlık Satırı */}
-          <View style={styles.titleRow}>
-            <Text
-              style={[
-                styles.medicineTitle,
-                { color: colors.text },
-                !medicine.isActive && { color: colors.textMuted },
-              ]}
-              numberOfLines={1}
-            >
-              {medicine.name}
+            {/* Doz & Sıklık Açıklaması */}
+            <Text style={[styles.dosageText, { color: colors.textMuted }]}>
+              {decodeDosage(medicine.dosage)}
+              {medicine.dosage ? ' • ' : ''}
+              {t('medicines_times_per_day', { count: medicine.frequency })}
             </Text>
 
-            {!medicine.isActive && (
-              <Pill
-                label={isTr ? 'Duraklatıldı' : 'Paused'}
-                variant="warning"
-                size="xs"
-                style={{ marginLeft: 6 }}
-              />
-            )}
-          </View>
-
-          {/* Doz & Sıklık Açıklaması */}
-          <Text style={[styles.dosageText, { color: colors.textMuted }]}>
-            {decodeDosage(medicine.dosage)}
-            {medicine.dosage ? ' • ' : ''}
-            {t('medicines_times_per_day', { count: medicine.frequency })}
-          </Text>
-
-          {/* Mikro Etiketler ve Saat Çipleri */}
-          <View style={styles.chipsContainer}>
-            {/* Yemek / Kullanım Talimatı Rozeti */}
-            {instructionText && (
-              <View
-                style={[
-                  styles.microTag,
-                  {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.05)',
-                    borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(15, 23, 42, 0.08)',
-                  },
-                ]}
-              >
-                <Ionicons
-                  name={instructionIcon}
-                  size={12}
-                  color={colors.textSecondary || colors.textMuted}
-                />
-                <Text style={[styles.microTagText, { color: colors.text }]}>{instructionText}</Text>
-              </View>
-            )}
-
-            {/* Sıradaki Saat Çipi (Yüksek Kontrastlı & Net) */}
-            {nextTime && (
-              <View
-                style={[
-                  styles.timeChip,
-                  {
-                    backgroundColor: isDark
-                      ? 'rgba(255, 255, 255, 0.08)'
-                      : 'rgba(15, 23, 42, 0.05)',
-                    borderColor:
-                      medicine.isActive && isNextFuture
-                        ? `${medColor}99`
-                        : isDark
-                          ? 'rgba(255, 255, 255, 0.12)'
-                          : 'rgba(15, 23, 42, 0.09)',
-                  },
-                ]}
-              >
-                {/* İlaç Renk Gösterge Noktası */}
+            {/* Mikro Etiketler ve Saat Çipleri */}
+            <View style={styles.chipsContainer}>
+              {/* Yemek / Kullanım Talimatı Rozeti */}
+              {instructionText && (
                 <View
                   style={[
-                    styles.timeDot,
+                    styles.microTag,
                     {
-                      backgroundColor:
-                        medicine.isActive && isNextFuture ? medColor : colors.textMuted,
-                    },
-                  ]}
-                />
-                <Ionicons name="time-outline" size={12} color={colors.text} />
-                <Text
-                  style={[
-                    styles.timeChipText,
-                    {
-                      color: colors.text,
-                      fontWeight: isNextFuture ? '700' : '600',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15, 23, 42, 0.05)',
+                      borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(15, 23, 42, 0.08)',
                     },
                   ]}
                 >
-                  {formatTimeDisplay(nextTime)}
-                </Text>
-                {otherCount > 0 && (
+                  <Ionicons
+                    name={instructionIcon}
+                    size={12}
+                    color={colors.textSecondary || colors.textMuted}
+                  />
+                  <Text style={[styles.microTagText, { color: colors.text }]}>
+                    {instructionText}
+                  </Text>
+                </View>
+              )}
+
+              {/* Sıradaki Saat Çipi (Yüksek Kontrastlı & Net) */}
+              {nextTime && (
+                <View
+                  style={[
+                    styles.timeChip,
+                    {
+                      backgroundColor: isDark
+                        ? 'rgba(255, 255, 255, 0.08)'
+                        : 'rgba(15, 23, 42, 0.05)',
+                      borderColor:
+                        medicine.isActive && isNextFuture
+                          ? `${medColor}99`
+                          : isDark
+                            ? 'rgba(255, 255, 255, 0.12)'
+                            : 'rgba(15, 23, 42, 0.09)',
+                    },
+                  ]}
+                >
+                  {/* İlaç Renk Gösterge Noktası */}
                   <View
                     style={[
-                      styles.otherCountBadge,
+                      styles.timeDot,
                       {
-                        backgroundColor: isDark
-                          ? 'rgba(255, 255, 255, 0.12)'
-                          : 'rgba(15, 23, 42, 0.08)',
+                        backgroundColor:
+                          medicine.isActive && isNextFuture ? medColor : colors.textMuted,
+                      },
+                    ]}
+                  />
+                  <Ionicons name="time-outline" size={12} color={colors.text} />
+                  <Text
+                    style={[
+                      styles.timeChipText,
+                      {
+                        color: colors.text,
+                        fontWeight: isNextFuture ? '700' : '600',
                       },
                     ]}
                   >
-                    <Text
+                    {formatTimeDisplay(nextTime)}
+                  </Text>
+                  {otherCount > 0 && (
+                    <View
                       style={[
-                        styles.otherCountText,
-                        { color: colors.textSecondary || colors.text },
+                        styles.otherCountBadge,
+                        {
+                          backgroundColor: isDark
+                            ? 'rgba(255, 255, 255, 0.12)'
+                            : 'rgba(15, 23, 42, 0.08)',
+                        },
                       ]}
                     >
-                      +{otherCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
+                      <Text
+                        style={[
+                          styles.otherCountText,
+                          { color: colors.textSecondary || colors.text },
+                        ]}
+                      >
+                        +{otherCount}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
 
-            {/* Stok ve SKT Rozetleri */}
-            {renderStockBadge()}
-            {renderExpiryBadge()}
+              {/* Stok ve SKT Rozetleri */}
+              {renderStockBadge()}
+              {renderExpiryBadge()}
+            </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
-        {/* Sağ Menü Butonu */}
+        {/* Sağ Menü Butonu (3 Nokta) */}
         <TouchableOpacity
           onPress={() => onShowActionMenu(medicine)}
           style={styles.moreButton}
-          hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+          hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+          activeOpacity={0.6}
           accessibilityRole="button"
           accessibilityLabel={isTr ? 'İlaç Seçenekleri' : 'Medicine Options'}
         >
-          <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
+          <Ionicons name="ellipsis-vertical" size={20} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 };
 
@@ -434,6 +442,19 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: 14,
     paddingLeft: 16,
+  },
+  mainTouchableArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  moreButton: {
+    width: 36,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    marginLeft: 4,
   },
   checkbox: {
     width: 22,
@@ -538,11 +559,5 @@ const styles = StyleSheet.create({
   badgePillText: {
     fontSize: 10.5,
     fontWeight: '700',
-  },
-  moreButton: {
-    padding: 6,
-    marginLeft: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });
