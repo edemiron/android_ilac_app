@@ -88,7 +88,7 @@ export function NotificationsSection({
 }: NotificationsSectionProps) {
   const isTr = language === 'tr';
   const { showInfo } = useAlert();
-  const [showCriticalDrawer, setShowCriticalDrawer] = useState(false);
+  const [showCriticalDrawer, setShowCriticalDrawer] = useState(true);
   const [isTestScheduled, setIsTestScheduled] = useState(false);
 
   const currentSoundId = settings.alarmSound || 'soft_chime';
