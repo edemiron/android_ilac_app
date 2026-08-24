@@ -348,19 +348,33 @@ export async function getPatientsForCaregiver(caregiverId: string): Promise<Pati
       };
 
       // Hasta bilgilerini users collection'dan al
-      const userRef = doc(db, 'users', relationship.patientId);
-      const userSnap = await getDoc(userRef);
+      let patientName = relationship.patientName || 'Bilinmeyen Hasta';
+      let patientEmail: string | undefined = undefined;
 
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        patients.push({
-          id: relationship.patientId,
-          name: userData?.displayName || relationship.patientName || 'Bilinmeyen Hasta',
-          email: userData?.email,
-          relationshipId: relationship.id,
-          status: relationship.status,
+      try {
+        const userRef = doc(db, 'users', relationship.patientId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          if (userData?.displayName) patientName = userData.displayName;
+          if (userData?.email) patientEmail = userData.email;
+        }
+      } catch (_userErr) {
+        log.warn('Hasta user dokumani alinamadi, iliskideki isim kullaniliyor', {
+          patientId: relationship.patientId,
         });
       }
+
+      patients.push({
+        id: relationship.patientId,
+        name: patientName,
+        email: patientEmail,
+        relationshipId: relationship.id,
+        status: relationship.status,
+        canViewSchedule: relationship.canViewSchedule,
+        canViewHistory: relationship.canViewHistory,
+        canReceiveAlerts: relationship.canReceiveAlerts,
+      });
     }
 
     return patients;

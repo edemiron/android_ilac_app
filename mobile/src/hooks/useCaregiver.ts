@@ -7,10 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { createScopedLogger } from '../utils/logger';
-import type {
-  CaregiverRelationship,
-  CaregiverInvite,
-} from '../types';
+import type { CaregiverRelationship, CaregiverInvite, PatientInfo } from '../types';
 import {
   createCaregiverInvite,
   getCaregivers,
@@ -19,6 +16,8 @@ import {
   getPendingInvites,
   cancelInvite,
   subscribeToCaregivers,
+  getPatientsForCaregiver,
+  acceptCaregiverInvite,
 } from '../services/caregiverService';
 import { createQRCodeData } from '../services/qrCodeService';
 
@@ -28,6 +27,7 @@ export interface UseCaregiverResult {
   // State
   caregivers: CaregiverRelationship[];
   pendingInvites: CaregiverInvite[];
+  patients: PatientInfo[];
   isLoading: boolean;
 
   // QR Code
@@ -35,19 +35,28 @@ export interface UseCaregiverResult {
   showQRModal: boolean;
 
   // Actions
-  createInvite: (email: string, permissions?: {
-    canViewSchedule: boolean;
-    canViewHistory: boolean;
-    canReceiveAlerts: boolean;
-  }) => Promise<{ success: boolean; inviteCode?: string; error?: string }>;
+  createInvite: (
+    email: string,
+    permissions?: {
+      canViewSchedule: boolean;
+      canViewHistory: boolean;
+      canReceiveAlerts: boolean;
+    }
+  ) => Promise<{ success: boolean; inviteCode?: string; error?: string }>;
+
+  acceptInvite: (inviteCode: string) => Promise<{ success: boolean; error?: string }>;
 
   removeCaregiverRel: (relationshipId: string) => Promise<{ success: boolean }>;
+  removePatientRel: (relationshipId: string) => Promise<{ success: boolean; error?: string }>;
 
-  updatePermissions: (relationshipId: string, permissions: {
-    canViewSchedule: boolean;
-    canViewHistory: boolean;
-    canReceiveAlerts: boolean;
-  }) => Promise<void>;
+  updatePermissions: (
+    relationshipId: string,
+    permissions: {
+      canViewSchedule: boolean;
+      canViewHistory: boolean;
+      canReceiveAlerts: boolean;
+    }
+  ) => Promise<void>;
 
   cancelInviteRel: (inviteCode: string) => Promise<{ success: boolean }>;
 
@@ -64,13 +73,14 @@ export function useCaregiver(): UseCaregiverResult {
   const { user } = useAuth();
   const [caregivers, setCaregivers] = useState<CaregiverRelationship[]>([]);
   const [pendingInvites, setPendingInvites] = useState<CaregiverInvite[]>([]);
+  const [patients, setPatients] = useState<PatientInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
 
   const userId = user?.uid;
 
-  // Bakıcıları yükle
+  // Bakıcıları yükle (Beni takip edenler)
   const loadCaregivers = useCallback(async () => {
     if (!userId) return;
 
@@ -97,22 +107,35 @@ export function useCaregiver(): UseCaregiverResult {
     }
   }, [userId]);
 
+  // Takip ettiğim hastaları yükle (Bakıcı olduğum kişiler)
+  const loadPatients = useCallback(async () => {
+    if (!userId) return;
+
+    try {
+      const data = await getPatientsForCaregiver(userId);
+      setPatients(data);
+    } catch (error) {
+      log.error('Hastalar yüklenemedi', error);
+    }
+  }, [userId]);
+
   // Refresh
   const refresh = useCallback(async () => {
-    await Promise.all([loadCaregivers(), loadPendingInvites()]);
-  }, [loadCaregivers, loadPendingInvites]);
+    await Promise.all([loadCaregivers(), loadPendingInvites(), loadPatients()]);
+  }, [loadCaregivers, loadPendingInvites, loadPatients]);
 
   // İlk yükleme
   useEffect(() => {
     loadCaregivers();
     loadPendingInvites();
-  }, [loadCaregivers, loadPendingInvites]);
+    loadPatients();
+  }, [loadCaregivers, loadPendingInvites, loadPatients]);
 
   // Real-time updates
   useEffect(() => {
     if (!userId) return;
 
-    const unsubscribe = subscribeToCaregivers(userId, (data) => {
+    const unsubscribe = subscribeToCaregivers(userId, data => {
       setCaregivers(data);
     });
 
@@ -135,7 +158,12 @@ export function useCaregiver(): UseCaregiverResult {
         return { success: false, error: 'Oturum açmanız gerekiyor' };
       }
 
-      const result = await createCaregiverInvite(userId, user?.displayName || 'Hasta', email, permissions);
+      const result = await createCaregiverInvite(
+        userId,
+        user?.displayName || 'Hasta',
+        email,
+        permissions
+      );
 
       if (result.success && result.inviteCode) {
         // Davet listesini yenile
@@ -147,43 +175,86 @@ export function useCaregiver(): UseCaregiverResult {
     [userId, user?.displayName, loadPendingInvites]
   );
 
-  // Bakıcı kaldır
-  const removeCaregiverRel = useCallback(async (relationshipId: string) => {
-    const result = await removeCaregiver(relationshipId);
+  // Davet kabul et (Bakıcı olarak bir hastaya bağlan)
+  const acceptInvite = useCallback(
+    async (inviteCode: string) => {
+      if (!userId) {
+        return { success: false, error: 'Oturum açmanız gerekiyor' };
+      }
 
-    if (result.success) {
-      // Listeyi yenile
-      await loadCaregivers();
-    }
+      const result = await acceptCaregiverInvite(
+        inviteCode,
+        userId,
+        user?.displayName || 'Bakıcı',
+        ''
+      );
 
-    return result;
-  }, [loadCaregivers]);
+      if (result.success) {
+        await loadPatients();
+      }
+
+      return result;
+    },
+    [userId, user?.displayName, loadPatients]
+  );
+
+  // Bakıcı kaldır (Beni takip eden bakıcıyı sil)
+  const removeCaregiverRel = useCallback(
+    async (relationshipId: string) => {
+      const result = await removeCaregiver(relationshipId);
+
+      if (result.success) {
+        await loadCaregivers();
+      }
+
+      return result;
+    },
+    [loadCaregivers]
+  );
+
+  // Takip edilen hastayı kaldır (Bakıcı olarak takipten ayrıl)
+  const removePatientRel = useCallback(
+    async (relationshipId: string) => {
+      const result = await removeCaregiver(relationshipId);
+
+      if (result.success) {
+        await loadPatients();
+      }
+
+      return result;
+    },
+    [loadPatients]
+  );
 
   // Yetkileri güncelle
   const updatePermissions = useCallback(
-    async (relationshipId: string, permissions: {
-      canViewSchedule: boolean;
-      canViewHistory: boolean;
-      canReceiveAlerts: boolean;
-    }) => {
+    async (
+      relationshipId: string,
+      permissions: {
+        canViewSchedule: boolean;
+        canViewHistory: boolean;
+        canReceiveAlerts: boolean;
+      }
+    ) => {
       await updateCaregiverRelationship(relationshipId, permissions);
-      // Listeyi yenile
       await loadCaregivers();
     },
     [loadCaregivers]
   );
 
   // Davet iptal
-  const cancelInviteRel = useCallback(async (inviteCode: string) => {
-    const result = await cancelInvite(inviteCode);
+  const cancelInviteRel = useCallback(
+    async (inviteCode: string) => {
+      const result = await cancelInvite(inviteCode);
 
-    if (result.success) {
-      // Listeyi yenile
-      await loadPendingInvites();
-    }
+      if (result.success) {
+        await loadPendingInvites();
+      }
 
-    return result;
-  }, [loadPendingInvites]);
+      return result;
+    },
+    [loadPendingInvites]
+  );
 
   // QR kod göster
   const showQRCode = useCallback((inviteCode: string) => {
@@ -201,11 +272,14 @@ export function useCaregiver(): UseCaregiverResult {
   return {
     caregivers,
     pendingInvites,
+    patients,
     isLoading,
     qrCodeData,
     showQRModal,
     createInvite,
+    acceptInvite,
     removeCaregiverRel,
+    removePatientRel,
     updatePermissions,
     cancelInviteRel,
     showQRCode,

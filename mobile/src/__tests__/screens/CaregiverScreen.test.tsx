@@ -37,11 +37,14 @@ jest.mock('../../hooks/useCaregiver', () => ({
   useCaregiver: () => ({
     caregivers: [],
     pendingInvites: [],
+    patients: [],
     isLoading: false,
     qrCodeData: null,
     showQRModal: false,
     createInvite: jest.fn(),
+    acceptInvite: jest.fn(),
     removeCaregiverRel: jest.fn(),
+    removePatientRel: jest.fn(),
     updatePermissions: jest.fn(),
     cancelInviteRel: jest.fn(),
     showQRCode: jest.fn(),
@@ -101,5 +104,11 @@ describe('CaregiverScreen', () => {
   it('renders ScrollView', () => {
     const { UNSAFE_root } = render(<CaregiverScreen />);
     expect(UNSAFE_root).toBeTruthy();
+  });
+
+  it('renders segmented role switcher with default patient role', () => {
+    const { getByText } = render(<CaregiverScreen />);
+    expect(getByText('Beni İzleyenler')).toBeTruthy();
+    expect(getByText('Takip Ettiğim Kişiler')).toBeTruthy();
   });
 });

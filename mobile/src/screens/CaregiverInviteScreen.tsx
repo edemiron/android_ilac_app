@@ -19,7 +19,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Alt Bileşenler (Modular UI)
 import { CaregiverInviteHeader } from './CaregiverInviteScreen/components/CaregiverInviteHeader';
-import { CaregiverCodeBoxes } from './CaregiverInviteScreen/components/CaregiverCodeBoxes';
 import { CaregiverCodeInput } from './CaregiverInviteScreen/components/CaregiverCodeInput';
 import { CaregiverHowItWorksBox } from './CaregiverInviteScreen/components/CaregiverHowItWorksBox';
 
@@ -50,10 +49,7 @@ export default function CaregiverInviteScreen({ route }: CaregiverInviteScreenPr
         {/* 1. Başlık & İkon */}
         <CaregiverInviteHeader title={t.title} subtitle={t.subtitle} colors={colors} />
 
-        {/* 2. Kod Gösterim Kutucukları */}
-        <CaregiverCodeBoxes code={code} colors={colors} />
-
-        {/* 3. Kod Giriş Alanı & QR Butonu & Temizle */}
+        {/* 2. Kod Giriş Alanı (6 Kutu + Gizli Giriş + QR + Temizle) */}
         <CaregiverCodeInput
           code={code}
           onChangeCode={setCode}

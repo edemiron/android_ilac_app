@@ -52,6 +52,16 @@ export function DataSecuritySection({
       />
 
       <SettingRow
+        icon={{ name: 'people', color: '#0D9488' }}
+        label={isTr ? 'Aile & Bakıcı Takibi' : 'Caregiver & Family Link'}
+        description={
+          isTr ? 'Hasta & Bakıcı yönetimi ve canlı takip' : 'Patient & Caregiver tracking'
+        }
+        onPress={() => navigation.navigate('Caregiver')}
+        showChevron
+      />
+
+      <SettingRow
         icon={{ name: 'document-text', color: '#8B5CF6' }}
         label={isTr ? 'Doktor & Eczacı PDF Raporu' : 'Doctor & Adherence Report'}
         description={isTr ? 'Resmi klinik tedavi dökümü' : 'Official clinical adherence export'}

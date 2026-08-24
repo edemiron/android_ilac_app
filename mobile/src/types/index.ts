@@ -244,6 +244,9 @@ export interface PatientInfo {
   email?: string; // Hasta e-postası
   relationshipId: string; // CaregiverRelationship ID'si
   status: CaregiverStatus;
+  canViewSchedule?: boolean;
+  canViewHistory?: boolean;
+  canReceiveAlerts?: boolean;
   // İstatistikler (günlük)
   todaySummary?: {
     totalReminders: number;

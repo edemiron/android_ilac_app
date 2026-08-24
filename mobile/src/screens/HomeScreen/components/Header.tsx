@@ -186,6 +186,7 @@ const makeStyles = (colors: ThemeColors, isDark: boolean) =>
       alignItems: 'center',
       gap: 10,
       flex: 1,
+      marginRight: 8,
     },
     greetingTitle: {
       fontSize: 18,
@@ -198,6 +199,8 @@ const makeStyles = (colors: ThemeColors, isDark: boolean) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
+      zIndex: 10,
+      elevation: 5,
     },
     actionButton: {
       width: 36,

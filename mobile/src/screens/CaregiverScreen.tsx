@@ -15,11 +15,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScreenHeader } from '../components/common/ScreenHeader';
 
 // Alt Bileşenler (Modular UI)
+import { CaregiverRoleSegmentedControl } from './CaregiverScreen/components/CaregiverRoleSegmentedControl';
 import { CaregiverHeroCard } from './CaregiverScreen/components/CaregiverHeroCard';
 import { CaregiverQuickShareBar } from './CaregiverScreen/components/CaregiverQuickShareBar';
 import { CaregiverInviteInputCard } from './CaregiverScreen/components/CaregiverInviteInputCard';
+import { CaregiverEnterCodeCard } from './CaregiverScreen/components/CaregiverEnterCodeCard';
 import { PendingInvitesList } from './CaregiverScreen/components/PendingInvitesList';
 import { CaregiversList } from './CaregiverScreen/components/CaregiversList';
+import { CaregiverPatientsList } from './CaregiverScreen/components/CaregiverPatientsList';
 import { CaregiverPermissionsModal } from './CaregiverScreen/components/CaregiverPermissionsModal';
 import { CaregiverQRModal } from './CaregiverScreen/components/CaregiverQRModal';
 
@@ -36,12 +39,12 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
     isDark,
     language,
     t,
+    // Sekmeler
+    activeTab,
+    handleChangeTab,
+    // Hasta Modu (Beni İzleyenler)
     caregivers,
     pendingInvites,
-    isLoading,
-    qrCodeData,
-    showQRModal,
-    hideQRCode,
     email,
     setEmail,
     isCreating,
@@ -58,7 +61,20 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
     handleCancelInvite,
     handleShareInvite,
     handleOpenQR,
-  } = useCaregiverController();
+    // Bakıcı Modu (Takip Ettiğim Kişiler)
+    patients,
+    inviteCodeInput,
+    setInviteCodeInput,
+    isAcceptingCode,
+    handleAcceptCode,
+    handleRemovePatient,
+    handleScanQR,
+    // Ortak
+    isLoading,
+    qrCodeData,
+    showQRModal,
+    hideQRCode,
+  } = useCaregiverController({ navigation });
 
   const canGoBack =
     navigation && typeof navigation.canGoBack === 'function'
@@ -82,68 +98,113 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
         }}
       />
 
+      {/* 2. Rol Değiştirici Sekme Kontrolü (Hasta vs Bakıcı) */}
+      <CaregiverRoleSegmentedControl
+        activeTab={activeTab}
+        onChangeTab={handleChangeTab}
+        caregiverCount={(caregivers || []).length}
+        patientCount={(patients || []).length}
+        colors={colors}
+        isDark={isDark}
+        language={language}
+      />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         style={styles.scrollView}
       >
-        {/* 2. Aile Koruma Kalkanı (Hero Card) */}
-        <CaregiverHeroCard
-          caregiverCount={caregivers.length}
-          colors={colors}
-          isDark={isDark}
-          language={language}
-        />
+        {activeTab === 'my_caregivers' ? (
+          /* ======================================================== */
+          /* A) HASTA MODU: BENİ TAKİP EDENLER                       */
+          /* ======================================================== */
+          <>
+            {/* 3. Aile Koruma Kalkanı (Hero Card) */}
+            <CaregiverHeroCard
+              caregiverCount={caregivers.length}
+              colors={colors}
+              isDark={isDark}
+              language={language}
+            />
 
-        {/* 3. Çok Kanallı Hızlı Davet Çubuğu */}
-        <CaregiverQuickShareBar
-          onWhatsAppShare={handleWhatsAppShare}
-          onNativeShare={handleNativeShare}
-          onShowQR={handleShowQR}
-          colors={colors}
-          isDark={isDark}
-          language={language}
-        />
+            {/* 4. Çok Kanallı Hızlı Davet Çubuğu */}
+            <CaregiverQuickShareBar
+              onWhatsAppShare={handleWhatsAppShare}
+              onNativeShare={handleNativeShare}
+              onShowQR={handleShowQR}
+              colors={colors}
+              isDark={isDark}
+              language={language}
+            />
 
-        {/* 4. E-posta ile Davet Gönderme Kartı */}
-        <CaregiverInviteInputCard
-          email={email}
-          onChangeEmail={setEmail}
-          onInvite={handleInvite}
-          isCreating={isCreating}
-          colors={colors}
-          title={t.addCaregiver}
-          placeholder={t.emailPlaceholder}
-        />
+            {/* 5. E-posta ile Davet Gönderme Kartı */}
+            <CaregiverInviteInputCard
+              email={email}
+              onChangeEmail={setEmail}
+              onInvite={handleInvite}
+              isCreating={isCreating}
+              colors={colors}
+              title={t.addCaregiver}
+              placeholder={t.emailPlaceholder}
+            />
 
-        {/* 5. Bekleyen Davetler */}
-        <PendingInvitesList
-          pendingInvites={pendingInvites}
-          onOpenQR={handleOpenQR}
-          onCancelInvite={handleCancelInvite}
-          onShareInvite={handleShareInvite}
-          colors={colors}
-          isDark={isDark}
-          language={language}
-          title={t.pendingInvitesTitle}
-          expiresText={t.expires}
-        />
+            {/* 6. Bekleyen Davetler */}
+            <PendingInvitesList
+              pendingInvites={pendingInvites}
+              onOpenQR={handleOpenQR}
+              onCancelInvite={handleCancelInvite}
+              onShareInvite={handleShareInvite}
+              colors={colors}
+              isDark={isDark}
+              language={language}
+              title={t.pendingInvitesTitle}
+              expiresText={t.expires}
+            />
 
-        {/* 6. Aktif Aile ve Bakıcılar Listesi */}
-        <CaregiversList
-          caregivers={caregivers}
-          isLoading={isLoading}
-          onRemoveCaregiver={handleRemoveCaregiver}
-          onEditPermissions={handleEditPermissions}
-          colors={colors}
-          isDark={isDark}
-          t={t}
-        />
+            {/* 7. Aktif Aile ve Bakıcılar Listesi */}
+            <CaregiversList
+              caregivers={caregivers}
+              isLoading={isLoading}
+              onRemoveCaregiver={handleRemoveCaregiver}
+              onEditPermissions={handleEditPermissions}
+              colors={colors}
+              isDark={isDark}
+              t={t}
+            />
+          </>
+        ) : (
+          /* ======================================================== */
+          /* B) BAKICI MODU: TAKİP ETTİĞİM YAKINLARIM                 */
+          /* ======================================================== */
+          <>
+            {/* 8. 6 Haneli Davet Kodu Girme ve QR Tarama Kartı */}
+            <CaregiverEnterCodeCard
+              code={inviteCodeInput}
+              onChangeCode={setInviteCodeInput}
+              onSubmitCode={handleAcceptCode}
+              onScanQR={handleScanQR}
+              isLoading={isAcceptingCode}
+              colors={colors}
+              isDark={isDark}
+              language={language}
+            />
+
+            {/* 9. Takip Ettiğim Hastalar / Yakınlar Listesi */}
+            <CaregiverPatientsList
+              patients={patients}
+              isLoading={isLoading}
+              onRemovePatient={handleRemovePatient}
+              colors={colors}
+              isDark={isDark}
+              language={language}
+            />
+          </>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* 7. Granüler İzin Düzenleme Modalı */}
+      {/* 10. Granüler İzin Düzenleme Modalı */}
       <CaregiverPermissionsModal
         visible={!!selectedCaregiverForEdit}
         caregiver={selectedCaregiverForEdit}
@@ -154,7 +215,7 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
         language={language}
       />
 
-      {/* 8. QR Kod ve Davet Paylaşım Modalı */}
+      {/* 11. QR Kod ve Davet Paylaşım Modalı */}
       <CaregiverQRModal
         visible={showQRModal}
         onClose={hideQRCode}
