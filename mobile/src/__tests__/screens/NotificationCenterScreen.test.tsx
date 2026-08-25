@@ -187,6 +187,20 @@ describe('NotificationCenterScreen', () => {
     expect(mockNavigate).toHaveBeenCalledWith('TtsSettings');
   });
 
+  it('navigates to Permissions when permissions quick row is pressed', () => {
+    const { getByText } = render(<NotificationCenterScreen />);
+    const permRow = getByText('Detaylı İzin & Teşhis Raporu');
+    fireEvent.press(permRow);
+    expect(mockNavigate).toHaveBeenCalledWith('Permissions');
+  });
+
+  it('navigates to Main Settings when Alarm Melodisi quick row is pressed', () => {
+    const { getByText } = render(<NotificationCenterScreen />);
+    const soundRow = getByText('Alarm Melodisi & Ses Düzeyi');
+    fireEvent.press(soundRow);
+    expect(mockNavigate).toHaveBeenCalledWith('Main', { screen: 'Settings' });
+  });
+
   it('switches between Feed and Upcoming tabs correctly', () => {
     const { getByText } = render(<NotificationCenterScreen />);
     const upcomingTab = getByText(/Sıradaki Alarmlar/);

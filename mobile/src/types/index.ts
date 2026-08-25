@@ -301,6 +301,7 @@ export type RootStackParamList = {
   CaregiverInvite: { inviteCode?: string };
   DutyPharmacy: undefined;
   NotificationCenter: undefined;
+  Permissions: undefined;
 };
 
 // Auth Stack Navigation

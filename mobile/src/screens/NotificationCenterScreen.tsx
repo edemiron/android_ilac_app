@@ -76,14 +76,14 @@ export function NotificationCenterScreen() {
           isSendingTest={isSendingTest}
           testSentMessage={testSentMessage}
           onSendTest={handleSendTestNotification}
-          onOpenPermissions={() => navigation.navigate('Settings' as never)}
+          onOpenPermissions={() => navigation.navigate('Permissions' as never)}
         />
 
         {/* 3. Hızlı Ayarlar Kısayolları */}
         <NotificationQuickSettings
           onNavigateTts={() => navigation.navigate('TtsSettings' as never)}
-          onNavigateSettings={() => navigation.navigate('Settings' as never)}
-          onNavigatePermissions={() => navigation.navigate('Settings' as never)}
+          onNavigateSettings={() => navigation.navigate('Main', { screen: 'Settings' } as never)}
+          onNavigatePermissions={() => navigation.navigate('Permissions' as never)}
         />
 
         {/* 4. Segment Geçiş Çubuğu: "Bildirim Akışı" vs "Sıradaki Alarmlar" */}

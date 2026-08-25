@@ -1245,6 +1245,15 @@ function AppContent() {
             presentation: 'card',
           }}
         />
+        <Stack.Screen
+          name="Permissions"
+          component={PermissionsScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Sistem İzinleri & Teşhis' : 'System Permissions',
+            presentation: 'card',
+          }}
+        />
       </Stack.Navigator>
 
       {/* Güvenlik Overlay'leri - App arka planda çalışmaya devam etsin */}

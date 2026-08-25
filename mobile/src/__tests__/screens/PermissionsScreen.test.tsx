@@ -5,12 +5,20 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
 
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({
+    goBack: jest.fn(),
+    canGoBack: () => true,
+    navigate: jest.fn(),
+  }),
+}));
+
 jest.mock('react-native', () => ({
   StyleSheet: {
     create: <T,>(styles: T): T => styles,
     flatten: <T,>(styles: T): T => styles,
   },
-  Platform: { OS: 'android' },
+  Platform: { OS: 'android', select: (obj: any) => obj.android ?? obj.default },
   View: 'View',
   Text: 'Text',
   TouchableOpacity: 'TouchableOpacity',

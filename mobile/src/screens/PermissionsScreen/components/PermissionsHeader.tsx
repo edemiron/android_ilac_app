@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { withAlpha, ALPHA } from '../../../utils/colors';
 import type { ThemeColors } from '../../../contexts/ThemeContext';
@@ -11,11 +11,23 @@ import type { ThemeColors } from '../../../contexts/ThemeContext';
 interface PermissionsHeaderProps {
   colors: ThemeColors;
   language: string;
+  onBack?: () => void;
 }
 
-export function PermissionsHeader({ colors, language }: PermissionsHeaderProps) {
+export function PermissionsHeader({ colors, language, onBack }: PermissionsHeaderProps) {
   return (
     <View style={styles.header}>
+      {onBack && (
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.card }]}
+          onPress={onBack}
+          activeOpacity={0.7}
+          accessibilityLabel="Geri Dön"
+        >
+          <Ionicons name="chevron-back" size={22} color={colors.text} />
+        </TouchableOpacity>
+      )}
+
       <View
         style={[styles.iconContainer, { backgroundColor: withAlpha(colors.primary, ALPHA.fill) }]}
       >
@@ -37,6 +49,19 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 32,
+    position: 'relative',
+    width: '100%',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   iconContainer: {
     width: 80,

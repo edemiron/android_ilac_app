@@ -10,6 +10,7 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 // Alt Bileşenler (Modular UI)
 import { PermissionsHeader } from './PermissionsScreen/components/PermissionsHeader';
@@ -21,10 +22,11 @@ import { PermissionsActionButtons } from './PermissionsScreen/components/Permiss
 import { usePermissionsController } from './PermissionsScreen/hooks/usePermissionsController';
 
 interface PermissionsScreenProps {
-  onComplete: () => void;
+  onComplete?: () => void;
 }
 
 export default function PermissionsScreen({ onComplete }: PermissionsScreenProps) {
+  const navigation = useNavigation<any>();
   const {
     colors,
     language,
@@ -40,6 +42,16 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
     handleOpenPowerManagerSettings,
   } = usePermissionsController();
 
+  const handleCompleteOrBack =
+    onComplete ||
+    (() => {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Main');
+      }
+    });
+
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -54,7 +66,11 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 1. Başlık & Açıklama */}
-        <PermissionsHeader colors={colors} language={language} />
+        <PermissionsHeader
+          colors={colors}
+          language={language}
+          onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+        />
 
         {/* 2. İzin Listesi Konteyneri */}
         <View style={[styles.permissionsContainer, { backgroundColor: colors.card }]}>
@@ -176,7 +192,7 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
         {/* 4. Devam Et & Şimdilik Atla Butonları */}
         <PermissionsActionButtons
           allPermissionsGranted={allPermissionsGranted}
-          onComplete={onComplete}
+          onComplete={handleCompleteOrBack}
           colors={colors}
           language={language}
         />
