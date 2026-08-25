@@ -20,6 +20,7 @@ import {
   acceptCaregiverInvite,
 } from '../services/caregiverService';
 import { createQRCodeData } from '../services/qrCodeService';
+import { auth } from '../config/firebase';
 
 const log = createScopedLogger('useCaregiver');
 
@@ -192,7 +193,11 @@ export function useCaregiver(): UseCaregiverResult {
   // Davet kabul et (Bakıcı olarak bir hastaya bağlan)
   const acceptInvite = useCallback(
     async (inviteCode: string) => {
-      if (isGuest || !userId) {
+      const firebaseUser = auth.currentUser;
+      const effectiveUserId = userId && userId !== 'guest_local_user' ? userId : firebaseUser?.uid;
+      const effectiveDisplayName = user?.displayName || firebaseUser?.displayName || 'Bakıcı';
+
+      if (!effectiveUserId || effectiveUserId === 'guest_local_user') {
         return {
           success: false,
           error:
@@ -202,8 +207,8 @@ export function useCaregiver(): UseCaregiverResult {
 
       const result = await acceptCaregiverInvite(
         inviteCode,
-        userId,
-        user?.displayName || 'Bakıcı',
+        effectiveUserId,
+        effectiveDisplayName,
         ''
       );
 

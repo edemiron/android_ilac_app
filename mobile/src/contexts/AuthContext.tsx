@@ -205,7 +205,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const userInfo = await GoogleSignin.signIn();
       log.debug('Google Sign-In result received', { hasData: !!userInfo.data });
 
-      const idToken = userInfo.data?.idToken;
+      const rawUserInfo = userInfo as any;
+      const idToken = rawUserInfo?.data?.idToken || rawUserInfo?.idToken;
       log.debug('ID Token status', { exists: !!idToken });
 
       if (idToken) {

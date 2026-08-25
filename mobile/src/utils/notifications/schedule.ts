@@ -321,7 +321,7 @@ export async function scheduleTestAlarmNotification(
       lights: ['#0D9488', 500, 500] as [string, number, number],
       actions: ALARM_ACTIONS,
       style: {
-        type: AndroidStyle.BIGTEXT,
+        type: AndroidStyle.BIGTEXT as never,
         text: bodyText,
         title: titleText,
         summary: subtitleText,
@@ -435,7 +435,11 @@ export async function scheduleMedicineNotification(
     const dosageStr = medicine.dosage ? ` (${medicine.dosage})` : '';
     const instructionStr = medicine.instructions ? `${medicine.instructions} • ` : '';
     const stockStr =
-      typeof medicine.stock === 'number' ? `\n📦 Kalan Stok: ${medicine.stock} adet` : '';
+      typeof medicine.stockCount === 'number'
+        ? `\n📦 Kalan Stok: ${medicine.stockCount} adet`
+        : typeof (medicine as any).stock === 'number'
+          ? `\n📦 Kalan Stok: ${(medicine as any).stock} adet`
+          : '';
     const titleText = `💊 ${medicine.name}${dosageStr}`;
     const subtitleText = `${timeStr} • İlaç Vakti`;
     const bodyText = `${instructionStr}${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.${stockStr}\n⏰ Saat: ${timeStr}`;

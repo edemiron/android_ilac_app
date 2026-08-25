@@ -270,7 +270,6 @@ export async function shareBackup(
       filename,
       url,
       type: 'application/json',
-      useInternalStorage: true,
     });
 
     log.info('Yedek başarıyla paylaşıldı', { filename });

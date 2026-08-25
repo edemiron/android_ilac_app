@@ -19,7 +19,7 @@ import type { Medicine, UserSettings } from '../../types';
 
 const _log = createScopedLogger('NotificationBehavior');
 
-export type NotificationSettingsInput = UserSettings | boolean | undefined;
+export type NotificationSettingsInput = UserSettings | Partial<UserSettings> | boolean | undefined;
 
 export interface ResolvedNotificationBehavior {
   settings: UserSettings;
