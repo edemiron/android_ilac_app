@@ -47,13 +47,13 @@ export function DoctorReportCard({
             <Text style={[styles.title, { color: colors.text }]}>
               {isTr ? 'HEKİM & ECZACI KLİNİK RAPORU' : 'CLINICAL ADHERENCE REPORT'}
             </Text>
-            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+            <Text style={[styles.subtitle, { color: isDark ? '#94A3B8' : colors.textSecondary }]}>
               {isTr ? 'Resmi PDF Dökümü' : 'Official PDF Export'}
             </Text>
           </View>
         </View>
 
-        <Text style={[styles.description, { color: colors.textMuted }]}>
+        <Text style={[styles.description, { color: isDark ? '#CBD5E1' : colors.textSecondary }]}>
           {isTr
             ? 'Tedavi uyum geçmişinizi, atlanan dozları ve saatleri içeren detaylı klinik PDF raporunu tek tıkla doktorunuzla WhatsApp veya E-posta üzerinden paylaşın.'
             : 'Export and share a clinical PDF adherence report with your doctor or pharmacist via WhatsApp or Email.'}

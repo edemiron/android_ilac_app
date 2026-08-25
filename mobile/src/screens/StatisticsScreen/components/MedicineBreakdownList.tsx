@@ -65,15 +65,15 @@ export function MedicineBreakdownList({
             const medColor = item.color || colors.primary || '#0D9488';
             const rate = item.adherenceRate;
 
-            let rateBadgeBg = `${colors.success}18`;
-            let rateBadgeText = colors.success || '#10B981';
+            let rateBadgeBg = isDark ? 'rgba(52, 211, 153, 0.22)' : `${colors.success}18`;
+            let rateBadgeText = isDark ? '#34D399' : colors.success || '#10B981';
 
             if (rate < 75) {
-              rateBadgeBg = `${colors.error}18`;
-              rateBadgeText = colors.error || '#EF4444';
+              rateBadgeBg = isDark ? 'rgba(248, 113, 113, 0.22)' : `${colors.error}18`;
+              rateBadgeText = isDark ? '#F87171' : colors.error || '#EF4444';
             } else if (rate < 90) {
-              rateBadgeBg = `${colors.warning}18`;
-              rateBadgeText = colors.warning || '#F59E0B';
+              rateBadgeBg = isDark ? 'rgba(251, 191, 36, 0.22)' : `${colors.warning}18`;
+              rateBadgeText = isDark ? '#FBBF24' : colors.warning || '#F59E0B';
             }
 
             return (

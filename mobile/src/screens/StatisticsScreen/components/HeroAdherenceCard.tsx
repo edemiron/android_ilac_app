@@ -77,6 +77,8 @@ export function HeroAdherenceCard({
               size={76}
               strokeWidth={8}
               progressColor={getAdherenceColor(rate, colors)}
+              textColor={isDark ? '#F8FAFC' : getAdherenceColor(rate, colors)}
+              trackColor={isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(15, 118, 110, 0.12)'}
             />
           </View>
 

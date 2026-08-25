@@ -159,8 +159,8 @@ export function Header({
             strokeWidth={5.5}
             progress={progressPercent}
             color={isDark ? '#14B8A6' : '#0F766E'}
-            trackColor={isDark ? '#334155' : '#E2E8F0'}
-            textColor={isDark ? '#2DD4BF' : '#0F766E'}
+            trackColor={isDark ? 'rgba(255, 255, 255, 0.12)' : '#E2E8F0'}
+            textColor={isDark ? '#5EEAD4' : '#0F766E'}
           />
         </View>
       </View>

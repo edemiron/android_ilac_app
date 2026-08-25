@@ -47,7 +47,7 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
   onLanguageSelect,
   getLanguageLabel,
 }) => {
-  const { isDark, theme } = useTheme();
+  const { isDark, theme, setTheme } = useTheme();
   const { language } = useLanguage();
   const isTr = language === 'tr';
 
@@ -58,7 +58,10 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
 
   const handleThemeSelect = (themeValue: ThemeMode) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    onThemeSelect(themeValue);
+    setTheme(themeValue);
+    if (onThemeSelect) {
+      onThemeSelect(themeValue);
+    }
   };
 
   const handleLanguageSelect = (lang: Language) => {

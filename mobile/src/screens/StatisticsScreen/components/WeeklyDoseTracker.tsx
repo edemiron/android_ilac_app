@@ -77,29 +77,29 @@ export function WeeklyDoseTracker({
             const isPartial = hasMeds && item.taken > 0 && item.taken < item.total;
             const isZero = hasMeds && item.taken === 0;
 
-            let pillBg = isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(148, 163, 184, 0.10)';
-            let pillBorder = isDark ? 'rgba(148, 163, 184, 0.25)' : 'rgba(148, 163, 184, 0.20)';
+            let pillBg = isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(148, 163, 184, 0.10)';
+            let pillBorder = isDark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(148, 163, 184, 0.20)';
             let iconName = 'ellipse-outline';
-            let iconColor = colors.textMuted;
+            let iconColor = isDark ? '#CBD5E1' : colors.textMuted;
             let statusText = '-';
 
             if (isFull) {
-              pillBg = isDark ? 'rgba(16, 185, 129, 0.20)' : 'rgba(16, 185, 129, 0.15)';
-              pillBorder = colors.success || '#10B981';
+              pillBg = isDark ? 'rgba(52, 211, 153, 0.25)' : 'rgba(16, 185, 129, 0.15)';
+              pillBorder = isDark ? '#34D399' : colors.success || '#10B981';
               iconName = 'checkmark-circle';
-              iconColor = colors.success || '#10B981';
+              iconColor = isDark ? '#34D399' : colors.success || '#10B981';
               statusText = `${item.taken}/${item.total}`;
             } else if (isPartial) {
-              pillBg = isDark ? 'rgba(245, 158, 11, 0.20)' : 'rgba(245, 158, 11, 0.15)';
-              pillBorder = colors.warning || '#F59E0B';
+              pillBg = isDark ? 'rgba(251, 191, 36, 0.25)' : 'rgba(245, 158, 11, 0.15)';
+              pillBorder = isDark ? '#FBBF24' : colors.warning || '#F59E0B';
               iconName = 'alert-circle';
-              iconColor = colors.warning || '#F59E0B';
+              iconColor = isDark ? '#FBBF24' : colors.warning || '#F59E0B';
               statusText = `${item.taken}/${item.total}`;
             } else if (isZero) {
-              pillBg = isDark ? 'rgba(239, 68, 68, 0.20)' : 'rgba(239, 68, 68, 0.15)';
-              pillBorder = colors.error || '#EF4444';
+              pillBg = isDark ? 'rgba(248, 113, 113, 0.25)' : 'rgba(239, 68, 68, 0.15)';
+              pillBorder = isDark ? '#F87171' : colors.error || '#EF4444';
               iconName = 'close-circle';
-              iconColor = colors.error || '#EF4444';
+              iconColor = isDark ? '#F87171' : colors.error || '#EF4444';
               statusText = `0/${item.total}`;
             } else {
               statusText = isTr ? 'Yok' : 'None';
