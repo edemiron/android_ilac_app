@@ -790,3 +790,131 @@ export async function getPatientPhoneNumber(patientId: string): Promise<string> 
     return '';
   }
 }
+
+/**
+ * Hastanın kayıtlı ilaçlarını getir
+ */
+export async function getPatientMedicines(patientId: string): Promise<any[]> {
+  try {
+    if (!patientId) return [];
+    const medsRef = collection(db, 'users', patientId, 'medicines');
+    const snap = await getDocs(medsRef);
+    return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  } catch (error) {
+    log.error('getPatientMedicines hata', error);
+    return [];
+  }
+}
+
+/**
+ * Hastanın hatırlatma saatlerini getir
+ */
+export async function getPatientReminderTimes(patientId: string): Promise<any[]> {
+  try {
+    if (!patientId) return [];
+    const timesRef = collection(db, 'users', patientId, 'reminderTimes');
+    const snap = await getDocs(timesRef);
+    return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  } catch (error) {
+    log.error('getPatientReminderTimes hata', error);
+    return [];
+  }
+}
+
+/**
+ * Hastanın ilaç kullanım loglarını getir
+ */
+export async function getPatientMedicineLogs(patientId: string, limitCount = 60): Promise<any[]> {
+  try {
+    if (!patientId) return [];
+    const logsRef = collection(db, 'users', patientId, MEDICINE_LOGS_SUBCOLLECTION);
+    const snap = await getDocs(logsRef);
+    const logs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+    return logs
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.scheduledTime || 0).getTime() - new Date(a.scheduledTime || 0).getTime()
+      )
+      .slice(0, limitCount);
+  } catch (error) {
+    log.error('getPatientMedicineLogs hata', error);
+    return [];
+  }
+}
+
+/**
+ * Hastanın tam günlük ve genel ilaç programını derle
+ */
+export async function getPatientFullSchedule(patientId: string): Promise<{
+  medicines: any[];
+  reminderTimes: any[];
+  logs: any[];
+  todayCompletedCount: number;
+  todayTotalCount: number;
+  todayPercent: number;
+}> {
+  try {
+    const [medicines, reminderTimes, logs] = await Promise.all([
+      getPatientMedicines(patientId),
+      getPatientReminderTimes(patientId),
+      getPatientMedicineLogs(patientId, 100),
+    ]);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayLogs = logs.filter(
+      (l: any) =>
+        (l.scheduledTime && l.scheduledTime.startsWith(todayStr)) ||
+        (l.takenAt && l.takenAt.startsWith(todayStr))
+    );
+
+    const todayCompleted = todayLogs.filter((l: any) => l.status === 'taken').length;
+    const todayTotal = Math.max(reminderTimes.length, todayLogs.length);
+    const todayPercent =
+      todayTotal > 0 ? Math.min(100, Math.round((todayCompleted / todayTotal) * 100)) : 100;
+
+    return {
+      medicines,
+      reminderTimes,
+      logs,
+      todayCompletedCount: todayCompleted,
+      todayTotalCount: todayTotal,
+      todayPercent,
+    };
+  } catch (error) {
+    log.error('getPatientFullSchedule hata', error);
+    return {
+      medicines: [],
+      reminderTimes: [],
+      logs: [],
+      todayCompletedCount: 0,
+      todayTotalCount: 0,
+      todayPercent: 0,
+    };
+  }
+}
+
+/**
+ * Hastanın ilaç loglarını canlı dinle (onSnapshot)
+ */
+export function subscribeToPatientLiveLogs(
+  patientId: string,
+  onLogReceived: (logs: any[]) => void
+): () => void {
+  try {
+    if (!patientId) return () => {};
+    const logsRef = collection(db, 'users', patientId, MEDICINE_LOGS_SUBCOLLECTION);
+    return onSnapshot(
+      logsRef,
+      snapshot => {
+        const logs = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        onLogReceived(logs);
+      },
+      error => {
+        log.warn('subscribeToPatientLiveLogs onSnapshot hatası', error);
+      }
+    );
+  } catch (error) {
+    log.error('subscribeToPatientLiveLogs hata', error);
+    return () => {};
+  }
+}

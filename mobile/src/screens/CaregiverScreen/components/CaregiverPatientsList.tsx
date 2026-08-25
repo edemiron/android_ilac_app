@@ -7,11 +7,12 @@
  * - Zengin boş durum (Empty State) tasarımı
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import type { PatientInfo } from '../../../types';
 import type { ThemeColors } from '../../../contexts/ThemeContext';
+import { CaregiverPatientDetailModal } from './CaregiverPatientDetailModal';
 
 interface CaregiverPatientsListProps {
   patients: PatientInfo[];
@@ -31,6 +32,7 @@ export function CaregiverPatientsList({
   language,
 }: CaregiverPatientsListProps) {
   const isTr = language === 'tr';
+  const [selectedPatient, setSelectedPatient] = useState<PatientInfo | null>(null);
 
   const renderPermissions = (patient: PatientInfo) => {
     const perms = [];
@@ -151,7 +153,7 @@ export function CaregiverPatientsList({
             const initials = getInitials(patientName);
 
             return (
-              <View
+              <TouchableOpacity
                 key={patient.relationshipId}
                 style={[
                   styles.patientCard,
@@ -161,6 +163,10 @@ export function CaregiverPatientsList({
                     shadowColor: colors.shadow,
                   },
                 ]}
+                onPress={() => setSelectedPatient(patient)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`${patientName} ilaç takibi detayları`}
               >
                 {/* Sol Yeşil Sağlık Çubuğu */}
                 <View style={styles.statusAccentBar} />
@@ -203,7 +209,10 @@ export function CaregiverPatientsList({
                           backgroundColor: isDark ? colors.inputBackground : '#FEE2E2',
                         },
                       ]}
-                      onPress={() => onRemovePatient(patient.relationshipId, patientName)}
+                      onPress={e => {
+                        e.stopPropagation();
+                        onRemovePatient(patient.relationshipId, patientName);
+                      }}
                       activeOpacity={0.7}
                       accessibilityRole="button"
                       accessibilityLabel={isTr ? 'Takipten Ayrıl' : 'Stop Tracking'}
@@ -215,7 +224,7 @@ export function CaregiverPatientsList({
                   {/* İzinler Satırı */}
                   {renderPermissions(patient)}
 
-                  {/* Güvence Açıklaması */}
+                  {/* Güvence Açıklaması & İlaç Programı Köprüsü */}
                   <View
                     style={[
                       styles.patientFooter,
@@ -226,19 +235,36 @@ export function CaregiverPatientsList({
                       },
                     ]}
                   >
-                    <Ionicons name="notifications-circle" size={16} color="#16A34A" />
-                    <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-                      {isTr
-                        ? 'Hastanın kritik ilaç saatleri ve acil durum uyarıları bu cihaza iletilir.'
-                        : 'Critical dose alerts and updates are delivered to this device.'}
-                    </Text>
+                    <View style={styles.footerLeft}>
+                      <Ionicons name="notifications-circle" size={16} color="#16A34A" />
+                      <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+                        {isTr
+                          ? 'Kritik saatler ve canlı uyarılar bu cihaza iletilir.'
+                          : 'Live updates delivered to this device.'}
+                      </Text>
+                    </View>
+                    <View style={styles.viewDetailBadge}>
+                      <Text style={[styles.viewDetailText, { color: colors.primary }]}>
+                        {isTr ? 'İlaçları Gör ›' : 'View Meds ›'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
       )}
+
+      {/* Hasta Detay & Canlı İlaç Takip Modalı */}
+      <CaregiverPatientDetailModal
+        visible={!!selectedPatient}
+        patient={selectedPatient}
+        onClose={() => setSelectedPatient(null)}
+        colors={colors}
+        isDark={isDark}
+        language={language}
+      />
     </View>
   );
 }
@@ -419,13 +445,30 @@ const styles = StyleSheet.create({
   patientFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
     paddingTop: 8,
     borderTopWidth: 1,
+    gap: 8,
+  },
+  footerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
   },
   footerText: {
     flex: 1,
     fontSize: 11.5,
     lineHeight: 15,
+  },
+  viewDetailBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: 'rgba(13, 148, 136, 0.1)',
+  },
+  viewDetailText: {
+    fontSize: 11.5,
+    fontWeight: '700',
   },
 });

@@ -9,4 +9,6 @@ export * from './components/CaregiverPatientsList';
 export * from './components/PendingInvitesList';
 export * from './components/CaregiverPermissionsModal';
 export * from './components/CaregiverQRModal';
+export * from './components/CaregiverFullScreenAlertModal';
+export * from './components/CaregiverPatientDetailModal';
 export * from './hooks/useCaregiverController';

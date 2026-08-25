@@ -19,7 +19,7 @@
  * Auth sonrası mount edilir ki user.uid (caregiver) hazır olsun.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Linking } from 'react-native';
 import {
   useCaregiverEventHandler,
@@ -29,10 +29,14 @@ import {
   logMedicineTakenByCaregiver,
   getPatientPhoneNumber,
   subscribeToCaregivers,
+  getPatientsForCaregiver,
 } from '../services/caregiverService';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
 import { createScopedLogger } from '../utils/logger';
+import { useCaregiverRealtimeWatcher } from '../hooks/useCaregiverRealtimeWatcher';
+import { CaregiverFullScreenAlertModal } from '../screens/CaregiverScreen/components/CaregiverFullScreenAlertModal';
+import type { PatientInfo } from '../types';
 
 const log = createScopedLogger('CaregiverEventBridge');
 
@@ -46,7 +50,22 @@ export function CaregiverEventBridge() {
   const caregiverId = user?.uid ?? null;
 
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
+  const [patients, setPatients] = useState<PatientInfo[]>([]);
   const [lastActionAt, setLastActionAt] = useState<number | null>(null);
+
+  // Bakıcının takip ettiği hastaları yükle ve canlı izle
+  useEffect(() => {
+    if (!caregiverId) {
+      setPatients([]);
+      return;
+    }
+    getPatientsForCaregiver(caregiverId).then(list => {
+      setPatients(list);
+    });
+  }, [caregiverId]);
+
+  // Canlı Firestore Log İzleyicisi — Doz alınınca otomatik Notifee + Tam Ekran Modal tetikler
+  useCaregiverRealtimeWatcher(patients, !!caregiverId);
 
   // Caregiver ilk aktif ilişkiyi "şu anki hasta" olarak seçsin.
   // İleride caregiverScreen UI'dan patient değiştirme eklenirse burası refactor edilir.
@@ -143,7 +162,7 @@ export function CaregiverEventBridge() {
     }
   }, [lastActionAt]);
 
-  return null;
+  return <CaregiverFullScreenAlertModal />;
 }
 
 export default CaregiverEventBridge;
