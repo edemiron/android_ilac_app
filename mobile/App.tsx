@@ -1197,6 +1197,7 @@ function AppContent() {
           name="Security"
           component={SecurityScreen}
           options={{
+            headerShown: false,
             title: language === 'tr' ? 'Güvenlik' : 'Security',
             presentation: 'card',
           }}
