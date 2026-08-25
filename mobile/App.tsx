@@ -1204,6 +1204,7 @@ function AppContent() {
           name="TtsSettings"
           component={TtsSettingsScreen}
           options={{
+            headerShown: false,
             title: language === 'tr' ? 'Sesli Bildirimler' : 'Voice Notifications',
             presentation: 'card',
           }}

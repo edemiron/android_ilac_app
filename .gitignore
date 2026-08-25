@@ -95,5 +95,7 @@ mobile/.smoke-logs/
 
 desktop.ini
 *.zip
+*.apk
+apk/
 short-node-modules/
 

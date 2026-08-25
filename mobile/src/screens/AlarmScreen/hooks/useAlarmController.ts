@@ -298,6 +298,7 @@ export function useAlarmController() {
               ttsEnabled: settings.ttsEnabled,
               ttsVolume: settings.ttsVolume,
               ttsRepeatCount: settings.ttsRepeatCount,
+              ttsSpeechRate: settings.ttsSpeechRate ?? 0.5,
               ttsSpeakMedicineName: settings.ttsSpeakMedicineName,
               ttsSpeakDosage: settings.ttsSpeakDosage,
               ttsSpeakInstructions: settings.ttsSpeakInstructions,

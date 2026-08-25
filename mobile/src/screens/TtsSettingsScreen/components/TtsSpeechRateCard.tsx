@@ -1,89 +1,127 @@
 /**
- * TtsRepeatCountCard — Tekrar Sayısı (1x, 2x, 3x) Kartı
+ * TtsSpeechRateCard — Konuşma Hızı Seçimi (Sakin 0.9x, Normal 1.1x, Hızlı 1.3x)
  */
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import type { ThemeColors } from '../../../contexts/ThemeContext';
 
-interface TtsRepeatCountCardProps {
-  ttsRepeatCount: number;
-  onSelectRepeatCount: (count: number) => void;
+interface TtsSpeechRateCardProps {
+  ttsSpeechRate: number;
+  onSelectSpeechRate: (rate: number) => void;
   colors: ThemeColors;
   language: string;
 }
 
-export function TtsRepeatCountCard({
-  ttsRepeatCount,
-  onSelectRepeatCount,
+interface SpeechRateOption {
+  key: string;
+  rate: number;
+  labelTr: string;
+  labelEn: string;
+  subTr: string;
+  subEn: string;
+  icon: string;
+}
+
+const SPEED_OPTIONS: SpeechRateOption[] = [
+  {
+    key: 'slow',
+    rate: 0.9,
+    labelTr: 'Sakin',
+    labelEn: 'Calm',
+    subTr: 'Sakin & Net',
+    subEn: 'Calm & Clear',
+    icon: '🐢',
+  },
+  {
+    key: 'normal',
+    rate: 1.1,
+    labelTr: 'Normal',
+    labelEn: 'Normal',
+    subTr: 'Standart Akış',
+    subEn: 'Default Pace',
+    icon: '⏱️',
+  },
+  {
+    key: 'fast',
+    rate: 1.3,
+    labelTr: 'Hızlı',
+    labelEn: 'Fast',
+    subTr: 'Dinamik & Çevik',
+    subEn: 'Dynamic & Swift',
+    icon: '⚡',
+  },
+];
+
+export function TtsSpeechRateCard({
+  ttsSpeechRate,
+  onSelectSpeechRate,
   colors,
   language,
-}: TtsRepeatCountCardProps) {
+}: TtsSpeechRateCardProps) {
   const isTr = language === 'tr';
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.cardHeader}>
-        <View style={[styles.iconBg, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-          <Text style={styles.iconText}>🔁</Text>
+        <View style={[styles.iconBg, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
+          <Text style={styles.iconText}>⚡</Text>
         </View>
         <View style={styles.headerTextContainer}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>
-            {isTr ? 'Tekrar Sayısı' : 'Repeat Count'}
+            {isTr ? 'Konuşma Hızı' : 'Speech Speed'}
           </Text>
           <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
             {isTr
-              ? 'Alarm kapanana kadar duyurunun kaç kez tekrarlanacağı'
-              : 'How many times the announcement repeats'}
+              ? 'Alarm duyurusunun okunma temposunu belirleyin'
+              : 'Set the speaking pace for alarm announcements'}
           </Text>
         </View>
       </View>
 
       <View style={[styles.divider, { backgroundColor: colors.divider || 'rgba(0,0,0,0.06)' }]} />
 
-      <View style={styles.repeatContainer}>
-        {[
-          { count: 1, labelTr: '1 Kez', labelEn: '1 Time', subTr: 'Tek Okuma', subEn: 'Once' },
-          { count: 2, labelTr: '2 Kez', labelEn: '2 Times', subTr: 'Aralıklı', subEn: 'Twice' },
-          { count: 3, labelTr: '3 Kez', labelEn: '3 Times', subTr: 'Garanti', subEn: 'Thrice' },
-        ].map(item => {
-          const isActive = ttsRepeatCount === item.count;
+      <View style={styles.optionsRow}>
+        {SPEED_OPTIONS.map(option => {
+          // Check closest match
+          const isSelected = Math.abs(ttsSpeechRate - option.rate) < 0.12;
 
           return (
             <TouchableOpacity
-              key={item.count}
+              key={option.key}
               style={[
-                styles.repeatButton,
+                styles.rateButton,
                 {
-                  backgroundColor: isActive
+                  backgroundColor: isSelected
                     ? colors.primary
                     : colors.surfaceContainerLow || colors.background,
-                  borderColor: isActive ? colors.primary : colors.border,
+                  borderColor: isSelected ? colors.primary : colors.border,
                 },
               ]}
-              onPress={() => onSelectRepeatCount(item.count)}
+              onPress={() => onSelectSpeechRate(option.rate)}
               activeOpacity={0.75}
             >
+              <Text style={styles.rateIcon}>{option.icon}</Text>
               <Text
                 style={[
-                  styles.repeatButtonText,
+                  styles.rateLabel,
                   {
-                    color: isActive ? colors.textOnPrimary : colors.text,
-                    fontWeight: isActive ? '700' : '600',
+                    color: isSelected ? colors.textOnPrimary : colors.text,
+                    fontWeight: isSelected ? '700' : '600',
                   },
                 ]}
               >
-                {isTr ? item.labelTr : item.labelEn}
+                {isTr ? option.labelTr : option.labelEn}
               </Text>
               <Text
                 style={[
-                  styles.repeatSubText,
+                  styles.rateSub,
                   {
-                    color: isActive ? 'rgba(255, 255, 255, 0.85)' : colors.textSecondary,
+                    color: isSelected ? 'rgba(255, 255, 255, 0.85)' : colors.textSecondary,
                   },
                 ]}
               >
-                {isTr ? item.subTr : item.subEn}
+                {isTr ? option.subTr : option.subEn}
               </Text>
             </TouchableOpacity>
           );
@@ -138,24 +176,28 @@ const styles = StyleSheet.create({
     height: 1,
     marginVertical: 14,
   },
-  repeatContainer: {
+  optionsRow: {
     flexDirection: 'row',
     gap: 8,
   },
-  repeatButton: {
+  rateButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 4,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  repeatButtonText: {
-    fontSize: 14,
+  rateIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  rateLabel: {
+    fontSize: 13,
     letterSpacing: -0.2,
   },
-  repeatSubText: {
+  rateSub: {
     fontSize: 10,
     marginTop: 2,
   },

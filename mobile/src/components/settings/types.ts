@@ -71,6 +71,7 @@ export interface Settings {
   ttsEnabled?: boolean;
   ttsVolume?: number;
   ttsRepeatCount?: number;
+  ttsSpeechRate?: number;
   ttsSpeakMedicineName?: boolean;
   ttsSpeakDosage?: boolean;
   ttsSpeakInstructions?: boolean;

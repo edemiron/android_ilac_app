@@ -2,23 +2,25 @@
  * TtsSettingsScreen — Sesli Bildirimler ve TTS Ayarları Ekranı
  *
  * Design Pattern: Presenter Pattern / Declarative View
- * Tüm TTS motoru döngüleri, ses seviyesi ve ayar mutasyonları `useTtsSettingsController`
- * Presenter Hook'una aktarılmıştır. Bu dosya yalnızca layout organizasyonundan sorumludur.
+ * Tüm TTS motoru döngüleri, konuşma hızı, ses seviyesi ve ayar mutasyonları
+ * `useTtsSettingsController` Presenter Hook'una aktarılmıştır.
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Alt Bileşenler (Modular UI)
-import { TtsMainToggleCard } from './TtsSettingsScreen/components/TtsMainToggleCard';
-import { TtsOptionsCard } from './TtsSettingsScreen/components/TtsOptionsCard';
-import { TtsRepeatCountCard } from './TtsSettingsScreen/components/TtsRepeatCountCard';
-import { TtsVolumeCard } from './TtsSettingsScreen/components/TtsVolumeCard';
-import { TtsPreviewCard } from './TtsSettingsScreen/components/TtsPreviewCard';
-
-// Presenter Hook
-import { useTtsSettingsController } from './TtsSettingsScreen/hooks/useTtsSettingsController';
+import {
+  TtsHeader,
+  TtsMainToggleCard,
+  TtsPreviewCard,
+  TtsSpeechRateCard,
+  TtsVolumeCard,
+  TtsOptionsCard,
+  TtsRepeatCountCard,
+  useTtsSettingsController,
+} from './TtsSettingsScreen/index';
 
 export default function TtsSettingsScreen() {
   const {
@@ -30,14 +32,17 @@ export default function TtsSettingsScreen() {
     ttsSpeakInstructions,
     ttsRepeatCount,
     ttsVolume,
+    ttsSpeechRate,
     isTesting,
     handleToggleTts,
     handleToggleSpeakName,
     handleToggleSpeakDosage,
     handleToggleSpeakInstructions,
     handleVolumeChange,
+    handleSpeechRateChange,
     handleRepeatCountChange,
     handleTestVoice,
+    handleGoBack,
   } = useTtsSettingsController();
 
   return (
@@ -45,25 +50,14 @@ export default function TtsSettingsScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top', 'bottom']}
     >
+      {/* 1. Modern Klinik Üst Başlık & Geri Butonu */}
+      <TtsHeader onBack={handleGoBack} colors={colors} language={language} />
+
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
-        {/* 1. Başlık */}
-        <View style={styles.header}>
-          <View style={[styles.iconContainer, { backgroundColor: colors.card }]}>
-            <Text style={styles.headerIcon}>🔊</Text>
-          </View>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            {language === 'tr' ? 'Sesli Bildirimler' : 'Voice Notifications'}
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            {language === 'tr'
-              ? 'Alarm sırasında ilaç bilgilerini sesli olarak duyurun'
-              : 'Announce medicine information during alarms'}
-          </Text>
-        </View>
-
         {/* 2. Ana Sesli Bildirim Aç/Kapa Kartı */}
         <TtsMainToggleCard
           ttsEnabled={ttsEnabled}
@@ -74,22 +68,23 @@ export default function TtsSettingsScreen() {
 
         {ttsEnabled && (
           <>
-            {/* 3. Ne Söylensin? (İlaç Adı / Dozaj / Talimatlar) */}
-            <TtsOptionsCard
+            {/* 3. Hero Ses Kontrol Merkezi & Canlı Test Oynatıcısı */}
+            <TtsPreviewCard
               ttsSpeakMedicineName={ttsSpeakMedicineName}
-              onToggleSpeakName={handleToggleSpeakName}
               ttsSpeakDosage={ttsSpeakDosage}
-              onToggleSpeakDosage={handleToggleSpeakDosage}
               ttsSpeakInstructions={ttsSpeakInstructions}
-              onToggleSpeakInstructions={handleToggleSpeakInstructions}
+              ttsSpeechRate={ttsSpeechRate}
+              ttsVolume={ttsVolume}
+              isTesting={isTesting}
+              onTestVoice={handleTestVoice}
               colors={colors}
               language={language}
             />
 
-            {/* 4. Tekrar Sayısı (1x / 2x / 3x) */}
-            <TtsRepeatCountCard
-              ttsRepeatCount={ttsRepeatCount}
-              onSelectRepeatCount={handleRepeatCountChange}
+            {/* 4. Konuşma Hızı (0.8x Yavaş, 1.0x Normal, 1.2x Hızlı) */}
+            <TtsSpeechRateCard
+              ttsSpeechRate={ttsSpeechRate}
+              onSelectSpeechRate={handleSpeechRateChange}
               colors={colors}
               language={language}
             />
@@ -102,13 +97,22 @@ export default function TtsSettingsScreen() {
               language={language}
             />
 
-            {/* 6. Önizleme Metni & Ses Testi */}
-            <TtsPreviewCard
+            {/* 6. Ne Söylensin? (İlaç Adı / Dozaj / Talimatlar) */}
+            <TtsOptionsCard
               ttsSpeakMedicineName={ttsSpeakMedicineName}
+              onToggleSpeakName={handleToggleSpeakName}
               ttsSpeakDosage={ttsSpeakDosage}
+              onToggleSpeakDosage={handleToggleSpeakDosage}
               ttsSpeakInstructions={ttsSpeakInstructions}
-              isTesting={isTesting}
-              onTestVoice={handleTestVoice}
+              onToggleSpeakInstructions={handleToggleSpeakInstructions}
+              colors={colors}
+              language={language}
+            />
+
+            {/* 7. Tekrar Sayısı (1x / 2x / 3x) */}
+            <TtsRepeatCountCard
+              ttsRepeatCount={ttsRepeatCount}
+              onSelectRepeatCount={handleRepeatCountChange}
               colors={colors}
               language={language}
             />
@@ -125,36 +129,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  headerIcon: {
-    fontSize: 36,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
+  scrollContent: {
+    paddingTop: 4,
+    paddingBottom: 24,
   },
 });

@@ -79,10 +79,14 @@ export function useCaregiver(): UseCaregiverResult {
   const [showQRModal, setShowQRModal] = useState(false);
 
   const userId = user?.uid;
+  const isGuest = !userId || userId === 'guest_local_user';
 
   // Bakıcıları yükle (Beni takip edenler)
   const loadCaregivers = useCallback(async () => {
-    if (!userId) return;
+    if (isGuest || !userId) {
+      setCaregivers([]);
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -93,11 +97,14 @@ export function useCaregiver(): UseCaregiverResult {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [isGuest, userId]);
 
   // Bekleyen davetleri yükle
   const loadPendingInvites = useCallback(async () => {
-    if (!userId) return;
+    if (isGuest || !userId) {
+      setPendingInvites([]);
+      return;
+    }
 
     try {
       const data = await getPendingInvites(userId);
@@ -105,11 +112,14 @@ export function useCaregiver(): UseCaregiverResult {
     } catch (error) {
       log.error('Davetler yüklenemedi', error);
     }
-  }, [userId]);
+  }, [isGuest, userId]);
 
   // Takip ettiğim hastaları yükle (Bakıcı olduğum kişiler)
   const loadPatients = useCallback(async () => {
-    if (!userId) return;
+    if (isGuest || !userId) {
+      setPatients([]);
+      return;
+    }
 
     try {
       const data = await getPatientsForCaregiver(userId);
@@ -117,7 +127,7 @@ export function useCaregiver(): UseCaregiverResult {
     } catch (error) {
       log.error('Hastalar yüklenemedi', error);
     }
-  }, [userId]);
+  }, [isGuest, userId]);
 
   // Refresh
   const refresh = useCallback(async () => {
@@ -133,7 +143,7 @@ export function useCaregiver(): UseCaregiverResult {
 
   // Real-time updates
   useEffect(() => {
-    if (!userId) return;
+    if (isGuest || !userId) return;
 
     const unsubscribe = subscribeToCaregivers(userId, data => {
       setCaregivers(data);
@@ -142,7 +152,7 @@ export function useCaregiver(): UseCaregiverResult {
     return () => {
       unsubscribe();
     };
-  }, [userId]);
+  }, [isGuest, userId]);
 
   // Davet oluştur
   const createInvite = useCallback(
@@ -154,8 +164,12 @@ export function useCaregiver(): UseCaregiverResult {
         canReceiveAlerts: true,
       }
     ) => {
-      if (!userId) {
-        return { success: false, error: 'Oturum açmanız gerekiyor' };
+      if (isGuest || !userId) {
+        return {
+          success: false,
+          error:
+            'Aile & Bakıcı Takibi bulut senkronizasyonu gerektirir. Lütfen Google veya E-posta ile giriş yapın.',
+        };
       }
 
       const result = await createCaregiverInvite(
@@ -172,14 +186,18 @@ export function useCaregiver(): UseCaregiverResult {
 
       return result;
     },
-    [userId, user?.displayName, loadPendingInvites]
+    [isGuest, userId, user?.displayName, loadPendingInvites]
   );
 
   // Davet kabul et (Bakıcı olarak bir hastaya bağlan)
   const acceptInvite = useCallback(
     async (inviteCode: string) => {
-      if (!userId) {
-        return { success: false, error: 'Oturum açmanız gerekiyor' };
+      if (isGuest || !userId) {
+        return {
+          success: false,
+          error:
+            'Aile takibine katılmak bulut senkronizasyonu gerektirir. Lütfen Google veya E-posta ile giriş yapın.',
+        };
       }
 
       const result = await acceptCaregiverInvite(
@@ -195,7 +213,7 @@ export function useCaregiver(): UseCaregiverResult {
 
       return result;
     },
-    [userId, user?.displayName, loadPatients]
+    [isGuest, userId, user?.displayName, loadPatients]
   );
 
   // Bakıcı kaldır (Beni takip eden bakıcıyı sil)

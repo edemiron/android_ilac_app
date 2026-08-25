@@ -3,6 +3,8 @@ import {
   validateBackupPayload,
   parseAndValidateBackupJson,
   shareBackup,
+  utf8ToBase64,
+  base64ToUtf8,
   BACKUP_SCHEMA_VERSION,
 } from '../../services/backupRestoreService';
 import Share from 'react-native-share';
@@ -118,11 +120,24 @@ describe('backupRestoreService', () => {
     expect(result.error).toContain('JSON');
   });
 
-  it('calls Share.open on shareBackup', async () => {
+  it('calls Share.open with base64 data URL on shareBackup', async () => {
     const payload = createBackupPayload(mockMedicines, mockReminderTimes, mockLogs, mockSettings);
 
     const result = await shareBackup(payload);
     expect(result.success).toBe(true);
     expect(Share.open).toHaveBeenCalledTimes(1);
+    const shareCallArgs = (Share.open as jest.Mock).mock.calls[0][0];
+    expect(shareCallArgs.url).toMatch(/^data:application\/json;base64,/);
+    expect(shareCallArgs.type).toBe('application/json');
+  });
+
+  it('correctly encodes and decodes UTF-8 strings with Turkish characters and emojis', () => {
+    const originalText = 'Parol 500mg, Tok karnına (Çörekotu & Şurup) 💊 1 tablet - ĞİÖŞÜçğıöşü';
+    const encoded = utf8ToBase64(originalText);
+    expect(typeof encoded).toBe('string');
+    expect(encoded.length).toBeGreaterThan(0);
+
+    const decoded = base64ToUtf8(encoded);
+    expect(decoded).toBe(originalText);
   });
 });

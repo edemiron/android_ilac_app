@@ -47,13 +47,18 @@ const INVITES_COLLECTION = 'caregiverInvites';
 const RELATIONSHIPS_COLLECTION = 'caregiverRelationships';
 const MEDICINE_LOGS_SUBCOLLECTION = 'medicineLogs'; // Sprint 72: hasta medicineLogs subcollection
 
+function cleanUndefined<T extends Record<string, any>>(obj: T): T {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result as T;
+}
+
 // Davet kodu geçerlilik süresi (7 gün)
 const INVITE_EXPIRY_DAYS = 7;
-
-/**
- * 6 haneli rastgele davet kodu oluştur
- * Okunabilir karakterler: 0-9, A-Z (hariç I, O, Q)
- */
 
 /**
  * Yeni bakıcı daveti oluştur
@@ -140,24 +145,41 @@ export async function createCaregiverInvite(
     expiresAt.setDate(expiresAt.getDate() + INVITE_EXPIRY_DAYS);
 
     // Daveti kaydet
-    const invite: CaregiverInvite = {
+    const invite: CaregiverInvite = cleanUndefined({
       id: inviteCode,
       patientId,
-      patientName,
-      caregiverEmail: caregiverEmail.toLowerCase(),
+      patientName: patientName || 'Hasta',
+      caregiverEmail: (caregiverEmail || '').toLowerCase(),
       status: 'pending',
       expiresAt: expiresAt.toISOString(),
       createdAt: new Date().toISOString(),
-      permissions,
-    };
+      permissions: {
+        canViewSchedule: permissions?.canViewSchedule ?? true,
+        canViewHistory: permissions?.canViewHistory ?? true,
+        canReceiveAlerts: permissions?.canReceiveAlerts ?? true,
+      },
+    });
 
     await setDoc(doc(db, INVITES_COLLECTION, inviteCode), invite);
 
     log.info('Bakıcı daveti oluşturuldu', { inviteCode, caregiverEmail });
 
     return { success: true, inviteCode };
-  } catch (error) {
+  } catch (error: any) {
     log.error('Davet oluşturma hatası', error);
+    const errorCode = error?.code || '';
+    if (errorCode.includes('permission-denied')) {
+      return {
+        success: false,
+        error: 'Davet oluşturmak için lütfen Google veya E-posta ile giriş yapın.',
+      };
+    }
+    if (errorCode.includes('unavailable')) {
+      return {
+        success: false,
+        error: 'Sunucuya ulaşılamadı. Lütfen internet bağlantınızı kontrol edin.',
+      };
+    }
     return {
       success: false,
       error: 'Davet oluşturulamadı. Lütfen tekrar deneyin.',
@@ -195,6 +217,15 @@ export async function acceptCaregiverInvite(
 
     const invite = inviteSnap.data() as CaregiverInvite;
 
+    // Kendi oluşturduğu daveti kabul etmeyi engelle
+    if (invite.patientId === caregiverId) {
+      return {
+        success: false,
+        error:
+          'Kendi oluşturduğunuz davet kodunu kullanamazsınız. Bu kodu yakınınız ile paylaşmalısınız.',
+      };
+    }
+
     // Davet durumunu kontrol et
     if (invite.status !== 'pending') {
       return {
@@ -215,37 +246,55 @@ export async function acceptCaregiverInvite(
 
     // İlişki oluştur
     const relationshipId = generateId();
-    const relationship: CaregiverRelationship = {
+    const relationship: CaregiverRelationship = cleanUndefined({
       id: relationshipId,
       patientId: invite.patientId,
       caregiverId,
-      caregiverEmail: invite.caregiverEmail,
-      caregiverName,
+      caregiverEmail: invite.caregiverEmail || '',
+      caregiverName: caregiverName || 'Bakıcı',
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      canViewSchedule: invite.permissions.canViewSchedule,
-      canViewHistory: invite.permissions.canViewHistory,
-      canReceiveAlerts: invite.permissions.canReceiveAlerts,
-      caregiverFcmToken,
-    };
+      canViewSchedule: invite.permissions?.canViewSchedule ?? true,
+      canViewHistory: invite.permissions?.canViewHistory ?? true,
+      canReceiveAlerts: invite.permissions?.canReceiveAlerts ?? true,
+      caregiverFcmToken: caregiverFcmToken || '',
+    });
 
     await setDoc(doc(db, RELATIONSHIPS_COLLECTION, relationshipId), relationship);
 
-    // Daveti güncelle (accepted)
-    await updateDoc(inviteRef, {
-      status: 'accepted',
-      acceptedAt: new Date().toISOString(),
-    });
+    // Daveti güncelle (accepted) - Firestore security rules gereği caregiverId ve status zorunludur
+    await updateDoc(
+      inviteRef,
+      cleanUndefined({
+        status: 'accepted',
+        caregiverId,
+        caregiverName: caregiverName || 'Bakıcı',
+        acceptedAt: new Date().toISOString(),
+      })
+    );
 
     log.info('Bakıcı daveti kabul edildi', { inviteCode, caregiverId });
 
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     log.error('Davet kabul hatası', error);
+    const errorCode = error?.code || '';
+    if (errorCode.includes('permission-denied')) {
+      return {
+        success: false,
+        error: 'Yetkisiz erişim. Lütfen Google veya E-posta ile giriş yaptığınızdan emin olun.',
+      };
+    }
+    if (errorCode.includes('unavailable')) {
+      return {
+        success: false,
+        error: 'Sunucuya ulaşılamadı. Lütfen internet bağlantınızı kontrol edin.',
+      };
+    }
     return {
       success: false,
-      error: 'Bir hata oluştu. Lütfen tekrar deneyin.',
+      error: error?.message || 'Bir hata oluştu. Lütfen tekrar deneyin.',
     };
   }
 }

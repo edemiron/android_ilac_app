@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { SettingsSection, SettingRow } from '../../../components/settings';
+import { APP_VERSION } from '../../../config/version';
 
 interface HelpSupportSectionProps {
   onFAQPress: () => void;
@@ -33,8 +34,8 @@ export function HelpSupportSection({
         label={isTr ? 'Bize Ulaşın & Uygulama Hakkında' : 'Contact Us & About'}
         description={
           isTr
-            ? 'Sürüm 1.3.5 (Geliştirici modu için 7 kez dokunun)'
-            : 'Version 1.3.5 (Tap 7 times for dev mode)'
+            ? `Sürüm ${APP_VERSION} (Geliştirici modu için 7 kez dokunun)`
+            : `Version ${APP_VERSION} (Tap 7 times for dev mode)`
         }
         onPress={onVersionPress}
         showChevron

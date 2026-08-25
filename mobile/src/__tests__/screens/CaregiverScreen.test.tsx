@@ -53,6 +53,14 @@ jest.mock('../../hooks/useCaregiver', () => ({
   }),
 }));
 
+jest.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: { uid: 'test-user-123', email: 'test@example.com', displayName: 'Test User' },
+    isLoading: false,
+    isAuthenticated: true,
+  }),
+}));
+
 jest.mock('../../contexts/LanguageContext', () => ({
   useLanguage: () => ({
     language: 'tr',

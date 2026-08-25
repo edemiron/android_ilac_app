@@ -137,6 +137,7 @@ export interface UserSettings {
   ttsEnabled: boolean; // Sesli okuma aktif mi?
   ttsVolume: number; // 0-100 arası
   ttsRepeatCount: number; // Kaç kez tekrar etsin (0-3)
+  ttsSpeechRate?: number; // Konuşma hızı: 0.38 (Yavaş 0.8x), 0.50 (Normal 1.0x), 0.62 (Hızlı 1.2x)
   ttsSpeakMedicineName: boolean; // İlaç adı söylensin mi?
   ttsSpeakDosage: boolean; // Dozaj söylensin mi?
   ttsSpeakInstructions: boolean; // Talimatlar söylensin mi?

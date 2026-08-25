@@ -48,6 +48,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   ttsEnabled: true,
   ttsVolume: 80,
   ttsRepeatCount: 1,
+  ttsSpeechRate: 1.1,
   ttsSpeakMedicineName: true,
   ttsSpeakDosage: true,
   ttsSpeakInstructions: true,

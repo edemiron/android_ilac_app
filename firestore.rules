@@ -182,7 +182,8 @@ service cloud.firestore {
       // Only the patient owner or accepting caregiver can update/delete
       allow update: if isAuthenticated() && (
         resource.data.patientId == request.auth.uid ||
-        request.resource.data.caregiverId == request.auth.uid
+        request.resource.data.caregiverId == request.auth.uid ||
+        (request.resource.data.status == 'accepted' && request.auth != null)
       );
       allow delete: if isAuthenticated() && resource.data.patientId == request.auth.uid;
     }

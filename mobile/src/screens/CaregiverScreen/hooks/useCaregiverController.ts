@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { Linking, Share } from 'react-native';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useCaregiver } from '../../../hooks/useCaregiver';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -23,8 +24,11 @@ interface UseCaregiverControllerProps {
 export function useCaregiverController({ navigation }: UseCaregiverControllerProps = {}) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
+  const { user } = useAuth();
   const { showInfo, showError, showAlert } = useAlert();
   const { trigger: triggerHaptic } = useHaptics();
+
+  const isGuest = !user?.uid || user?.uid === 'guest_local_user';
 
   const {
     caregivers,
@@ -144,6 +148,29 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
 
   // Mevcut geçerli bir davet kodunu getir veya yenisini oluştur
   const getOrCreateInviteCode = async (): Promise<string | null> => {
+    if (isGuest) {
+      triggerHaptic('error');
+      showAlert({
+        type: 'warning',
+        title: isTr ? 'Oturum Açmanız Gerekiyor' : 'Sign-in Required',
+        message: isTr
+          ? 'Aile ve Bakıcı Takibi canlı bulut senkronizasyonu gerektirir. Lütfen Google veya E-posta ile giriş yapın.'
+          : 'Family tracking requires cloud synchronization. Please sign in via Google or Email.',
+        buttons: [
+          { text: isTr ? 'Tamam' : 'OK' },
+          ...(navigation?.navigate
+            ? [
+                {
+                  text: isTr ? 'Giriş Yap' : 'Sign In',
+                  onPress: () => navigation.navigate('Settings'),
+                },
+              ]
+            : []),
+        ],
+      });
+      return null;
+    }
+
     // 1. Önce aktif bekleyen bir davet var mı kontrol et
     if (pendingInvites && pendingInvites.length > 0) {
       const active = pendingInvites.find(i => i.status === 'pending' && i.id);
@@ -156,6 +183,9 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     const res = await createInvite(targetEmail);
     if (res.success && res.inviteCode) {
       return res.inviteCode;
+    }
+    if (res.error) {
+      showError(isTr ? 'Hata' : 'Error', res.error);
     }
     return null;
   };
@@ -341,6 +371,29 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
 
   // Bakıcı olarak 6 haneli davet kodunu onaylayıp hastaya bağlanma
   const handleAcceptCode = async () => {
+    if (isGuest) {
+      triggerHaptic('error');
+      showAlert({
+        type: 'warning',
+        title: isTr ? 'Oturum Açmanız Gerekiyor' : 'Sign-in Required',
+        message: isTr
+          ? 'Aile takibine katılmak canlı bulut senkronizasyonu gerektirir. Lütfen Google veya E-posta ile giriş yapın.'
+          : 'Joining a care circle requires cloud synchronization. Please sign in via Google or Email.',
+        buttons: [
+          { text: isTr ? 'Tamam' : 'OK' },
+          ...(navigation?.navigate
+            ? [
+                {
+                  text: isTr ? 'Giriş Yap' : 'Sign In',
+                  onPress: () => navigation.navigate('Settings'),
+                },
+              ]
+            : []),
+        ],
+      });
+      return;
+    }
+
     const cleanCode = inviteCodeInput.trim().toUpperCase();
     if (!cleanCode) {
       triggerHaptic('error');
@@ -479,6 +532,7 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     handleRemovePatient,
     handleScanQR,
     // Ortak
+    isGuest,
     isLoading,
     qrCodeData,
     showQRModal,

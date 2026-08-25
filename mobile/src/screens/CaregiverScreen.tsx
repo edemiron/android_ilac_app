@@ -25,6 +25,7 @@ import { CaregiversList } from './CaregiverScreen/components/CaregiversList';
 import { CaregiverPatientsList } from './CaregiverScreen/components/CaregiverPatientsList';
 import { CaregiverPermissionsModal } from './CaregiverScreen/components/CaregiverPermissionsModal';
 import { CaregiverQRModal } from './CaregiverScreen/components/CaregiverQRModal';
+import { CaregiverGuestNotice } from './CaregiverScreen/components/CaregiverGuestNotice';
 
 // Presenter Hook
 import { useCaregiverController } from './CaregiverScreen/hooks/useCaregiverController';
@@ -70,6 +71,7 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
     handleRemovePatient,
     handleScanQR,
     // Ortak
+    isGuest,
     isLoading,
     qrCodeData,
     showQRModal,
@@ -108,6 +110,20 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
         isDark={isDark}
         language={language}
       />
+
+      {/* 2.1 Misafir Kullanıcı Giriş Uyarısı */}
+      {isGuest && (
+        <CaregiverGuestNotice
+          colors={colors}
+          isDark={isDark}
+          language={language}
+          onSignIn={() => {
+            if (navigation && typeof navigation.navigate === 'function') {
+              navigation.navigate('Settings');
+            }
+          }}
+        />
+      )}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
