@@ -29,9 +29,12 @@ export function ProfileSection({
       <SettingRow
         icon={{ name: 'person', color: '#0284C7' }}
         label={isTr ? 'Hesap Bilgileri' : 'Account Details'}
-        description={user?.email || (isTr ? 'Misafir Hesap' : 'Guest Account')}
+        description={
+          user?.email ||
+          (isTr ? 'Misafir Hesap • Giriş Yap / Kayıt Ol' : 'Guest Account • Sign In / Register')
+        }
         value={isSyncing ? (isTr ? 'Eşitleniyor...' : 'Syncing...') : undefined}
-        onPress={isSyncing ? undefined : onSync}
+        onPress={isSyncing ? undefined : user?.email ? onSync : () => navigation.navigate('Login')}
         showChevron
       />
 

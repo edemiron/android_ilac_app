@@ -73,6 +73,9 @@ export function useRegisterController() {
     try {
       clearError();
       await register(email.trim(), password, name.trim());
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      }
     } catch {
       // Hata AuthContext'te zaten set ediliyor
     }

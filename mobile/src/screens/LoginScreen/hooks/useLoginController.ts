@@ -75,6 +75,9 @@ export function useLoginController() {
     try {
       clearError();
       await login(email.trim(), password);
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      }
     } catch {
       // Hata AuthContext'te zaten set ediliyor
     }

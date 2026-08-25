@@ -61,7 +61,13 @@ export default function RegisterScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* 1. Başlık & Logo */}
-          <AuthHeader title={t.title} subtitle={t.subtitle} colors={colors} />
+          <AuthHeader
+            title={t.title}
+            subtitle={t.subtitle}
+            colors={colors}
+            showBack={Boolean(navigation?.canGoBack?.())}
+            onBack={() => navigation?.goBack?.()}
+          />
 
           {/* 2. Form Alanı */}
           <View style={styles.form}>

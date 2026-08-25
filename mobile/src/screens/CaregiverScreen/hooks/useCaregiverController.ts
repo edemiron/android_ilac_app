@@ -400,7 +400,7 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
               }
             } catch {
               if (navigation?.navigate) {
-                navigation.navigate('Main', { screen: 'Settings' });
+                navigation.navigate('Login');
               }
             }
           },
@@ -408,10 +408,10 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
       }
 
       buttons.push({
-        text: isTr ? 'E-posta / Ayarlar' : 'Email / Settings',
+        text: isTr ? 'E-posta ile Giriş / Kayıt' : 'Email Sign In / Register',
         onPress: () => {
           if (navigation?.navigate) {
-            navigation.navigate('Main', { screen: 'Settings' });
+            navigation.navigate('Login');
           }
         },
       });

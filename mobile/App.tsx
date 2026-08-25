@@ -19,7 +19,12 @@ import {
   Linking,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler'; // Sprint 97.1
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  DefaultTheme,
+  DarkTheme,
+  LinkingOptions,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -1102,7 +1107,7 @@ function AppContent() {
     return <LazyOnboardingScreen />;
   }
 
-  const appLinking = {
+  const appLinking: LinkingOptions<RootStackParamList> = {
     prefixes: ['ilachatirlatici://'],
     config: {
       screens: {
@@ -1252,6 +1257,24 @@ function AppContent() {
           options={{
             headerShown: false,
             title: language === 'tr' ? 'Sistem İzinleri & Teşhis' : 'System Permissions',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Giriş Yap' : 'Login',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Kayıt Ol' : 'Register',
             presentation: 'card',
           }}
         />

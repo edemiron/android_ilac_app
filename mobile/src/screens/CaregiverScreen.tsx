@@ -123,7 +123,7 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
           isGoogleAvailable={isGoogleAvailable}
           onSignIn={() => {
             if (navigation && typeof navigation.navigate === 'function') {
-              navigation.navigate('Main', { screen: 'Settings' });
+              navigation.navigate('Login');
             }
           }}
         />

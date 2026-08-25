@@ -93,7 +93,7 @@ export function CaregiverGuestNotice({
               style={styles.buttonIcon}
             />
             <Text style={[styles.secondaryButtonText, { color: isDark ? '#FEF08A' : '#854D0E' }]}>
-              {isTr ? 'E-posta / Ayarlar' : 'Email / Settings'}
+              {isTr ? 'E-posta ile Giriş / Kayıt' : 'Email Sign In / Register'}
             </Text>
           </TouchableOpacity>
         )}

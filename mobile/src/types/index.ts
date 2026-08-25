@@ -302,6 +302,8 @@ export type RootStackParamList = {
   DutyPharmacy: undefined;
   NotificationCenter: undefined;
   Permissions: undefined;
+  Login: undefined;
+  Register: undefined;
 };
 
 // Auth Stack Navigation
