@@ -32,43 +32,41 @@ describe('getRelativeTimeText', () => {
     expect(result.text).toBe('Skipped');
   });
 
+  // Sabit referans saati: 12:00
+  const fixedNoon = new Date(2026, 7, 26, 12, 0, 0);
+
   it('returns isPast=true for past times', () => {
-    // 00:00 kesinlikle gecmis
-    const result = getRelativeTimeText('00:00', 'tr');
+    const result = getRelativeTimeText('08:00', 'tr', undefined, fixedNoon);
     expect(result.isPast).toBe(true);
   });
 
   it('returns text matching dk/once or h/ago for past (TR)', () => {
-    const result = getRelativeTimeText('00:00', 'tr');
+    const result = getRelativeTimeText('08:00', 'tr', undefined, fixedNoon);
     expect(result.text).toMatch(/dk önce|saat önce/);
   });
 
   it('returns text matching past pattern (EN)', () => {
-    const result = getRelativeTimeText('00:00', 'en');
+    const result = getRelativeTimeText('08:00', 'en', undefined, fixedNoon);
     expect(result.text).toMatch(/min ago|h ago/);
   });
 
   it('returns isPast=false for future times', () => {
-    // 23:59 kesinlikle gelecek
-    const result = getRelativeTimeText('23:59', 'tr');
+    const result = getRelativeTimeText('18:00', 'tr', undefined, fixedNoon);
     expect(result.isPast).toBe(false);
   });
 
   it('returns future text pattern (TR)', () => {
-    const result = getRelativeTimeText('23:59', 'tr');
+    const result = getRelativeTimeText('18:00', 'tr', undefined, fixedNoon);
     expect(result.text).toMatch(/dk sonra|saat sonra/);
   });
 
   it('returns future text pattern (EN)', () => {
-    const result = getRelativeTimeText('23:59', 'en');
+    const result = getRelativeTimeText('18:00', 'en', undefined, fixedNoon);
     expect(result.text).toMatch(/in \d+ min|in \d+h/);
   });
 
   it('returns isNow for current window (time rounded to nearest 2 min)', () => {
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const result = getRelativeTimeText(`${hh}:${mm}`, 'tr');
+    const result = getRelativeTimeText('12:01', 'tr', undefined, fixedNoon);
     expect(result.isNow).toBe(true);
   });
 

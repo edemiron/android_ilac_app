@@ -227,15 +227,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (errorObj.code === statusCodes.SIGN_IN_CANCELLED) {
         // Kullanıcı iptal etti
         setError(null);
+        throw new Error('SIGN_IN_CANCELLED');
       } else if (errorObj.code === statusCodes.IN_PROGRESS) {
         setError('Giriş işlemi devam ediyor...');
+        throw new Error('Giriş işlemi devam ediyor...');
       } else if (errorObj.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        setError('Google Play Services kullanılamıyor');
+        const msg = 'Google Play Services kullanılamıyor';
+        setError(msg);
+        throw new Error(msg);
       } else if (errorObj.code === '10' || errorObj.code === 10) {
         // DEVELOPER_ERROR - SHA-1 veya package name uyuşmazlığı
-        setError('Google yapılandırma hatası. SHA-1 veya package name kontrol edin.');
+        const msg = 'Google yapılandırma hatası. SHA-1 veya package name kontrol edin.';
+        setError(msg);
+        throw new Error(msg);
       } else {
-        setError(errorObj.message || 'Google ile giriş başarısız');
+        const msg = errorObj.message || 'Google ile giriş başarısız';
+        setError(msg);
+        throw new Error(msg);
       }
     } finally {
       setIsLoading(false);

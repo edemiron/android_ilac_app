@@ -20,12 +20,13 @@ export interface RelativeTimeResult {
 export function getRelativeTimeText(
   reminderTime: string,
   language: string,
-  log?: MedicineLog
+  log?: MedicineLog,
+  nowOverride?: Date
 ): RelativeTimeResult {
-  const now = new Date();
+  const now = nowOverride || new Date();
   const currentTime = format(now, 'HH:mm');
   const [rH, rM] = reminderTime.split(':').map(Number);
-  const reminderDate = new Date();
+  const reminderDate = new Date(now);
   reminderDate.setHours(rH, rM, 0, 0);
 
   const minutesDiff = differenceInMinutes(reminderDate, now);

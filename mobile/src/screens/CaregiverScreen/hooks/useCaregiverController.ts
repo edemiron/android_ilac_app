@@ -47,6 +47,7 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     updatePermissions,
     showQRCode,
     hideQRCode,
+    refresh,
   } = useCaregiver();
 
   // Aktif Rol Sekmesi (Hasta vs Bakıcı)
@@ -108,6 +109,19 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
       inviteSentBody: (code: string) =>
         isTr ? `Davet kodunuz: ${code}` : `Your invite code: ${code}`,
       expired: isTr ? 'Süresi Doldu' : 'Expired',
+      pending: isTr ? 'Bekliyor' : 'Pending',
+      statusActive: isTr ? 'Aktif' : 'Active',
+      statusPending: isTr ? 'Bekliyor' : 'Pending',
+      editPermissions: isTr ? 'İzinleri Düzenle' : 'Edit Permissions',
+      save: isTr ? 'Kaydet' : 'Save',
+      permissionsSaved: isTr ? 'İzinler güncellendi' : 'Permissions updated',
+      inviteCancelled: isTr ? 'Davet iptal edildi' : 'Invite cancelled',
+      caregiverRemoved: isTr ? 'Bakıcı kaldırıldı' : 'Caregiver removed',
+      emptyCaregiverName: isTr ? 'İsimsiz Bakıcı' : 'Caregiver',
+      enterCode: isTr ? '6 Haneli Kodu Girin' : 'Enter 6-digit Code',
+      acceptCode: isTr ? 'Kodu Onayla' : 'Accept Code',
+      scanQR: isTr ? 'QR Kod Tara' : 'Scan QR',
+      codePlaceholder: isTr ? 'Örn: 53DD4F' : 'Ex: 53DD4F',
       expires: (date: string) => {
         const d = new Date(date);
         return isTr
@@ -118,12 +132,13 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     [isTr]
   );
 
-  // E-posta ile davet oluşturma
+  // E-posta ile davet gönder
   const handleInvite = async () => {
     if (!email.trim()) {
+      triggerHaptic('error');
       showError(
         isTr ? 'Hata' : 'Error',
-        isTr ? 'Lütfen geçerli bir e-posta adresi girin.' : 'Please enter an email'
+        isTr ? 'Lütfen bir e-posta adresi girin.' : 'Please enter an email address.'
       );
       return;
     }
@@ -150,26 +165,12 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
 
   // Mevcut geçerli bir davet kodunu getir veya yenisini oluştur
   const getOrCreateInviteCode = async (): Promise<string | null> => {
-    if (isGuest) {
+    const firebaseUser = auth.currentUser;
+    const isActuallyGuest = (!user?.uid || user.uid === 'guest_local_user') && !firebaseUser;
+
+    if (isActuallyGuest) {
       triggerHaptic('error');
-      showAlert({
-        type: 'warning',
-        title: isTr ? 'Oturum Açmanız Gerekiyor' : 'Sign-in Required',
-        message: isTr
-          ? 'Aile ve Bakıcı Takibi canlı bulut senkronizasyonu gerektirir. Lütfen Google veya E-posta ile giriş yapın.'
-          : 'Family tracking requires cloud synchronization. Please sign in via Google or Email.',
-        buttons: [
-          { text: isTr ? 'Tamam' : 'OK' },
-          ...(navigation?.navigate
-            ? [
-                {
-                  text: isTr ? 'Giriş Yap' : 'Sign In',
-                  onPress: () => navigation.navigate('Settings'),
-                },
-              ]
-            : []),
-        ],
-      });
+      promptSignInRequired();
       return null;
     }
 
@@ -213,15 +214,14 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        // Fallback to Native Share
-        await Share.share({ message, title: isTr ? 'İlaç Hatırlatıcı Daveti' : 'Invite' });
+        await Share.share({ message });
       }
-    } catch (_e) {
-      showError(isTr ? 'Hata' : 'Error', isTr ? 'Paylaşım başlatılamadı.' : 'Could not share.');
+    } catch {
+      showError(isTr ? 'Hata' : 'Error', isTr ? 'WhatsApp açılamadı.' : 'Could not open WhatsApp.');
     }
   };
 
-  // SMS / Sistem Paylaşımı
+  // Sistem Paylaşımı (SMS, Telegram, Mail vb.)
   const handleNativeShare = async () => {
     triggerHaptic('light');
     try {
@@ -234,19 +234,19 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
         return;
       }
       const message = isTr
-        ? `İlaç Hatırlatıcı uygulamasında aile koruma çemberime katılmak için davet kodum: ${code}`
-        : `My invite code for the medicine reminder care circle: ${code}`;
+        ? `İlaç Hatırlatıcı aile takip davet kodum: ${code}\nUygulamayı açıp bu kodu girerek ilaç takibime katılabilirsiniz.`
+        : `My Medicine Reminder family invite code is: ${code}`;
 
       await Share.share({
         message,
-        title: isTr ? 'İlaç Hatırlatıcı Aile Daveti' : 'Medicine Reminder Family Invite',
+        title: isTr ? 'İlaç Hatırlatıcı Aile Daveti' : 'Medicine Reminder Invite',
       });
-    } catch (_e) {
-      // ignore
+    } catch {
+      showError(isTr ? 'Hata' : 'Error', isTr ? 'Paylaşılamadı.' : 'Failed to share.');
     }
   };
 
-  // QR Modal Açma
+  // QR Modal Aç
   const handleShowQR = async () => {
     triggerHaptic('light');
     const code = await getOrCreateInviteCode();
@@ -256,7 +256,7 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     }
   };
 
-  // Bakıcı Kaldırma
+  // Bakıcıyı Listeden Kaldır
   const handleRemoveCaregiver = useCallback(
     (relationshipId: string, name: string) => {
       triggerHaptic('warning');
@@ -271,19 +271,13 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
             style: 'destructive',
             onPress: async () => {
               const res = await removeCaregiverRel(relationshipId);
-              if (res?.success) {
+              if (res.success) {
                 triggerHaptic('success');
                 showInfo(
-                  isTr ? 'Başarılı' : 'Success',
-                  isTr ? `${name} adlı bakıcı kaldırıldı.` : `${name} removed.`
-                );
-              } else {
-                triggerHaptic('error');
-                showError(
-                  isTr ? 'Hata' : 'Error',
+                  isTr ? 'Kaldırıldı' : 'Removed',
                   isTr
-                    ? 'Bakıcı kaldırılamadı. Lütfen bağlantınızı kontrol edin.'
-                    : 'Failed to remove caregiver.'
+                    ? `${name} aile çemberinizden kaldırıldı.`
+                    : `${name} removed from your care circle.`
                 );
               }
             },
@@ -291,19 +285,21 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
         ],
       });
     },
-    [showAlert, showInfo, showError, isTr, t, removeCaregiverRel, triggerHaptic]
+    [isTr, removeCaregiverRel, showAlert, showInfo, t, triggerHaptic]
   );
 
-  // İzin Düzenleme Modalı
+  // İzin Düzenleme Modalı Aç
   const handleEditPermissions = (caregiver: CaregiverRelationship) => {
-    triggerHaptic('light');
+    triggerHaptic('selection');
     setSelectedCaregiverForEdit(caregiver);
   };
 
+  // İzin Düzenleme Modalı Kapat
   const handleClosePermissions = () => {
     setSelectedCaregiverForEdit(null);
   };
 
+  // İzinleri Kaydet
   const handleSavePermissions = async (
     relationshipId: string,
     permissions: {
@@ -312,41 +308,53 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
       canReceiveAlerts: boolean;
     }
   ) => {
-    try {
-      await updatePermissions(relationshipId, permissions);
-      triggerHaptic('success');
-      showInfo(
-        isTr ? 'Yetkiler Güncellendi' : 'Permissions Updated',
-        isTr ? 'Bakıcı yetkileri başarıyla kaydedildi.' : 'Caregiver permissions updated.'
-      );
-    } catch (_e) {
-      triggerHaptic('error');
-      showError(
-        isTr ? 'Hata' : 'Error',
-        isTr ? 'Yetkiler güncellenirken bir hata oluştu.' : 'Failed to update permissions.'
-      );
-    }
+    triggerHaptic('medium');
+    await updatePermissions(relationshipId, permissions);
+    setSelectedCaregiverForEdit(null);
+    triggerHaptic('success');
+    showInfo(
+      isTr ? 'Başarılı' : 'Success',
+      isTr ? 'İzinler başarıyla güncellendi.' : 'Permissions updated.'
+    );
   };
 
-  const handleCancelInvite = async (inviteCode: string) => {
+  // Bekleyen Daveti İptal Et
+  const handleCancelInvite = (inviteCode: string) => {
     triggerHaptic('warning');
-    const res = await cancelInviteRel(inviteCode);
-    if (res?.success) {
-      triggerHaptic('success');
-      showInfo(isTr ? 'Başarılı' : 'Success', isTr ? 'Davet iptal edildi.' : 'Invite cancelled.');
-    } else {
-      triggerHaptic('error');
-      showError(
-        isTr ? 'Hata' : 'Error',
-        isTr ? 'Davet iptal edilemedi.' : 'Failed to cancel invite.'
-      );
-    }
+    showAlert({
+      type: 'warning',
+      title: isTr ? 'Daveti İptal Et' : 'Cancel Invite',
+      message: isTr
+        ? 'Bu davet kodunu iptal etmek istediğinize emin misiniz?'
+        : 'Are you sure you want to cancel this invite code?',
+      buttons: [
+        { text: t.cancel, style: 'cancel' },
+        {
+          text: isTr ? 'Daveti İptal Et' : 'Cancel Invite',
+          style: 'destructive',
+          onPress: async () => {
+            const res = await cancelInviteRel(inviteCode);
+            if (res.success) {
+              triggerHaptic('success');
+              showInfo(
+                isTr ? 'İptal Edildi' : 'Cancelled',
+                isTr ? 'Davet kodu başarıyla iptal edildi.' : 'Invite code cancelled.'
+              );
+            }
+          },
+        },
+      ],
+    });
   };
 
-  const handleShareInvite = () => {
+  // Daveti Paylaş (Pending listesinden veya QR modalından)
+  const handleShareInvite = (inviteCode?: string) => {
+    triggerHaptic('light');
+    const targetCode = inviteCode || currentInviteCode;
+    if (!targetCode) return;
     const shareText = isTr
-      ? `İlaç Hatırlatıcı uygulamasında benim takibimi yapman için davet kodum: ${currentInviteCode}`
-      : `My invite code for the medication reminder app: ${currentInviteCode}`;
+      ? `İlaç Hatırlatıcı uygulamasında benim ilaç takibimi yapmak için davet kodum: ${targetCode}\n\nUygulamayı açıp 'Aile & Bakıcı Takibi' ekranından bu kodu girerek takibe başlayabilirsiniz.`
+      : `My invite code to follow my medications on Medicine Reminder: ${targetCode}`;
 
     showAlert({
       type: 'info',
@@ -371,47 +379,68 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     [triggerHaptic]
   );
 
-  // Oturum açma yönlendirme modalı (Google Sign-In veya Ayarlar)
+  // Oturum açma yönlendirme modalı (Google Sign-In veya Ayarlar/Login)
   const promptSignInRequired = useCallback(
     (codeToAutoAccept?: string) => {
       triggerHaptic('warning');
-      const buttons: any[] = [{ text: isTr ? 'Vazgeç' : 'Cancel' }];
+      const buttons: any[] = [{ text: isTr ? 'Vazgeç' : 'Cancel', style: 'cancel' }];
 
       if (isGoogleAvailable) {
         buttons.push({
           text: isTr ? 'Google ile Giriş Yap' : 'Sign in with Google',
           onPress: async () => {
             try {
+              setIsAcceptingCode(true);
               await loginWithGoogleProvider();
-              if (codeToAutoAccept) {
-                setTimeout(async () => {
-                  const fbUser = auth.currentUser;
-                  if (!fbUser) return;
-
-                  const retryRes = await acceptCaregiverInvite(
-                    codeToAutoAccept,
-                    fbUser.uid,
-                    fbUser.displayName || 'Bakıcı',
-                    ''
-                  );
-                  if (retryRes.success) {
-                    triggerHaptic('success');
-                    setInviteCodeInput('');
-                    showAlert({
-                      type: 'success',
-                      title: isTr ? '🎉 Bağlantı Kuruldu!' : '🎉 Connected!',
-                      message: isTr
-                        ? 'Yakınınızın ilaç takip çemberine başarıyla katıldınız. Artık ilaç saatlerini ve acil durum uyarılarını canlı olarak takip edebilirsiniz.'
-                        : 'You have successfully joined your loved one’s medication care circle.',
-                      buttons: [{ text: isTr ? 'Harika' : 'Great' }],
-                    });
-                  }
-                }, 2000);
+              const fbUser = auth.currentUser;
+              if (codeToAutoAccept && fbUser?.uid) {
+                const retryRes = await acceptCaregiverInvite(
+                  codeToAutoAccept,
+                  fbUser.uid,
+                  fbUser.displayName || 'Bakıcı',
+                  ''
+                );
+                if (retryRes.success) {
+                  triggerHaptic('success');
+                  setInviteCodeInput('');
+                  await refresh();
+                  showAlert({
+                    type: 'success',
+                    title: isTr ? '🎉 Bağlantı Kuruldu!' : '🎉 Connected!',
+                    message: isTr
+                      ? 'Yakınınızın ilaç takip çemberine başarıyla katıldınız. Artık ilaç saatlerini ve acil durum uyarılarını canlı olarak takip edebilirsiniz.'
+                      : 'You have successfully joined your loved one’s medication care circle.',
+                    buttons: [{ text: isTr ? 'Harika' : 'Great' }],
+                  });
+                  return;
+                }
               }
-            } catch {
-              if (navigation?.navigate) {
-                navigation.navigate('Login');
+              await refresh();
+            } catch (err: any) {
+              const errMsg = err?.message || '';
+              if (errMsg.includes('cancelled') || errMsg.includes('CANCELLED')) {
+                return;
               }
+              showAlert({
+                type: 'warning',
+                title: isTr ? 'Google Girişi Yapılamadı' : 'Google Sign-In Failed',
+                message: isTr
+                  ? 'Google ile oturum açılamadı. E-posta ve şifrenizle giriş yapmak veya yeni hesap oluşturmak ister misiniz?'
+                  : 'Could not sign in with Google. Would you like to sign in with email?',
+                buttons: [
+                  { text: isTr ? 'Vazgeç' : 'Cancel', style: 'cancel' },
+                  {
+                    text: isTr ? 'E-posta ile Giriş' : 'Sign in with Email',
+                    onPress: () => {
+                      if (navigation?.navigate) {
+                        navigation.navigate('Login');
+                      }
+                    },
+                  },
+                ],
+              });
+            } finally {
+              setIsAcceptingCode(false);
             }
           },
         });
@@ -435,7 +464,15 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
         buttons,
       });
     },
-    [isGoogleAvailable, isTr, loginWithGoogleProvider, navigation, showAlert, triggerHaptic]
+    [
+      isGoogleAvailable,
+      isTr,
+      loginWithGoogleProvider,
+      navigation,
+      refresh,
+      showAlert,
+      triggerHaptic,
+    ]
   );
 
   // Bakıcı olarak 6 haneli davet kodunu onaylayıp hastaya bağlanma
@@ -445,9 +482,9 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     // Firebase auth.currentUser fallback: React state gecikmesi durumunda
     // doğrudan Firebase instance'ından kontrol et
     const firebaseUser = auth.currentUser;
-    const effectivelyGuest = isGuest && !firebaseUser;
+    const isActuallyGuest = (!user?.uid || user.uid === 'guest_local_user') && !firebaseUser;
 
-    if (effectivelyGuest) {
+    if (isActuallyGuest) {
       promptSignInRequired(cleanCode || undefined);
       return;
     }
@@ -475,7 +512,6 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     triggerHaptic('medium');
     setIsAcceptingCode(true);
 
-    // Doğrudan acceptCaregiverInvite çağrısı + 15sn timeout koruması
     const fbUser = auth.currentUser;
     const effectiveUserId = user?.uid && user.uid !== 'guest_local_user' ? user.uid : fbUser?.uid;
     const effectiveDisplayName = user?.displayName || fbUser?.displayName || 'Bakıcı';
@@ -509,6 +545,7 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     if (result.success) {
       triggerHaptic('success');
       setInviteCodeInput('');
+      await refresh();
       showAlert({
         type: 'success',
         title: isTr ? '🎉 Bağlantı Kuruldu!' : '🎉 Connected!',
@@ -519,18 +556,13 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
       });
     } else {
       triggerHaptic('error');
-      const isAuthError =
-        result.error?.includes('Yetkisiz') ||
-        result.error?.includes('giriş') ||
-        result.error?.includes('oturum') ||
-        result.error?.includes('permission-denied');
-
-      if (isAuthError) {
+      const errStr = result.error || '';
+      if (isActuallyGuest) {
         promptSignInRequired(cleanCode);
       } else {
         showError(
           isTr ? 'Bağlantı Başarısız' : 'Connection Failed',
-          result.error ||
+          errStr ||
             (isTr
               ? 'Davet kodu bulunamadı, kullanılmış veya süresi dolmuş.'
               : 'Invite code is invalid or expired.')

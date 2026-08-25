@@ -249,6 +249,7 @@ export async function acceptCaregiverInvite(
     const relationship: CaregiverRelationship = cleanUndefined({
       id: relationshipId,
       patientId: invite.patientId,
+      patientName: invite.patientName || 'Hasta',
       caregiverId,
       caregiverEmail: invite.caregiverEmail || '',
       caregiverName: caregiverName || 'Bakıcı',
@@ -263,24 +264,36 @@ export async function acceptCaregiverInvite(
 
     await setDoc(doc(db, RELATIONSHIPS_COLLECTION, relationshipId), relationship);
 
-    // Daveti güncelle (accepted) - Firestore security rules gereği caregiverId ve status zorunludur
-    await updateDoc(
-      inviteRef,
-      cleanUndefined({
-        status: 'accepted',
-        caregiverId,
-        caregiverName: caregiverName || 'Bakıcı',
-        acceptedAt: new Date().toISOString(),
-      })
-    );
+    try {
+      // Daveti güncelle (accepted) - Firestore security rules gereği opsiyonel
+      await updateDoc(
+        inviteRef,
+        cleanUndefined({
+          status: 'accepted',
+          caregiverId,
+          caregiverName: caregiverName || 'Bakıcı',
+          acceptedAt: new Date().toISOString(),
+        })
+      );
+    } catch (updateErr) {
+      log.warn(
+        'Davet durumu accepted olarak güncellenemedi ama ilişki başarıyla kuruldu',
+        updateErr
+      );
+    }
 
-    log.info('Bakıcı daveti kabul edildi', { inviteCode, caregiverId });
+    log.info('Bakıcı daveti kabul edildi', { inviteCode, caregiverId, relationshipId });
 
     return { success: true };
   } catch (error: any) {
     log.error('Davet kabul hatası', error);
     const errorCode = error?.code || '';
-    if (errorCode.includes('permission-denied')) {
+    const errorMsg = error?.message || '';
+    if (
+      errorCode.includes('permission-denied') ||
+      errorMsg.includes('permission-denied') ||
+      errorMsg.includes('permissions')
+    ) {
       return {
         success: false,
         error: 'Yetkisiz erişim. Lütfen Google veya E-posta ile giriş yaptığınızdan emin olun.',
