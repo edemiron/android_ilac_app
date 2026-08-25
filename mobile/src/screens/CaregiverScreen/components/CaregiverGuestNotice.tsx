@@ -14,14 +14,18 @@ interface CaregiverGuestNoticeProps {
   colors: ThemeColors;
   isDark: boolean;
   language: string;
+  onGoogleSignIn?: () => void;
   onSignIn?: () => void;
+  isGoogleAvailable?: boolean;
 }
 
 export function CaregiverGuestNotice({
   colors,
   isDark,
   language,
+  onGoogleSignIn,
   onSignIn,
+  isGoogleAvailable = true,
 }: CaregiverGuestNoticeProps) {
   const isTr = language === 'tr';
 
@@ -56,18 +60,44 @@ export function CaregiverGuestNotice({
         </View>
       </View>
 
-      {onSignIn && (
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: isDark ? '#EAB308' : '#CA8A04' }]}
-          onPress={onSignIn}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="log-in-outline" size={18} color="#FFFFFF" style={styles.buttonIcon} />
-          <Text style={styles.buttonText}>
-            {isTr ? 'Hesaba Giriş Yap / Bağla' : 'Sign In / Connect Account'}
-          </Text>
-        </TouchableOpacity>
-      )}
+      <View style={styles.buttonRow}>
+        {onGoogleSignIn && isGoogleAvailable && (
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: isDark ? '#EAB308' : '#CA8A04' }]}
+            onPress={onGoogleSignIn}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="logo-google" size={17} color="#FFFFFF" style={styles.buttonIcon} />
+            <Text style={styles.primaryButtonText}>
+              {isTr ? 'Google ile Giriş Yap' : 'Sign in with Google'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {onSignIn && (
+          <TouchableOpacity
+            style={[
+              styles.secondaryButton,
+              {
+                borderColor: isDark ? 'rgba(234, 179, 8, 0.4)' : '#CA8A04',
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#FFFFFF',
+              },
+            ]}
+            onPress={onSignIn}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="mail-outline"
+              size={17}
+              color={isDark ? '#FEF08A' : '#854D0E'}
+              style={styles.buttonIcon}
+            />
+            <Text style={[styles.secondaryButtonText, { color: isDark ? '#FEF08A' : '#854D0E' }]}>
+              {isTr ? 'E-posta / Ayarlar' : 'Email / Settings'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -105,21 +135,41 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 18,
   },
-  button: {
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  primaryButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 12,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  secondaryButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   buttonIcon: {
     marginRight: 6,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 13.5,
-    fontWeight: '700',
   },
 });

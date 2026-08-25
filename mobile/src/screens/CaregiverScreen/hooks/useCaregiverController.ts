@@ -24,7 +24,7 @@ interface UseCaregiverControllerProps {
 export function useCaregiverController({ navigation }: UseCaregiverControllerProps = {}) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
-  const { user } = useAuth();
+  const { user, loginWithGoogleProvider, isGoogleAvailable } = useAuth();
   const { showInfo, showError, showAlert } = useAlert();
   const { trigger: triggerHaptic } = useHaptics();
 
@@ -369,32 +369,82 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     [triggerHaptic]
   );
 
-  // Bakıcı olarak 6 haneli davet kodunu onaylayıp hastaya bağlanma
-  const handleAcceptCode = async () => {
-    if (isGuest) {
-      triggerHaptic('error');
+  // Oturum açma yönlendirme modalı (Google Sign-In veya Ayarlar)
+  const promptSignInRequired = useCallback(
+    (codeToAutoAccept?: string) => {
+      triggerHaptic('warning');
+      const buttons: any[] = [{ text: isTr ? 'Vazgeç' : 'Cancel' }];
+
+      if (isGoogleAvailable) {
+        buttons.push({
+          text: isTr ? 'Google ile Giriş Yap' : 'Sign in with Google',
+          onPress: async () => {
+            try {
+              await loginWithGoogleProvider();
+              if (codeToAutoAccept) {
+                setTimeout(async () => {
+                  const retryRes = await acceptInvite(codeToAutoAccept);
+                  if (retryRes.success) {
+                    triggerHaptic('success');
+                    setInviteCodeInput('');
+                    showAlert({
+                      type: 'success',
+                      title: isTr ? '🎉 Bağlantı Kuruldu!' : '🎉 Connected!',
+                      message: isTr
+                        ? 'Yakınınızın ilaç takip çemberine başarıyla katıldınız. Artık ilaç saatlerini ve acil durum uyarılarını canlı olarak takip edebilirsiniz.'
+                        : 'You have successfully joined your loved one’s medication care circle.',
+                      buttons: [{ text: isTr ? 'Harika' : 'Great' }],
+                    });
+                  }
+                }, 1200);
+              }
+            } catch {
+              if (navigation?.navigate) {
+                navigation.navigate('Main', { screen: 'Settings' });
+              }
+            }
+          },
+        });
+      }
+
+      buttons.push({
+        text: isTr ? 'E-posta / Ayarlar' : 'Email / Settings',
+        onPress: () => {
+          if (navigation?.navigate) {
+            navigation.navigate('Main', { screen: 'Settings' });
+          }
+        },
+      });
+
       showAlert({
         type: 'warning',
         title: isTr ? 'Oturum Açmanız Gerekiyor' : 'Sign-in Required',
         message: isTr
-          ? 'Aile takibine katılmak canlı bulut senkronizasyonu gerektirir. Lütfen Google veya E-posta ile giriş yapın.'
+          ? 'Aile takibine katılmak ve hastanın acil durum bildirimlerini alabilmek canlı bulut senkronizasyonu gerektirir. Lütfen Google veya E-posta ile giriş yapın.'
           : 'Joining a care circle requires cloud synchronization. Please sign in via Google or Email.',
-        buttons: [
-          { text: isTr ? 'Tamam' : 'OK' },
-          ...(navigation?.navigate
-            ? [
-                {
-                  text: isTr ? 'Giriş Yap' : 'Sign In',
-                  onPress: () => navigation.navigate('Settings'),
-                },
-              ]
-            : []),
-        ],
+        buttons,
       });
+    },
+    [
+      acceptInvite,
+      isGoogleAvailable,
+      isTr,
+      loginWithGoogleProvider,
+      navigation,
+      showAlert,
+      triggerHaptic,
+    ]
+  );
+
+  // Bakıcı olarak 6 haneli davet kodunu onaylayıp hastaya bağlanma
+  const handleAcceptCode = async () => {
+    const cleanCode = inviteCodeInput.trim().toUpperCase();
+
+    if (isGuest) {
+      promptSignInRequired(cleanCode || undefined);
       return;
     }
 
-    const cleanCode = inviteCodeInput.trim().toUpperCase();
     if (!cleanCode) {
       triggerHaptic('error');
       showError(
@@ -433,13 +483,23 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
       });
     } else {
       triggerHaptic('error');
-      showError(
-        isTr ? 'Bağlantı Başarısız' : 'Connection Failed',
-        result.error ||
-          (isTr
-            ? 'Davet kodu bulunamadı, kullanılmış veya süresi dolmuş.'
-            : 'Invite code is invalid or expired.')
-      );
+      const isAuthError =
+        result.error?.includes('Yetkisiz') ||
+        result.error?.includes('giriş') ||
+        result.error?.includes('oturum') ||
+        result.error?.includes('permission-denied');
+
+      if (isAuthError) {
+        promptSignInRequired(cleanCode);
+      } else {
+        showError(
+          isTr ? 'Bağlantı Başarısız' : 'Connection Failed',
+          result.error ||
+            (isTr
+              ? 'Davet kodu bulunamadı, kullanılmış veya süresi dolmuş.'
+              : 'Invite code is invalid or expired.')
+        );
+      }
     }
   };
 
@@ -537,5 +597,8 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
     qrCodeData,
     showQRModal,
     hideQRCode,
+    loginWithGoogleProvider,
+    isGoogleAvailable,
+    promptSignInRequired,
   };
 }

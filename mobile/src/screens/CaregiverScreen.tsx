@@ -76,6 +76,8 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
     qrCodeData,
     showQRModal,
     hideQRCode,
+    loginWithGoogleProvider,
+    isGoogleAvailable,
   } = useCaregiverController({ navigation });
 
   const canGoBack =
@@ -117,9 +119,11 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
           colors={colors}
           isDark={isDark}
           language={language}
+          onGoogleSignIn={loginWithGoogleProvider}
+          isGoogleAvailable={isGoogleAvailable}
           onSignIn={() => {
             if (navigation && typeof navigation.navigate === 'function') {
-              navigation.navigate('Settings');
+              navigation.navigate('Main', { screen: 'Settings' });
             }
           }}
         />
