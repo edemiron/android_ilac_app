@@ -216,6 +216,7 @@ const makeStyles = (colors: ThemeColors, isDark: boolean) =>
       justifyContent: 'space-between',
       backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
       borderRadius: 16,
+      overflow: 'hidden',
       paddingHorizontal: 16,
       paddingVertical: 10,
       borderWidth: 1,

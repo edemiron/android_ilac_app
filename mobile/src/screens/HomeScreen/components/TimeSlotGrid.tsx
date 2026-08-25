@@ -180,6 +180,7 @@ const styles = StyleSheet.create({
   slotCard: {
     width: '48.4%',
     borderRadius: 16,
+    overflow: 'hidden',
     padding: 12,
     minHeight: 88,
     justifyContent: 'space-between',

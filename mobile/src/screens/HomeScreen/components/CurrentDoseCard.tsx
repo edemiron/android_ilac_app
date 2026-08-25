@@ -259,8 +259,9 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
 
 const styles = StyleSheet.create({
   currentDoseCard: {
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 20,
+    overflow: 'hidden',
+    padding: 16,
     marginHorizontal: 16,
     marginTop: 8,
     shadowColor: '#000',
@@ -376,8 +377,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 16,
     marginTop: 8,
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 20,
+    overflow: 'hidden',
+    padding: 16,
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -390,6 +392,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+    overflow: 'hidden',
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',

@@ -22,15 +22,13 @@ interface UserAvatarProps {
 }
 
 export function UserAvatar({ displayName, size = 36 }: UserAvatarProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
 
   const initials = useMemo(() => {
     if (!displayName || displayName.trim().length === 0) return '?';
     const parts = displayName.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-    return (
-      parts[0].charAt(0) + parts[parts.length - 1].charAt(0)
-    ).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
   }, [displayName]);
 
   return (
@@ -44,8 +42,8 @@ export function UserAvatar({ displayName, size = 36 }: UserAvatarProps) {
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: colors.gradientTrackTint,
-          borderColor: '#FFFFFF',
+          backgroundColor: isDark ? '#1E293B' : colors.primary + '18',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.25)' : colors.primary + '40',
         },
       ]}
       testID="user-avatar"
@@ -55,7 +53,10 @@ export function UserAvatar({ displayName, size = 36 }: UserAvatarProps) {
       <Text
         style={[
           styles.initials,
-          { color: '#FFFFFF', fontSize: Math.round(size * 0.4) },
+          {
+            color: isDark ? '#FFFFFF' : colors.primary,
+            fontSize: Math.round(size * 0.4),
+          },
         ]}
       >
         {initials}
