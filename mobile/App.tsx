@@ -27,7 +27,7 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import notifee from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -165,6 +165,11 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
   const haptics = useHaptics();
+  const insets = useSafeAreaInsets();
+
+  // Tabletlerdeki Samsung One UI görev çubuğu / sanal butonlar veya Android 3-buton gezinme
+  // için insets.bottom kadar dinamik güvenli alan padding'i uygula
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 10);
 
   const leftTabs = [
     {
@@ -221,6 +226,7 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
           {
             backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
             borderColor: isDark ? '#334155' : '#E2E8F0',
+            paddingBottom: bottomInset,
           },
         ]}
       >
@@ -320,7 +326,6 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
 const tabBarStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
     paddingTop: 8,
     paddingHorizontal: 8,
     alignItems: 'center',
