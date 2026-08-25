@@ -300,6 +300,7 @@ export type RootStackParamList = {
   Caregiver: undefined;
   CaregiverInvite: { inviteCode?: string };
   DutyPharmacy: undefined;
+  NotificationCenter: undefined;
 };
 
 // Auth Stack Navigation

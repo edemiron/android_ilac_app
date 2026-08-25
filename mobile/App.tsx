@@ -46,6 +46,7 @@ import {
   CaregiverScreen,
   CaregiverInviteScreen,
   DutyPharmacyScreen,
+  NotificationCenterScreen,
 } from './src/screens';
 
 import { useAppFonts } from './src/hooks/useAppFonts'; // Sprint 103.2: Clinical Clarity font gate
@@ -1232,6 +1233,15 @@ function AppContent() {
           options={{
             headerShown: false,
             title: language === 'tr' ? 'Nöbetçi Eczaneler' : 'Duty Pharmacies',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="NotificationCenter"
+          component={NotificationCenterScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Bildirim & Hatırlatma Merkezi' : 'Notification Center',
             presentation: 'card',
           }}
         />

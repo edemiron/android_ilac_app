@@ -130,7 +130,7 @@ export default function HomeScreen() {
           displayName={user?.displayName ?? ''}
           onAvatarPress={() => navigation.navigate('Settings' as never)}
           onCaregiverPress={() => navigation.navigate('Caregiver' as never)}
-          onNotificationPress={() => navigation.navigate('TtsSettings' as never)}
+          onNotificationPress={() => navigation.navigate('NotificationCenter' as never)}
           onSettingsPress={() => navigation.navigate('Settings' as never)}
         />
 

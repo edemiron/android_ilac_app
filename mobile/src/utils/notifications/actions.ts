@@ -28,42 +28,51 @@ export async function dismissNotification(notificationId: string): Promise<void>
  * Test bildirimi gönder
  */
 export async function sendTestNotification(): Promise<void> {
-  // Kanal olusturuldugundan emin ol
-  await createNotificationChannels();
+  try {
+    // 1. İzin kontrolü / isteği
+    await notifee.requestPermission();
 
-  const title = '💊 TEST-Ibuprofen (100mg)';
-  const subtitle = 'İlaç Vakti';
-  const body = 'Yemekle Birlikte • 100mg almanın zamanı geldi.\n📦 Kalan Stok: 18 adet';
+    // 2. Kanal oluşturulduğundan emin ol
+    await createNotificationChannels();
 
-  await notifee.displayNotification({
-    id: 'alarm-test-medicine-test-reminder',
-    title,
-    subtitle,
-    body,
-    android: {
-      channelId: REMINDER_CHANNEL_ID,
-      importance: AndroidImportance.HIGH,
-      smallIcon: 'ic_notification',
-      largeIcon: 'ic_launcher',
-      color: '#0D9488',
-      colorized: true,
-      pressAction: PRESS_ACTION,
-      actions: ALARM_ACTIONS,
-      style: {
-        type: AndroidStyle?.BIGTEXT ?? 1,
-        text: body,
-        title,
-        summary: subtitle,
+    const title = '💊 TEST-Ibuprofen (100mg)';
+    const subtitle = 'İlaç Vakti';
+    const body = 'Yemekle Birlikte • 100mg almanın zamanı geldi.\n📦 Kalan Stok: 18 adet';
+
+    await notifee.displayNotification({
+      id: 'alarm-test-medicine-test-reminder',
+      title,
+      subtitle,
+      body,
+      android: {
+        channelId: REMINDER_CHANNEL_ID,
+        importance: AndroidImportance.HIGH,
+        smallIcon: 'ic_notification',
+        largeIcon: 'ic_launcher',
+        color: '#0D9488',
+        colorized: true,
+        pressAction: PRESS_ACTION,
+        actions: ALARM_ACTIONS,
+        style: {
+          type: AndroidStyle.BIGTEXT,
+          text: body,
+          title,
+          summary: subtitle,
+        },
       },
-    },
-    data: {
-      medicineId: 'test-medicine',
-      reminderTimeId: 'test-reminder',
-      scheduledTime: new Date().toISOString(),
-      fullScreenAlarm: 'false',
-      isTestAlarm: 'true',
-    },
-  });
+      data: {
+        medicineId: 'test-medicine',
+        reminderTimeId: 'test-reminder',
+        scheduledTime: new Date().toISOString(),
+        fullScreenAlarm: 'false',
+        isTestAlarm: 'true',
+      },
+    });
+    log.info('Test bildirimi basariyla gonderildi');
+  } catch (error) {
+    log.error('Test bildirimi gonderilirken hata olustu', error);
+    throw error;
+  }
 }
 
 /**
