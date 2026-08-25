@@ -93,7 +93,10 @@ export function CaregiverInviteInputCard({
             style={[
               styles.inviteButton,
               {
-                backgroundColor: isEnabled ? colors.primary : colors.primary + '60',
+                backgroundColor: isEnabled ? colors.primary : colors.inputBackground,
+                borderWidth: isEnabled ? 0 : 1,
+                borderColor: colors.border,
+                elevation: isEnabled ? 2 : 0,
               },
             ]}
             onPress={onInvite}
@@ -103,7 +106,11 @@ export function CaregiverInviteInputCard({
             {isCreating ? (
               <ActivityIndicator size="small" color={colors.textOnPrimary} />
             ) : (
-              <Ionicons name="person-add" size={20} color={colors.textOnPrimary} />
+              <Ionicons
+                name="person-add"
+                size={20}
+                color={isEnabled ? colors.textOnPrimary : colors.textSecondary}
+              />
             )}
           </TouchableOpacity>
         </View>
@@ -160,9 +167,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-    elevation: 2,
   },
 });

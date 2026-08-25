@@ -131,7 +131,14 @@ export function CaregiverEnterCodeCard({
             style={[
               styles.submitButton,
               {
-                backgroundColor: isEnabled ? colors.primary : colors.primary + '55',
+                backgroundColor: isEnabled
+                  ? colors.primary
+                  : isDark
+                    ? 'rgba(255, 255, 255, 0.08)'
+                    : '#F1F5F9',
+                borderWidth: isEnabled ? 0 : 1,
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#CBD5E1',
+                elevation: isEnabled ? 2 : 0,
               },
             ]}
             onPress={onSubmitCode}
@@ -142,8 +149,23 @@ export function CaregiverEnterCodeCard({
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={19} color="#FFFFFF" />
-                <Text style={styles.submitButtonText}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={19}
+                  color={isEnabled ? '#FFFFFF' : isDark ? 'rgba(255, 255, 255, 0.35)' : '#94A3B8'}
+                />
+                <Text
+                  style={[
+                    styles.submitButtonText,
+                    {
+                      color: isEnabled
+                        ? '#FFFFFF'
+                        : isDark
+                          ? 'rgba(255, 255, 255, 0.35)'
+                          : '#94A3B8',
+                    },
+                  ]}
+                >
                   {isTr ? 'Bağlan ve Takip Et' : 'Connect & Track'}
                 </Text>
               </>
@@ -250,15 +272,16 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 14,
     gap: 8,
+    overflow: 'hidden',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 2,
   },
   submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '700',
+    backgroundColor: 'transparent',
+    letterSpacing: -0.1,
   },
   qrScanButton: {
     flex: 1,
