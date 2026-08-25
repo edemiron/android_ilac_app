@@ -198,6 +198,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(null);
       setIsLoading(true);
 
+      // Misafir oturumunu temizle (Google ile giriş yapılıyorsa misafir değildir)
+      await AsyncStorage.removeItem('@guest_session');
+
       // Google Play Services kontrolü
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 

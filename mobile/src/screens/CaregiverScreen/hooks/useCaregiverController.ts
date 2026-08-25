@@ -14,6 +14,8 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAlert } from '../../../contexts/AlertContext';
 import { useHaptics } from '../../../hooks/useHaptics';
+import { auth } from '../../../config/firebase';
+import { acceptCaregiverInvite } from '../../../services/caregiverService';
 import type { CaregiverRelationship } from '../../../types';
 import type { CaregiverTabRole } from '../components/CaregiverRoleSegmentedControl';
 
@@ -383,7 +385,15 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
               await loginWithGoogleProvider();
               if (codeToAutoAccept) {
                 setTimeout(async () => {
-                  const retryRes = await acceptInvite(codeToAutoAccept);
+                  const fbUser = auth.currentUser;
+                  if (!fbUser) return;
+
+                  const retryRes = await acceptCaregiverInvite(
+                    codeToAutoAccept,
+                    fbUser.uid,
+                    fbUser.displayName || 'Bakıcı',
+                    ''
+                  );
                   if (retryRes.success) {
                     triggerHaptic('success');
                     setInviteCodeInput('');
@@ -396,7 +406,7 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
                       buttons: [{ text: isTr ? 'Harika' : 'Great' }],
                     });
                   }
-                }, 1200);
+                }, 2000);
               }
             } catch {
               if (navigation?.navigate) {
@@ -425,22 +435,19 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
         buttons,
       });
     },
-    [
-      acceptInvite,
-      isGoogleAvailable,
-      isTr,
-      loginWithGoogleProvider,
-      navigation,
-      showAlert,
-      triggerHaptic,
-    ]
+    [isGoogleAvailable, isTr, loginWithGoogleProvider, navigation, showAlert, triggerHaptic]
   );
 
   // Bakıcı olarak 6 haneli davet kodunu onaylayıp hastaya bağlanma
   const handleAcceptCode = async () => {
     const cleanCode = inviteCodeInput.trim().toUpperCase();
 
-    if (isGuest) {
+    // Firebase auth.currentUser fallback: React state gecikmesi durumunda
+    // doğrudan Firebase instance'ından kontrol et
+    const firebaseUser = auth.currentUser;
+    const effectivelyGuest = isGuest && !firebaseUser;
+
+    if (effectivelyGuest) {
       promptSignInRequired(cleanCode || undefined);
       return;
     }
@@ -467,7 +474,36 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
 
     triggerHaptic('medium');
     setIsAcceptingCode(true);
-    const result = await acceptInvite(cleanCode);
+
+    // Doğrudan acceptCaregiverInvite çağrısı + 15sn timeout koruması
+    const fbUser = auth.currentUser;
+    const effectiveUserId = user?.uid && user.uid !== 'guest_local_user' ? user.uid : fbUser?.uid;
+    const effectiveDisplayName = user?.displayName || fbUser?.displayName || 'Bakıcı';
+
+    let result: { success: boolean; error?: string };
+    try {
+      if (!effectiveUserId || effectiveUserId === 'guest_local_user') {
+        result = { success: false, error: 'Oturum bulunamadı. Lütfen tekrar giriş yapın.' };
+      } else {
+        const timeoutPromise = new Promise<{ success: boolean; error?: string }>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  'Sunucuya ulaşılamadı. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.'
+                )
+              ),
+            15000
+          )
+        );
+        result = await Promise.race([
+          acceptCaregiverInvite(cleanCode, effectiveUserId, effectiveDisplayName, ''),
+          timeoutPromise,
+        ]);
+      }
+    } catch (e: any) {
+      result = { success: false, error: e?.message || 'Bir hata oluştu. Lütfen tekrar deneyin.' };
+    }
     setIsAcceptingCode(false);
 
     if (result.success) {

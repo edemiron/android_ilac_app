@@ -218,7 +218,7 @@ export function useCaregiver(): UseCaregiverResult {
 
       return result;
     },
-    [isGuest, userId, user?.displayName, loadPatients]
+    [userId, user?.displayName, loadPatients]
   );
 
   // Bakıcı kaldır (Beni takip eden bakıcıyı sil)
