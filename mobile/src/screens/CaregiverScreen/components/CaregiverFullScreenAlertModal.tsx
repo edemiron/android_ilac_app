@@ -97,11 +97,13 @@ export function CaregiverFullScreenAlertModal() {
           </View>
 
           {/* Başlık ve Açıklama */}
-          <Text style={styles.titleText}>{isTaken ? 'Harika Haber!' : 'Doz Bildirimi'}</Text>
+          <Text style={[styles.titleText, !isTaken && { color: '#F87171' }]}>
+            {isTaken ? 'Harika Haber!' : '⚠️ İlaç Atlandı'}
+          </Text>
           <Text style={styles.subtitleText}>
             {isTaken
               ? 'Takip ettiğiniz yakınınız ilacını zamanında aldı.'
-              : 'Takip ettiğiniz yakınınız ilacını atladı.'}
+              : 'Takip ettiğiniz yakınınız planlanan ilaç dozunu atladı.'}
           </Text>
 
           {/* Hasta Bilgi Kartı */}
@@ -111,14 +113,29 @@ export function CaregiverFullScreenAlertModal() {
             </View>
             <View style={styles.patientInfo}>
               <Text style={styles.patientName}>{alertData.patientName}</Text>
-              <Text style={styles.liveTrackText}>• CANLI SAĞLIK BİLDİRİMİ</Text>
+              <Text style={[styles.liveTrackText, !isTaken && { color: '#EF4444' }]}>
+                • CANLI SAĞLIK BİLDİRİMİ
+              </Text>
             </View>
           </View>
 
           {/* İlaç ve Doz Detayı */}
-          <View style={styles.medicineCard}>
-            <View style={styles.medIconBox}>
-              <Ionicons name="medical" size={24} color="#0D9488" />
+          <View
+            style={[
+              styles.medicineCard,
+              !isTaken && {
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                borderColor: 'rgba(239, 68, 68, 0.3)',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.medIconBox,
+                !isTaken && { backgroundColor: 'rgba(239, 68, 68, 0.25)' },
+              ]}
+            >
+              <Ionicons name="medical" size={24} color={isTaken ? '#0D9488' : '#EF4444'} />
             </View>
             <View style={styles.medDetails}>
               <Text style={styles.medName}>{alertData.medicineName}</Text>
@@ -139,12 +156,12 @@ export function CaregiverFullScreenAlertModal() {
           <Text style={styles.footerNote}>
             {isTaken
               ? '✅ Tedavi süreci eksiksiz ve planlandığı şekilde devam ediyor.'
-              : 'ℹ️ Gerekiyorsa hastanızla iletişime geçebilirsiniz.'}
+              : 'ℹ️ Hastanız ilacını atladı. Gerekirse hastanızla iletişime geçebilirsiniz.'}
           </Text>
 
           {/* Kapat Butonu */}
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: isTaken ? '#0D9488' : '#334155' }]}
+            style={[styles.actionButton, { backgroundColor: isTaken ? '#0D9488' : '#DC2626' }]}
             onPress={handleDismiss}
             activeOpacity={0.85}
           >

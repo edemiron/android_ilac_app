@@ -90,15 +90,18 @@ export function buildMedicineLogBase(
   reminderTimeId: string,
   scheduledTime: string,
   status: 'taken' | 'skipped',
-  note?: string
+  note?: string,
+  medicineName?: string
 ): Omit<MedicineLog, 'takenAt'> {
   return {
     id: '',
     medicineId,
+    medicineName,
     reminderTimeId,
     scheduledTime,
     status,
     note,
+    createdAt: nowISO(),
   };
 }
 

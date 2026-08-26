@@ -854,7 +854,7 @@ export const useMedicineStore = create<MedicineState>()(
         medicineIdFallback?: string,
         note?: string
       ): MedicineLog | null => {
-        const { reminderTimes } = get();
+        const { medicines, reminderTimes } = get();
         // Sprint 28.3: pure helper'a delege edildi (findReminderTimeById)
         const reminderTime = findReminderTimeById(reminderTimes, reminderTimeId);
         const actualMedicineId = reminderTime?.medicineId || medicineIdFallback;
@@ -877,12 +877,16 @@ export const useMedicineStore = create<MedicineState>()(
           );
         }
 
+        const medicine = findMedicineById(medicines, actualMedicineId);
+        const medicineName = medicine?.name;
+
         const baseLog = buildMedicineLogBase(
           actualMedicineId,
           reminderTimeId,
           scheduledTime,
           status,
-          note
+          note,
+          medicineName
         );
 
         // 'taken' durumunda takenAt ekle — Sprint 27.2: pure helper'a delege

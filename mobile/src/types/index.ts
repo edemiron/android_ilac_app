@@ -154,6 +154,7 @@ export interface UserSettings {
 export interface MedicineLog {
   id: string;
   medicineId: string;
+  medicineName?: string;
   reminderTimeId: string;
   scheduledTime: string; // ISO date string
   takenAt?: string; // Alındıysa ISO date string
@@ -161,6 +162,7 @@ export interface MedicineLog {
   note?: string;
   skipReason?: string; // 'side_effect' | 'felt_better' | 'out_of_stock' | 'doctor_advised' | 'forgot' | 'other'
   skipReasonNote?: string;
+  createdAt?: string;
 }
 
 // Snooze (erteleme) kaydı - persistence için
