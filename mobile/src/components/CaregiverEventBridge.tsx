@@ -39,6 +39,7 @@ import { usePatientRemoteReminderWatcher } from '../hooks/usePatientRemoteRemind
 import { CaregiverFullScreenAlertModal } from '../screens/CaregiverScreen/components/CaregiverFullScreenAlertModal';
 import { PatientFullScreenReminderModal } from './PatientFullScreenReminderModal';
 import { setupCaregiverNotifications } from '../services/caregiverNotificationService';
+import { syncCaregiverWatchSchedules } from '../services/caregiverWatchScheduler';
 import type { PatientInfo } from '../types';
 
 const log = createScopedLogger('CaregiverEventBridge');
@@ -71,6 +72,8 @@ export function CaregiverEventBridge() {
     }
     getPatientsForCaregiver(caregiverId).then(list => {
       setPatients(list);
+      // Hastaların ilaç saatlerini bakıcının telefonunda yerel donanım alarmları olarak planla
+      syncCaregiverWatchSchedules(list);
     });
   }, [caregiverId]);
 
