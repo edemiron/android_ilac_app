@@ -127,7 +127,7 @@ exports.health = onRequest({ cors: true }, (req, res) => {
 
 /**
  * ⚡ OTOMATİK CLOUD TRIGGER: Hasta İlaç Aldığında/Atladığında Bakıcıya Anında FCM Gönder
- * Hasta uygulaması kapalı olsa veya arkaplanda olsa dahi Firestore yazıldığı an tetiklenir.
+ * Hem Topic (`patient_{userId}`) hem Direct Token ile çift hat üzerinden garanti iletim.
  */
 exports.onMedicineLogCreated = onDocumentCreated('users/{userId}/medicineLogs/{logId}', async (event) => {
   const snapshot = event.data;
@@ -137,7 +137,10 @@ exports.onMedicineLogCreated = onDocumentCreated('users/{userId}/medicineLogs/{l
   const userId = event.params.userId;
   const status = logData.status;
 
+  console.log(`[onMedicineLogCreated] Event tetiklendi: userId=${userId}, status=${status}`);
+
   if (status !== 'taken' && status !== 'skipped' && status !== 'missed') {
+    console.log(`[onMedicineLogCreated] Status '${status}' bildirim gerektirmiyor.`);
     return;
   }
 
@@ -154,17 +157,6 @@ exports.onMedicineLogCreated = onDocumentCreated('users/{userId}/medicineLogs/{l
       }
     } catch (_uErr) {}
 
-    // 2. Bakıcıları bul
-    const relSnap = await db.collection('caregiverRelationships')
-      .where('patientId', '==', userId)
-      .where('status', '==', 'active')
-      .get();
-
-    if (relSnap.empty) {
-      console.log('Bildirim gönderilecek aktif bakıcı bulunamadı');
-      return;
-    }
-
     const medicineName = logData.medicineName || 'İlaç';
     const scheduledTime = logData.scheduledTime || '';
     const time = scheduledTime.includes('T') ? scheduledTime.split('T')[1].slice(0, 5) : scheduledTime;
@@ -175,8 +167,57 @@ exports.onMedicineLogCreated = onDocumentCreated('users/{userId}/medicineLogs/{l
       ? `${medicineName} (${time}) dozunu başarıyla tamamladı.`
       : `${medicineName} (${time}) dozunu atladı.`;
 
-    // 3. Her bakıcıya FCM gönder
+    const notificationPayload = {
+      title,
+      body,
+    };
+
+    const dataPayload = {
+      title,
+      body,
+      type: 'caregiver_alert',
+      patientId: userId,
+      patientName,
+      medicineName,
+      status,
+      scheduledTime,
+    };
+
+    const androidConfig = {
+      priority: 'high',
+      notification: {
+        channelId: 'caregiver-live-alerts-v1',
+        sound: 'default',
+        priority: 'max',
+        visibility: 'public',
+        defaultVibrateTimings: true,
+      },
+    };
+
     const promises = [];
+
+    // 1. TOPIC BROADCAST: patient_{userId} konusuna yayın yap (Anında tüm bağlı bakıcılar alır!)
+    const topicMessage = {
+      topic: `patient_${userId}`,
+      notification: notificationPayload,
+      data: dataPayload,
+      android: androidConfig,
+    };
+    promises.push(
+      admin.messaging().send(topicMessage)
+        .then(msgId => console.log(`[onMedicineLogCreated] Topic patient_${userId} mesajı gönderildi: ${msgId}`))
+        .catch(err => console.warn(`[onMedicineLogCreated] Topic gönderim hatası: ${err.message}`))
+    );
+
+    // 2. DIRECT TOKEN MESSAGES: caregiverRelationships koleksiyonunu tara (filtresiz geniş arama)
+    const relSnap = await db.collection('caregiverRelationships')
+      .where('patientId', '==', userId)
+      .get();
+
+    console.log(`[onMedicineLogCreated] Bulunan ilişki sayısı: ${relSnap.size}`);
+
+    const sentTokens = new Set();
+
     for (const doc of relSnap.docs) {
       const rel = doc.data();
       let token = rel.caregiverFcmToken;
@@ -185,42 +226,30 @@ exports.onMedicineLogCreated = onDocumentCreated('users/{userId}/medicineLogs/{l
         try {
           const cUserDoc = await db.collection('users').doc(rel.caregiverId).get();
           if (cUserDoc.exists) {
-            token = cUserDoc.data()?.pushToken || cUserDoc.data()?.caregiverFcmToken;
+            const cData = cUserDoc.data();
+            token = cData?.pushToken || cData?.caregiverFcmToken || cData?.fcmToken;
           }
         } catch (_cErr) {}
       }
 
-      if (token) {
-        const message = {
+      if (token && !sentTokens.has(token)) {
+        sentTokens.add(token);
+        const directMessage = {
           token,
-          notification: {
-            title,
-            body,
-          },
-          data: {
-            type: 'caregiver_alert',
-            patientId: userId,
-            patientName: rel.patientName || patientName,
-            medicineName,
-            status,
-            scheduledTime,
-          },
-          android: {
-            priority: 'high',
-            notification: {
-              channelId: 'caregiver-live-alerts-v1',
-              sound: 'default',
-              priority: 'max',
-              defaultVibrateTimings: true,
-            },
-          },
+          notification: notificationPayload,
+          data: dataPayload,
+          android: androidConfig,
         };
-        promises.push(admin.messaging().send(message).catch(err => console.warn('FCM send error:', err.message)));
+        promises.push(
+          admin.messaging().send(directMessage)
+            .then(msgId => console.log(`[onMedicineLogCreated] Direct token mesajı gönderildi (${token.slice(0, 15)}...): ${msgId}`))
+            .catch(err => console.warn(`[onMedicineLogCreated] Direct token gönderim hatası: ${err.message}`))
+        );
       }
     }
 
     await Promise.all(promises);
-    console.log(`[onMedicineLogCreated] ${promises.length} bakıcıya FCM push iletildi.`);
+    console.log(`[onMedicineLogCreated] Toplam ${promises.length} bildirim akışı tamamlandı.`);
   } catch (error) {
     console.error('[onMedicineLogCreated] Hata:', error);
   }
@@ -241,38 +270,63 @@ exports.onRemoteReminderCreated = onDocumentCreated('users/{userId}/remoteRemind
     const userDoc = await db.collection('users').doc(userId).get();
     if (!userDoc.exists) return;
 
-    const token = userDoc.data()?.pushToken || userDoc.data()?.caregiverFcmToken;
-    if (!token) return;
+    const token = userDoc.data()?.pushToken || userDoc.data()?.caregiverFcmToken || userDoc.data()?.fcmToken;
 
     const caregiverName = reminder.caregiverName || 'Bakıcınız';
     const medicineName = reminder.medicineName || 'İlacınızı';
     const messageText = reminder.customMessage || `${caregiverName} size ${medicineName} ilacınızı hatırlattı.`;
 
-    const message = {
-      token,
+    const notificationPayload = {
+      title: `📢 ${caregiverName} Hatırlatması`,
+      body: messageText,
+    };
+
+    const dataPayload = {
+      title: `📢 ${caregiverName} Hatırlatması`,
+      body: messageText,
+      type: 'patient_remote_reminder',
+      reminderId: event.params.reminderId,
+      caregiverName,
+      medicineName,
+      scheduledTime: reminder.scheduledTime || '',
+    };
+
+    const androidConfig = {
+      priority: 'high',
       notification: {
-        title: `📢 ${caregiverName} Hatırlatması`,
-        body: messageText,
-      },
-      data: {
-        type: 'patient_remote_reminder',
-        reminderId: event.params.reminderId,
-        caregiverName,
-        medicineName,
-        scheduledTime: reminder.scheduledTime || '',
-      },
-      android: {
-        priority: 'high',
-        notification: {
-          channelId: 'patient-remote-reminders-v1',
-          sound: 'default',
-          priority: 'max',
-          defaultVibrateTimings: true,
-        },
+        channelId: 'patient-remote-reminders-v1',
+        sound: 'default',
+        priority: 'max',
+        visibility: 'public',
+        defaultVibrateTimings: true,
       },
     };
 
-    await admin.messaging().send(message);
+    const promises = [];
+
+    // 1. Topic: user_{userId}
+    promises.push(
+      admin.messaging().send({
+        topic: `user_${userId}`,
+        notification: notificationPayload,
+        data: dataPayload,
+        android: androidConfig,
+      }).catch(err => console.warn('Remote reminder topic error:', err.message))
+    );
+
+    // 2. Direct Token
+    if (token) {
+      promises.push(
+        admin.messaging().send({
+          token,
+          notification: notificationPayload,
+          data: dataPayload,
+          android: androidConfig,
+        }).catch(err => console.warn('Remote reminder token error:', err.message))
+      );
+    }
+
+    await Promise.all(promises);
     console.log(`[onRemoteReminderCreated] Hasta ${userId} kullanıcısına FCM iletildi.`);
   } catch (error) {
     console.error('[onRemoteReminderCreated] Hata:', error);

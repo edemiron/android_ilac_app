@@ -126,6 +126,21 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
 }
 
 /**
+ * Takip edilen hastaların FCM konularına abone ol (Örn: patient_123)
+ */
+export async function subscribeToPatientTopics(patientIds: string[]): Promise<void> {
+  try {
+    for (const pId of patientIds) {
+      if (!pId) continue;
+      await messaging().subscribeToTopic(`patient_${pId}`);
+      log.info('Hasta FCM konusuna abone olundu', { topic: `patient_${pId}` });
+    }
+  } catch (err) {
+    log.debug('subscribeToPatientTopics hata', err);
+  }
+}
+
+/**
  * Kayıtlı FCM token'ı getir (SecureStore)
  */
 export async function getStoredFcmToken(): Promise<string | null> {

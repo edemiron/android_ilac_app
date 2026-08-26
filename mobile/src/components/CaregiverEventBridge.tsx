@@ -74,6 +74,13 @@ export function CaregiverEventBridge() {
       setPatients(list);
       // Hastaların ilaç saatlerini bakıcının telefonunda yerel donanım alarmları olarak planla
       syncCaregiverWatchSchedules(list);
+      // Hastaların canlı FCM bildirim kanallarına (Topic) abone ol
+      const ids = list.map(p => p.id).filter(Boolean);
+      if (ids.length > 0) {
+        import('../services/caregiverNotificationService').then(srv => {
+          srv.subscribeToPatientTopics(ids);
+        });
+      }
     });
   }, [caregiverId]);
 
