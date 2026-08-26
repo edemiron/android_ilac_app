@@ -140,6 +140,14 @@ service cloud.firestore {
       }
 
       // ----------------------------------------
+      // CAREGIVER ALERTS SUBCOLLECTION
+      // ----------------------------------------
+      match /caregiverAlerts/{alertId} {
+        allow read, update, delete: if isOwner(userId) || isAuthenticated();
+        allow create: if isAuthenticated();
+      }
+
+      // ----------------------------------------
       // REMOTE REMINDERS / NUDGES SUBCOLLECTION
       // ----------------------------------------
       match /remoteReminders/{reminderId} {

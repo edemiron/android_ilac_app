@@ -6,9 +6,12 @@
  * Uygulama kapalıyken veya arka plandayken bile Android/iOS sistem bildirimini tetikler.
  */
 
+import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging from '@react-native-firebase/messaging';
+import notifee, { AndroidImportance } from '@notifee/react-native';
 import { createScopedLogger } from '../utils/logger';
 import { updateCaregiverFcmToken } from './caregiverService';
 
@@ -16,8 +19,6 @@ const log = createScopedLogger('CaregiverNotifications');
 
 const FCM_TOKEN_KEY = 'caregiver.fcm.token';
 const CAREGIVER_NOTIFICATIONS_ENABLED = '@caregiver_notifications_enabled';
-
-import { Platform } from 'react-native';
 
 // Bildirimlerin arka planda/ön planda nasıl gösterileceğini yapılandır
 Notifications.setNotificationHandler({
@@ -41,59 +42,61 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
       return null;
     }
 
-    // Android bildirim kanallarını oluştur
+    // Android bildirim kanallarını Notifee ve Notifications ile garantiye al
     if (Platform.OS === 'android') {
       try {
-        await Notifications.setNotificationChannelAsync('caregiver-live-alerts-v1', {
+        await notifee.createChannel({
+          id: 'caregiver-live-alerts-v1',
           name: 'Bakıcı Canlı Bildirimleri',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#4ECDC4',
+          importance: AndroidImportance.HIGH,
           sound: 'default',
-          enableVibrate: true,
-          showBadge: true,
+          vibration: true,
         });
 
-        await Notifications.setNotificationChannelAsync('patient-remote-reminders-v1', {
+        await notifee.createChannel({
+          id: 'patient-remote-reminders-v1',
           name: 'Hasta Canlı Hatırlatıcıları',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 500, 250, 500],
-          lightColor: '#FF6B6B',
+          importance: AndroidImportance.HIGH,
           sound: 'default',
-          enableVibrate: true,
-          showBadge: true,
+          vibration: true,
         });
       } catch (_chErr) {
         log.debug('Channel setup skip');
       }
     }
 
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    // 1. İzin Kontrolü (FCM + Notifee)
+    try {
+      await messaging().requestPermission();
+    } catch (_pErr) {
+      log.debug('FCM permission request skip');
     }
 
-    if (finalStatus !== 'granted') {
-      log.warn('Push bildirim izni verilmedi');
-      return null;
-    }
-
+    // 2. Native FCM Token Al (Google Play Services)
     let pushToken = '';
     try {
-      const tokenObj = await Notifications.getExpoPushTokenAsync();
-      pushToken = tokenObj.data;
-    } catch (_e) {
-      log.debug('Expo push token direct get skip');
+      pushToken = await messaging().getToken();
+      if (pushToken) {
+        log.info('Native Firebase Cloud Messaging token alındı', {
+          tokenPrefix: pushToken.slice(0, 15),
+        });
+      }
+    } catch (fcmErr) {
+      log.warn('Native FCM token alınamadı, Expo fallback deneniyor', fcmErr);
     }
 
+    // 3. Expo Push Token Fallback
     if (!pushToken) {
       try {
-        const devTokenObj = await Notifications.getDevicePushTokenAsync();
-        pushToken = devTokenObj.data;
-      } catch (devErr) {
-        log.warn('Device push token alınamadı', devErr);
+        const tokenObj = await Notifications.getExpoPushTokenAsync();
+        pushToken = tokenObj.data;
+      } catch (_e) {
+        try {
+          const devTokenObj = await Notifications.getDevicePushTokenAsync();
+          pushToken = devTokenObj.data;
+        } catch (devErr) {
+          log.warn('Device push token alınamadı', devErr);
+        }
       }
     }
 
@@ -102,10 +105,15 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
       return null;
     }
 
-    // Token'ı kaydet (SecureStore — hassas veri)
-    await SecureStore.setItemAsync(FCM_TOKEN_KEY, pushToken);
+    // 4. Topic Aboneliği (user_{userId} konusu)
+    try {
+      await messaging().subscribeToTopic(`user_${userId}`);
+    } catch (_tErr) {
+      log.debug('FCM topic subscribe skip');
+    }
 
-    // Bakıcı ilişkilerini güncelle
+    // 5. Token'ı kaydet (SecureStore & Firestore)
+    await SecureStore.setItemAsync(FCM_TOKEN_KEY, pushToken);
     await updateCaregiverFcmToken(userId, pushToken);
 
     log.info('Push token başarıyla alındı ve kaydedildi', { userId });
@@ -157,12 +165,21 @@ export async function isCaregiverNotificationsEnabled(): Promise<boolean> {
  * Foreground mesaj dinleyicisi
  */
 export function setupCaregiverMessageListener(callback: (message: any) => void): () => void {
+  // Hem FCM hem Expo notification dinleyicisi
+  const unsubscribeFcm = messaging().onMessage(async remoteMessage => {
+    log.debug('FCM Foreground mesaj alındı', { remoteMessage });
+    callback(remoteMessage);
+  });
+
   const subscription = Notifications.addNotificationReceivedListener(notification => {
-    log.debug('Foreground bildirim alındı', { notification });
+    log.debug('Expo Foreground bildirim alındı', { notification });
     callback(notification);
   });
 
-  return () => subscription.remove();
+  return () => {
+    unsubscribeFcm();
+    subscription.remove();
+  };
 }
 
 /**
@@ -250,33 +267,39 @@ export async function sendCaregiverNotification(
       title: notification.title,
     });
 
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: pushToken,
-        title: notification.title,
-        body: notification.body,
-        sound: 'default',
-        priority: 'high',
-        channelId: 'caregiver-live-alerts-v1',
-        data: {
-          type: 'caregiver_alert',
-          patientId: data.patientId,
-          patientName: data.patientName,
-          medicineName: data.medicineName,
-          status: data.type,
-          scheduledTime: data.scheduledTime,
-        },
-      }),
-    });
+    if (pushToken.startsWith('ExponentPushToken[') || pushToken.startsWith('ExpoPushToken[')) {
+      try {
+        const response = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Accept-encoding': 'gzip, deflate',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: pushToken,
+            title: notification.title,
+            body: notification.body,
+            sound: 'default',
+            priority: 'high',
+            channelId: 'caregiver-live-alerts-v1',
+            data: {
+              type: 'caregiver_alert',
+              patientId: data.patientId,
+              patientName: data.patientName,
+              medicineName: data.medicineName,
+              status: data.type,
+              scheduledTime: data.scheduledTime,
+            },
+          }),
+        });
 
-    const result = await response.json();
-    log.info('Expo push sunucu yanıtı', { result });
+        const result = await response.json();
+        log.info('Expo push sunucu yanıtı', { result });
+      } catch (expErr) {
+        log.warn('Expo push iletim hatası', expErr);
+      }
+    }
 
     return { success: true };
   } catch (error: any) {
@@ -305,7 +328,7 @@ export async function notifyCaregiversAboutMedicineStatus(
 
     // Firestore'dan bakıcıları ve hasta profilini getir
     const { getCaregivers } = await import('./caregiverService');
-    const { doc, getDoc } = await import('firebase/firestore');
+    const { doc, getDoc, setDoc } = await import('firebase/firestore');
     const { db } = await import('../config/firebase');
 
     let resolvedPatientName = '';
@@ -339,6 +362,29 @@ export async function notifyCaregiversAboutMedicineStatus(
           }
         } catch (_cErr) {
           log.debug('Caregiver user doc pushToken read skip');
+        }
+      }
+
+      // Ayrıca bakıcının /users/{caregiverId}/caregiverAlerts koleksiyonuna anında yaz!
+      if (caregiver.caregiverId) {
+        try {
+          const alertId = `${patientId}_${Date.now()}`;
+          await setDoc(doc(db, 'users', caregiver.caregiverId, 'caregiverAlerts', alertId), {
+            id: alertId,
+            patientId,
+            patientName: caregiver.patientName || resolvedPatientName || 'Hastanız',
+            medicineName,
+            scheduledTime,
+            status,
+            createdAt: new Date().toISOString(),
+            seen: false,
+          });
+          log.info('caregiverAlerts kaydı oluşturuldu', {
+            caregiverId: caregiver.caregiverId,
+            alertId,
+          });
+        } catch (alertErr) {
+          log.warn('caregiverAlerts yazma uyarısı', alertErr);
         }
       }
 

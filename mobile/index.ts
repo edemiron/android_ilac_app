@@ -1,6 +1,13 @@
 import { AppRegistry } from 'react-native';
-import notifee, { EventType, Event, TriggerType, AlarmType } from '@notifee/react-native';
+import notifee, {
+  EventType,
+  Event,
+  TriggerType,
+  AlarmType,
+  AndroidImportance,
+} from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging from '@react-native-firebase/messaging';
 
 import App from './App';
 import { registerBootTask } from './src/utils/bootHandler';
@@ -12,6 +19,39 @@ import { STORAGE_KEYS, CHANNELS } from './src/constants';
 const appName = 'main';
 
 registerBootTask();
+
+// ============================================================
+// FIREBASE CLOUD MESSAGING (FCM) BACKGROUND HANDLER
+// Uygulama kapalıyken veya arka plandayken gelen push bildirimleri
+// doğrudan Notifee ile sistem bildirim çubuğunda sesli/titreşimli açar.
+// ============================================================
+messaging().setBackgroundMessageHandler(async remoteMessage => {
+  console.log('[FCM Background] Mesaj alındı:', remoteMessage);
+  try {
+    const data = (remoteMessage.data as any) || {};
+    const title =
+      remoteMessage.notification?.title || (data?.title as string) || 'İlaç Hatırlatıcı';
+    const body = remoteMessage.notification?.body || (data?.body as string) || '';
+    const channelId = (data?.channelId as string) || 'caregiver-live-alerts-v1';
+
+    await notifee.displayNotification({
+      title,
+      body,
+      android: {
+        channelId,
+        importance: AndroidImportance.HIGH,
+        sound: 'default',
+        vibrationPattern: [0, 250, 250, 250],
+        pressAction: {
+          id: 'default',
+        },
+      },
+      data: data,
+    });
+  } catch (e) {
+    console.error('[FCM Background] Bildirim gösterme hatası:', e);
+  }
+});
 
 // ============================================================
 // HANDLED ALARMS SET
