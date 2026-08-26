@@ -488,7 +488,18 @@ export async function updateCaregiverFcmToken(
   }
 
   try {
-    // Bu bakıcının tüm aktif ilişkilerini bul ve token'ı güncelle
+    // 1. users/{caregiverId} profiline kaydet
+    try {
+      const userRef = doc(db, 'users', caregiverId);
+      await updateDoc(userRef, {
+        pushToken: fcmToken,
+        caregiverFcmToken: fcmToken,
+      });
+    } catch (_uErr) {
+      log.debug('users doc pushToken update skip');
+    }
+
+    // 2. Bu bakıcının tüm aktif ilişkilerini bul ve token'ı güncelle
     const q = query(
       collection(db, RELATIONSHIPS_COLLECTION),
       where('caregiverId', '==', caregiverId),
@@ -503,7 +514,7 @@ export async function updateCaregiverFcmToken(
 
     await Promise.all(batchPromises);
 
-    log.info('FCM token güncellendi', { caregiverId });
+    log.info('FCM/Push token başarıyla güncellendi', { caregiverId });
   } catch (error) {
     log.error('FCM token güncelleme hatası', error);
   }

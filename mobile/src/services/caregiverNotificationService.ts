@@ -17,6 +17,8 @@ const log = createScopedLogger('CaregiverNotifications');
 const FCM_TOKEN_KEY = 'caregiver.fcm.token';
 const CAREGIVER_NOTIFICATIONS_ENABLED = '@caregiver_notifications_enabled';
 
+import { Platform } from 'react-native';
+
 // Bildirimlerin arka planda/ön planda nasıl gösterileceğini yapılandır
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -39,6 +41,33 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
       return null;
     }
 
+    // Android bildirim kanallarını oluştur
+    if (Platform.OS === 'android') {
+      try {
+        await Notifications.setNotificationChannelAsync('caregiver-live-alerts-v1', {
+          name: 'Bakıcı Canlı Bildirimleri',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#4ECDC4',
+          sound: 'default',
+          enableVibrate: true,
+          showBadge: true,
+        });
+
+        await Notifications.setNotificationChannelAsync('patient-remote-reminders-v1', {
+          name: 'Hasta Canlı Hatırlatıcıları',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 500, 250, 500],
+          lightColor: '#FF6B6B',
+          sound: 'default',
+          enableVibrate: true,
+          showBadge: true,
+        });
+      } catch (_chErr) {
+        log.debug('Channel setup skip');
+      }
+    }
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     if (existingStatus !== 'granted') {
@@ -56,11 +85,15 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
       const tokenObj = await Notifications.getExpoPushTokenAsync();
       pushToken = tokenObj.data;
     } catch (_e) {
+      log.debug('Expo push token direct get skip');
+    }
+
+    if (!pushToken) {
       try {
         const devTokenObj = await Notifications.getDevicePushTokenAsync();
         pushToken = devTokenObj.data;
       } catch (devErr) {
-        log.warn('Push token alınamadı', devErr);
+        log.warn('Device push token alınamadı', devErr);
       }
     }
 
@@ -296,8 +329,21 @@ export async function notifyCaregiversAboutMedicineStatus(
 
     // Bildirim almaya izin veren bakıcılara gönder
     for (const caregiver of caregivers) {
-      if (caregiver.canReceiveAlerts && caregiver.caregiverFcmToken) {
-        await sendCaregiverNotification(caregiver.caregiverFcmToken, {
+      let pushToken = caregiver.caregiverFcmToken;
+      if (!pushToken && caregiver.caregiverId) {
+        try {
+          const cDoc = await getDoc(doc(db, 'users', caregiver.caregiverId));
+          if (cDoc.exists()) {
+            const cData = cDoc.data();
+            pushToken = cData?.pushToken || cData?.caregiverFcmToken;
+          }
+        } catch (_cErr) {
+          log.debug('Caregiver user doc pushToken read skip');
+        }
+      }
+
+      if (caregiver.canReceiveAlerts !== false && pushToken) {
+        await sendCaregiverNotification(pushToken, {
           type: status,
           patientId,
           patientName: caregiver.patientName || resolvedPatientName || 'Hastanız',
