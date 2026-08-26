@@ -35,7 +35,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
 import { createScopedLogger } from '../utils/logger';
 import { useCaregiverRealtimeWatcher } from '../hooks/useCaregiverRealtimeWatcher';
+import { usePatientRemoteReminderWatcher } from '../hooks/usePatientRemoteReminderWatcher';
 import { CaregiverFullScreenAlertModal } from '../screens/CaregiverScreen/components/CaregiverFullScreenAlertModal';
+import { PatientFullScreenReminderModal } from './PatientFullScreenReminderModal';
 import type { PatientInfo } from '../types';
 
 const log = createScopedLogger('CaregiverEventBridge');
@@ -66,6 +68,9 @@ export function CaregiverEventBridge() {
 
   // Canlı Firestore Log İzleyicisi — Doz alınınca otomatik Notifee + Tam Ekran Modal tetikler
   useCaregiverRealtimeWatcher(patients, !!caregiverId);
+
+  // Canlı Hasta Uzaktan Hatırlatıcı İzleyicisi — Bakıcıdan hatırlatıcı gelince Notifee + Tam Ekran Modal tetikler
+  usePatientRemoteReminderWatcher(user?.uid, !!user?.uid);
 
   // Caregiver ilk aktif ilişkiyi "şu anki hasta" olarak seçsin.
   // İleride caregiverScreen UI'dan patient değiştirme eklenirse burası refactor edilir.
@@ -162,7 +167,12 @@ export function CaregiverEventBridge() {
     }
   }, [lastActionAt]);
 
-  return <CaregiverFullScreenAlertModal />;
+  return (
+    <>
+      <CaregiverFullScreenAlertModal />
+      <PatientFullScreenReminderModal />
+    </>
+  );
 }
 
 export default CaregiverEventBridge;

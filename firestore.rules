@@ -140,6 +140,14 @@ service cloud.firestore {
       }
 
       // ----------------------------------------
+      // REMOTE REMINDERS / NUDGES SUBCOLLECTION
+      // ----------------------------------------
+      match /remoteReminders/{reminderId} {
+        allow read, update, delete: if isOwner(userId) || isAuthenticated();
+        allow create: if isAuthenticated();
+      }
+
+      // ----------------------------------------
       // SETTINGS SUBCOLLECTION
       // ----------------------------------------
       match /settings/{settingId} {

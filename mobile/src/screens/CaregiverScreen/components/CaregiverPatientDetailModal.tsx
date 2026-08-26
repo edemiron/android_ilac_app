@@ -6,7 +6,8 @@
  * - Canlı alınma / atlanma / bekleme durumu
  * - Uyum ilerleme çubuğu
  * - İlaç geçmişi ve tüm reçeteli ilaçlar listesi
- * - Hastayı doğrudan arama / arama köprüsü
+ * - Hastaya canlı "📢 Hatırlat" (Remote Nudge) tam ekran mesaj gönderme
+ * - Hastayı doğrudan arama köprüsü
  */
 
 import React, { useState, useEffect } from 'react';
@@ -20,6 +21,8 @@ import {
   ActivityIndicator,
   Linking,
   Dimensions,
+  TextInput,
+  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import type { PatientInfo } from '../../../types';
@@ -29,7 +32,9 @@ import {
   getPatientPhoneNumber,
   subscribeToPatientLiveLogs,
   logMedicineTakenByCaregiver,
+  sendRemoteReminderToPatient,
 } from '../../../services/caregiverService';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useHaptics } from '../../../hooks/useHaptics';
 
 interface CaregiverPatientDetailModalProps {
@@ -51,6 +56,7 @@ export function CaregiverPatientDetailModal({
 }: CaregiverPatientDetailModalProps) {
   const isTr = language === 'tr';
   const haptics = useHaptics();
+  const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'today' | 'history' | 'medicines'>('today');
   const [isLoading, setIsLoading] = useState(true);
@@ -70,6 +76,13 @@ export function CaregiverPatientDetailModal({
     todayTotalCount: 0,
     todayPercent: 0,
   });
+
+  // Hatırlatma (Nudge) Gönderme Modalı State'leri
+  const [nudgeModalVisible, setNudgeModalVisible] = useState(false);
+  const [selectedDoseForNudge, setSelectedDoseForNudge] = useState<any | null>(null);
+  const [customNudgeMessage, setCustomNudgeMessage] = useState('');
+  const [selectedPresetIndex, setSelectedPresetIndex] = useState<number>(0);
+  const [isSendingNudge, setIsSendingNudge] = useState(false);
 
   // Veri yükleme & Canlı Firestore dinleyicisi
   useEffect(() => {
@@ -99,6 +112,8 @@ export function CaregiverPatientDetailModal({
   if (!patient) return null;
 
   const patientName = patient.name || (isTr ? 'Kayıtlı Hasta' : 'Patient');
+  const caregiverName =
+    user?.displayName || user?.email?.split('@')[0] || (isTr ? 'Bakıcınız' : 'Caregiver');
 
   const getInitials = (name: string) => {
     if (!name) return 'H';
@@ -123,6 +138,65 @@ export function CaregiverPatientDetailModal({
     await logMedicineTakenByCaregiver(patient.id, medicineName, time);
     const updated = await getPatientFullSchedule(patient.id);
     setScheduleData(updated);
+  };
+
+  // Hatırlatma Modalını Aç
+  const handleOpenNudgeModal = (dose: any) => {
+    haptics.trigger('selection');
+    setSelectedDoseForNudge(dose);
+    setCustomNudgeMessage('');
+    setSelectedPresetIndex(0);
+    setNudgeModalVisible(true);
+  };
+
+  // Hatırlatma Gönder
+  const handleSendNudge = async () => {
+    if (!selectedDoseForNudge || !user?.uid) return;
+
+    haptics.trigger('medium');
+    setIsSendingNudge(true);
+
+    const presetMessages = [
+      isTr
+        ? `Lütfen ${selectedDoseForNudge.medicineName} (${selectedDoseForNudge.time}) ilacınızı almayı unutmayın!`
+        : `Please remember to take your ${selectedDoseForNudge.medicineName} (${selectedDoseForNudge.time}) dose!`,
+      isTr
+        ? `İlacınızı aldınız mı? Lütfen uygulamanızdan işaretleyin.`
+        : `Have you taken your medication? Please mark it in your app.`,
+      isTr
+        ? `Sağlığınız bizim için çok önemli, lütfen ilacınızı ihmal etmeyin.`
+        : `Your health is very important, please do not skip your medicine.`,
+    ];
+
+    const finalMessage =
+      customNudgeMessage.trim() || presetMessages[selectedPresetIndex] || presetMessages[0];
+
+    const result = await sendRemoteReminderToPatient({
+      patientId: patient.id,
+      caregiverId: user.uid,
+      caregiverName,
+      medicineId: selectedDoseForNudge.medicineId,
+      medicineName: selectedDoseForNudge.medicineName,
+      scheduledTime: selectedDoseForNudge.time,
+      doseStatus: selectedDoseForNudge.status,
+      customMessage: finalMessage,
+    });
+
+    setIsSendingNudge(false);
+    setNudgeModalVisible(false);
+
+    if (result.success) {
+      haptics.trigger('success');
+      Alert.alert(
+        isTr ? '📢 Hatırlatma İletildi!' : '📢 Reminder Sent!',
+        isTr
+          ? `${patientName} kullanıcısının telefonuna tam ekran canlı hatırlatma mesajı gönderildi.`
+          : `A live full-screen reminder has been sent to ${patientName}'s phone.`
+      );
+    } else {
+      haptics.trigger('error');
+      Alert.alert(isTr ? 'Hata' : 'Error', result.error || 'Hatırlatma iletilemedi.');
+    }
   };
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -444,7 +518,7 @@ export function CaregiverPatientDetailModal({
                               </Text>
                             ) : null}
 
-                            {/* Durum Rozeti */}
+                            {/* Durum Rozeti ve Aksiyon Butonları */}
                             <View style={styles.statusRow}>
                               <View
                                 style={[
@@ -495,21 +569,52 @@ export function CaregiverPatientDetailModal({
                                 </Text>
                               </View>
 
-                              {/* Eğer henüz alınmadıysa Bakıcı "Aldı Olarak İşaretle" butonu */}
+                              {/* Alınmadıysa (Bekliyor / Atlandı) Bakıcı Aksiyonları */}
                               {!isTaken && (
-                                <TouchableOpacity
-                                  style={[
-                                    styles.markTakenBtn,
-                                    { backgroundColor: `${colors.primary}18` },
-                                  ]}
-                                  onPress={() => handleMarkAsTaken(dose.medicineName, dose.time)}
-                                  activeOpacity={0.7}
-                                >
-                                  <Ionicons name="checkmark" size={13} color={colors.primary} />
-                                  <Text style={[styles.markTakenText, { color: colors.primary }]}>
-                                    {isTr ? 'Aldı Olarak İşaretle' : 'Mark Taken'}
-                                  </Text>
-                                </TouchableOpacity>
+                                <View style={styles.actionsRightRow}>
+                                  {/* 📢 Hatırlat Butonu */}
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.nudgeBtn,
+                                      {
+                                        backgroundColor: isSkipped
+                                          ? 'rgba(239, 68, 68, 0.15)'
+                                          : 'rgba(13, 148, 136, 0.15)',
+                                      },
+                                    ]}
+                                    onPress={() => handleOpenNudgeModal(dose)}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Ionicons
+                                      name="notifications"
+                                      size={12}
+                                      color={isSkipped ? '#EF4444' : colors.primary}
+                                    />
+                                    <Text
+                                      style={[
+                                        styles.nudgeBtnText,
+                                        { color: isSkipped ? '#EF4444' : colors.primary },
+                                      ]}
+                                    >
+                                      {isTr ? 'Hatırlat' : 'Remind'}
+                                    </Text>
+                                  </TouchableOpacity>
+
+                                  {/* Aldı Olarak İşaretle */}
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.markTakenBtn,
+                                      { backgroundColor: `${colors.primary}18` },
+                                    ]}
+                                    onPress={() => handleMarkAsTaken(dose.medicineName, dose.time)}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Ionicons name="checkmark" size={13} color={colors.primary} />
+                                    <Text style={[styles.markTakenText, { color: colors.primary }]}>
+                                      {isTr ? 'Aldı' : 'Taken'}
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
                               )}
                             </View>
                           </View>
@@ -672,6 +777,148 @@ export function CaregiverPatientDetailModal({
           )}
         </View>
       </View>
+
+      {/* ========================================================================= */}
+      {/* 📢 CANLI HATIRLATMA (NUDGE) GÖNDERME PENCERESİ                            */}
+      {/* ========================================================================= */}
+      {selectedDoseForNudge && (
+        <Modal
+          visible={nudgeModalVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setNudgeModalVisible(false)}
+        >
+          <View style={styles.nudgeBackdrop}>
+            <View
+              style={[
+                styles.nudgeModalContent,
+                {
+                  backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+                  borderColor: isDark ? '#334155' : '#E2E8F0',
+                },
+              ]}
+            >
+              {/* Başlık */}
+              <View style={styles.nudgeHeader}>
+                <View style={styles.nudgeIconBox}>
+                  <Ionicons name="notifications-outline" size={22} color="#0D9488" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.nudgeTitle, { color: colors.text }]}>
+                    {isTr ? 'Canlı Hatırlatma Gönder' : 'Send Live Reminder'}
+                  </Text>
+                  <Text style={[styles.nudgeSubTitle, { color: colors.textSecondary }]}>
+                    {patientName} ({selectedDoseForNudge.medicineName} • {selectedDoseForNudge.time}
+                    )
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setNudgeModalVisible(false)}
+                  style={styles.nudgeCloseBtn}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Hazır Mesaj Şablonları */}
+              <Text style={[styles.nudgeSectionLabel, { color: colors.text }]}>
+                {isTr ? 'Mesaj Şablonu Seçin:' : 'Choose Message Template:'}
+              </Text>
+
+              {[
+                isTr
+                  ? `Lütfen ${selectedDoseForNudge.medicineName} (${selectedDoseForNudge.time}) ilacınızı almayı unutmayın!`
+                  : `Please remember to take your ${selectedDoseForNudge.medicineName} (${selectedDoseForNudge.time}) dose!`,
+                isTr
+                  ? `İlacınızı aldınız mı? Lütfen uygulamanızdan işaretleyin.`
+                  : `Have you taken your medication? Please mark it in your app.`,
+                isTr
+                  ? `Sağlığınız bizim için çok önemli, lütfen ilacınızı ihmal etmeyin.`
+                  : `Your health is very important, please do not skip your medicine.`,
+              ].map((msg, pIdx) => {
+                const isSelected = selectedPresetIndex === pIdx && !customNudgeMessage;
+                return (
+                  <TouchableOpacity
+                    key={pIdx}
+                    style={[
+                      styles.presetItem,
+                      {
+                        backgroundColor: isSelected
+                          ? 'rgba(13, 148, 136, 0.15)'
+                          : isDark
+                            ? '#1E293B'
+                            : '#F8FAFC',
+                        borderColor: isSelected ? '#0D9488' : isDark ? '#334155' : '#E2E8F0',
+                      },
+                    ]}
+                    onPress={() => {
+                      haptics.trigger('selection');
+                      setSelectedPresetIndex(pIdx);
+                      setCustomNudgeMessage('');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                      size={17}
+                      color={isSelected ? '#0D9488' : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.presetText,
+                        { color: isSelected ? colors.text : colors.textSecondary },
+                      ]}
+                    >
+                      {msg}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* Özel Mesaj Girişi */}
+              <Text style={[styles.nudgeSectionLabel, { color: colors.text, marginTop: 12 }]}>
+                {isTr ? 'Veya Özel Mesaj Yazın:' : 'Or Write Custom Message:'}
+              </Text>
+              <TextInput
+                style={[
+                  styles.customInput,
+                  {
+                    backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                    borderColor: isDark ? '#334155' : '#CBD5E1',
+                    color: colors.text,
+                  },
+                ]}
+                placeholder={
+                  isTr ? 'Örn: Canım ilacını içtin mi?' : 'e.g. Did you take your pills?'
+                }
+                placeholderTextColor={colors.textSecondary}
+                value={customNudgeMessage}
+                onChangeText={setCustomNudgeMessage}
+                maxLength={120}
+              />
+
+              {/* Gönder Butonu */}
+              <TouchableOpacity
+                style={[styles.sendNudgeBtn, { backgroundColor: '#0D9488' }]}
+                onPress={handleSendNudge}
+                disabled={isSendingNudge}
+                activeOpacity={0.85}
+              >
+                {isSendingNudge ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="paper-plane" size={17} color="#FFFFFF" />
+                    <Text style={styles.sendNudgeBtnText}>
+                      {isTr ? 'Hastanın Ekranına Gönder' : 'Send to Patient'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </Modal>
   );
 }
@@ -906,6 +1153,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 4,
   },
+  actionsRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   doseStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -918,10 +1170,22 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '700',
   },
+  nudgeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3.5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  nudgeBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   markTakenBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3.5,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -978,5 +1242,87 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '600',
     marginTop: 3,
+  },
+
+  // Nudge Modal Styles
+  nudgeBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  nudgeModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 24,
+    borderWidth: 1.2,
+    padding: 20,
+  },
+  nudgeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 10,
+  },
+  nudgeIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(13, 148, 136, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nudgeTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  nudgeSubTitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  nudgeCloseBtn: {
+    padding: 4,
+  },
+  nudgeSectionLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  presetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+    gap: 10,
+  },
+  presetText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 17,
+  },
+  customInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    marginBottom: 16,
+  },
+  sendNudgeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 8,
+  },
+  sendNudgeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

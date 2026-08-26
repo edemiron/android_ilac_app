@@ -918,3 +918,112 @@ export function subscribeToPatientLiveLogs(
     return () => {};
   }
 }
+
+// ============ UZAKTAN İLAÇ HATIRLATMA (REMOTE NUDGE) ============
+
+export interface RemoteReminderData {
+  id: string;
+  patientId: string;
+  caregiverId: string;
+  caregiverName: string;
+  medicineId: string;
+  medicineName: string;
+  scheduledTime: string;
+  doseStatus?: 'skipped' | 'snoozed' | 'pending' | 'missed';
+  customMessage?: string;
+  createdAt: string;
+  status: 'delivered' | 'seen' | 'action_taken' | 'dismissed';
+}
+
+const REMOTE_REMINDERS_SUBCOLLECTION = 'remoteReminders';
+
+/**
+ * Bakıcıdan hastaya canlı uzaktan ilaç hatırlatması (nudge) gönder
+ */
+export async function sendRemoteReminderToPatient(params: {
+  patientId: string;
+  caregiverId: string;
+  caregiverName: string;
+  medicineId: string;
+  medicineName: string;
+  scheduledTime: string;
+  doseStatus?: 'skipped' | 'snoozed' | 'pending' | 'missed';
+  customMessage?: string;
+}): Promise<{ success: boolean; reminderId?: string; error?: string }> {
+  try {
+    const reminderId = generateId();
+    const reminderRef = doc(
+      db,
+      'users',
+      params.patientId,
+      REMOTE_REMINDERS_SUBCOLLECTION,
+      reminderId
+    );
+
+    const data: RemoteReminderData = {
+      id: reminderId,
+      patientId: params.patientId,
+      caregiverId: params.caregiverId,
+      caregiverName: params.caregiverName || 'Bakıcınız',
+      medicineId: params.medicineId,
+      medicineName: params.medicineName,
+      scheduledTime: params.scheduledTime,
+      doseStatus: params.doseStatus || 'pending',
+      customMessage: params.customMessage || '',
+      createdAt: new Date().toISOString(),
+      status: 'delivered',
+    };
+
+    await setDoc(reminderRef, data);
+    log.info('Uzaktan hatırlatma gönderildi', { patientId: params.patientId, reminderId });
+    return { success: true, reminderId };
+  } catch (error: any) {
+    log.error('Uzaktan hatırlatma gönderme hatası', error);
+    return { success: false, error: error?.message || 'Gönderilemedi' };
+  }
+}
+
+/**
+ * Hasta telefonunda gelen uzaktan hatırlatmaları canlı dinle
+ */
+export function subscribeToPatientRemoteReminders(
+  patientId: string,
+  onReminderReceived: (reminders: RemoteReminderData[]) => void
+): () => void {
+  try {
+    if (!patientId) return () => {};
+    const remindersRef = collection(db, 'users', patientId, REMOTE_REMINDERS_SUBCOLLECTION);
+    return onSnapshot(
+      remindersRef,
+      snapshot => {
+        const reminders = snapshot.docs
+          .map(d => ({ ...d.data(), id: d.id }) as RemoteReminderData)
+          .filter(r => r.status === 'delivered');
+        onReminderReceived(reminders);
+      },
+      error => {
+        log.warn('subscribeToPatientRemoteReminders onSnapshot hatası', error);
+      }
+    );
+  } catch (error) {
+    log.error('subscribeToPatientRemoteReminders hata', error);
+    return () => {};
+  }
+}
+
+/**
+ * Uzaktan hatırlatmanın durumunu güncelle (seen, action_taken, dismissed)
+ */
+export async function updateRemoteReminderStatus(
+  patientId: string,
+  reminderId: string,
+  status: 'seen' | 'action_taken' | 'dismissed'
+): Promise<void> {
+  try {
+    const reminderRef = doc(db, 'users', patientId, REMOTE_REMINDERS_SUBCOLLECTION, reminderId);
+    await updateDoc(reminderRef, { status });
+    log.debug('Remote reminder status güncellendi', { reminderId, status });
+  } catch (error) {
+    log.warn('updateRemoteReminderStatus hata', error);
+  }
+}
