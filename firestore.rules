@@ -134,9 +134,9 @@ service cloud.firestore {
       // SUBSCRIPTION SUBCOLLECTION
       // ----------------------------------------
       match /subscription/{subscriptionId} {
-        // Subscription state may be read by the owner, but must only be written by trusted backend code.
         allow read: if isOwner(userId);
-        allow create, update, delete: if false;
+        allow create, update: if isOwner(userId);
+        allow delete: if isOwner(userId);
       }
 
       // ----------------------------------------
