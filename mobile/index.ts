@@ -31,8 +31,21 @@ messaging().setBackgroundMessageHandler(async remoteMessage => {
     const data = (remoteMessage.data as any) || {};
     const title =
       remoteMessage.notification?.title || (data?.title as string) || 'İlaç Hatırlatıcı';
-    const body = remoteMessage.notification?.body || (data?.body as string) || '';
+    const body =
+      remoteMessage.notification?.body || (data?.body as string) || (data?.message as string) || '';
     const channelId = (data?.channelId as string) || 'caregiver-live-alerts-v1';
+
+    try {
+      await notifee.createChannel({
+        id: channelId,
+        name: 'Bakıcı Canlı Bildirimleri',
+        importance: AndroidImportance.HIGH,
+        sound: 'default',
+        vibration: true,
+      });
+    } catch (_chErr) {
+      // ignore
+    }
 
     await notifee.displayNotification({
       title,

@@ -101,7 +101,7 @@ export function formatCaregiverNotification(
 /**
  * Validate FCM / Expo Push token.
  * Expo Push Token: ExponentPushToken[...] veya ExpoPushToken[...] (~40 karakter)
- * FCM / APNs Token: 50-250 karakter alfanümerik
+ * FCM / APNs Token: 15-250 karakter
  */
 export function isValidFcmToken(token: string | null | undefined): boolean {
   if (typeof token !== 'string') return false;
@@ -110,7 +110,6 @@ export function isValidFcmToken(token: string | null | undefined): boolean {
   if (/^Expo(nent)?PushToken\[[-A-Za-z0-9_]+\]$/.test(trimmed)) {
     return true;
   }
-  if (trimmed.length < 50) return false;
   return /^[-A-Za-z0-9_:]+$/.test(trimmed);
 }
 

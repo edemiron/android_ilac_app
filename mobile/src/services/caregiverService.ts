@@ -491,25 +491,30 @@ export async function updateCaregiverFcmToken(
     // 1. users/{caregiverId} profiline kaydet
     try {
       const userRef = doc(db, 'users', caregiverId);
-      await updateDoc(userRef, {
-        pushToken: fcmToken,
-        caregiverFcmToken: fcmToken,
-      });
+      await setDoc(
+        userRef,
+        {
+          pushToken: fcmToken,
+          caregiverFcmToken: fcmToken,
+          fcmToken: fcmToken,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     } catch (_uErr) {
       log.debug('users doc pushToken update skip');
     }
 
-    // 2. Bu bakıcının tüm aktif ilişkilerini bul ve token'ı güncelle
+    // 2. Bu bakıcının tüm ilişkilerini bul ve token'ı güncelle
     const q = query(
       collection(db, RELATIONSHIPS_COLLECTION),
-      where('caregiverId', '==', caregiverId),
-      where('status', '==', 'active')
+      where('caregiverId', '==', caregiverId)
     );
 
     const snapshot = await getDocs(q);
 
-    const batchPromises = snapshot.docs.map(doc =>
-      updateDoc(doc.ref, { caregiverFcmToken: fcmToken })
+    const batchPromises = snapshot.docs.map(d =>
+      setDoc(d.ref, { caregiverFcmToken: fcmToken }, { merge: true })
     );
 
     await Promise.all(batchPromises);
