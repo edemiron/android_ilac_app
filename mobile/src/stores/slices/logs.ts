@@ -28,7 +28,12 @@ export interface LogsSlice {
   logMedicineSkipped: (
     reminderTimeId: string,
     scheduledTime: string,
-    options?: { medicineId?: string; note?: string }
+    options?: {
+      medicineId?: string;
+      note?: string;
+      skipReason?: string;
+      skipReasonNote?: string;
+    }
   ) => string;
 
   /** Medicine kaçirildi olarak logla */
@@ -70,14 +75,18 @@ export function createLogsSlice(
 
     logMedicineTaken: (reminderTimeId, scheduledTime, options) => {
       const id = generateId();
+      const resolvedMedId = typeof options === 'string' ? options : (options?.medicineId ?? '');
+      const resolvedNote =
+        typeof options === 'object' && options !== null ? options.note : undefined;
+
       const newLog: MedicineLog = {
         id,
         reminderTimeId,
-        medicineId: options?.medicineId ?? '',
+        medicineId: resolvedMedId,
         scheduledTime,
         status: 'taken',
         takenAt: new Date().toISOString(),
-        note: options?.note,
+        note: resolvedNote,
       };
       set(state => ({ medicineLogs: [...state.medicineLogs, newLog] }));
       log.debug('Medicine taken logged', { reminderTimeId, id });
@@ -86,13 +95,23 @@ export function createLogsSlice(
 
     logMedicineSkipped: (reminderTimeId, scheduledTime, options) => {
       const id = generateId();
+      const resolvedMedId = typeof options === 'string' ? options : (options?.medicineId ?? '');
+      const resolvedNote =
+        typeof options === 'object' && options !== null ? options.note : undefined;
+      const resolvedReason =
+        typeof options === 'object' && options !== null ? options.skipReason : undefined;
+      const resolvedReasonNote =
+        typeof options === 'object' && options !== null ? options.skipReasonNote : undefined;
+
       const newLog: MedicineLog = {
         id,
         reminderTimeId,
-        medicineId: options?.medicineId ?? '',
+        medicineId: resolvedMedId,
         scheduledTime,
         status: 'skipped',
-        note: options?.note,
+        note: resolvedNote,
+        skipReason: resolvedReason,
+        skipReasonNote: resolvedReasonNote,
       };
       set(state => ({ medicineLogs: [...state.medicineLogs, newLog] }));
       log.debug('Medicine skipped logged', { reminderTimeId, id });
@@ -101,10 +120,12 @@ export function createLogsSlice(
 
     logMedicineMissed: (reminderTimeId, scheduledTime, options) => {
       const id = generateId();
+      const resolvedMedId = typeof options === 'string' ? options : (options?.medicineId ?? '');
+
       const newLog: MedicineLog = {
         id,
         reminderTimeId,
-        medicineId: options?.medicineId ?? '',
+        medicineId: resolvedMedId,
         scheduledTime,
         status: 'missed',
       };

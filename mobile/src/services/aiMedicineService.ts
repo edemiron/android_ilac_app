@@ -510,3 +510,96 @@ export async function getMedicineInfoAIService(
     errorCode: 'API_ERROR',
   });
 }
+
+// ============ FOTOĞRAFLA / KUTU OCR İLE İLAÇ TANIMA ============
+
+export interface MedicineBoxOcrResult {
+  success: boolean;
+  name?: string;
+  dosage?: string;
+  form?: string;
+  instructions?: string;
+  confidence?: number;
+  error?: string;
+}
+
+/**
+ * İlaç kutusu fotoğrafından (Base64) isim, dozaj ve form çıkarır (Multimodal Gemini Vision)
+ */
+export async function recognizeMedicineBoxPhotoAI(
+  base64Image: string
+): Promise<MedicineBoxOcrResult> {
+  try {
+    const config = await getAIConfig();
+    if (!config || !config.geminiApiKey) {
+      return {
+        success: false,
+        error: 'AI servisi yapılandırılamadı.',
+      };
+    }
+
+    const prompt = `Sen uzman bir eczacılık ve ilaç tanıma yapay zekasısın.
+Bu fotoğraftaki ilaç kutusunun üzerindeki bilgileri oku.
+Sadece geçerli bir JSON çıktısı üret:
+{
+  "name": "İlacın adı (örn: Parol, Aspirin)",
+  "dosage": "Dozaj (örn: 500mg, 100ml)",
+  "form": "tablet",
+  "instructions": "after_meal"
+}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${config.model || 'gemini-2.5-flash'}:generateContent?key=${config.geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: base64Image,
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 1024,
+          },
+        }),
+      }
+    );
+
+    const data = await response.json();
+    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textResponse) {
+      return { success: false, error: 'Kutudan ilaç bilgisi okunamadı.' };
+    }
+
+    const cleanJson = textResponse
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
+    const parsed = JSON.parse(cleanJson);
+
+    return {
+      success: true,
+      name: parsed.name,
+      dosage: parsed.dosage,
+      form: parsed.form,
+      instructions: parsed.instructions,
+      confidence: 90,
+    };
+  } catch (error: unknown) {
+    log.error('Box OCR error', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Kutu tanıma başarısız.',
+    };
+  }
+}

@@ -21,6 +21,15 @@ jest.mock('../../utils/security', () => ({
   updateLastActiveTime: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('../../contexts/AlertContext', () => ({
+  useAlert: () => ({
+    showError: jest.fn(),
+    showAlert: jest.fn(),
+    showInfo: jest.fn(),
+    showSuccess: jest.fn(),
+  }),
+}));
+
 jest.mock('react-native', () => ({
   Alert: { alert: jest.fn() },
 }));

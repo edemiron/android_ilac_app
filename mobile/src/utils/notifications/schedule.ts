@@ -12,6 +12,7 @@ import notifee, {
   AndroidImportance,
   AndroidVisibility,
   AndroidCategory,
+  AndroidStyle,
 } from '@notifee/react-native';
 import { addMinutes } from 'date-fns';
 import { createScopedLogger } from '../logger';
@@ -86,8 +87,10 @@ export async function scheduleExpiryReminder(
           channelId: REMINDER_CHANNEL_ID,
           importance: AndroidImportance.HIGH,
           pressAction: PRESS_ACTION,
-          smallIcon: 'ic_launcher',
+          smallIcon: 'ic_notification',
+          largeIcon: 'ic_launcher',
           color: '#FF6B6B',
+          colorized: true,
         },
         data: {
           medicineId: medicine.id,
@@ -174,13 +177,16 @@ export async function scheduleSnoozeNotification(
       minute: '2-digit',
     });
 
+    const snoozeTitle = `💊 ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`;
+    const snoozeSubtitle = `${timeStr} • Erteleme`;
+    const snoozeBody = `${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.\n⏰ Yeni Hatırlatma: ${timeStr}`;
+
     await notifee.createTriggerNotification(
       {
         id: notificationId,
-        title: `?? ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
-        subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!
-? ${timeStr}`,
+        title: snoozeTitle,
+        subtitle: snoozeSubtitle,
+        body: snoozeBody,
         android: {
           channelId: behavior.channelId,
           category: AndroidCategory.ALARM,
@@ -191,13 +197,20 @@ export async function scheduleSnoozeNotification(
           loopSound: behavior.fullScreenAlarm,
           fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
           pressAction: PRESS_ACTION,
-          smallIcon: 'ic_launcher',
-          color: '#FF6B6B',
+          smallIcon: 'ic_notification',
+          largeIcon: 'ic_launcher',
+          color: medicine.color || '#FF6B6B',
           colorized: true,
           sound: behavior.sound,
           vibrationPattern: behavior.vibrationPattern,
           lights: ['#FF0000', 500, 500] as [string, number, number],
           actions: ALARM_ACTIONS,
+          style: {
+            type: AndroidStyle.BIGTEXT,
+            text: snoozeBody,
+            title: snoozeTitle,
+            summary: snoozeSubtitle,
+          },
         },
         data: {
           medicineId: medicine.id,
@@ -276,14 +289,18 @@ export async function scheduleTestAlarmNotification(
     minute: '2-digit',
   });
 
+  const titleText = language === 'tr' ? '💊 Test İlacı (500mg)' : '💊 Test Medicine (500mg)';
+  const subtitleText = `${timeStr} • ${language === 'tr' ? 'İlaç Vakti' : 'Dose Time'}`;
+  const bodyText =
+    language === 'tr'
+      ? `Yemekle Birlikte • Aspirin 500mg almanın zamanı geldi.\n⏰ Bildirim saati: ${timeStr}`
+      : `With Food • Time to take Aspirin 500mg.\n⏰ Scheduled: ${timeStr}`;
+
   const notificationConfig = {
     id: notifId,
-    title: language === 'tr' ? '💊 Test Ilaci' : '💊 Test Medicine',
-    subtitle: timeStr,
-    body:
-      language === 'tr'
-        ? `Aspirin 500mg almanin zamani!\n⏰ ${timeStr}`
-        : `Time to take Aspirin 500mg!\n⏰ ${timeStr}`,
+    title: titleText,
+    subtitle: subtitleText,
+    body: bodyText,
     android: {
       channelId: behavior.channelId,
       category: AndroidCategory.ALARM,
@@ -295,13 +312,20 @@ export async function scheduleTestAlarmNotification(
       loopSound: behavior.fullScreenAlarm,
       fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
       pressAction: PRESS_ACTION,
-      smallIcon: 'ic_launcher',
-      color: '#2196F3',
+      smallIcon: 'ic_notification',
+      largeIcon: 'ic_launcher',
+      color: '#0D9488',
       colorized: true,
       sound: behavior.sound,
       vibrationPattern: behavior.vibrationPattern,
-      lights: ['#2196F3', 500, 500] as [string, number, number],
+      lights: ['#0D9488', 500, 500] as [string, number, number],
       actions: ALARM_ACTIONS,
+      style: {
+        type: AndroidStyle.BIGTEXT as never,
+        text: bodyText,
+        title: titleText,
+        summary: subtitleText,
+      },
     },
     data: {
       medicineId: testMedicineId,
@@ -335,6 +359,21 @@ export async function scheduleTestAlarmNotification(
     });
 
     const notificationId = await notifee.createTriggerNotification(notificationConfig, trigger);
+
+    // Native AlarmManager.setAlarmClock ile doğrudan MainActivity'yi kilit ekranında uyandıran PendingIntent kur
+    try {
+      const { NativeModules } = require('react-native');
+      if (NativeModules.AlarmModule?.scheduleNativeAlarm) {
+        await NativeModules.AlarmModule.scheduleNativeAlarm(
+          adjustedTime.getTime(),
+          testMedicineId,
+          testReminderId
+        );
+        log.debug('Native AlarmManager alarm kuruldu');
+      }
+    } catch (_e) {
+      log.debug('Native alarm schedule fallback');
+    }
 
     log.debug('Test alarm basariyla planlandi', { notificationId });
 
@@ -393,13 +432,24 @@ export async function scheduleMedicineNotification(
 
     const timeStr = triggerDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
+    const dosageStr = medicine.dosage ? ` (${medicine.dosage})` : '';
+    const instructionStr = medicine.instructions ? `${medicine.instructions} • ` : '';
+    const stockStr =
+      typeof medicine.stockCount === 'number'
+        ? `\n📦 Kalan Stok: ${medicine.stockCount} adet`
+        : typeof (medicine as any).stock === 'number'
+          ? `\n📦 Kalan Stok: ${(medicine as any).stock} adet`
+          : '';
+    const titleText = `💊 ${medicine.name}${dosageStr}`;
+    const subtitleText = `${timeStr} • İlaç Vakti`;
+    const bodyText = `${instructionStr}${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.${stockStr}\n⏰ Saat: ${timeStr}`;
+
     const notificationId = await notifee.createTriggerNotification(
       {
         id: getAlarmNotificationId(medicine.id, reminderTime.id),
-        title: `?? ${medicine.name}`,
-        subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!
-? ${timeStr}`,
+        title: titleText,
+        subtitle: subtitleText,
+        body: bodyText,
         android: {
           channelId: behavior.channelId,
           category: AndroidCategory.ALARM,
@@ -411,13 +461,20 @@ export async function scheduleMedicineNotification(
           loopSound: behavior.fullScreenAlarm,
           fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
           pressAction: PRESS_ACTION,
-          smallIcon: 'ic_launcher',
-          color: '#2196F3',
+          smallIcon: 'ic_notification',
+          largeIcon: 'ic_launcher',
+          color: medicine.color || '#0D9488',
           colorized: true,
           sound: behavior.sound,
           vibrationPattern: behavior.vibrationPattern,
-          lights: ['#2196F3', 500, 500] as [string, number, number],
+          lights: [medicine.color || '#0D9488', 500, 500] as [string, number, number],
           actions: ALARM_ACTIONS,
+          style: {
+            type: AndroidStyle.BIGTEXT,
+            text: bodyText,
+            title: titleText,
+            summary: subtitleText,
+          },
         },
         data: {
           medicineId: medicine.id,

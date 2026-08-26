@@ -19,7 +19,16 @@ import type { UserSettings } from '../../types';
  *     start <= current < end
  */
 export function isInQuietHours(settings: UserSettings, referenceDate: Date = new Date()): boolean {
-  if (!settings.quietHoursEnabled) {
+  if (!settings || !settings.quietHoursEnabled) {
+    return false;
+  }
+
+  if (
+    typeof settings.quietHoursStart !== 'string' ||
+    typeof settings.quietHoursEnd !== 'string' ||
+    !settings.quietHoursStart.includes(':') ||
+    !settings.quietHoursEnd.includes(':')
+  ) {
     return false;
   }
 

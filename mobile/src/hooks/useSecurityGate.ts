@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Alert } from 'react-native';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 import {
   authenticateWithBiometrics,
   getSecuritySettings,
@@ -40,6 +40,7 @@ export interface UseSecurityGateOptions {
 export function useSecurityGate(options: UseSecurityGateOptions = {}): UseSecurityGateResult {
   const { isAuthenticated } = useAuth();
   const { language } = useLanguage();
+  const { showError } = useAlert();
 
   const [securityCheckComplete, setSecurityCheckComplete] = useState(false);
   const [showPinEntry, setShowPinEntry] = useState(false);
@@ -85,7 +86,7 @@ export function useSecurityGate(options: UseSecurityGateOptions = {}): UseSecuri
 
   const handlePinVerify = useCallback(async () => {
     if (!pinInput || pinInput.length < 4) {
-      Alert.alert(
+      showError(
         language === 'tr' ? 'Geçersiz PIN' : 'Invalid PIN',
         language === 'tr' ? 'PIN en az 4 haneli olmalı.' : 'PIN must be at least 4 digits.'
       );
@@ -100,7 +101,7 @@ export function useSecurityGate(options: UseSecurityGateOptions = {}): UseSecuri
       setSecurityCheckComplete(true);
       options.onPinSuccess?.();
     } else {
-      Alert.alert(
+      showError(
         language === 'tr' ? 'Yanlış PIN' : 'Incorrect PIN',
         result.error ||
           (language === 'tr' ? 'Girdiğiniz PIN doğru değil.' : 'The PIN you entered is incorrect.')
@@ -109,7 +110,7 @@ export function useSecurityGate(options: UseSecurityGateOptions = {}): UseSecuri
         setPinInput('');
       }
     }
-  }, [pinInput, language, options]);
+  }, [pinInput, language, options, showError]);
 
   const handlePinCancel = useCallback(() => {
     setPinInput('');

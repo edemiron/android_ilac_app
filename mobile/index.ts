@@ -1,6 +1,13 @@
 import { AppRegistry } from 'react-native';
-import notifee, { EventType, Event, TriggerType, AlarmType } from '@notifee/react-native';
+import notifee, {
+  EventType,
+  Event,
+  TriggerType,
+  AlarmType,
+  AndroidImportance,
+} from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging from '@react-native-firebase/messaging';
 
 import App from './App';
 import { registerBootTask } from './src/utils/bootHandler';
@@ -12,6 +19,52 @@ import { STORAGE_KEYS, CHANNELS } from './src/constants';
 const appName = 'main';
 
 registerBootTask();
+
+// ============================================================
+// FIREBASE CLOUD MESSAGING (FCM) BACKGROUND HANDLER
+// Uygulama kapalıyken veya arka plandayken gelen push bildirimleri
+// doğrudan Notifee ile sistem bildirim çubuğunda sesli/titreşimli açar.
+// ============================================================
+messaging().setBackgroundMessageHandler(async remoteMessage => {
+  console.log('[FCM Background] Mesaj alındı:', remoteMessage);
+  try {
+    const data = (remoteMessage.data as any) || {};
+    const title =
+      remoteMessage.notification?.title || (data?.title as string) || 'İlaç Hatırlatıcı';
+    const body =
+      remoteMessage.notification?.body || (data?.body as string) || (data?.message as string) || '';
+    const channelId = (data?.channelId as string) || 'caregiver-live-alerts-v1';
+
+    try {
+      await notifee.createChannel({
+        id: channelId,
+        name: 'Bakıcı Canlı Bildirimleri',
+        importance: AndroidImportance.HIGH,
+        sound: 'default',
+        vibration: true,
+      });
+    } catch (_chErr) {
+      // ignore
+    }
+
+    await notifee.displayNotification({
+      title,
+      body,
+      android: {
+        channelId,
+        importance: AndroidImportance.HIGH,
+        sound: 'default',
+        vibrationPattern: [0, 250, 250, 250],
+        pressAction: {
+          id: 'default',
+        },
+      },
+      data: data,
+    });
+  } catch (e) {
+    console.error('[FCM Background] Bildirim gösterme hatası:', e);
+  }
+});
 
 // ============================================================
 // HANDLED ALARMS SET
@@ -146,8 +199,11 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
       notification?.data?.fullScreenAlarm
     );
     if (notification?.data?.fullScreenAlarm === 'true') {
+      const isTest =
+        notification.data?.isTestAlarm === 'true' ||
+        notification.data?.medicineId === 'test-medicine';
       const key = getAlarmKey(notification.data);
-      const handled = await isAlarmHandled(key);
+      const handled = !isTest && (await isAlarmHandled(key));
       if (handled) {
         console.log('[BG] SKIP: Alarm already handled:', key);
         if (notification.id) {
@@ -186,7 +242,11 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
         const { NativeModules } = require('react-native');
         const { AlarmModule } = NativeModules;
         if (AlarmModule) {
-          await AlarmModule.wakeAndOpenApp();
+          await AlarmModule.wakeAndOpenApp({
+            medicineId: notification.data?.medicineId as string,
+            reminderTimeId: notification.data?.reminderTimeId as string,
+            scheduledTime: (notification.data?.scheduledTime as string) || new Date().toISOString(),
+          });
           console.log('[BG] wakeAndOpenApp OK');
         } else {
           const { Linking } = require('react-native');
@@ -241,13 +301,25 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
       /* */
     }
 
-    // 4. Aksiyonu işle
     if (actionId === 'take' || actionId === 'taken') {
       console.log('[BG] İlaç alındı:', medicineId);
       try {
         useMedicineStore
           .getState()
           .logMedicineTaken(
+            reminderTimeId,
+            (data?.scheduledTime as string) || new Date().toISOString(),
+            medicineId
+          );
+      } catch (_e) {
+        /* ignore */
+      }
+    } else if (actionId === 'skip') {
+      console.log('[BG] İlaç atlandı:', medicineId);
+      try {
+        useMedicineStore
+          .getState()
+          .logMedicineSkipped(
             reminderTimeId,
             (data?.scheduledTime as string) || new Date().toISOString(),
             medicineId

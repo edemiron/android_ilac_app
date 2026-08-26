@@ -40,7 +40,16 @@ export interface Medicine {
   barcode?: string; // İlacın barkodu
   vibrationPattern?: 'default' | 'heartbeat' | 'urgent' | 'soft'; // Özel titreşim deseni
   customTimes?: string[]; // Özel saatler
+
+  // Gelişmiş Zamanlama / Doz Takvimi
+  scheduleType?: ScheduleType;
+  specificDays?: number[]; // 0=Pazar, 1=Pazartesi, ..., 6=Cumartesi
+  intervalDays?: number; // X günde bir (örn: 2)
+  cycleDaysOn?: number; // Döngüde ilaç alınacak gün sayısı (örn: 21)
+  cycleDaysOff?: number; // Döngüde ara verilecek gün sayısı (örn: 7)
 }
+
+export type ScheduleType = 'daily' | 'specific_days' | 'interval_days' | 'cycle';
 
 // İlaç kullanım talimatları
 export type MedicineInstruction =
@@ -52,16 +61,16 @@ export type MedicineInstruction =
   | 'any_time'; // Herhangi bir zaman
 // İlaç kategorileri
 export type MedicineCategory =
-  | 'painkiller'      // Ağrı Kesici
-  | 'vitamin'         // Vitamin/Takviye
-  | 'heart'           // Kalp/Tansiyon
-  | 'nervous'         // Sinir Sistemi
-  | 'antibiotic'      // Antibiyotik
-  | 'respiratory'     // Solunum
-  | 'digestive'       // Sindirim
-  | 'diabetes'        // Diyabet
-  | 'bone'            // Kemik/Eklem
-  | 'other';          // Diğer
+  | 'painkiller' // Ağrı Kesici
+  | 'vitamin' // Vitamin/Takviye
+  | 'heart' // Kalp/Tansiyon
+  | 'nervous' // Sinir Sistemi
+  | 'antibiotic' // Antibiyotik
+  | 'respiratory' // Solunum
+  | 'digestive' // Sindirim
+  | 'diabetes' // Diyabet
+  | 'bone' // Kemik/Eklem
+  | 'other'; // Diğer
 
 // Hatırlatma zamanı
 export interface ReminderTime {
@@ -76,7 +85,17 @@ export interface ReminderTime {
 
 // Kullanıcı ayarları
 // Alarm sesi seçenekleri
-export type AlarmSoundType = 'alarm' | 'default' | 'gentle' | 'urgent';
+export type AlarmSoundType =
+  | 'soft_chime'
+  | 'crystal_bell'
+  | 'zen_garden'
+  | 'clinical_pulse'
+  | 'urgent_alert'
+  | 'morning_vital'
+  | 'alarm'
+  | 'default'
+  | 'gentle'
+  | 'urgent';
 
 export interface UserSettings {
   wakeUpTime: string; // "HH:mm" - varsayılan "08:00"
@@ -118,6 +137,7 @@ export interface UserSettings {
   ttsEnabled: boolean; // Sesli okuma aktif mi?
   ttsVolume: number; // 0-100 arası
   ttsRepeatCount: number; // Kaç kez tekrar etsin (0-3)
+  ttsSpeechRate?: number; // Konuşma hızı: 0.38 (Yavaş 0.8x), 0.50 (Normal 1.0x), 0.62 (Hızlı 1.2x)
   ttsSpeakMedicineName: boolean; // İlaç adı söylensin mi?
   ttsSpeakDosage: boolean; // Dozaj söylensin mi?
   ttsSpeakInstructions: boolean; // Talimatlar söylensin mi?
@@ -125,17 +145,24 @@ export interface UserSettings {
   // ===== KALICI BİLDİRİM AYARLARI =====
   persistentNotificationEnabled: boolean; // Kalıcı bildirim aktif mi?
   persistentNotificationDuration: number; // Kaç dakika kalsın (30, 60, 120)
+
+  // ===== KOLAY MOD (SENIOR / SIMPLE MODE) =====
+  seniorModeEnabled?: boolean; // Büyük yazılı, sade kolay mod aktif mi?
 }
 
 // İlaç alma kaydı
 export interface MedicineLog {
   id: string;
   medicineId: string;
+  medicineName?: string;
   reminderTimeId: string;
   scheduledTime: string; // ISO date string
   takenAt?: string; // Alındıysa ISO date string
   status: 'pending' | 'taken' | 'skipped' | 'missed';
   note?: string;
+  skipReason?: string; // 'side_effect' | 'felt_better' | 'out_of_stock' | 'doctor_advised' | 'forgot' | 'other'
+  skipReasonNote?: string;
+  createdAt?: string;
 }
 
 // Snooze (erteleme) kaydı - persistence için
@@ -220,6 +247,9 @@ export interface PatientInfo {
   email?: string; // Hasta e-postası
   relationshipId: string; // CaregiverRelationship ID'si
   status: CaregiverStatus;
+  canViewSchedule?: boolean;
+  canViewHistory?: boolean;
+  canReceiveAlerts?: boolean;
   // İstatistikler (günlük)
   todaySummary?: {
     totalReminders: number;
@@ -271,6 +301,11 @@ export type RootStackParamList = {
   TtsSettings: undefined;
   Caregiver: undefined;
   CaregiverInvite: { inviteCode?: string };
+  DutyPharmacy: undefined;
+  NotificationCenter: undefined;
+  Permissions: undefined;
+  Login: undefined;
+  Register: undefined;
 };
 
 // Auth Stack Navigation

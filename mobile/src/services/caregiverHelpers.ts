@@ -27,7 +27,8 @@ export function generateInviteCode(length: number = INVITE_CODE_LENGTH): string 
  * I, O, Q harfleri set'te olmadigi icin otomatik reject edilir.
  */
 export function isValidInviteCode(code: string): boolean {
-  return /^[A-Z0-9]{6}$/.test(code);
+  if (!code || typeof code !== 'string') return false;
+  return /^[A-Z0-9]{6,8}$/.test(code);
 }
 
 /**
@@ -98,14 +99,18 @@ export function formatCaregiverNotification(
 }
 
 /**
- * Validate FCM token.
- * Firebase Cloud Messaging token'lar uzun alfanumerik string'lerdir.
- * Minimum uzunluk 50, max 250 (FCM spec).
+ * Validate FCM / Expo Push token.
+ * Expo Push Token: ExponentPushToken[...] veya ExpoPushToken[...] (~40 karakter)
+ * FCM / APNs Token: 15-250 karakter
  */
 export function isValidFcmToken(token: string | null | undefined): boolean {
   if (typeof token !== 'string') return false;
-  if (token.length < 50 || token.length > 250) return false;
-  return /^[A-Za-z0-9_\-:]+$/.test(token);
+  const trimmed = token.trim();
+  if (trimmed.length < 15 || trimmed.length > 250) return false;
+  if (/^Expo(nent)?PushToken\[[-A-Za-z0-9_]+\]$/.test(trimmed)) {
+    return true;
+  }
+  return /^[-A-Za-z0-9_:]+$/.test(trimmed);
 }
 
 /**

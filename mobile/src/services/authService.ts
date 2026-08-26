@@ -9,6 +9,7 @@ import {
   deleteUser,
   GoogleAuthProvider,
   signInWithCredential,
+  signInAnonymously,
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import {
@@ -85,6 +86,24 @@ export async function loginWithEmail(email: string, password: string): Promise<A
       email: user.email,
       displayName: user.displayName,
       photoURL: user.photoURL,
+    };
+  } catch (error: unknown) {
+    const authError = error as { code?: string };
+    throw translateAuthError(authError.code || 'unknown');
+  }
+}
+
+// Misafir / Anonim Giriş
+export async function loginAnonymously(): Promise<AuthUser> {
+  try {
+    const userCredential = await signInAnonymously(auth);
+    const user = userCredential.user;
+
+    return {
+      uid: user.uid,
+      email: null,
+      displayName: 'Misafir Kullanıcı',
+      photoURL: null,
     };
   } catch (error: unknown) {
     const authError = error as { code?: string };

@@ -94,6 +94,17 @@
         }
       ],
       "expo-localization",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/HankenGrotesk-Bold.woff2",
+            "./assets/fonts/HankenGrotesk-SemiBold.woff2",
+            "./assets/fonts/Inter-Regular.woff2",
+            "./assets/fonts/Inter-Medium.woff2"
+          ]
+        }
+      ],
       "@react-native-google-signin/google-signin",
       "@react-native-firebase/app",
       "@react-native-firebase/app-check",

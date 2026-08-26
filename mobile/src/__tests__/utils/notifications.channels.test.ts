@@ -35,7 +35,7 @@ import {
 describe('notifications/channels', () => {
   describe('constants', () => {
     it('CHANNEL_VERSION is defined', () => {
-      expect(CHANNEL_VERSION).toBe('v4');
+      expect(CHANNEL_VERSION).toBe('v5');
     });
 
     it('channel IDs include version', () => {

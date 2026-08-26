@@ -39,6 +39,7 @@ import { isMIUIDevice } from '../../utils/miuiHelper';
 import {
   analyzeNotificationDrift,
   getNotificationDiagnostics,
+  resolveReminderTriggerDate,
   ANDROID_TRIGGER_INTROSPECTION_LIMIT,
   type NotificationStateSnapshot,
   type NotificationDriftReport,
@@ -369,7 +370,7 @@ describe('analyzeNotificationDrift', () => {
     expect(report.expectedNotifications[0].triggerTimestamp).toBe(new Date(smokeFuture).getTime());
   });
 
-  it('ignores smokeTriggerTime when in the past', async () => {
+  it('ignores smokeTriggerTime when in the past — falls back to reminderTime.time (Sprint 95 fix)', async () => {
     const smokePast = new Date(fixedNow.getTime() - 30 * 60 * 1000).toISOString();
     const state: NotificationStateSnapshot = {
       ...baseState,
@@ -377,8 +378,10 @@ describe('analyzeNotificationDrift', () => {
     };
 
     const report = await analyzeNotificationDrift(state, fixedNow);
-    // Falls back to referenceNow (no offset)
-    expect(report.expectedNotifications[0].triggerTimestamp).toBe(fixedNow.getTime());
+    // fixedNow = 2026-07-04T10:00 (UTC test env), reminderTime.time = '08:00' gecmis
+    // → yarin 2026-07-05T08:00 trigger (Sprint 95 #1 fix — onceki "now" fallback hatasi duzeltildi)
+    const expectedTrigger = new Date('2026-07-05T08:00:00').getTime();
+    expect(report.expectedNotifications[0].triggerTimestamp).toBe(expectedTrigger);
   });
 });
 
@@ -494,5 +497,74 @@ describe('getNotificationDiagnostics', () => {
     expect(snapshot.report).toBeDefined();
     expect(snapshot.report.expectedNotifications).toHaveLength(1);
     expect(snapshot.report.hasDrift).toBe(true); // nothing scheduled
+  });
+});
+
+describe('resolveReminderTriggerDate (Sprint 95 — kök neden fix)', () => {
+  // 2026-07-31 (Cuma) saat 06:00
+  const refNow = new Date('2026-07-31T06:00:00');
+  const stubReminder = (time: string, smokeTriggerTime?: string) =>
+    ({
+      id: 'rt-1',
+      medicineId: 'med-1',
+      time,
+      isEnabled: true,
+      ...(smokeTriggerTime ? { smokeTriggerTime } : {}),
+    }) as ReminderTime & { smokeTriggerTime?: string };
+
+  it('reminderTime.time "08:00" sabah 06:00’dan → bugün 08:00 (gelecek)', () => {
+    const result = resolveReminderTriggerDate(stubReminder('08:00'), false, refNow);
+    expect(result.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+  });
+
+  it('reminderTime.time "08:00" sabah 10:00’dan → yarın 08:00 (bugün geçmiş)', () => {
+    const ref = new Date('2026-07-31T10:00:00');
+    const result = resolveReminderTriggerDate(stubReminder('08:00'), false, ref);
+    expect(result.getTime()).toBe(new Date('2026-08-01T08:00:00').getTime());
+  });
+
+  it('reminderTime.time "23:30" gece 00:30’dan → bugün 23:30 (gelecek)', () => {
+    const ref = new Date('2026-07-31T00:30:00');
+    const result = resolveReminderTriggerDate(stubReminder('23:30'), false, ref);
+    expect(result.getTime()).toBe(new Date('2026-07-31T23:30:00').getTime());
+  });
+
+  it('smokeTriggerTime gelecekte + bypassBuffer=false → smoke kullanılır', () => {
+    const future = new Date('2026-08-01T12:00:00').toISOString();
+    const result = resolveReminderTriggerDate(
+      stubReminder('08:00', future),
+      false,
+      refNow
+    );
+    expect(result.getTime()).toBe(new Date(future).getTime());
+  });
+
+  it('smokeTriggerTime gelecekte + bypassBuffer=true → smoke atlanır, reminderTime.time kullanılır', () => {
+    const future = new Date('2026-08-01T12:00:00').toISOString();
+    const result = resolveReminderTriggerDate(
+      stubReminder('08:00', future),
+      true,
+      refNow
+    );
+    expect(result.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+  });
+
+  it('notifee 5 sn minimum buffer — trigger <5 sn ise ayarlanır (07:59:58 → 08:00:03)', () => {
+    const ref = new Date('2026-07-31T07:59:58'); // 2 sn sonrası
+    const result = resolveReminderTriggerDate(stubReminder('08:00'), false, ref);
+    // 07:59:58 + 5 sn = 08:00:03 (target 08:00:00 < minTime 08:00:03 → ayarlanır)
+    expect(result.getTime()).toBe(new Date('2026-07-31T08:00:03').getTime());
+  });
+
+  it('notifee 5 sn minimum buffer — trigger >5 sn ise dokunulmaz (07:55:00 → 08:00:00)', () => {
+    const ref = new Date('2026-07-31T07:55:00');
+    const result = resolveReminderTriggerDate(stubReminder('08:00'), false, ref);
+    expect(result.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+  });
+
+  it('bugün geçmiş + yarına kayar — gün sınırı doğru geçilir (23:55 → 00:05+1gün)', () => {
+    const ref = new Date('2026-07-31T23:55:00');
+    const result = resolveReminderTriggerDate(stubReminder('00:05'), false, ref);
+    expect(result.getTime()).toBe(new Date('2026-08-01T00:05:00').getTime());
   });
 });

@@ -8,14 +8,25 @@ module.exports = {
   // kullandigimiz pattern).
   // Sprint 44.1: ts-jest eklendi (package.json), babel-jest fallback korundu.
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@notifee/react-native|uuid)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@notifee/react-native|uuid|moti|react-native-reanimated|react-native-worklets|react-native-gesture-handler)',
   ],
+  // Sprint 87A: react-native-svg ve svg-bagli component'leri stub'la — Babel'in
+  // parse edemedigi node_modules'u test ortaminda bypass et.
+  // Sprint 103.2: .woff2 font binary'leri Babel parser'da syntax error verir → stub'a map et.
+  moduleNameMapper: {
+    '^react-native-svg$': '<rootDir>/__mocks__/react-native-svg.js',
+    '\\.woff2$': '<rootDir>/__mocks__/fileMock.js',
+  },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
-  testMatch: ['**/__tests__/**/*.(ts|tsx|js)', '**/*.(test|spec).(ts|tsx|js)'],
+  testMatch: [
+    '**/__tests__/**/*.test.(ts|tsx|js)',
+    '**/__tests__/**/*.spec.(ts|tsx|js)',
+    '**/*.(test|spec).(ts|tsx|js)',
+  ],
   testPathIgnorePatterns: [
     '<rootDir>/node_modules/',
     '<rootDir>/src/__tests__/helpers/',
+    '<rootDir>/src/__tests__/mocks/',
   ],
   testEnvironment: 'node',
   collectCoverageFrom: [

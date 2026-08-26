@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   AuthUser,
   subscribeToAuthChanges,
@@ -32,6 +33,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   loginWithGoogleProvider: () => Promise<void>;
+  loginAsGuest: () => Promise<void>;
   isGoogleAvailable: boolean;
   error: string | null;
   clearError: () => void;
@@ -52,11 +54,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     // Auth durumu değişikliklerini dinle
-    const unsubscribe = subscribeToAuthChanges(authUser => {
+    const unsubscribe = subscribeToAuthChanges(async authUser => {
       const newUserId = authUser?.uid || null;
       const previousUserId = previousUserIdRef.current;
 
       if (newUserId) {
+        await AsyncStorage.removeItem('@guest_session');
         // Kullanıcı giriş yaptı
         if (previousUserId !== null && previousUserId !== newUserId) {
           // Farklı bir kullanıcı giriş yaptı - önce store'u temizle (async)
@@ -72,24 +75,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // userId'yi set et
         useMedicineStore.getState().setUserId(newUserId);
 
-        // PERFORMANCE: Firebase sync'i ARKA PLANDA yap, UI'ı bekleme
-        // Zustand persist zaten local cache'den veriyi yükler
-        log.debug('Firebase sync başlatılıyor (background)', { userId: newUserId });
-        useMedicineStore
-          .getState()
-          .syncFromCloud()
-          .then(() => {
-            const medicines = useMedicineStore.getState().medicines;
-            log.debug('Sync tamamlandı', { medicineCount: medicines.length });
-          })
-          .catch((err: unknown) => {
-            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-            log.error('Sync hatası', new Error(errorMessage));
-          });
+        // PERFORMANCE: Firebase sync'i ARKA PLANDA yap (sadece gerçek kullanıcılar için)
+        if (newUserId !== 'guest_local_user') {
+          log.debug('Firebase sync başlatılıyor (background)', { userId: newUserId });
+          useMedicineStore
+            .getState()
+            .syncFromCloud()
+            .then(() => {
+              const medicines = useMedicineStore.getState().medicines;
+              log.debug('Sync tamamlandı', { medicineCount: medicines.length });
+            })
+            .catch((err: unknown) => {
+              const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+              log.error('Sync hatası', new Error(errorMessage));
+            });
+        }
+
+        previousUserIdRef.current = newUserId;
+        setUser(authUser);
+      } else {
+        // Firebase user null, check if guest session exists
+        const isGuest = await AsyncStorage.getItem('@guest_session');
+        if (isGuest === 'true') {
+          const guestUser: AuthUser = {
+            uid: 'guest_local_user',
+            email: null,
+            displayName: 'Misafir Kullanıcı',
+            photoURL: null,
+          };
+          useMedicineStore.getState().setUserId('guest_local_user');
+          previousUserIdRef.current = 'guest_local_user';
+          setUser(guestUser);
+        } else {
+          previousUserIdRef.current = null;
+          setUser(null);
+        }
       }
 
-      previousUserIdRef.current = newUserId;
-      setUser(authUser);
       setIsLoading(false); // UI hemen gösterilir, sync arka planda devam eder
     });
 
@@ -143,12 +165,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async () => {
     try {
       setError(null);
+      await AsyncStorage.removeItem('@guest_session');
       // Önce local store'u temizle (KRİTİK: başka kullanıcının verileri görünmesin)
       await useMedicineStore.getState().clearAllData();
       // Google oturumunu kapat
       await signOutFromGoogle();
       // Sonra Firebase'den çıkış yap
       await authLogout();
+      setUser(null);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Çıkış hatası';
       setError(errorMessage);
@@ -174,6 +198,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(null);
       setIsLoading(true);
 
+      // Misafir oturumunu temizle (Google ile giriş yapılıyorsa misafir değildir)
+      await AsyncStorage.removeItem('@guest_session');
+
       // Google Play Services kontrolü
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
@@ -181,7 +208,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const userInfo = await GoogleSignin.signIn();
       log.debug('Google Sign-In result received', { hasData: !!userInfo.data });
 
-      const idToken = userInfo.data?.idToken;
+      const rawUserInfo = userInfo as any;
+      const idToken = rawUserInfo?.data?.idToken || rawUserInfo?.idToken;
       log.debug('ID Token status', { exists: !!idToken });
 
       if (idToken) {
@@ -199,16 +227,47 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (errorObj.code === statusCodes.SIGN_IN_CANCELLED) {
         // Kullanıcı iptal etti
         setError(null);
+        throw new Error('SIGN_IN_CANCELLED');
       } else if (errorObj.code === statusCodes.IN_PROGRESS) {
         setError('Giriş işlemi devam ediyor...');
+        throw new Error('Giriş işlemi devam ediyor...');
       } else if (errorObj.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        setError('Google Play Services kullanılamıyor');
+        const msg = 'Google Play Services kullanılamıyor';
+        setError(msg);
+        throw new Error(msg);
       } else if (errorObj.code === '10' || errorObj.code === 10) {
         // DEVELOPER_ERROR - SHA-1 veya package name uyuşmazlığı
-        setError('Google yapılandırma hatası. SHA-1 veya package name kontrol edin.');
+        const msg = 'Google yapılandırma hatası. SHA-1 veya package name kontrol edin.';
+        setError(msg);
+        throw new Error(msg);
       } else {
-        setError(errorObj.message || 'Google ile giriş başarısız');
+        const msg = errorObj.message || 'Google ile giriş başarısız';
+        setError(msg);
+        throw new Error(msg);
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginAsGuest = async () => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      await AsyncStorage.setItem('@guest_session', 'true');
+      const guestUser: AuthUser = {
+        uid: 'guest_local_user',
+        email: null,
+        displayName: 'Misafir Kullanıcı',
+        photoURL: null,
+      };
+      setUser(guestUser);
+      previousUserIdRef.current = guestUser.uid;
+      useMedicineStore.getState().setUserId(guestUser.uid);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Misafir girişi hatası';
+      setError(errorMessage);
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -225,6 +284,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         logout,
         resetPassword,
         loginWithGoogleProvider,
+        loginAsGuest,
         isGoogleAvailable,
         error,
         clearError,

@@ -1,5 +1,5 @@
 /**
- * Medicines slice factory — Sprint 46 (combine refactor).
+ * Medicines slice factory — Sprint 46 + Design Pattern Refactor
  *
  * Hem isolated `useMedicinesStore` (geriye uyumlu) hem de `createMedicinesSlice`
  * factory (combine için) export eder.
@@ -12,6 +12,12 @@ import { createScopedLogger } from '../../utils/logger';
 import { generateId } from '../../utils/idGenerator';
 import { calculateMedicineTimes } from '../../utils/timeCalculator';
 import { MEDICINE_COLORS } from '../../constants';
+import {
+  updateMedicineInList,
+  findMedicineById,
+  filterReminderTimesByMedicine,
+  filterLowStockMedicines,
+} from '../medicineStoreHelpers';
 import type { Medicine, ReminderTime, UserSettings } from '../../types';
 
 const log = createScopedLogger('MedicinesSlice');
@@ -51,25 +57,28 @@ export interface MedicinesSlice {
   /** Reminder time sil */
   deleteReminderTime: (id: string) => void;
 
+  /** Zamanlari yeniden hesapla */
+  regenerateReminderTimes: (
+    medicineId: string,
+    settings?: Pick<UserSettings, 'wakeUpTime' | 'sleepTime'>
+  ) => void;
+
+  /** Stok azalan ilaclari getir */
+  getLowStockMedicines: () => Medicine[];
+
+  /** Ilac stok miktarini guncelle */
+  updateMedicineStock: (medicineId: string, newCount: number) => void;
+
+  /** Stok miktarini dusur */
+  decrementStock: (medicineId: string, amount?: number) => void;
+
   /** Tum medicines ve reminder times'i temizle */
   clearAllMedicines: () => void;
 
-  /**
-   * Sprint 4 devami: getNextAvailableColor.
-   *
-   * Aktif ilaclarin renklerine gore siradaki uygun rengi secer.
-   * medicineStore.ts'deki getNextAvailableColor wrapper'inin
-   * kaynak implementasyonu.
-   */
+  /** Aktif ilaclarin renklerine gore siradaki uygun rengi secer */
   getNextAvailableColor: () => string;
 }
 
-/**
- * Sprint 46: Medicines slice factory.
- *
- * combine() ile diger slice'lara dahil etmek icin `(set, get) => slice`
- * formunda. Ayni logic isolated `useMedicinesStore` ile birebir ayni.
- */
 export function createMedicinesSlice(
   set: (
     partial: Partial<MedicinesSlice> | ((s: MedicinesSlice) => Partial<MedicinesSlice>)
@@ -86,7 +95,6 @@ export function createMedicinesSlice(
       const wakeUpTime = settings?.wakeUpTime ?? '08:00';
       const sleepTime = settings?.sleepTime ?? '23:00';
 
-      // Renk: yoksa mevcut renklerden ilk kullanilmayan
       const usedColors = new Set(get().medicines.map(m => m.color));
       const availableColor =
         medicine.color || MEDICINE_COLORS.find(c => !usedColors.has(c)) || MEDICINE_COLORS[0];
@@ -101,11 +109,6 @@ export function createMedicinesSlice(
       };
 
       set(state => {
-        // Reminder times otomatik hesapla
-        // NOT: customTimes varsa medicineStore davranışıyla uyumlu
-        // ${medicineId}_${index} formatı kullanılır (regenerateReminderTimes
-        // ile tutarlı). calculateMedicineTimes'tan gelen reminder'lar için
-        // generateId() kullanılır (time.time alanı ile birlikte).
         const newReminders = medicine.customTimes
           ? medicine.customTimes.map((time, index) => ({
               id: `${id}_${index}`,
@@ -136,18 +139,15 @@ export function createMedicinesSlice(
     },
 
     updateMedicine: (id, updates) => {
-      const now = new Date().toISOString();
       set(state => ({
-        medicines: state.medicines.map(m =>
-          m.id === id ? { ...m, ...updates, updatedAt: now } : m
-        ),
+        medicines: updateMedicineInList(state.medicines, id, updates),
       }));
     },
 
     deleteMedicine: id => {
       set(state => ({
         medicines: state.medicines.filter(m => m.id !== id),
-        reminderTimes: state.reminderTimes.filter(rt => rt.medicineId !== id),
+        reminderTimes: filterReminderTimesByMedicine(state.reminderTimes, id, true),
       }));
       log.info('Medicine deleted', { id });
     },
@@ -161,7 +161,7 @@ export function createMedicinesSlice(
       }));
     },
 
-    getMedicineById: id => get().medicines.find(m => m.id === id),
+    getMedicineById: id => findMedicineById(get().medicines, id),
 
     getReminderTimesForMedicine: medicineId =>
       get().reminderTimes.filter(rt => rt.medicineId === medicineId),
@@ -186,23 +186,72 @@ export function createMedicinesSlice(
       }));
     },
 
+    regenerateReminderTimes: (medicineId, settings) => {
+      const { medicines, reminderTimes } = get();
+      const medicine = findMedicineById(medicines, medicineId);
+      if (!medicine) return;
+
+      if (medicine.customTimes && medicine.customTimes.length > 0) {
+        const otherTimes = filterReminderTimesByMedicine(reminderTimes, medicineId, true);
+        const newTimes = medicine.customTimes.map((time, index) => ({
+          id: `${medicineId}_${index}`,
+          medicineId,
+          time,
+          isEnabled: true,
+        }));
+        set({ reminderTimes: [...otherTimes, ...newTimes] });
+        return;
+      }
+
+      const otherTimes = filterReminderTimesByMedicine(reminderTimes, medicineId, true);
+      const newTimes = calculateMedicineTimes(medicineId, {
+        wakeUpTime: settings?.wakeUpTime ?? '08:00',
+        sleepTime: settings?.sleepTime ?? '23:00',
+        frequency: medicine.frequency,
+        instruction: medicine.instructions,
+      });
+
+      set({ reminderTimes: [...otherTimes, ...newTimes] });
+    },
+
+    getLowStockMedicines: () => {
+      return filterLowStockMedicines(get().medicines);
+    },
+
+    updateMedicineStock: (medicineId, newCount) => {
+      set(state => ({
+        medicines: updateMedicineInList(state.medicines, medicineId, {
+          stockCount: Math.max(0, newCount),
+        }),
+      }));
+    },
+
+    decrementStock: (medicineId, amount = 1) => {
+      const { medicines } = get();
+      const medicine = findMedicineById(medicines, medicineId);
+      if (!medicine || !medicine.stockEnabled) return;
+
+      const currentStock = medicine.stockCount ?? 0;
+      const newStock = Math.max(0, currentStock - amount);
+
+      set(state => ({
+        medicines: updateMedicineInList(state.medicines, medicineId, { stockCount: newStock }),
+      }));
+    },
+
     clearAllMedicines: () => {
       set({ medicines: [], reminderTimes: [] });
     },
 
-    // Sprint 4 devami: medicineStore.getNextAvailableColor delegasyonu
-    // Aktif ilaclarin renklerinden en az kullanilan / kullanilmamis rengi secer.
     getNextAvailableColor: () => {
       const { medicines } = get();
       const usedColors = medicines.filter(m => m.isActive).map(m => m.color);
 
-      // İlk kullanılmayan rengi bul
       const unusedColor = MEDICINE_COLORS.find((color: string) => !usedColors.includes(color));
       if (unusedColor) {
         return unusedColor;
       }
 
-      // Tum renkler kullaniliyorsa en az kullanilan rengi bul
       const colorCounts = new Map<string, number>();
       MEDICINE_COLORS.forEach((color: string) => colorCounts.set(color, 0));
       usedColors.forEach(color => {
@@ -222,13 +271,6 @@ export function createMedicinesSlice(
   };
 }
 
-/**
- * Medicines slice icin basit Zustand store.
- *
- * Davranis: mevcut medicineStore'daki medicines + reminderTimes
- * ile ayni mantikta. Sprint 4 sonunda combine() ile medicineStore'a
- * entegre edilecek.
- */
 export const useMedicinesStore = create<MedicinesSlice>()(
   persist((set, get) => createMedicinesSlice(set, get), {
     name: 'ilac-app-medicines-storage',

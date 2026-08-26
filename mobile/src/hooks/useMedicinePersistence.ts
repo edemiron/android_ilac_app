@@ -247,6 +247,15 @@ export function useMedicinePersistence({
           requireBarcodeOnTake: formState.requireBarcodeOnTake,
           barcode: formState.barcode,
           vibrationPattern: formState.vibrationPattern,
+          // Gelişmiş Zamanlama
+          scheduleType: formState.scheduleType,
+          specificDays:
+            formState.scheduleType === 'specific_days' ? formState.specificDays : undefined,
+          intervalDays:
+            formState.scheduleType === 'interval_days' ? formState.intervalDays : undefined,
+          cycleDaysOn: formState.scheduleType === 'cycle' ? formState.cycleDaysOn : undefined,
+          cycleDaysOff: formState.scheduleType === 'cycle' ? formState.cycleDaysOff : undefined,
+          endDate: formState.endDate || undefined,
         };
 
         // Önce navigation'ı yap - async işlemler uzun sürerse kullanıcı beklemez
@@ -430,7 +439,6 @@ export function useMedicinePersistence({
     },
     [
       isEditing,
-      medicineId,
       medicines,
       checkCanAddMedicine,
       language,

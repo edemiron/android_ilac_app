@@ -6,10 +6,10 @@
  * test eder.
  */
 
-import { createMedicinesSlice, type MedicinesSlice } from '../../stores/slices/medicines';
-import { createLogsSlice, type LogsSlice } from '../../stores/slices/logs';
-import { createSnoozesSlice, type SnoozesSlice } from '../../stores/slices/snoozes';
-import { createSettingsSlice, type SettingsSlice } from '../../stores/slices/settings';
+import { createMedicinesSlice } from '../../stores/slices/medicines';
+import { createLogsSlice } from '../../stores/slices/logs';
+import { createSnoozesSlice } from '../../stores/slices/snoozes';
+import { createSettingsSlice } from '../../stores/slices/settings';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -102,8 +102,6 @@ describe('Sprint 46: slice combine refactor', () => {
 
   // Combine testi: zustand combine ile 4 slice'i birlestir
   describe('Combined store', () => {
-    type CombinedState = MedicinesSlice & LogsSlice & SnoozesSlice & SettingsSlice;
-
     it('combine() birlestirilmis 4 slice initial degerler dogru', () => {
       // combine() factory'leri slice objesi olarak kabul eder, mock'luyoruz
       const medicinesSlice = createMedicinesSlice(

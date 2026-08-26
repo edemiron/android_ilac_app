@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { formatTimeDisplay } from '../../utils/timeCalculator';
 import { TimePickerState } from '../../types/addMedicine.types';
 import { ThemeColors } from '../../contexts/ThemeContext';
+import { WheelTimePickerModal } from '../common/WheelTimePickerModal';
 
 interface PreviewTime {
   time: string;
@@ -49,7 +50,7 @@ export function ReminderTimes({
   language,
 }: Props) {
   const styles = createStyles(colors);
-  const displayTimes = useCustomTimes ? customTimes : previewTimes.map((t) => t.time);
+  const displayTimes = useCustomTimes ? customTimes : previewTimes.map(t => t.time);
 
   return (
     <View style={styles.inputGroup}>
@@ -57,9 +58,7 @@ export function ReminderTimes({
         <Text style={styles.label}>{label}</Text>
         {!useCustomTimes && (
           <TouchableOpacity onPress={onSwitchToManual}>
-            <Text style={styles.editTimesButton}>
-              {language === 'tr' ? 'Duzenle' : 'Edit'}
-            </Text>
+            <Text style={styles.editTimesButton}>{language === 'tr' ? 'Duzenle' : 'Edit'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -67,7 +66,8 @@ export function ReminderTimes({
       <View style={styles.previewContainer}>
         {!useCustomTimes && (
           <Text style={styles.previewInfo}>
-            {language === 'tr' ? 'Uyanma' : 'Wake'}: {wakeUpTime} | {language === 'tr' ? 'Uyku' : 'Sleep'}: {sleepTime}
+            {language === 'tr' ? 'Uyanma' : 'Wake'}: {wakeUpTime} |{' '}
+            {language === 'tr' ? 'Uyku' : 'Sleep'}: {sleepTime}
           </Text>
         )}
 
@@ -79,7 +79,9 @@ export function ReminderTimes({
               onPress={() => useCustomTimes && onEditTime(index, time)}
               onLongPress={() => useCustomTimes && onDeleteTime(index)}
             >
-              <Text style={[styles.timeChipText, { color: selectedColor }]}>{formatTimeDisplay(time)}</Text>
+              <Text style={[styles.timeChipText, { color: selectedColor }]}>
+                {formatTimeDisplay(time)}
+              </Text>
               {useCustomTimes && (
                 <TouchableOpacity
                   style={[styles.timeChipDelete, { backgroundColor: selectedColor + '30' }]}
@@ -100,48 +102,32 @@ export function ReminderTimes({
         </View>
       </View>
 
-      {timePickerState.showTimePicker &&
-        (Platform.OS === 'ios' ? (
-          <View style={styles.timePickerContainer}>
-            <View style={styles.timePickerHeader}>
-              <TouchableOpacity onPress={onCloseTimePicker}>
-                <Text style={styles.timePickerCancel}>
-                  {language === 'tr' ? 'Iptal' : 'Cancel'}
-                </Text>
-              </TouchableOpacity>
-              <Text style={styles.timePickerTitle}>
-                {timePickerState.editingTimeIndex !== null
-                  ? language === 'tr'
-                    ? 'Saati Duzenle'
-                    : 'Edit Time'
-                  : language === 'tr'
-                    ? 'Saat Ekle'
-                    : 'Add Time'}
-              </Text>
-              <TouchableOpacity onPress={onConfirmTime}>
-                <Text style={styles.timePickerConfirm}>
-                  {language === 'tr' ? 'Tamam' : 'Done'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <DateTimePicker
-              value={timePickerState.tempTime}
-              mode="time"
-              is24Hour={true}
-              display="spinner"
-              onChange={onTimeChange}
-              locale="tr-TR"
-            />
-          </View>
-        ) : (
-          <DateTimePicker
-            value={timePickerState.tempTime}
-            mode="time"
-            is24Hour={true}
-            display="default"
-            onChange={onTimeChange}
-          />
-        ))}
+      <WheelTimePickerModal
+        visible={timePickerState.showTimePicker}
+        initialTime={timePickerState.tempTime}
+        title={
+          timePickerState.editingTimeIndex !== null
+            ? language === 'tr'
+              ? 'Saati Düzenle'
+              : 'Edit Time'
+            : language === 'tr'
+              ? 'Saat Ekle'
+              : 'Add Time'
+        }
+        onConfirm={(timeStr, h, m) => {
+          const date = new Date();
+          date.setHours(h, m, 0, 0);
+          onTimeChange(
+            {
+              type: 'set',
+              nativeEvent: { timestamp: date.getTime() },
+            } as unknown as DateTimePickerEvent,
+            date
+          );
+          onConfirmTime();
+        }}
+        onCancel={onCloseTimePicker}
+      />
     </View>
   );
 }

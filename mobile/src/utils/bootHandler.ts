@@ -7,9 +7,11 @@ import notifee, {
   AndroidCategory,
   AndroidImportance,
   AndroidVisibility,
+  AndroidStyle,
 } from '@notifee/react-native';
 import { createScopedLogger } from './logger';
 import { scheduleMedicineNotification } from './notifications';
+import { ALARM_ACTIONS } from './notifications/config';
 import { Medicine, ReminderTime } from '../types';
 import { STORAGE_KEYS, CHANNELS, NOTIFICATION_IDS } from '../constants';
 
@@ -76,12 +78,16 @@ async function scheduleActiveSnooze(
   };
 
   try {
+    const title = `💊 ${medicine.name} (Ertelendi${snooze.snoozeCount > 1 ? ` x${snooze.snoozeCount}` : ''})`;
+    const subtitle = `${timeStr} • Erteleme`;
+    const body = `${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.\n⏰ Yeni Hatırlatma: ${timeStr}`;
+
     const notificationId = await notifee.createTriggerNotification(
       {
         id: snooze.notificationId,
-        title: `🔔 ${medicine.name} (Ertelendi${snooze.snoozeCount > 1 ? ` x${snooze.snoozeCount}` : ''})`,
-        subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
+        title,
+        subtitle,
+        body,
         android: {
           channelId: ALARM_CHANNEL_ID,
           category: AndroidCategory.ALARM,
@@ -98,15 +104,19 @@ async function scheduleActiveSnooze(
             id: 'default',
             launchActivity: 'com.ilachatirlatici.MainActivity',
           },
-          smallIcon: 'ic_launcher',
-          color: '#FF6B6B',
+          smallIcon: 'ic_notification',
+          largeIcon: 'ic_launcher',
+          color: '#0D9488',
           colorized: true,
           sound: 'alarm',
           vibrationPattern: [500, 200, 500, 200, 500, 200],
-          actions: [
-            { title: '😴 Ertele', pressAction: { id: 'snooze' } },
-            { title: '✅ Aldım', pressAction: { id: 'take' } },
-          ],
+          actions: ALARM_ACTIONS,
+          style: {
+            type: AndroidStyle?.BIGTEXT ?? 1,
+            text: body,
+            title,
+            summary: subtitle,
+          },
         },
         data: {
           medicineId: snooze.medicineId,
@@ -144,20 +154,33 @@ async function showRecoveryNotification(result: BootRecoveryResult): Promise<voi
     // Önce varolan bildirimi iptal et (duplicate önleme)
     await notifee.cancelNotification(SYNC_NOTIFICATION_ID);
 
+    const title = '✅ Alarmlar Senkronize Edildi';
+    const subtitle = 'İlaç Hatırlatıcı';
+    const body = `${result.reminders} hatırlatma${result.snoozes > 0 ? ` ve ${result.snoozes} erteleme` : ''} başarıyla yeniden planlandı.`;
+
     await notifee.displayNotification({
       id: SYNC_NOTIFICATION_ID, // Sabit ID ile aynı bildirimi günceller
-      title: '✅ Alarmlar Senkronize Edildi',
-      body: `${result.reminders} hatirlatma${result.snoozes > 0 ? ` ve ${result.snoozes} erteleme` : ''} yeniden planlandi.`,
+      title,
+      subtitle,
+      body,
       android: {
         channelId: REMINDER_CHANNEL_ID,
         importance: AndroidImportance.DEFAULT,
         visibility: AndroidVisibility.PUBLIC,
         autoCancel: true,
-        smallIcon: 'ic_launcher',
-        color: '#4ECDC4',
+        smallIcon: 'ic_notification',
+        largeIcon: 'ic_launcher',
+        color: '#0D9488',
+        colorized: true,
         timestamp: Date.now(),
         showTimestamp: true,
         pressAction: { id: 'default' },
+        style: {
+          type: AndroidStyle?.BIGTEXT ?? 1,
+          text: body,
+          title,
+          summary: subtitle,
+        },
       },
     });
     log.debug('Recovery notification shown', { ...result });

@@ -29,6 +29,14 @@ export interface AddMedicineFormState {
   requireBarcodeOnTake: boolean;
   barcode?: string;
   vibrationPattern: 'default' | 'heartbeat' | 'urgent' | 'soft';
+
+  // Gelişmiş Zamanlama
+  scheduleType: import('./index').ScheduleType;
+  specificDays: number[]; // [0..6] (0=Pazar, 1=Pazartesi, ..., 6=Cumartesi)
+  intervalDays: number; // X günde bir (örn: 2)
+  cycleDaysOn: number; // Döngüde ilaç alınacak gün sayısı (örn: 21)
+  cycleDaysOff: number; // Döngüde ara verilecek gün sayısı (örn: 7)
+  endDate: string | null; // Tedavi bitiş tarihi (ISO date string veya null)
 }
 
 /**

@@ -48,12 +48,17 @@ describe('isValidInviteCode', () => {
     expect(isValidInviteCode('XYZ789')).toBe(true);
   });
 
+  it('accepts valid 8-char code', () => {
+    expect(isValidInviteCode('ABC12345')).toBe(true);
+    expect(isValidInviteCode('12345678')).toBe(true);
+  });
+
   it('rejects too short', () => {
     expect(isValidInviteCode('ABC12')).toBe(false);
   });
 
   it('rejects too long', () => {
-    expect(isValidInviteCode('ABC1234')).toBe(false);
+    expect(isValidInviteCode('ABC123456789')).toBe(false);
   });
 
   it('rejects lowercase (case-sensitive)', () => {

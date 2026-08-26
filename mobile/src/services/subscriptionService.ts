@@ -1,9 +1,11 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../config/firebase';
 import { SubscriptionTier, UserSubscription, SubscriptionPlan } from '../types';
 import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('SubscriptionService');
+const LOCAL_SUBSCRIPTION_KEY = '@user_local_subscription';
 
 // ============ ABONELİK PLANLARI ============
 
@@ -15,11 +17,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
       monthly: 0,
       yearly: 0,
     },
-    features: [
-      '2 ilaç takibi',
-      'Temel hatırlatmalar',
-      '5 barkod tarama hakkı',
-    ],
+    features: ['2 ilaç takibi', 'Temel hatırlatmalar', '5 barkod tarama hakkı'],
     limits: {
       maxMedicines: 2,
       aiSearchPerDay: 0,
@@ -59,7 +57,8 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
 
 // ============ KULLANICI ABONELİĞİ ============
 
-const getUserSubscriptionRef = (userId: string) => doc(db, 'users', userId, 'subscription', 'current');
+const getUserSubscriptionRef = (userId: string) =>
+  doc(db, 'users', userId, 'subscription', 'current');
 
 /**
  * Kullanıcının abonelik durumunu getir
@@ -70,7 +69,16 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
     const snapshot = await getDoc(subRef);
 
     if (!snapshot.exists()) {
-      // Varsayılan ücretsiz abonelik
+      // Local cache kontrolü
+      const cached = await AsyncStorage.getItem(LOCAL_SUBSCRIPTION_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.tier) return parsed;
+        } catch (_parseErr) {
+          log.debug('Local subscription parse hatasi');
+        }
+      }
       return {
         tier: 'free',
         isActive: true,
@@ -78,12 +86,11 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
     }
 
     const data = snapshot.data() as UserSubscription;
-    
+
     // Abonelik süresi dolmuş mu kontrol et
     if (data.tier === 'premium' && data.endDate) {
       const endDate = new Date(data.endDate);
       if (endDate < new Date()) {
-        // Abonelik süresi dolmuş, free'ye düşür
         await downgradeToFree(userId);
         return {
           tier: 'free',
@@ -92,9 +99,21 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
       }
     }
 
+    // Başarıyla okunduysa local'e de cache'le
+    await AsyncStorage.setItem(LOCAL_SUBSCRIPTION_KEY, JSON.stringify(data));
     return data;
   } catch (error) {
     log.error('Abonelik getirme hatasi', error);
+    // Offline / Network fallback: Local cache'den oku
+    try {
+      const cached = await AsyncStorage.getItem(LOCAL_SUBSCRIPTION_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.tier) return parsed;
+      }
+    } catch (_cacheErr) {
+      log.debug('Local subscription cache okuma hatasi');
+    }
     return {
       tier: 'free',
       isActive: true,
@@ -113,7 +132,7 @@ export async function upgradeToPremium(
   try {
     const subRef = getUserSubscriptionRef(userId);
     const now = new Date();
-    
+
     // Bitiş tarihini hesapla
     const endDate = new Date(now);
     if (billingPeriod === 'monthly') {
@@ -132,6 +151,7 @@ export async function upgradeToPremium(
     };
 
     await setDoc(subRef, subscription);
+    await AsyncStorage.setItem(LOCAL_SUBSCRIPTION_KEY, JSON.stringify(subscription));
     log.debug('Premium abonelik aktiflestirildi');
   } catch (error) {
     log.error('Premium yukseltme hatasi', error);
@@ -145,13 +165,14 @@ export async function upgradeToPremium(
 export async function downgradeToFree(userId: string): Promise<void> {
   try {
     const subRef = getUserSubscriptionRef(userId);
-    
+
     const subscription: UserSubscription = {
       tier: 'free',
       isActive: true,
     };
 
     await setDoc(subRef, subscription);
+    await AsyncStorage.setItem(LOCAL_SUBSCRIPTION_KEY, JSON.stringify(subscription));
     log.debug('Free abonelige dusuruldu');
   } catch (error) {
     log.error('Downgrade hatasi', error);
@@ -165,11 +186,18 @@ export async function downgradeToFree(userId: string): Promise<void> {
 export async function cancelSubscription(userId: string): Promise<void> {
   try {
     const subRef = getUserSubscriptionRef(userId);
-    
+
     await updateDoc(subRef, {
       isActive: false,
     });
-    
+
+    const cached = await AsyncStorage.getItem(LOCAL_SUBSCRIPTION_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      parsed.isActive = false;
+      await AsyncStorage.setItem(LOCAL_SUBSCRIPTION_KEY, JSON.stringify(parsed));
+    }
+
     log.debug('Abonelik iptal edildi');
   } catch (error) {
     log.error('Iptal hatasi', error);
@@ -187,18 +215,18 @@ export function canAddMedicine(
   subscription: UserSubscription
 ): { allowed: boolean; reason?: string } {
   const plan = SUBSCRIPTION_PLANS[subscription.tier];
-  
+
   if (plan.limits.maxMedicines === -1) {
     return { allowed: true };
   }
-  
+
   if (currentMedicineCount >= plan.limits.maxMedicines) {
     return {
       allowed: false,
       reason: `Ücretsiz planda en fazla ${plan.limits.maxMedicines} ilaç ekleyebilirsiniz. Premium'a geçerek sınırsız ilaç takibi yapabilirsiniz.`,
     };
   }
-  
+
   return { allowed: true };
 }
 
@@ -210,18 +238,18 @@ export function canUseAISearch(
   subscription: UserSubscription
 ): { allowed: boolean; reason?: string } {
   const plan = SUBSCRIPTION_PLANS[subscription.tier];
-  
+
   if (plan.limits.aiSearchPerDay === -1) {
     return { allowed: true };
   }
-  
+
   if (dailySearchCount >= plan.limits.aiSearchPerDay) {
     return {
       allowed: false,
       reason: `Günlük AI arama limitinize (${plan.limits.aiSearchPerDay}) ulaştınız. Premium'a geçerek sınırsız AI araması yapabilirsiniz.`,
     };
   }
-  
+
   return { allowed: true };
 }
 
@@ -233,22 +261,22 @@ export function canUseBarcodeScanner(
   currentScanCount: number
 ): { allowed: boolean; reason?: string; remaining?: number } {
   const plan = SUBSCRIPTION_PLANS[subscription.tier];
-  
+
   if (!plan.limits.barcodeScanner) {
     return {
       allowed: false,
       reason: 'Barkod tarama özelliği kullanılamıyor.',
     };
   }
-  
+
   // Sınırsız ise (Premium)
   if (plan.limits.barcodeScanLimit === -1) {
     return { allowed: true, remaining: -1 };
   }
-  
+
   // Limit kontrolü (Free)
   const remaining = plan.limits.barcodeScanLimit - currentScanCount;
-  
+
   if (remaining <= 0) {
     return {
       allowed: false,
@@ -256,7 +284,7 @@ export function canUseBarcodeScanner(
       remaining: 0,
     };
   }
-  
+
   return { allowed: true, remaining };
 }
 
@@ -274,12 +302,12 @@ export function getRemainingDays(subscription: UserSubscription): number | null 
   if (subscription.tier !== 'premium' || !subscription.endDate) {
     return null;
   }
-  
+
   const endDate = new Date(subscription.endDate);
   const now = new Date();
   const diffTime = endDate.getTime() - now.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   return Math.max(0, diffDays);
 }
 
@@ -292,10 +320,10 @@ export function getYearlySavings(): { amount: number; percentage: number } {
   const monthly = SUBSCRIPTION_PLANS.premium.price.monthly;
   const yearly = SUBSCRIPTION_PLANS.premium.price.yearly;
   const monthlyTotal = monthly * 12;
-  
+
   const savings = monthlyTotal - yearly;
   const percentage = Math.round((savings / monthlyTotal) * 100);
-  
+
   return { amount: savings, percentage };
 }
 

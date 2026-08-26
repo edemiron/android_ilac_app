@@ -1,8 +1,9 @@
 import React from 'react';
-import { Switch, LayoutAnimation } from 'react-native';
+import { Switch, LayoutAnimation, View } from 'react-native';
 import { SettingsSection } from './SettingsSection';
 import { SettingRow } from './SettingRow';
 import { OptionPicker } from './OptionPicker';
+import { Pill } from '../common/Pill';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Settings } from './types';
@@ -122,8 +123,28 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
   };
 
   const getSnoozeCountLabel = (count: number) => {
-    return `${count} ${language === 'tr' ? 'kez' : 'times'}`;
+    const unit =
+      language === 'tr'
+        ? count === 1
+          ? 'erteleme'
+          : 'erteleme'
+        : count === 1
+          ? 'snooze'
+          : 'snoozes';
+    return `${count} ${unit}`;
   };
+
+  // Sprint 83: Visible ON/OFF badge so state reads at a glance.
+  // Sprint 106.3: Pill shared component migration.
+  const renderStateBadge = (enabled: boolean) => (
+    <Pill
+      label={enabled ? (language === 'tr' ? 'AÇIK' : 'ON') : language === 'tr' ? 'KAPALI' : 'OFF'}
+      variant={enabled ? 'success' : 'muted'}
+      size="sm"
+      style={{ marginRight: 8 }}
+      accessibilityElementsHidden // decorative — Switch already announces state
+    />
+  );
 
   return (
     <SettingsSection icon="notifications-outline" title={t('settings_notifications')}>
@@ -132,12 +153,15 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         label={t('settings_vibration')}
         description={language === 'tr' ? 'Hatırlatmalarda titret' : 'Vibrate on reminders'}
         rightElement={
-          <Switch
-            value={settings.vibrationEnabled}
-            onValueChange={value => onSettingChange({ vibrationEnabled: value })}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor="#FFFFFF"
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {renderStateBadge(settings.vibrationEnabled)}
+            <Switch
+              value={settings.vibrationEnabled}
+              onValueChange={value => onSettingChange({ vibrationEnabled: value })}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
         }
       />
 
@@ -150,12 +174,15 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
             : 'Notification stays until medicine is taken'
         }
         rightElement={
-          <Switch
-            value={settings.persistentNotificationEnabled ?? true}
-            onValueChange={value => onSettingChange({ persistentNotificationEnabled: value })}
-            trackColor={{ false: colors.border, true: '#F59E0B' }}
-            thumbColor="#FFFFFF"
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {renderStateBadge(settings.persistentNotificationEnabled ?? true)}
+            <Switch
+              value={settings.persistentNotificationEnabled ?? true}
+              onValueChange={value => onSettingChange({ persistentNotificationEnabled: value })}
+              trackColor={{ false: colors.border, true: '#F59E0B' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
         }
       />
 
@@ -164,12 +191,15 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
         label={t('settings_fullscreen_alarm')}
         description={language === 'tr' ? 'Kilit ekranında göster' : 'Show on lock screen'}
         rightElement={
-          <Switch
-            value={settings.fullScreenAlarmEnabled}
-            onValueChange={value => onSettingChange({ fullScreenAlarmEnabled: value })}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor="#FFFFFF"
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {renderStateBadge(settings.fullScreenAlarmEnabled)}
+            <Switch
+              value={settings.fullScreenAlarmEnabled}
+              onValueChange={value => onSettingChange({ fullScreenAlarmEnabled: value })}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
         }
       />
 
@@ -180,12 +210,15 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           language === 'tr' ? 'Telefon sessizde bile ses çıkar' : 'Sound plays even in silent mode'
         }
         rightElement={
-          <Switch
-            value={settings.alarmModeEnabled ?? true}
-            onValueChange={value => onSettingChange({ alarmModeEnabled: value })}
-            trackColor={{ false: colors.border, true: '#EF4444' }}
-            thumbColor="#FFFFFF"
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {renderStateBadge(settings.alarmModeEnabled ?? true)}
+            <Switch
+              value={settings.alarmModeEnabled ?? true}
+              onValueChange={value => onSettingChange({ alarmModeEnabled: value })}
+              trackColor={{ false: colors.border, true: '#EF4444' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
         }
       />
 
@@ -207,6 +240,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           selectedValue={settings.alarmVolume ?? 80}
           onSelect={handleVolumeSelect}
           getLabel={getVolumeLabelForPicker}
+          title={language === 'tr' ? 'SEÇİLEBİLİR SES SEVİYELERİ' : 'SELECTABLE VOLUME LEVELS'}
+          icon="volume-high"
+          tintColor="#F59E0B"
         />
       )}
 
@@ -234,6 +270,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           selectedValue={settings.snoozeDuration || 5}
           onSelect={handleSnoozeSelect}
           getLabel={getSnoozeDurationLabel}
+          title={language === 'tr' ? 'ERTELEME SÜRESİ SEÇENEKLERİ' : 'SNOOZE DURATION OPTIONS'}
+          icon="time"
+          tintColor="#F59E0B"
         />
       )}
 
@@ -253,6 +292,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           selectedValue={settings.maxSnoozeCount || 3}
           onSelect={handleSnoozeCountSelect}
           getLabel={getSnoozeCountLabel}
+          title={language === 'tr' ? 'MAKSİMUM ERTELEME HAKKI' : 'MAX SNOOZE LIMIT'}
+          icon="refresh"
+          tintColor="#10B981"
         />
       )}
 
@@ -272,6 +314,9 @@ export const NotificationSection: React.FC<NotificationSectionProps> = ({
           selectedValue={settings.conflictIntervalMinutes || 10}
           onSelect={handleConflictIntervalSelect}
           getLabel={getConflictIntervalLabel}
+          title={language === 'tr' ? 'İLAÇ ÇAKIŞMA ARALIĞI' : 'CONFLICT INTERVAL'}
+          icon="git-branch"
+          tintColor="#06B6D4"
         />
       )}
 

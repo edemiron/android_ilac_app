@@ -30,7 +30,7 @@ const tr = {
   // Tab bar
   tab_home: 'Ana Sayfa',
   tab_medicines: 'İlaçlarım',
-  tab_statistics: 'İstatistikler',
+  tab_statistics: 'Gelişim',
   tab_settings: 'Ayarlar',
 
   // Ana sayfa
@@ -41,8 +41,7 @@ const tr = {
   home_next_reminder: 'Sonraki hatırlatma',
   home_adherence: 'Uyum Oranı',
   home_taken: 'Alındı',
-  home_mark_taken: 'Aldım',
-  home_pending: 'Bekliyor',
+  // Sprint 105.4: orphan i18n keys silindi (home_section_today_doses / home_mark_taken / home_pending / home_bulk_*)
   home_skipped: 'Atlandı',
   home_missed: 'Kaçırıldı',
 
@@ -214,7 +213,7 @@ const en: typeof tr = {
   // Tab bar
   tab_home: 'Home',
   tab_medicines: 'Medicines',
-  tab_statistics: 'Statistics',
+  tab_statistics: 'Progress',
   tab_settings: 'Settings',
 
   // Home screen
@@ -225,8 +224,8 @@ const en: typeof tr = {
   home_next_reminder: 'Next reminder',
   home_adherence: 'Adherence Rate',
   home_taken: 'Taken',
-  home_mark_taken: 'Take',
-  home_pending: 'Pending',
+  // Sprint 105.4: home_section_today_doses / home_mark_taken / home_pending / home_bulk_* orphan silindi
+  // (HomeScreen + StatisticsScreen t() ile çağırmıyordu, hardcoded ternary kullanıyordu)
   home_skipped: 'Skipped',
   home_missed: 'Missed',
 

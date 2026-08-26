@@ -17,6 +17,9 @@ jest.mock('react-native', () => ({
   ScrollView: 'ScrollView',
   Switch: 'Switch',
   TouchableOpacity: 'TouchableOpacity',
+  NativeModules: {
+    WidgetDataModule: { setWidgetData: jest.fn() },
+  },
   UIManager: { setLayoutAnimationEnabledExperimental: jest.fn() },
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
 }));
@@ -108,18 +111,35 @@ jest.mock('../../hooks/useUserProfile', () => ({
   }),
 }));
 
+jest.mock('../../stores/medicineStore', () => ({
+  useMedicineStore: {
+    getState: () => ({
+      medicines: [],
+      reminderTimes: [],
+      medicineLogs: [],
+      settings: {},
+    }),
+  },
+}));
+
 // Mock the settings components to simple text
 jest.mock('../../components/settings', () => {
   const simpleMock = () => null;
   return {
+    ProfileHeaderCard: simpleMock,
+    SettingsSection: ({ children }: any) => children || null,
+    SettingRow: simpleMock,
+    OptionPicker: simpleMock,
     PremiumCard: simpleMock,
     DailyScheduleSection: simpleMock,
+    CaregiverSection: simpleMock, // Sprint 90
     AppearanceSection: simpleMock,
     AccentColorSection: simpleMock,
     NotificationSection: simpleMock,
     DevTestSection: simpleMock,
     QuietHoursSection: simpleMock,
     AdditionalFeaturesSection: simpleMock,
+    BackupRestoreSection: simpleMock,
     AccountSection: simpleMock,
     AboutSection: simpleMock,
     createSettingsStyles: () => ({}),

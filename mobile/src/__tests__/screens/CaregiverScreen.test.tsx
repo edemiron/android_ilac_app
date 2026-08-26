@@ -29,21 +29,35 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('react-native-vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('react-native-qrcode-svg', () => 'QRCode');
+jest.mock('../../components/common/ModalSheet', () => ({
+  ModalSheet: 'ModalSheet',
+}));
 
 jest.mock('../../hooks/useCaregiver', () => ({
   useCaregiver: () => ({
     caregivers: [],
     pendingInvites: [],
+    patients: [],
     isLoading: false,
     qrCodeData: null,
     showQRModal: false,
     createInvite: jest.fn(),
+    acceptInvite: jest.fn(),
     removeCaregiverRel: jest.fn(),
+    removePatientRel: jest.fn(),
     updatePermissions: jest.fn(),
     cancelInviteRel: jest.fn(),
     showQRCode: jest.fn(),
     hideQRCode: jest.fn(),
     refresh: jest.fn(),
+  }),
+}));
+
+jest.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: { uid: 'test-user-123', email: 'test@example.com', displayName: 'Test User' },
+    isLoading: false,
+    isAuthenticated: true,
   }),
 }));
 
@@ -98,5 +112,11 @@ describe('CaregiverScreen', () => {
   it('renders ScrollView', () => {
     const { UNSAFE_root } = render(<CaregiverScreen />);
     expect(UNSAFE_root).toBeTruthy();
+  });
+
+  it('renders segmented role switcher with default patient role', () => {
+    const { getByText } = render(<CaregiverScreen />);
+    expect(getByText('Beni İzleyenler')).toBeTruthy();
+    expect(getByText('Takip Ettiğim Kişiler')).toBeTruthy();
   });
 });

@@ -1,6 +1,77 @@
 // Define __DEV__ for React Native
 global.__DEV__ = true;
 
+// Mock react-native-reanimated (Sprint 97.1: Moti entegrasyonu icin).
+// Reanimated 4 resmi mock yerine minimal API surface'i saglayan bir noop mock
+// kullaniyoruz — cunku babel worklet plugin test ortaminda devre disi.
+jest.mock('react-native-reanimated', () => {
+  const View = require('react-native').View;
+  const mock = {
+    __esModule: true,
+    default: { View, createAnimatedComponent: (c) => c, Value: function () {} },
+    View,
+    createAnimatedComponent: (c) => c,
+    Value: function () {},
+    useSharedValue: (v) => ({ value: v }),
+    useAnimatedStyle: (cb) => cb(),
+    useDerivedValue: (cb) => ({ value: cb() }),
+    withTiming: (v) => v,
+    withSpring: (v) => v,
+    withDelay: (_d, v) => v,
+    withSequence: (...args) => args[args.length - 1],
+    withRepeat: (v) => v,
+    runOnJS: (fn) => fn,
+    runOnUI: (fn) => fn,
+    Easing: {
+      linear: () => 0,
+      ease: () => 0,
+      in: () => 0,
+      out: () => 0,
+      inOut: () => 0,
+      cubic: () => 0,
+      bezier: () => 0,
+    },
+  };
+  return mock;
+});
+
+// Mock react-native-gesture-handler (Sprint 97.1).
+// Test ortaminda native gesture bridge yok; press + tap primitive'leri stub'la.
+jest.mock('react-native-gesture-handler', () => {
+  const View = require('react-native').View;
+  const Pass = ({ children }) => children;
+  return {
+    __esModule: true,
+    GestureHandlerRootView: View,
+    PanGestureHandler: Pass,
+    TapGestureHandler: Pass,
+    LongPressGestureHandler: Pass,
+    State: {},
+    Directions: {},
+    gestureHandlerRootHOC: (c) => c,
+    Gesture: {
+      Pan: () => ({ onUpdate: () => ({}), onEnd: () => ({}) }),
+      Tap: () => ({ onEnd: () => ({}) }),
+    },
+    GestureDetector: Pass,
+  };
+});
+
+// Mock moti (Sprint 97.1).
+// Moti Reanimated worklets'e dayanir; test ortaminda worklet plugin calismaz.
+// Tum Moti component'leri children'i wrap eden noop View olarak davranir.
+jest.mock('moti', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const MotiView = React.forwardRef(({ children, style, ...rest }, ref) =>
+    React.createElement(View, { ref, style, ...rest }, children)
+  );
+  return {
+    __esModule: true,
+    MotiView,
+  };
+});
+
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
@@ -20,6 +91,12 @@ jest.mock('@notifee/react-native', () => ({
   },
   AndroidVisibility: {
     PUBLIC: 1,
+  },
+  AndroidStyle: {
+    BIGTEXT: 1,
+    BIGPICTURE: 2,
+    INBOX: 3,
+    MESSAGING: 4,
   },
   TriggerType: {
     TIMESTAMP: 0,
@@ -220,3 +297,31 @@ jest.mock('react-native-screens', () => {
     enableScreens: jest.fn(),
   };
 });
+
+// Sprint 103.2: expo-font mock — Jest'te font binary (woff2) yok, useFonts true döner.
+// useAppFonts hook'u bu mock'a bağlı; aksi halde require() undefined döner ve test crash eder.
+jest.mock('expo-font', () => ({
+  useFonts: jest.fn(() => [true, null]),
+}));
+
+// Mock react-native-sound
+jest.mock('react-native-sound', () => {
+  class SoundMock {
+    static setCategory = jest.fn();
+    static MAIN_BUNDLE = '';
+    constructor(_filename, _basePath, onError) {
+      if (onError) onError(null);
+    }
+    setVolume = jest.fn();
+    setNumberOfLoops = jest.fn();
+    play = jest.fn(cb => {
+      if (cb) cb(true);
+    });
+    stop = jest.fn(cb => {
+      if (cb) cb();
+    });
+    release = jest.fn();
+  }
+  return SoundMock;
+});
+

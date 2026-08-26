@@ -1,11 +1,12 @@
 import React from 'react';
-import { Switch, LayoutAnimation, Platform } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { Switch, LayoutAnimation } from 'react-native';
+import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SettingsSection } from './SettingsSection';
 import { SettingRow } from './SettingRow';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Settings } from './types';
+import { WheelTimePickerModal } from '../common/WheelTimePickerModal';
 
 interface QuietHoursSectionProps {
   settings: Settings;
@@ -29,7 +30,6 @@ export const QuietHoursSection: React.FC<QuietHoursSectionProps> = ({
   onQuietEndPress,
   onQuietStartChange,
   onQuietEndChange,
-  parseTimeToDate,
   formatTimeDisplay,
 }) => {
   const { colors } = useTheme();
@@ -90,25 +90,48 @@ export const QuietHoursSection: React.FC<QuietHoursSectionProps> = ({
         )}
       </SettingsSection>
 
-      {showQuietStartPicker && (
-        <DateTimePicker
-          value={parseTimeToDate(settings.quietHoursStart || '23:00')}
-          mode="time"
-          is24Hour={true}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onQuietStartChange}
-        />
-      )}
+      <WheelTimePickerModal
+        visible={showQuietStartPicker}
+        initialTime={settings.quietHoursStart || '23:00'}
+        title={language === 'tr' ? 'Gece Modu Başlangıç' : 'Quiet Hours Start'}
+        onConfirm={(timeStr, h, m) => {
+          const d = new Date();
+          d.setHours(h, m, 0, 0);
+          onQuietStartChange(
+            {
+              type: 'set',
+              nativeEvent: { timestamp: d.getTime() },
+            } as unknown as DateTimePickerEvent,
+            d
+          );
+        }}
+        onCancel={() =>
+          onQuietStartChange({
+            type: 'dismissed',
+            nativeEvent: {},
+          } as unknown as DateTimePickerEvent)
+        }
+      />
 
-      {showQuietEndPicker && (
-        <DateTimePicker
-          value={parseTimeToDate(settings.quietHoursEnd || '07:00')}
-          mode="time"
-          is24Hour={true}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onQuietEndChange}
-        />
-      )}
+      <WheelTimePickerModal
+        visible={showQuietEndPicker}
+        initialTime={settings.quietHoursEnd || '07:00'}
+        title={language === 'tr' ? 'Gece Modu Bitiş' : 'Quiet Hours End'}
+        onConfirm={(timeStr, h, m) => {
+          const d = new Date();
+          d.setHours(h, m, 0, 0);
+          onQuietEndChange(
+            {
+              type: 'set',
+              nativeEvent: { timestamp: d.getTime() },
+            } as unknown as DateTimePickerEvent,
+            d
+          );
+        }}
+        onCancel={() =>
+          onQuietEndChange({ type: 'dismissed', nativeEvent: {} } as unknown as DateTimePickerEvent)
+        }
+      />
     </>
   );
 };

@@ -9,155 +9,199 @@ const log = createScopedLogger('ThemeContext');
 // Modern Healthcare Renk Paleti - MD3 Tonal (WCAG AA+)
 // Sprint 55: error rengi #B91C1C (Red 800) WCAG AAA 7.27:1
 export const lightColors = {
-  // Ana renkler - Vibrant Teal + Deep Blue
-  primary: '#0D9488', // Vibrant Teal
-  primaryDark: '#0F766E', // Dark Teal
-  primaryLight: '#14B8A6', // Light Teal
-  primaryContainer: '#CCFBF1', // Teal 100 - Sprint 58.5 tonlu kartlar için
-  onPrimaryContainer: '#0F766E', // Teal 700 - WCAG AA
+  // Ana renkler - Google Stitch Clinical Modernity
+  primary: '#0D9488', // Teal 600
+  primaryDark: '#115E59', // Teal 800
+  primaryLight: '#CCFBF1', // Teal 100
+  primaryContainer: '#CCFBF1', // Teal 100
+  onPrimaryContainer: '#0F766E', // Teal 700
   secondary: '#2563EB', // Royal Blue
   secondaryContainer: '#DBEAFE', // Blue 100
-  accent: '#7C3AED', // Vibrant Purple
+  accent: '#F43F5E', // Rose 500
+  accentLight: '#FFE4E6', // Rose 100
 
-  // Gradient renkler - Premium Feel
-  gradientStart: '#0D9488', // Teal
-  gradientEnd: '#0891B2', // Cyan
+  // Gradient renkler - Clinical Teal Gradient
+  gradientStart: '#0D9488',
+  gradientEnd: '#0F766E',
 
-  // MD3 Surface (Sprint 55) - elevasyon skalası
-  background: '#F8FAFC', // Soft Gray-Blue
+  // MD3 Surface (Google Stitch Slate 50)
+  background: '#F8FAFC', // Slate 50
   surface: '#FFFFFF',
   card: '#FFFFFF',
   cardElevated: '#FFFFFF',
-  surfaceContainerLowest: '#FFFFFF', // MD3 elevation 0
-  surfaceContainerLow: '#F8FAFC', // MD3 elevation 1
-  surfaceContainer: '#F1F5F9', // MD3 elevation 2
-  surfaceContainerHigh: '#E2E8F0', // MD3 elevation 3
-  surfaceContainerHighest: '#CBD5E1', // MD3 elevation 4
+  surfaceContainerLowest: '#FFFFFF',
+  surfaceContainerLow: '#F8FAFC',
+  surfaceContainer: '#F1F5F9', // Slate 100
+  surfaceContainerHigh: '#E2E8F0', // Slate 200
+  surfaceContainerHighest: '#CBD5E1', // Slate 300
 
-  // Metin renkleri - High Contrast (WCAG AAA)
-  text: '#0F172A', // Slate 900 - 16.84:1
-  textSecondary: '#475569', // Slate 600 - 7.55:1
-  textMuted: '#94A3B8', // Slate 400 - 3.55:1 (18pt+ only)
+  // Metin renkleri - High Contrast
+  text: '#0F172A', // Slate 900
+  textSecondary: '#64748B', // Slate 500
+  textMuted: '#94A3B8', // Slate 400
   textOnPrimary: '#FFFFFF',
 
   // MD3 On-surface variants
   onSurface: '#0F172A',
-  onSurfaceVariant: '#475569',
+  onSurfaceVariant: '#64748B',
   onSurfaceMuted: '#94A3B8',
 
-  // Durum renkleri - WCAG AA+
-  success: '#059669', // Emerald 600 - 4.62:1
-  warning: '#B45309', // Amber 700 - 4.62:1 (was #D97706 borderline)
-  error: '#B91C1C', // Red 800 - 7.27:1 AAA (was #DC2626 4.83:1)
+  // Durum renkleri - Google Stitch Tokens
+  success: '#10B981', // Emerald 500
+  warning: '#F59E0B', // Amber 500
+  error: '#EF4444', // Red 500
   info: '#2563EB', // Blue 600
 
-  // MD3 Outline (Sprint 55)
+  // MD3 Outline
   outline: '#94A3B8',
   outlineVariant: '#E2E8F0',
 
   // Sınır ve ayırıcı
   border: '#E2E8F0', // Slate 200
+  borderFocused: '#0D9488', // Teal 600
   divider: '#F1F5F9', // Slate 100
 
-  // Tab bar - Clean White
+  // Tab bar
   tabBar: '#FFFFFF',
   tabBarBorder: '#E2E8F0',
-  tabActive: '#0D9488', // Primary
-  tabInactive: '#94A3B8', // Slate 400
+  tabActive: '#0D9488',
+  tabInactive: '#94A3B8',
 
   // Header
   header: '#FFFFFF',
   headerText: '#0F172A',
 
-  // Input - Subtle Background
-  inputBackground: '#F8FAFC', // Matches background
-  inputBorder: '#CBD5E1', // Slate 300 - More visible
+  // Input
+  inputBackground: '#F8FAFC',
+  inputBorder: '#E2E8F0',
   placeholder: '#94A3B8',
 
   // Özel
-  overlay: 'rgba(15, 23, 42, 0.5)', // Slate 900 with opacity
+  overlay: 'rgba(15, 23, 42, 0.5)',
   shadow: 'rgba(15, 23, 42, 0.08)',
 
-  // Kart arka plan renkleri (status) - Soft Tints
+  // Kart arka plan renkleri (status)
   cardTaken: '#D1FAE5', // Emerald 100
-  cardSkipped: '#FEE2E2', // Red 100
+  cardSkipped: '#FEF3C7', // Amber 100
   cardPending: '#FFFFFF',
+
+  // MD3 Container tokens - Stitch Clinical Clarity
+  warningContainer: '#FEF3C7', // Amber 100
+  onWarningContainer: '#78350F', // Amber 900
+  successContainer: '#D1FAE5', // Emerald 100
+  onSuccessContainer: '#064E3B', // Emerald 900
+  errorContainer: '#FEE2E2', // Red 100
+  onErrorContainer: '#7F1D1D', // Red 900
+
+  // MD3 Inverse + Fixed tokens
+  inversePrimary: '#14B8A6',
+  primaryFixed: '#0D9488',
+  inverseOnSurface: '#F8FAFC',
+  tertiaryContainer: '#CCFBF1',
+  onTertiaryContainer: '#0F766E',
+
+  // Gradient içi text/icon
+  textOnGradient: '#FFFFFF',
+  textOnGradientMuted: 'rgba(255, 255, 255, 0.92)',
+  gradientTrackTint: 'rgba(255, 255, 255, 0.25)',
 };
 
 export const darkColors = {
-  // Ana renkler - Kullanıcı paleti
-  primary: '#8B9CFF', // Soft mor-mavi
-  primaryDark: '#6B7CDF', // Koyu mor-mavi
-  primaryLight: '#ABB8FF', // Açık mor-mavi
-  primaryContainer: '#1F2A4D', // Koyu mor-mavi container - Sprint 58.5
-  onPrimaryContainer: '#ABB8FF', // Açık mor-mavi - WCAG AA
-  secondary: '#5EE6FF', // Cyan
-  secondaryContainer: '#0E2A3A', // Koyu cyan container
-  accent: '#D0A6FF', // Açık mor (Tertiary)
+  // Ana renkler - Google Stitch Clinical Modernity
+  primary: '#14B8A6', // Teal 500
+  primaryDark: '#2DD4BF', // Teal 400
+  primaryLight: '#134E4A', // Teal 900
+  primaryContainer: '#134E4A', // Teal 900
+  onPrimaryContainer: '#5EEAD4', // Teal 300
+  secondary: '#38BDF8', // Sky 400
+  secondaryContainer: '#0C4A6E', // Sky 900
+  accent: '#FB7185', // Rose 400
+  accentLight: '#4C0519', // Rose 950
 
-  // Gradient renkler
-  gradientStart: '#8B9CFF',
-  gradientEnd: '#5EE6FF',
+  // Gradient renkler - Clinical Teal Gradient
+  gradientStart: '#14B8A6',
+  gradientEnd: '#0D9488',
 
-  // MD3 Surface (Sprint 55) - elevasyon skalası
-  background: '#0B0D14', // OLED-friendly background
-  surface: '#121625',
-  card: '#1A2035', // Surface Variant
-  cardElevated: '#232840', // Biraz daha açık
-  surfaceContainerLowest: '#0B0D14', // MD3 elevation 0
-  surfaceContainerLow: '#121625', // MD3 elevation 1
-  surfaceContainer: '#1A2035', // MD3 elevation 2
-  surfaceContainerHigh: '#232840', // MD3 elevation 3
-  surfaceContainerHighest: '#2B3354', // MD3 elevation 4
+  // MD3 Surface (Google Stitch Slate Palette)
+  background: '#0F172A', // Slate 900
+  surface: '#1E293B', // Slate 800
+  card: '#1E293B', // Slate 800
+  cardElevated: '#334155', // Slate 700
+  surfaceContainerLowest: '#0F172A', // Slate 900
+  surfaceContainerLow: '#1E293B', // Slate 800
+  surfaceContainer: '#1E293B', // Slate 800
+  surfaceContainerHigh: '#334155', // Slate 700
+  surfaceContainerHighest: '#475569', // Slate 600
 
-  // Metin renkleri - WCAG AAA
-  text: '#E9ECFF', // Text Primary - 17.2:1 AAA
-  textSecondary: '#88C0E6', // Text Secondary - 10.5:1 AAA
-  textMuted: '#6B8AAA', // Daha soluk
-  textOnPrimary: '#10163A', // On Primary
+  // Metin renkleri - High Contrast
+  text: '#F8FAFC', // Slate 50
+  textSecondary: '#94A3B8', // Slate 400
+  textMuted: '#64748B', // Slate 500
+  textOnPrimary: '#0F172A',
 
   // MD3 On-surface variants
-  onSurface: '#E9ECFF',
-  onSurfaceVariant: '#88C0E6',
-  onSurfaceMuted: '#6B8AAA',
+  onSurface: '#F8FAFC',
+  onSurfaceVariant: '#94A3B8',
+  onSurfaceMuted: '#64748B',
 
-  // Durum renkleri - Kullanıcı paleti
-  success: '#34D399', // Success
-  warning: '#FCD34D', // Amber 300 - WCAG AA
-  error: '#FB7185', // Error
-  info: '#60A5FA', // Info
+  // Durum renkleri - Google Stitch Tokens
+  success: '#34D399', // Emerald 400
+  warning: '#FBBF24', // Amber 400
+  error: '#F87171', // Red 400
+  info: '#38BDF8', // Sky 400
 
   // MD3 Outline
-  outline: '#6B8AAA',
-  outlineVariant: '#2B3354',
+  outline: '#64748B',
+  outlineVariant: '#334155',
 
-  // Sınır ve ayırıcı - Kullanıcı paleti
-  border: '#2B3354', // Outline/Divider
-  divider: '#2B3354',
+  // Sınır ve ayırıcı
+  border: '#334155', // Slate 700
+  borderFocused: '#14B8A6', // Teal 500
+  divider: '#334155',
 
   // Tab bar
-  tabBar: '#0B0D14', // Background ile aynı
-  tabBarBorder: '#2B3354',
-  tabActive: '#8B9CFF', // Primary
-  tabInactive: '#6B8AAA',
+  tabBar: '#0F172A',
+  tabBarBorder: '#334155',
+  tabActive: '#14B8A6',
+  tabInactive: '#64748B',
 
   // Header
-  header: '#121625', // Surface
-  headerText: '#E9ECFF', // Text Primary
+  header: '#0F172A',
+  headerText: '#F8FAFC',
 
   // Input
-  inputBackground: '#1A2035', // Surface Variant
-  inputBorder: '#2B3354', // Outline/Divider
-  placeholder: '#6B8AAA',
+  inputBackground: '#1E293B',
+  inputBorder: '#334155',
+  placeholder: '#64748B',
 
   // Özel
-  overlay: 'rgba(11, 13, 20, 0.9)',
-  shadow: 'rgba(139, 156, 255, 0.15)', // Primary glow
+  overlay: 'rgba(15, 23, 42, 0.8)',
+  shadow: 'rgba(20, 184, 166, 0.15)',
 
   // Kart arka plan renkleri (status)
-  cardTaken: '#1A3D2E', // Yeşil tonlu
-  cardSkipped: '#3D1A2A', // Kırmızı tonlu
-  cardPending: '#1A2035', // Surface Variant
+  cardTaken: '#064E3B', // Emerald 900
+  cardSkipped: '#78350F', // Amber 900
+  cardPending: '#1E293B',
+
+  // MD3 Container tokens - Stitch Clinical Clarity
+  warningContainer: '#78350F', // Amber 900
+  onWarningContainer: '#FBBF24', // Amber 400
+  successContainer: '#064E3B', // Emerald 900
+  onSuccessContainer: '#34D399', // Emerald 400
+  errorContainer: '#7F1D1D', // Red 900
+  onErrorContainer: '#F87171', // Red 400
+
+  // MD3 Inverse + Fixed tokens
+  inversePrimary: '#0D9488',
+  primaryFixed: '#14B8A6',
+  inverseOnSurface: '#0F172A',
+  tertiaryContainer: '#134E4A',
+  onTertiaryContainer: '#5EEAD4',
+
+  // Gradient içi text/icon
+  textOnGradient: '#FFFFFF',
+  textOnGradientMuted: 'rgba(255, 255, 255, 0.9)',
+  gradientTrackTint: 'rgba(255, 255, 255, 0.2)',
 };
 
 export type ThemeColors = typeof lightColors;
