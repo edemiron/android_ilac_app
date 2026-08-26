@@ -38,6 +38,7 @@ import { useCaregiverRealtimeWatcher } from '../hooks/useCaregiverRealtimeWatche
 import { usePatientRemoteReminderWatcher } from '../hooks/usePatientRemoteReminderWatcher';
 import { CaregiverFullScreenAlertModal } from '../screens/CaregiverScreen/components/CaregiverFullScreenAlertModal';
 import { PatientFullScreenReminderModal } from './PatientFullScreenReminderModal';
+import { setupCaregiverNotifications } from '../services/caregiverNotificationService';
 import type { PatientInfo } from '../types';
 
 const log = createScopedLogger('CaregiverEventBridge');
@@ -54,6 +55,13 @@ export function CaregiverEventBridge() {
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
   const [patients, setPatients] = useState<PatientInfo[]>([]);
   const [lastActionAt, setLastActionAt] = useState<number | null>(null);
+
+  // Push token kurulumu (Arka plan bildirimleri için)
+  useEffect(() => {
+    if (caregiverId) {
+      setupCaregiverNotifications(caregiverId);
+    }
+  }, [caregiverId]);
 
   // Bakıcının takip ettiği hastaları yükle ve canlı izle
   useEffect(() => {

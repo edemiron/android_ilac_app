@@ -976,6 +976,47 @@ export async function sendRemoteReminderToPatient(params: {
 
     await setDoc(reminderRef, data);
     log.info('Uzaktan hatırlatma gönderildi', { patientId: params.patientId, reminderId });
+
+    // Hasta push token'ı kontrol et ve arka plan push bildirimi gönder
+    try {
+      const patientDoc = await getDoc(doc(db, 'users', params.patientId));
+      const pData = patientDoc.data();
+      const patientPushToken = pData?.pushToken || pData?.caregiverFcmToken;
+      if (patientPushToken) {
+        await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Accept-encoding': 'gzip, deflate',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: patientPushToken,
+            title: `🔔 ${params.caregiverName || 'Bakıcınız'} İlaç Hatırlatması Gönderdi!`,
+            body:
+              params.customMessage ||
+              `${params.medicineName} (${params.scheduledTime}) ilacınızı almayı unutmayın.`,
+            sound: 'default',
+            priority: 'high',
+            channelId: 'patient-remote-reminders-v1',
+            data: {
+              type: 'remote_reminder',
+              patientId: params.patientId,
+              caregiverId: params.caregiverId,
+              caregiverName: params.caregiverName,
+              medicineId: params.medicineId,
+              medicineName: params.medicineName,
+              scheduledTime: params.scheduledTime,
+              customMessage: params.customMessage,
+            },
+          }),
+        });
+        log.info('Hastaya arka plan push bildirimi gönderildi');
+      }
+    } catch (_pushErr) {
+      log.debug('Hasta push iletim atlandı');
+    }
+
     return { success: true, reminderId };
   } catch (error: any) {
     log.error('Uzaktan hatırlatma gönderme hatası', error);
