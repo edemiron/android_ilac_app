@@ -48,6 +48,7 @@ export default function StatisticsScreen() {
     reminderTimes,
     medicineLogs,
     showPDFOptions,
+    handleShareWhatsAppSummary,
   } = useStatisticsController();
 
   const isTr = language === 'tr';
@@ -229,6 +230,7 @@ export default function StatisticsScreen() {
             {/* 6. Hekim & Eczacı Klinik Raporu Paylaşım Kartı */}
             <DoctorReportCard
               onShowPDFOptions={showPDFOptions}
+              onShareWhatsApp={handleShareWhatsAppSummary}
               isGeneratingPDF={isGeneratingPDF}
               colors={colors}
               isDark={isDark}
@@ -256,6 +258,7 @@ export default function StatisticsScreen() {
             {/* 8. Doktora PDF Raporu Gönderme Kartı */}
             <DoctorReportCard
               onShowPDFOptions={showPDFOptions}
+              onShareWhatsApp={handleShareWhatsAppSummary}
               isGeneratingPDF={isGeneratingPDF}
               colors={colors}
               isDark={isDark}

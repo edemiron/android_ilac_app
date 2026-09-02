@@ -1,6 +1,12 @@
 import { renderHook, act } from '@testing-library/react-native';
 import { format } from 'date-fns';
 import { useAlarmNavigation } from '../../hooks/useAlarmNavigation';
+// v1.7.4: tekillestirme kaydi artik MODUL seviyesinde yasiyor (bkz.
+// utils/notifications/alarmDedup.ts) — kasitli: kayit hook'un yasam
+// dongusunden ve Activity yeniden yaratilmasindan bagimsiz olmali.
+// Bu yuzden testler arasi ACIKCA sifirlanmasi gerekir; aksi halde bir testte
+// acilan alarm sonraki testte "yinelenme" sayilir.
+import { __resetAlarmDedupForTests } from '../../utils/notifications/alarmDedup';
 
 // Mock the medicine store so the hook can read state via getState()
 const mockGetState = jest.fn();
@@ -37,10 +43,16 @@ describe('useAlarmNavigation hook (Sprint 6 DRY)', () => {
   };
 
   beforeEach(() => {
+    __resetAlarmDedupForTests();
     jest.clearAllMocks();
+    const currentTimeStr = format(new Date(), 'HH:mm');
+    const dynamicReminderTime = {
+      ...mockReminderTime,
+      time: currentTimeStr,
+    };
     mockGetState.mockReturnValue({
       getMedicineById: jest.fn().mockReturnValue(mockMedicine),
-      getReminderTimesForMedicine: jest.fn().mockReturnValue([mockReminderTime]),
+      getReminderTimesForMedicine: jest.fn().mockReturnValue([dynamicReminderTime]),
       medicineLogs: [],
       snoozes: [],
       setAlarmActive: jest.fn(),
@@ -173,7 +185,24 @@ describe('useAlarmNavigation hook (Sprint 6 DRY)', () => {
       expect(mockStore.deactivateSnooze).toHaveBeenCalledWith('sn-1');
     });
 
-    it('deduplicates within 60-second window', async () => {
+    it('ayni calmanin ikinci girisi atlanir — DAKIKA SINIRINI gecse bile', async () => {
+      // Ilk giris BILEREK dakikanin son saniyelerinde islenir: sahadan gelen
+      // hata senaryosu tam olarak buydu (bkz. utils/notifications/alarmDedup.ts).
+      jest.useFakeTimers();
+      const fakeNow = new Date('2024-01-15T10:00:59.800Z');
+      jest.setSystemTime(fakeNow);
+
+      mockGetState.mockReturnValue({
+        getMedicineById: jest.fn().mockReturnValue(mockMedicine),
+        getReminderTimesForMedicine: jest
+          .fn()
+          .mockReturnValue([{ ...mockReminderTime, time: '10:00' }]),
+        medicineLogs: [],
+        snoozes: [],
+        setAlarmActive: jest.fn(),
+        deactivateSnooze: jest.fn(),
+      });
+
       const { result } = renderHook(() => useAlarmNavigation(mockOptions));
       const alarmData = {
         medicineId: 'med-1',
@@ -181,17 +210,22 @@ describe('useAlarmNavigation hook (Sprint 6 DRY)', () => {
         scheduledTime: '2024-01-15T10:00:00Z',
       };
 
-      // Use fake timers
-      jest.useFakeTimers();
-      const fakeNow = new Date('2024-01-15T10:00:00Z');
-      jest.setSystemTime(fakeNow);
-
       await act(async () => {
         await result.current.handleIncomingAlarm(alarmData);
       });
       expect(mockOptions.navigateToAlarmScreen).toHaveBeenCalledTimes(1);
 
-      // Same alarm within window — should be skipped
+      // Ayni calmanin ikinci girisi — atlanmali.
+      await act(async () => {
+        await result.current.handleIncomingAlarm(alarmData);
+      });
+      expect(mockOptions.navigateToAlarmScreen).toHaveBeenCalledTimes(1);
+
+      // ⚠️ v1.7.4 REGRESYONU: ucuncu giris DAKIKA SINIRINI gecerek gelir
+      // (yalnizca 500 ms sonra, yani pencere hala acik). Eskiden anahtar duvar
+      // saati dakikasini icerdigi icin burada YENI bir ekran aciliyordu ve
+      // kullanici "Simdi Al"a iki kez basmak zorunda kaliyordu.
+      jest.setSystemTime(new Date('2024-01-15T10:01:00.300Z'));
       await act(async () => {
         await result.current.handleIncomingAlarm(alarmData);
       });

@@ -11,6 +11,7 @@ import { AdvancedSettingsSection } from '../../../components/addMedicine';
 interface AdvancedAlarmCardProps {
   formState: AddMedicineFormState;
   onVibrationPatternChange: (pattern: 'default' | 'heartbeat' | 'urgent' | 'soft') => void;
+  onIsCriticalChange?: (isCritical: boolean) => void;
   colors: ThemeColors;
   language: 'tr' | 'en';
 }
@@ -18,6 +19,7 @@ interface AdvancedAlarmCardProps {
 export function AdvancedAlarmCard({
   formState,
   onVibrationPatternChange,
+  onIsCriticalChange,
   colors,
   language,
 }: AdvancedAlarmCardProps) {
@@ -26,6 +28,7 @@ export function AdvancedAlarmCard({
       <AdvancedSettingsSection
         formState={formState}
         onVibrationPatternChange={onVibrationPatternChange}
+        onIsCriticalChange={onIsCriticalChange}
         label={language === 'tr' ? 'Gelişmiş Alarm Ayarları' : 'Advanced Alarm Settings'}
         colors={colors}
         language={language}

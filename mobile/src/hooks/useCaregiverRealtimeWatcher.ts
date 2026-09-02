@@ -6,7 +6,8 @@
  * sistem bildirimi + tam ekran canlı uyarı fırlatır.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { PatientInfo } from '../types';
@@ -18,9 +19,22 @@ const log = createScopedLogger('useCaregiverRealtimeWatcher');
 export function useCaregiverRealtimeWatcher(patients: PatientInfo[], enabled = true) {
   const seenLogIdsRef = useRef<Set<string>>(new Set());
   const patientMedicinesCacheRef = useRef<Map<string, Map<string, string>>>(new Map());
+  const [isAppActive, setIsAppActive] = useState<boolean>(AppState.currentState === 'active');
+
+  // Arka plana geçildiğinde pil tasarrufu için dinleyicileri duraklat
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      const active = nextAppState === 'active';
+      setIsAppActive(active);
+      log.debug('AppState değişti, realtime dinleyici durumu:', { active });
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
-    if (!enabled || !patients || patients.length === 0) {
+    if (!enabled || !isAppActive || !patients || patients.length === 0) {
       return;
     }
 
@@ -76,16 +90,18 @@ export function useCaregiverRealtimeWatcher(patients: PatientInfo[], enabled = t
                 const logData = change.doc.data() as any;
                 const logId = change.doc.id;
 
-                // Daha önce görüldüyse atla
-                if (seenLogIdsRef.current.has(logId) && change.type !== 'modified') {
-                  return;
-                }
-                seenLogIdsRef.current.add(logId);
-
                 const status = logData.status as 'taken' | 'skipped' | 'missed';
                 if (status !== 'taken' && status !== 'skipped') {
                   return;
                 }
+
+                // Aynı logId ve status kombinasyonu için daha önce uyarı verildiyse tekrar tetikleme
+                const eventKey = `${logId}_${status}`;
+                if (seenLogIdsRef.current.has(eventKey)) {
+                  return;
+                }
+                seenLogIdsRef.current.add(eventKey);
+                seenLogIdsRef.current.add(logId);
 
                 // İlaç ismini çözümle (log içindeki medicineName veya ilaç kataloğundan)
                 let resolvedMedicineName = logData.medicineName;
@@ -107,6 +123,7 @@ export function useCaregiverRealtimeWatcher(patients: PatientInfo[], enabled = t
                 });
 
                 await triggerCaregiverLiveAlert({
+                  alertId: logId,
                   patientId: patient.id,
                   patientName: patient.name || 'Hastanız',
                   medicineName: resolvedMedicineName,
@@ -133,5 +150,5 @@ export function useCaregiverRealtimeWatcher(patients: PatientInfo[], enabled = t
       log.info('Canlı hasta dinleyicileri kapatılıyor');
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [patients, enabled]);
+  }, [patients, enabled, isAppActive]);
 }

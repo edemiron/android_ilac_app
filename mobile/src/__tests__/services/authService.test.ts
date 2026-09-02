@@ -1,8 +1,3 @@
-/**
- * Auth Service Tests
- * Tests for Firebase Authentication and Google Sign-In
- */
-
 import {
   registerWithEmail,
   loginWithEmail,
@@ -11,6 +6,7 @@ import {
   deleteAccount,
   getCurrentUser,
   subscribeToAuthChanges,
+  updateUserDisplayName,
 } from '../../services/authService';
 
 // Mock Firebase Auth
@@ -37,10 +33,25 @@ jest.mock('firebase/auth', () => ({
   signInWithCredential: jest.fn(),
 }));
 
+const mockDoc = jest.fn();
+const mockSetDoc = jest.fn().mockResolvedValue(undefined);
+const mockServerTimestamp = jest.fn(() => 'MOCK_TIMESTAMP');
+
+jest.mock('firebase/firestore', () => ({
+  doc: (...args: unknown[]) => mockDoc(...args),
+  setDoc: (...args: unknown[]) => mockSetDoc(...args),
+  serverTimestamp: () => mockServerTimestamp(),
+}));
+
 // Mock Firebase Config
-const mockAuth = { currentUser: null };
+const mockAuth = { currentUser: null as any };
 jest.mock('../../config/firebase', () => ({
-  auth: { currentUser: null },
+  auth: {
+    get currentUser() {
+      return mockAuth.currentUser;
+    },
+  },
+  db: {},
 }));
 
 // Mock Google Sign-In
@@ -204,6 +215,50 @@ describe('AuthService', () => {
       const unsubscribe = subscribeToAuthChanges(mockCallback);
 
       expect(typeof unsubscribe).toBe('function');
+    });
+  });
+
+  describe('updateUserDisplayName', () => {
+    it('should update display name in Firebase Auth and Firestore', async () => {
+      const mockUser = {
+        uid: 'user-789',
+        email: 'user@example.com',
+        displayName: 'Old Name',
+        photoURL: null,
+        reload: mockReload.mockResolvedValue(undefined),
+      };
+      mockAuth.currentUser = mockUser;
+      mockDoc.mockReturnValue('mock-user-doc-ref');
+
+      const result = await updateUserDisplayName('Yeni Enes');
+
+      expect(mockUpdateProfile).toHaveBeenCalledWith(mockUser, { displayName: 'Yeni Enes' });
+      expect(mockReload).toHaveBeenCalled();
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'users', 'user-789');
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        'mock-user-doc-ref',
+        {
+          displayName: 'Yeni Enes',
+          name: 'Yeni Enes',
+          updatedAt: 'MOCK_TIMESTAMP',
+        },
+        { merge: true }
+      );
+      expect(result.displayName).toBe('Yeni Enes');
+    });
+
+    it('should throw error when no user logged in', async () => {
+      mockAuth.currentUser = null;
+
+      await expect(updateUserDisplayName('Yeni İsim')).rejects.toThrow(
+        'Oturum açmış kullanıcı bulunamadı'
+      );
+    });
+
+    it('should throw error when name is empty', async () => {
+      mockAuth.currentUser = { uid: 'user-123' };
+
+      await expect(updateUserDisplayName('   ')).rejects.toThrow('Kullanıcı adı boş olamaz');
     });
   });
 

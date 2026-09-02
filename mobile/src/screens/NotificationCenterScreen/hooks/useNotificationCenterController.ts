@@ -14,7 +14,7 @@ import {
   checkAllPermissions,
   type PermissionStatus,
 } from '../../../utils/notifications/permissions';
-import { scheduleTestAlarmNotification } from '../../../utils/notifications/schedule';
+import { runLockScreenAlarmTest } from '../../../utils/notifications/testAlarm';
 import { useHaptics } from '../../../hooks/useHaptics';
 
 export type NotificationCenterTab = 'feed' | 'upcoming';
@@ -55,7 +55,6 @@ export function useNotificationCenterController() {
   const reminderTimes = useMedicineStore(state => state.reminderTimes);
   const medicineLogs = useMedicineStore(state => state.medicineLogs);
   const snoozes = useMedicineStore(state => state.snoozes);
-  const settings = useMedicineStore(state => state.settings);
 
   // 1. İzinleri ve Teşhis Durumunu Kontrol Et
   const loadPermissions = useCallback(async () => {
@@ -96,7 +95,7 @@ export function useNotificationCenterController() {
     try {
       setIsSendingTest(true);
       haptics.trigger('medium');
-      await scheduleTestAlarmNotification(5 / 60, 'tr', settings);
+      await runLockScreenAlarmTest({ seconds: 5, language: 'tr' });
       haptics.trigger('success');
       setTestSentMessage('Test alarmı 5 saniye sonra çalacak! 🔔');
       setTimeout(() => {
@@ -112,7 +111,7 @@ export function useNotificationCenterController() {
     } finally {
       setIsSendingTest(false);
     }
-  }, [haptics, isSendingTest, settings]);
+  }, [haptics, isSendingTest]);
 
   // 3. Kronolojik Bildirim & İlaç Etkinlik Akışı (Feed)
   const feedItems = useMemo<FeedItem[]>(() => {

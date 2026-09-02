@@ -35,9 +35,11 @@ export function DataSecuritySection({
 
       <SettingRow
         icon={{ name: 'medkit', color: '#10B981' }}
-        label={isTr ? 'Nöbetçi Eczaneler' : 'On-Duty Pharmacies'}
+        label={isTr ? 'Nöbetçi Eczaneler & Reçetelerim' : 'Duty Pharmacies & Prescriptions'}
         description={
-          isTr ? 'Yakındaki açık eczaneleri haritada bul' : 'Find open pharmacies nearby'
+          isTr
+            ? 'Konum bazlı nöbetçi eczaneler ve reçete yenileme takibi'
+            : 'Find duty pharmacies & manage prescription refills'
         }
         onPress={() => navigation.navigate('DutyPharmacy')}
         showChevron

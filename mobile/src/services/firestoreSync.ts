@@ -305,45 +305,121 @@ export async function getMedicineLogsFromCloud(userId: string): Promise<Medicine
 
 // ============ AYARLAR ============
 
-// Ayarları kaydet
-export async function syncSettingsToCloud(userId: string, settings: UserSettings): Promise<void> {
+/**
+ * Buluttan gelen ayarlar. KISMI'dir: bulut dokumaninda olmayan alanlar
+ * yoktur ve birlestirme sirasinda YEREL deger korunur (bkz.
+ * `mergeSettingsWithUndefined`). Eskiden burada tam bir `UserSettings`
+ * uretiliyordu ve eksik alanlar VARSAYILANLA doldurulup yerel degerleri
+ * eziyordu.
+ */
+export type CloudUserSettings = Partial<UserSettings>;
+
+/**
+ * Ayarları buluta yaz.
+ *
+ * ⚠️ v1.7.2 ONARIM — KORLEMESINE TAM DOKUMAN YAZIMI KALDIRILDI.
+ *
+ * Eskiden bu fonksiyon her cagrida `setDoc` ile dokumanin TAMAMINI yaziyordu.
+ * Indirme yalnizca uygulama acilisinda bir kez yapildigi icin (bkz.
+ * `AuthContext`), bir cihaz gunlerce bayat bir yerel kopya tasiyabiliyor;
+ * o cihazda TEK bir ayar degistirildiginde dokumanin tamami — yani DIGER
+ * cihazin yeni degerleri de — bayat degerlerle EZILIYORDU:
+ *
+ *   1. Tablet: ses 100 → buluta yazildi.
+ *   2. Telefon (o gun hic acilmadi, yerelinde ses hala 80): sessiz saatleri
+ *      acti → TUM dokumani yazdi, buluta ses=80 gitti. Tabletin 100'u
+ *      buluttan SILINDI.
+ *   3. Tablet sonraki acilista indirdi: bulut daha yeni → ses 80'e dondu.
+ *
+ * Ayni sinif hata TEK cihazda da vardi: temiz kurulum + giristen sonra
+ * senkron tamamlanmadan tek bir ayar degistirilirse, dokuman yerel
+ * VARSAYILANLARLA komple eziliyordu.
+ *
+ * Dikkat: bu kayip alan bazli zaman damgasiyla COZULMEZ — bayat deger taze
+ * damgayla yazilir. Kok neden damganin cozunurlugu degil, degismeyen
+ * alanlarin da yazilmasi. Cozum: yalnizca DEGISEN alanlari `{ merge: true }`
+ * ile yazmak.
+ *
+ * @param settings Yazilacak alanlar. `updateSettings` yalnizca degisen
+ *   alanlari geçirir; `uploadAllDataToCloud` ilk tam yukleme icin tam
+ *   nesneyi geçirir.
+ */
+export async function syncSettingsToCloud(
+  userId: string,
+  settings: Partial<UserSettings>
+): Promise<void> {
   const docRef = buildSettingsDocRef(firestoreDb, userId);
-  await setDoc(docRef, {
-    ...settings,
-    updatedAt: Timestamp.now(),
-  });
+
+  // Firestore `undefined` kabul etmez; ayrica tanimsiz alan "degismedi"
+  // demektir, yazilmamali.
+  const payload: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (value !== undefined) {
+      payload[key] = value;
+    }
+  }
+
+  payload.settingsUpdatedAt = settings.settingsUpdatedAt ?? new Date().toISOString();
+  payload.updatedAt = Timestamp.now();
+
+  // merge: true → yalnizca `payload`daki alanlar degisir, dokumandaki diger
+  // alanlar OLDUGU GIBI kalir.
+  await setDoc(docRef, payload, { merge: true });
 }
 
-// Ayarları getir
-export async function getSettingsFromCloud(userId: string): Promise<UserSettings | null> {
+/** Firestore `Timestamp` | ISO string | Date → ISO string */
+function toIsoString(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === 'string') return value;
+  if (value instanceof Date) return value.toISOString();
+  const maybeTimestamp = value as { toDate?: () => Date };
+  if (typeof maybeTimestamp.toDate === 'function') {
+    try {
+      return maybeTimestamp.toDate().toISOString();
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Ayarları getir.
+ *
+ * ⚠️ v1.7.1 ONARIM — iki gercek kusur vardi:
+ *
+ * 1. Alanlar TEK TEK sayiliyordu ve listede 13 ayar YOKTU (guvenlik, TTS,
+ *    kalici bildirim). Bu ayarlar buluta yukleniyor ama GERI INDIRILMIYORDU:
+ *    temiz kurulum + giristen sonra sessizce varsayilana donuyorlardi.
+ * 2. Her alan `?? varsayilan` ile donduruluyordu, yani hicbir alan
+ *    `undefined` gelmiyordu → `mergeSettingsWithUndefined` icin bulut
+ *    KOSULSUZ kaziniyordu. Artik yalnizca dokumanda GERCEKTEN bulunan
+ *    alanlar donuyor ve `settingsUpdatedAt` damgasi da tasiniyor.
+ */
+export async function getSettingsFromCloud(userId: string): Promise<CloudUserSettings | null> {
   const docRef = buildSettingsDocRef(firestoreDb, userId);
   const snapshot = await getDoc(docRef);
 
-  if (snapshot.exists()) {
-    const data = snapshot.data();
-    return {
-      // Sprint 1: 'as UserSettings' cast — Firestore'dan gelen data tüm
-      // UserSettings alanlarını içermeyebilir. Default değerlerle birlikte
-      // döndürüyoruz; eksik alanlar varsa uygulamanın default'ları geçerli.
-      wakeUpTime: data.wakeUpTime ?? '08:00',
-      sleepTime: data.sleepTime ?? '23:00',
-      notificationSound: data.notificationSound ?? 'default',
-      vibrationEnabled: data.vibrationEnabled ?? true,
-      fullScreenAlarmEnabled: data.fullScreenAlarmEnabled ?? true,
-      language: data.language ?? 'tr',
-      alarmSound: data.alarmSound ?? 'alarm',
-      alarmVolume: data.alarmVolume ?? 80,
-      snoozeDuration: data.snoozeDuration ?? 5,
-      maxSnoozeCount: data.maxSnoozeCount ?? 3,
-      quietHoursEnabled: data.quietHoursEnabled ?? false,
-      quietHoursStart: data.quietHoursStart ?? '23:00',
-      quietHoursEnd: data.quietHoursEnd ?? '07:00',
-      alarmModeEnabled: data.alarmModeEnabled ?? true,
-      conflictIntervalMinutes: data.conflictIntervalMinutes ?? 10,
-    } as UserSettings;
+  if (!snapshot.exists()) {
+    return null;
   }
 
-  return null;
+  const data = (snapshot.data() ?? {}) as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    // `updatedAt` bir Firestore Timestamp'i; UserSettings alani degil.
+    if (key === 'updatedAt' || key === 'settingsUpdatedAt') continue;
+    if (value === undefined || value === null) continue;
+    result[key] = value;
+  }
+
+  const stamp = toIsoString(data.settingsUpdatedAt) ?? toIsoString(data.updatedAt);
+  if (stamp) {
+    result.settingsUpdatedAt = stamp;
+  }
+
+  return result as CloudUserSettings;
 }
 
 // ============ TAM SENKRONİZASYON ============
@@ -353,6 +429,15 @@ export interface SyncData {
   reminderTimes: ReminderTime[];
   medicineLogs: MedicineLog[];
   settings: UserSettings;
+}
+
+/**
+ * INDIRME sonucu. `SyncData`dan tek farki: ayarlar KISMI'dir. Yukleme tam bir
+ * `UserSettings` gonderir, indirme ise bulutta gercekten yazili olani dondurur
+ * — bu ayrim olmadan eksik bulut alanlari yerel degerleri eziyordu.
+ */
+export interface CloudSyncData extends Omit<SyncData, 'settings'> {
+  settings: CloudUserSettings;
 }
 
 // Varsayılan ayarlar (merkezi tanım)
@@ -441,7 +526,7 @@ export async function uploadAllDataToCloud(userId: string, data: SyncData): Prom
 }
 
 // Tüm verileri buluttan indir
-export async function downloadAllDataFromCloud(userId: string): Promise<SyncData | null> {
+export async function downloadAllDataFromCloud(userId: string): Promise<CloudSyncData | null> {
   log.debug('Veriler buluttan indiriliyor');
 
   try {
@@ -468,7 +553,10 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
       medicines,
       reminderTimes,
       medicineLogs,
-      settings: settings || DEFAULT_SETTINGS,
+      // Bulutta ayar dokumani YOKSA bos nesne doner: birlestirmede YEREL
+      // ayarlar aynen korunur. Eskiden `DEFAULT_SETTINGS` donuyordu ve
+      // kullanicinin yerel ayarlarini varsayilanlarla eziyordu.
+      settings: settings ?? {},
     };
   } catch (error: unknown) {
     log.error('Buluttan veri indirme hatası', error);

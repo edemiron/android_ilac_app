@@ -237,6 +237,39 @@ export function createMedicinesSlice(
       set(state => ({
         medicines: updateMedicineInList(state.medicines, medicineId, { stockCount: newStock }),
       }));
+
+      const threshold = medicine.stockThreshold ?? 5;
+      if (newStock <= threshold) {
+        try {
+          import('@notifee/react-native')
+            .then(async ({ default: notifee, AndroidImportance }) => {
+              const channelId = await notifee.createChannel({
+                id: 'stock_alerts',
+                name: 'Stok ve Eczane Uyarıları',
+                importance: AndroidImportance.HIGH,
+              });
+
+              await notifee.displayNotification({
+                id: `stock_${medicine.id}`,
+                title: newStock === 0 ? '🚨 İlacınız Bitti!' : '📦 İlaç Stoğunuz Azalıyor!',
+                body:
+                  newStock === 0
+                    ? `${medicine.name} stoğunuz tükendi. Lütfen en kısa sürede eczaneden temin ediniz.`
+                    : `${medicine.name} için son ${newStock} ${medicine.stockUnit || 'adet'} kaldı. Lütfen reçetenizi yenileyiniz.`,
+                android: {
+                  channelId,
+                  smallIcon: 'ic_launcher',
+                  pressAction: {
+                    id: 'default',
+                  },
+                },
+              });
+            })
+            .catch(() => {});
+        } catch (_) {
+          /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
+        }
+      }
     },
 
     clearAllMedicines: () => {

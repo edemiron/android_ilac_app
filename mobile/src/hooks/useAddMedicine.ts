@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { format } from 'date-fns';
@@ -23,6 +23,8 @@ import {
   AddMedicineRouteParams,
   FREQUENCY_OPTIONS,
 } from '../types/addMedicine.types';
+import { CelebrationData } from '../components/addMedicine/MedicineAddedCelebrationModal';
+import { ParsedVoiceMedicine } from '../utils/voiceMedicineParser';
 import { createScopedLogger } from '../utils/logger';
 import {
   parseDosageAmount,
@@ -49,6 +51,30 @@ export function useAddMedicine() {
     : undefined;
   const isEditing = !!existingMedicine;
 
+  // Kutlama & Başarı Modalı State'i
+  const [celebrationState, setCelebrationState] = useState<CelebrationData>({
+    visible: false,
+    medicineName: '',
+  });
+
+  const handleSaveSuccess = useCallback(
+    (data: {
+      medicineName: string;
+      dosageAmount?: string;
+      medicineForm?: string;
+      frequency?: number;
+      firstReminderTime?: string;
+      isTomorrow?: boolean;
+      isEditing?: boolean;
+    }) => {
+      setCelebrationState({
+        visible: true,
+        ...data,
+      });
+    },
+    []
+  );
+
   // Persistence hook
   const {
     handleScanBarcode,
@@ -61,7 +87,16 @@ export function useAddMedicine() {
     medicineId: routeParams.medicineId,
     t,
     language,
+    onSaveSuccess: handleSaveSuccess,
   });
+
+  const handleDismissCelebration = useCallback(() => {
+    setCelebrationState(prev => ({ ...prev, visible: false }));
+    handleCancel();
+  }, [handleCancel]);
+
+  // Sesli Asistan Modalı State'i
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
 
   // Yeni ilaç için otomatik renk belirle
   const initialColor = existingMedicine?.color || getNextAvailableColor();
@@ -108,6 +143,7 @@ export function useAddMedicine() {
     requireBarcodeOnTake: existingMedicine?.requireBarcodeOnTake ?? false,
     barcode: existingMedicine?.barcode,
     vibrationPattern: existingMedicine?.vibrationPattern ?? 'default',
+    isCritical: existingMedicine?.isCritical ?? false,
     // Gelişmiş Zamanlama
     scheduleType: existingMedicine?.scheduleType ?? 'daily',
     specificDays: existingMedicine?.specificDays ?? [1, 2, 3, 4, 5],
@@ -167,17 +203,24 @@ export function useAddMedicine() {
     routeParams.barcode,
   ]);
 
+  // Seçilen ilacı takip etmek için ref (seçimden sonra tekrar otomatik tamamlama açılmasın)
+  const lastSelectedNameRef = useRef<string | null>(null);
+
   // Autocomplete effect - race condition korumalı
   useEffect(() => {
     let cancelled = false;
 
     const searchAutocomplete = async () => {
-      if (routeParams.prefillName || routeParams.scannedName) {
+      if (
+        (lastSelectedNameRef.current && debouncedName === lastSelectedNameRef.current) ||
+        (routeParams.prefillName && debouncedName === routeParams.prefillName) ||
+        (routeParams.scannedName && debouncedName === routeParams.scannedName)
+      ) {
         setAutocompleteState(prev => ({ ...prev, showAutocomplete: false }));
         return;
       }
 
-      if (debouncedName.length < 2 || !autocompleteState.inputFocused) {
+      if (debouncedName.length < 2) {
         setAutocompleteState(prev => ({ ...prev, showAutocomplete: false, results: [] }));
         return;
       }
@@ -233,6 +276,9 @@ export function useAddMedicine() {
   // Form field updaters
   const updateFormField = useCallback(
     <K extends keyof AddMedicineFormState>(field: K, value: AddMedicineFormState[K]) => {
+      if (field === 'name') {
+        lastSelectedNameRef.current = null;
+      }
       setFormState(prev => ({ ...prev, [field]: value }));
     },
     []
@@ -267,8 +313,28 @@ export function useAddMedicine() {
   }, []);
 
   const handleSelectAutocomplete = useCallback((item: MedicineAutocompleteResult) => {
-    setFormState(prev => ({ ...prev, name: item.name, dosage: item.dosage }));
-    setAutocompleteState(prev => ({ ...prev, showAutocomplete: false, inputFocused: false }));
+    lastSelectedNameRef.current = item.name;
+    setFormState(prev => {
+      const validForm = item.form || prev.medicineForm;
+      const amountMatch = (item.dosage || '').match(/^(\d+[.,]?\d*)/);
+      const dosageAmount = amountMatch ? amountMatch[1] : prev.dosageAmount || '1';
+      const dosage = item.dosage || buildDosageString(dosageAmount, validForm);
+
+      return {
+        ...prev,
+        name: item.name,
+        dosage,
+        dosageAmount,
+        medicineForm: validForm,
+        barcode: item.barcode || prev.barcode,
+      };
+    });
+    setAutocompleteState(prev => ({
+      ...prev,
+      showAutocomplete: false,
+      inputFocused: false,
+      results: [],
+    }));
   }, []);
 
   // Time management callbacks
@@ -470,6 +536,35 @@ export function useAddMedicine() {
     }
   }, [language, showAlert]);
 
+  const handleRemovePhoto = useCallback(() => {
+    setFormState(prev => ({ ...prev, imageUri: undefined }));
+  }, []);
+
+  const handleApplyVoiceMedicine = useCallback((parsed: ParsedVoiceMedicine) => {
+    setFormState(prev => {
+      const updated = { ...prev };
+      if (parsed.name) updated.name = parsed.name;
+      if (parsed.dosageAmount) {
+        updated.dosageAmount = parsed.dosageAmount;
+        updated.dosage = parsed.dosage || `${parsed.dosageAmount} MG`;
+      }
+      if (parsed.medicineForm) updated.medicineForm = parsed.medicineForm;
+      if (parsed.frequency) {
+        updated.frequency = parsed.frequency;
+        updated.customTimes = getInitialAutoTimes(parsed.frequency);
+        updated.useCustomTimes = true;
+      }
+      if (parsed.instruction) updated.instruction = parsed.instruction;
+      if (parsed.durationDays) {
+        const now = new Date();
+        const end = new Date(now.getTime() + parsed.durationDays * 24 * 60 * 60 * 1000);
+        updated.endDate = end.toISOString().split('T')[0];
+        updated.scheduleType = 'cycle';
+      }
+      return updated;
+    });
+  }, []);
+
   return {
     routeParams,
     isEditing,
@@ -494,6 +589,7 @@ export function useAddMedicine() {
     settings,
     handleScanBarcode,
     handleScanPhotoBox,
+    handleRemovePhoto,
     isAnalyzingPhoto,
     handleSave,
     handleCancel,
@@ -501,5 +597,11 @@ export function useAddMedicine() {
     handleDosageAmountChange,
     handleMedicineFormChange,
     handleAutoTimes,
+    // Yeni İnce Dokunuşlar & Mikro-Deneyimler
+    celebrationState,
+    handleDismissCelebration,
+    voiceModalVisible,
+    setVoiceModalVisible,
+    handleApplyVoiceMedicine,
   };
 }

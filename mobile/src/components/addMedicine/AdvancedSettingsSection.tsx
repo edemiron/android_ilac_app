@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { ThemeColors } from '../../contexts/ThemeContext';
 import { AddMedicineFormState } from '../../types/addMedicine.types';
@@ -7,6 +7,7 @@ import { AddMedicineFormState } from '../../types/addMedicine.types';
 interface AdvancedSettingsSectionProps {
   formState: AddMedicineFormState;
   onVibrationPatternChange: (pattern: 'default' | 'heartbeat' | 'urgent' | 'soft') => void;
+  onIsCriticalChange?: (isCritical: boolean) => void;
   label: string;
   colors: ThemeColors;
   language: 'tr' | 'en';
@@ -15,6 +16,7 @@ interface AdvancedSettingsSectionProps {
 export const AdvancedSettingsSection: React.FC<AdvancedSettingsSectionProps> = ({
   formState,
   onVibrationPatternChange,
+  onIsCriticalChange,
   label,
   colors,
   language,
@@ -31,6 +33,57 @@ export const AdvancedSettingsSection: React.FC<AdvancedSettingsSectionProps> = (
   return (
     <View style={styles.container}>
       <Text style={[styles.title, { color: colors.text }]}>{label}</Text>
+
+      {/* Hayati / Kritik İlaç Kalkanı */}
+      {onIsCriticalChange && (
+        <View
+          style={[
+            styles.settingRow,
+            {
+              backgroundColor: colors.background,
+              borderColor: formState.isCritical ? '#EF4444' : colors.border,
+              borderWidth: formState.isCritical ? 1.5 : 1,
+              marginBottom: 12,
+              borderRadius: 12,
+            },
+          ]}
+        >
+          <View style={styles.settingInfo}>
+            <View
+              style={[
+                styles.iconContainer,
+                {
+                  backgroundColor: formState.isCritical
+                    ? 'rgba(239, 68, 68, 0.15)'
+                    : 'rgba(0,0,0,0.05)',
+                },
+              ]}
+            >
+              <Ionicons
+                name="shield-checkmark"
+                size={20}
+                color={formState.isCritical ? '#EF4444' : colors.textMuted}
+              />
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={[styles.settingTitle, { color: colors.text, fontWeight: '700' }]}>
+                {isTr ? '🚨 Hayati / Kritik İlaç' : '🚨 Critical Medication'}
+              </Text>
+              <Text style={[styles.settingDescription, { color: colors.textMuted }]}>
+                {isTr
+                  ? 'Sessiz modda dahi yüksek sesle çalar ve ısrarlı alarm verir.'
+                  : 'Rings loudly even in silent mode with persistent alarms.'}
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={!!formState.isCritical}
+            onValueChange={onIsCriticalChange}
+            trackColor={{ false: colors.border, true: '#EF4444' }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      )}
 
       {/* Titreşim Deseni */}
       <View

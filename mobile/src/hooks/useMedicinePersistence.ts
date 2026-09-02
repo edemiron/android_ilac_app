@@ -34,6 +34,15 @@ interface UseMedicinePersistenceProps {
   medicineId?: string;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   language: 'tr' | 'en';
+  onSaveSuccess?: (data: {
+    medicineName: string;
+    dosageAmount?: string;
+    medicineForm?: string;
+    frequency?: number;
+    firstReminderTime?: string;
+    isTomorrow?: boolean;
+    isEditing?: boolean;
+  }) => void;
 }
 
 export function useMedicinePersistence({
@@ -41,6 +50,7 @@ export function useMedicinePersistence({
   medicineId,
   t,
   language,
+  onSaveSuccess,
 }: UseMedicinePersistenceProps) {
   const navigation = useNavigation<NavigationProp>();
   const { showAlert, showError } = useAlert();
@@ -247,6 +257,7 @@ export function useMedicinePersistence({
           requireBarcodeOnTake: formState.requireBarcodeOnTake,
           barcode: formState.barcode,
           vibrationPattern: formState.vibrationPattern,
+          isCritical: formState.isCritical,
           // Gelişmiş Zamanlama
           scheduleType: formState.scheduleType,
           specificDays:
@@ -258,8 +269,7 @@ export function useMedicinePersistence({
           endDate: formState.endDate || undefined,
         };
 
-        // Önce navigation'ı yap - async işlemler uzun sürerse kullanıcı beklemez
-        navigation.goBack();
+        let newMedicineId = '';
 
         if (isEditing && medicineId) {
           log.debug('Düzenleme modu - medicineData', {
@@ -308,7 +318,7 @@ export function useMedicinePersistence({
             }
           }
         } else {
-          const newMedicineId = addMedicine({
+          newMedicineId = addMedicine({
             ...medicineData,
             startDate: new Date().toISOString(),
           });
@@ -366,6 +376,44 @@ export function useMedicinePersistence({
           }
         }
 
+        const freshState = useMedicineStore.getState();
+        const activeId = isEditing && medicineId ? medicineId : newMedicineId;
+        const finalTimes = activeId ? freshState.getReminderTimesForMedicine(activeId) : [];
+
+        // Akıllı Sonraki Doz Zamanı Tespiti (ZCode GLM-5.3 Flash High)
+        let nextReminder: string | undefined;
+        let isTomorrow = false;
+
+        if (finalTimes.length > 0) {
+          const now = new Date();
+          const currentHHmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          const sortedTimes = [...finalTimes].map(t => t.time).sort();
+          const upcomingToday = sortedTimes.find(t => t > currentHHmm);
+
+          if (upcomingToday) {
+            nextReminder = upcomingToday;
+            isTomorrow = false;
+          } else {
+            // Bugünün tüm saatleri geçmişse, yarının ilk dozu
+            nextReminder = sortedTimes[0];
+            isTomorrow = true;
+          }
+        }
+
+        if (onSaveSuccess) {
+          onSaveSuccess({
+            medicineName: formState.name,
+            dosageAmount: formState.dosageAmount,
+            medicineForm: formState.medicineForm,
+            frequency: formState.frequency,
+            firstReminderTime: nextReminder,
+            isTomorrow,
+            isEditing,
+          });
+        } else {
+          navigation.goBack();
+        }
+
         return true;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -389,11 +437,18 @@ export function useMedicinePersistence({
 
   const handleSave = useCallback(
     async (formState: AddMedicineFormState) => {
-      // Sprint 8.4: inline trim -> sanitizeMedicineName helper'a delege.
+      // İlaç adı kontrolü (Türkçe/İngilizce açık bilgilendirme)
       if (!sanitizeMedicineName(formState.name)) {
-        showError(t('error'), t('error_required_field'));
+        showError(t('error_medicine_name_required_title'), t('error_medicine_name_required'));
         return false;
       }
+
+      // Hatırlatma saati kontrolü
+      if (!formState.customTimes || formState.customTimes.length === 0) {
+        showError(t('error'), t('error_reminder_times_required'));
+        return false;
+      }
+
       // Dosage empty check removed as it's built dynamically and often has a safe fallback
       if (!isEditing) {
         const activeMedicines = medicines.filter(m => m.isActive);

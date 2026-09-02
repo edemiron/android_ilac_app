@@ -97,7 +97,6 @@ export function setupNotificationListeners(
         }
 
         log.debug('Full screen alarm - opening alarm screen');
-        await notifee.cancelDisplayedNotification(notification.id);
 
         // pending-alarm'i temizle — checkInitialNotification ile cakismayi engelle
         try {
@@ -106,6 +105,10 @@ export function setupNotificationListeners(
           /* ignore */
         }
 
+        // ONCE alarm ekranina yonlendir. Bildirimi burada iptal ETMIYORUZ:
+        // kilit ekranini asan tek mekanizma bu bildirimin FullScreenIntent'i ve
+        // sistem onu tam bu anda kullaniyor. Iptali AlarmScreen mount edildiginde
+        // (useAlarmController mount effect) yapiliyor.
         onAlarmPress({
           medicineId: medId,
           reminderTimeId: remId,
@@ -120,9 +123,6 @@ export function setupNotificationListeners(
 
     // ─── PRESS ───
     if (type === EventType.PRESS) {
-      if (notification?.id) {
-        await notifee.cancelDisplayedNotification(notification.id);
-      }
       if (notification?.data) {
         onAlarmPress({
           medicineId: notification.data.medicineId as string,
@@ -134,11 +134,45 @@ export function setupNotificationListeners(
           snoozeCount: notification.data.snoozeCount as string | undefined,
         });
       }
+      // Yonlendirmeden SONRA iptal et.
+      if (notification?.id) {
+        await notifee.cancelDisplayedNotification(notification.id);
+      }
     }
 
     // ─── ACTION_PRESS ───
     if (type === EventType.ACTION_PRESS && pressAction) {
-      onAction(pressAction.id, notification?.data);
+      const medId = notification?.data?.medicineId as string;
+      const remId = notification?.data?.reminderTimeId as string;
+
+      if (notification?.id) {
+        await notifee.cancelDisplayedNotification?.(notification.id)?.catch?.(() => undefined);
+        await notifee.cancelNotification?.(notification.id)?.catch?.(() => undefined);
+      }
+      if (medId && remId) {
+        const alarmId = `alarm-${medId}-${remId}`;
+        await notifee.cancelDisplayedNotification?.(alarmId)?.catch?.(() => undefined);
+        await notifee.cancelNotification?.(alarmId)?.catch?.(() => undefined);
+      }
+
+      try {
+        const displayed = (await notifee.getDisplayedNotifications?.()) || [];
+        for (const d of displayed) {
+          if (d.id === notification?.id || (medId && d.notification?.data?.medicineId === medId)) {
+            if (d.id) await notifee.cancelDisplayedNotification?.(d.id)?.catch?.(() => undefined);
+          }
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+
+      // `notificationId` notifee'nin `NotificationData` tipinde tanimli degil
+      // ama action handler'lar bildirimi iptal edebilmek icin buna ihtiyac
+      // duyuyor; veri sozlugu calisma zamaninda serbest bicimli.
+      onAction(pressAction.id, {
+        ...(notification?.data || {}),
+        notificationId: notification?.id,
+      } as Record<string, unknown>);
     }
   });
 }

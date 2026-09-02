@@ -11,7 +11,8 @@ import {
   signInWithCredential,
   signInAnonymously,
 } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
 import {
   GoogleSignin,
   statusCodes,
@@ -20,6 +21,9 @@ import {
 } from '@react-native-google-signin/google-signin';
 import Config from 'react-native-config';
 
+const DEFAULT_GOOGLE_WEB_CLIENT_ID =
+  '708668760763-2ta9pf3rrtn8cg7ihf16tsct42e06mq6.apps.googleusercontent.com';
+
 // Google Sign-In yapılandırması
 let isGoogleConfigured = false;
 
@@ -27,7 +31,7 @@ export function configureGoogleSignIn(): void {
   if (isGoogleConfigured) return;
 
   GoogleSignin.configure({
-    webClientId: Config.GOOGLE_WEB_CLIENT_ID || '',
+    webClientId: Config.GOOGLE_WEB_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID,
     offlineAccess: true,
   });
   isGoogleConfigured = true;
@@ -35,8 +39,8 @@ export function configureGoogleSignIn(): void {
 
 // Google OAuth Client IDs - .env dosyasından okunur
 export const GOOGLE_CLIENT_ID = {
-  androidClientId: Config.GOOGLE_ANDROID_CLIENT_ID || '',
-  webClientId: Config.GOOGLE_WEB_CLIENT_ID || '',
+  androidClientId: Config.GOOGLE_ANDROID_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID,
+  webClientId: Config.GOOGLE_WEB_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID,
 };
 
 export interface AuthUser {
@@ -90,6 +94,54 @@ export async function loginWithEmail(email: string, password: string): Promise<A
   } catch (error: unknown) {
     const authError = error as { code?: string };
     throw translateAuthError(authError.code || 'unknown');
+  }
+}
+
+// Kullanıcı adını (displayName) güncelle
+export async function updateUserDisplayName(displayName: string): Promise<AuthUser> {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('Oturum açmış kullanıcı bulunamadı.');
+    }
+
+    const trimmed = displayName.trim();
+    if (!trimmed) {
+      throw new Error('Kullanıcı adı boş olamaz.');
+    }
+
+    // 1. Firebase Auth profilini güncelle
+    await updateProfile(currentUser, { displayName: trimmed });
+    await currentUser.reload();
+
+    // 2. Firestore users koleksiyonunu güncelle (varsa)
+    try {
+      const userRef = doc(db, 'users', currentUser.uid);
+      await setDoc(
+        userRef,
+        {
+          displayName: trimmed,
+          name: trimmed,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (_firestoreErr) {
+      // Offline or error - ignore
+    }
+
+    return {
+      uid: currentUser.uid,
+      email: currentUser.email,
+      displayName: trimmed,
+      photoURL: currentUser.photoURL,
+    };
+  } catch (error: unknown) {
+    const authError = error as { code?: string; message?: string };
+    if (authError.code) {
+      throw translateAuthError(authError.code);
+    }
+    throw error;
   }
 }
 

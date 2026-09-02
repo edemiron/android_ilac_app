@@ -2,7 +2,7 @@
   "expo": {
     "name": "İlaç Hatırlatıcı",
     "slug": "ilac-hatirlatici",
-    "version": "1.3.2",
+    "version": "1.6.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ilachatirlatici",
-      "buildNumber": "15",
+      "buildNumber": "37",
       "infoPlist": {
         "UIBackgroundModes": ["audio", "fetch", "remote-notification"],
         "NSCameraUsageDescription": "Barkod taramak için kamera erişimi gereklidir.",
@@ -29,7 +29,7 @@
         "backgroundColor": "#4ECDC4"
       },
       "package": "com.ilachatirlatici",
-      "versionCode": 15,
+      "versionCode": 37,
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": true,
       "intentFilters": [
@@ -125,12 +125,12 @@
         "projectId": "ilachatirlatici-15a71",
         "storageBucket": "ilachatirlatici-15a71.firebasestorage.app",
         "messagingSenderId": "506876057044",
-        "appId": "1:506876057044:web:cc6229ad867dc9fbd53241",
+        "appId": "1:506876057044:android:5d2d26ddbe32c8c4d53241",
         "functionsBaseUrl": "REPLACE_WITH_ENV_FUNCTIONS_BASE_URL",
         "aiProvider": "gemini"
       },
       "google": {
-        "androidClientId": "506876057044-61gujph23tf9gf0366ohpsi3pdp70phi.apps.googleusercontent.com",
+        "androidClientId": "506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com",
         "webClientId": "506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com"
       }
     }

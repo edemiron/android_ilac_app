@@ -8,7 +8,6 @@ import {
   Platform,
   ActivityIndicator,
   StyleSheet,
-  Alert,
   TouchableOpacity,
   Text,
   AppState,
@@ -70,6 +69,7 @@ import {
   cancelMedicineNotifications,
   cleanupOrphanNotifications,
   cancelAllNotifications,
+  createNotificationChannels,
 } from './src/utils/notifications';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { generateId } from './src/utils/idGenerator';
@@ -87,15 +87,22 @@ import { CaregiverEventBridge } from './src/components/CaregiverEventBridge'; //
 import { usePermissionsGate } from './src/hooks/usePermissionsGate';
 import { useSecurityGate } from './src/hooks/useSecurityGate';
 import { useBootRecovery } from './src/hooks/useBootRecovery';
-import { useAlarmNavigation, type PendingAlarmData } from './src/hooks/useAlarmNavigation';
+import { useAlarmNavigation } from './src/hooks/useAlarmNavigation';
+import type { AlarmScreenNavigationParams } from './src/utils/alarmNavigation';
 import {
-  getBootRecoveryResult,
-  clearBootRecoveryResult,
-  reRegisterAllAlarms,
-} from './src/utils/bootHandler';
+  getAlarmNotificationId,
+  buildSnoozeNotificationId as buildSnoozeNotificationIdWithSnoozeId,
+} from './src/utils/notifications/ids';
+import { reRegisterAllAlarms } from './src/utils/bootHandler';
+// "Bu doz bugun zaten alindi mi?" ve "bugun" gun anahtari icin TEK KAYNAK.
+// Bu dosyada iki kopya predicate ve UTC gun oneki vardi; ayrintili gerekce
+// src/domain/doseLog.ts dosya basinda.
+import { isDoseLogged, getLocalDateKey } from './src/domain/doseLog';
 import { isAlarmHandled } from './index';
 import { createScopedLogger } from './src/utils/logger';
 import { STORAGE_KEYS } from './src/constants';
+import { CaregiverFullScreenAlertModal } from './src/screens/CaregiverScreen/components/CaregiverFullScreenAlertModal';
+import { PatientFullScreenReminderModal } from './src/components/PatientFullScreenReminderModal';
 
 const appLog = createScopedLogger('App');
 
@@ -178,7 +185,10 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
       label: language === 'tr' ? 'Bugün' : 'Today',
       iconActive: 'home',
       iconInactive: 'home-outline',
-      onPress: () => navigation.navigate('Home'),
+      onPress: () => {
+        haptics.trigger('selection');
+        navigation.navigate('Home');
+      },
       tabIndex: 0,
     },
     {
@@ -187,7 +197,10 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
       label: language === 'tr' ? 'İlaçlarım' : 'Medicines',
       iconActive: 'medical',
       iconInactive: 'medical-outline',
-      onPress: () => navigation.navigate('Medicines'),
+      onPress: () => {
+        haptics.trigger('selection');
+        navigation.navigate('Medicines');
+      },
       tabIndex: 1,
     },
   ];
@@ -199,7 +212,10 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
       label: language === 'tr' ? 'Takvim' : 'Calendar',
       iconActive: 'calendar',
       iconInactive: 'calendar-outline',
-      onPress: () => navigation.navigate('Statistics'),
+      onPress: () => {
+        haptics.trigger('selection');
+        navigation.navigate('Statistics');
+      },
       tabIndex: 2,
     },
     {
@@ -208,7 +224,10 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
       label: language === 'tr' ? 'Ayarlar' : 'Settings',
       iconActive: 'settings',
       iconInactive: 'settings-outline',
-      onPress: () => navigation.navigate('Settings'),
+      onPress: () => {
+        haptics.trigger('selection');
+        navigation.navigate('Settings');
+      },
       tabIndex: 3,
     },
   ];
@@ -590,27 +609,84 @@ function AppContent() {
   // 8 callback'ten 4'e indi.
   const { pendingAlarm, setPendingAlarm, handleIncomingAlarm } = useAlarmNavigation({
     isNavigationReady: () => navigationRef.current?.isReady() ?? false,
+    // v1.7.4 — KESİN yinelenme kontrolü. Aynı çalma 5 ayrı yoldan geliyor;
+    // ekran zaten bu doz için açıksa ikinci yol yeni bir ekran AÇMAMALI.
+    // Eskiden yalnızca duvar saati dakikasına dayanan bir pencere vardı ve
+    // çalma dakika sınırına denk geldiğinde tutmuyordu (bkz.
+    // src/utils/notifications/alarmDedup.ts).
+    isAlarmScreenOpenFor: (medicineId: string, reminderTimeId: string) => {
+      try {
+        const route = navigationRef.current?.getCurrentRoute?.();
+        if (route?.name !== 'Alarm') return false;
+        const params = route.params as { medicineId?: string; reminderTimeId?: string } | undefined;
+        return params?.medicineId === medicineId && params?.reminderTimeId === reminderTimeId;
+      } catch (_e) {
+        return false;
+      }
+    },
     isAlarmAlreadyHandled: async (
       medicineId: string,
       reminderTimeId: string,
-      scheduledTime: string
+      _scheduledTime: string
     ) => {
       if (medicineId === 'test-medicine') return false;
-      const today = new Date().toISOString().split('T')[0];
-      return await isAlarmHandled(`${medicineId}-${reminderTimeId}-${today}`);
+      // ⚠️ v1.7.4 — gün anahtarı YEREL. Eskiden `toISOString().split('T')[0]`
+      // ile UTC günü alınıyordu; TR (UTC+3) 00:00–03:00 arası dozlar bir
+      // önceki güne düşüyordu ve `isAlarmHandled` anahtarı index.ts ile
+      // aynı günü göstermiyordu.
+      const today = getLocalDateKey(new Date());
+      const handledInSet = await isAlarmHandled(`${medicineId}-${reminderTimeId}-${today}`);
+      if (handledInSet) return true;
+
+      // Store medicineLogs kontrolü — karar `src/domain/doseLog.ts`te.
+      // Eskiden burada `reminderTimeId || medicineId` OR'u vardı; `medicineId`
+      // her logda dolu olduğu için ilacın sabah dozu alınınca akşam alarmı da
+      // "zaten işlenmiş" sayılıp hiç açılmıyordu.
+      const state = useMedicineStore.getState();
+      if (isDoseLogged(state.medicineLogs || [], { reminderTimeId, medicineId })) {
+        return true;
+      }
+
+      // AsyncStorage fallback (store henüz hydrate olmadıysa)
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEYS.MEDICINE_STORAGE);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const logs = parsed?.state?.medicineLogs || [];
+          return isDoseLogged(logs, { reminderTimeId, medicineId });
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+
+      return false;
     },
-    navigateToAlarmScreen: (data: PendingAlarmData) => {
+    navigateToAlarmScreen: (data: AlarmScreenNavigationParams) => {
       navigationRef.current?.navigate('Alarm', {
         medicineId: data.medicineId,
         reminderTimeId: data.reminderTimeId,
         scheduledTime: data.scheduledTime,
-        snoozeCount: data.snoozeCount ? parseInt(data.snoozeCount, 10) : undefined,
+        // `snoozeCount` handleIncomingAlarmNavigation icinde ZATEN number'a
+        // cevrildi; burada tekrar parseInt uygulanmaz (eskiden uygulaniyordu).
+        snoozeCount: data.snoozeCount,
         originalScheduledTime: data.originalScheduledTime,
+        // Ekran hangi native requestCode uzayini iptal edecegini bilmeli.
+        isSnooze: data.isSnooze,
+        snoozeId: data.snoozeId,
       });
-      // Bildirimi HEMEN iptal et — foreground DELIVERED handler tekrar tetiklenmesin
-      notifee
-        .cancelDisplayedNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`)
-        .catch(() => undefined);
+      // Bildirimi HEMEN iptal et — foreground DELIVERED handler tekrar tetiklenmesin.
+      // ERTELEME bildirimi `snooze-<med>-<rt>-<snoozeId>` kimligini tasir; eskiden
+      // burada kosulsuz `alarm-` kimligi iptal ediliyordu, erteleme bildirimi
+      // ekranda kaliyordu.
+      const displayedId =
+        data.isSnooze && data.snoozeId
+          ? buildSnoozeNotificationIdWithSnoozeId(
+              data.medicineId,
+              data.reminderTimeId,
+              data.snoozeId
+            )
+          : getAlarmNotificationId(data.medicineId, data.reminderTimeId);
+      notifee.cancelDisplayedNotification(displayedId).catch(() => undefined);
     },
     cancelMedicineNotifications,
   });
@@ -654,6 +730,32 @@ function AppContent() {
 
     const notificationId = `alarm-${data.medicineId}-${data.reminderTimeId}`;
 
+    // Bildirimi hemen kaldır (Görünür bildirim barından sil)
+    const clearAllRelatedNotifications = async () => {
+      await dismissNotification(notificationId).catch(() => undefined);
+      if (data.notificationId) {
+        await dismissNotification(data.notificationId).catch(() => undefined);
+      }
+      try {
+        await notifee.cancelDisplayedNotification(notificationId).catch(() => undefined);
+        if (data.notificationId) {
+          await notifee.cancelDisplayedNotification(data.notificationId).catch(() => undefined);
+        }
+        const displayed = await notifee.getDisplayedNotifications();
+        for (const d of displayed) {
+          if (
+            d.id === notificationId ||
+            d.id === data.notificationId ||
+            (data.medicineId && d.notification?.data?.medicineId === data.medicineId)
+          ) {
+            if (d.id) await notifee.cancelDisplayedNotification(d.id).catch(() => undefined);
+          }
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+    };
+
     if (actionId === 'take' || actionId === 'taken') {
       // İlaç alındı olarak işaretle (medicineId fallback ile)
       logMedicineTaken(
@@ -661,10 +763,12 @@ function AppContent() {
         data.scheduledTime || new Date().toISOString(),
         data.medicineId
       );
-      await dismissNotification(notificationId);
+      await clearAllRelatedNotifications();
       // Kalıcı bildirim varsa onu da kaldır
       if (data.isPersistent === 'true') {
-        await dismissNotification(`persistent-${data.medicineId}-${data.reminderTimeId}`);
+        await dismissNotification(`persistent-${data.medicineId}-${data.reminderTimeId}`).catch(
+          () => undefined
+        );
       }
       console.log('İlaç alındı işaretlendi:', data.medicineId);
     } else if (actionId === 'skip') {
@@ -674,7 +778,7 @@ function AppContent() {
         data.scheduledTime || new Date().toISOString(),
         data.medicineId
       );
-      await dismissNotification(notificationId);
+      await clearAllRelatedNotifications();
       console.log('İlaç atlandı işaretlendi:', data.medicineId);
     } else if (actionId === 'snooze') {
       if (processedSnoozesRef.current.has(notificationId)) {
@@ -745,10 +849,13 @@ function AppContent() {
   useEffect(() => {
     const performStartupCleanup = async () => {
       try {
+        // Bildirim kanallarını oluştur (HIGH importance + PUBLIC visibility)
+        await createNotificationChannels();
+
         // Eski displayed bildirimleri temizle
         // Sadece non-alarm bildirimleri ve zaten handle edilmiş alarmları temizle
         const displayedNotifications = await notifee.getDisplayedNotifications();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateKey(new Date()); // YEREL gun (UTC degil) — bkz. src/domain/doseLog.ts
 
         for (const notification of displayedNotifications) {
           const id = notification.notification.id;
@@ -797,11 +904,13 @@ function AppContent() {
           appLog.debug('Startup alarm re-register done', { ...result });
         }
 
-        const recovery = await getBootRecoveryResult();
-        if (recovery && (recovery.reminders > 0 || recovery.snoozes > 0)) {
-          // setBootRecovery useBootRecovery hook'unda — burada bir sey yapmaya gerek yok.
-          await clearBootRecoveryResult();
-        }
+        // v1.7.1: boot recovery sonucunu BURADA okumuyoruz.
+        //
+        // Eskiden hem burada hem `useBootRecovery` icinde okunup
+        // `clearBootRecoveryResult()` cagriliyordu — hangisi once calisirsa
+        // sonucu siliyordu, dolayisiyla kullaniciya gosterilen kurtarma
+        // bildirimi SESSIZCE hic gorunmeyebiliyordu. Artik tek sahibi
+        // `useBootRecovery` hook'u.
       } catch (error) {
         appLog.error('Startup cleanup failed', error);
       }
@@ -818,24 +927,44 @@ function AppContent() {
     // Background event handler artık index.ts'te register ediliyor
 
     const checkInitialNotification = async () => {
-      // 1. Önce AsyncStorage'daki pending-alarm'ı kontrol et (BG handler'dan gelir)
+      // 1. Native AlarmModule'da bekleyen alarm var mı? (Cold start & intent cache)
+      try {
+        const { NativeModules } = require('react-native');
+        if (NativeModules.AlarmModule?.getInitialAlarm) {
+          const initAlarm = await NativeModules.AlarmModule.getInitialAlarm();
+          if (initAlarm?.medicineId) {
+            await NativeModules.AlarmModule.clearInitialAlarm().catch(() => undefined);
+            appLog.debug('Native getInitialAlarm found', initAlarm);
+            handleIncomingAlarm({
+              medicineId: initAlarm.medicineId,
+              reminderTimeId: initAlarm.reminderTimeId || 'test-reminder',
+              scheduledTime: initAlarm.scheduledTime || new Date().toISOString(),
+            });
+            return;
+          }
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+
+      // 2. AsyncStorage'daki pending-alarm'ı kontrol et (BG handler'dan gelir)
       try {
         const pendingRaw = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM);
         if (pendingRaw) {
           await AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
           const pending = JSON.parse(pendingRaw);
-          // 60 saniye içinde yazıldıysa geçerli
-          if (pending.ts && Date.now() - pending.ts < 60_000 && pending.medicineId) {
+          // 120 saniye içinde yazıldıysa geçerli
+          if (pending.ts && Date.now() - pending.ts < 120_000 && pending.medicineId) {
             appLog.debug('pending-alarm found', {
               medicineId: pending.medicineId,
               snoozeCount: pending.snoozeCount,
               ageMs: Date.now() - pending.ts,
             });
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLocalDateKey(new Date()); // YEREL gun (UTC degil) — bkz. src/domain/doseLog.ts
             const key = `${pending.medicineId}-${pending.reminderTimeId}-${today}`;
             const handled = await isAlarmHandled(key);
             if (!handled) {
-              setPendingAlarm({
+              handleIncomingAlarm({
                 medicineId: pending.medicineId,
                 reminderTimeId: pending.reminderTimeId,
                 scheduledTime: pending.scheduledTime,
@@ -844,7 +973,7 @@ function AppContent() {
                 snoozeCount: pending.snoozeCount,
                 originalScheduledTime: pending.originalScheduledTime,
               });
-              return; // pending-alarm bulundu, initialNotification'a bakmaya gerek yok
+              return; // pending-alarm bulundu
             }
           }
         }
@@ -852,7 +981,30 @@ function AppContent() {
         /* ignore */
       }
 
-      // 2. Notifee initialNotification (kullanıcı bildirime tıkladığında)
+      // 3. Initial URL (Deep link ile başlatıldıysa)
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl && initialUrl.includes('alarm')) {
+          const medMatch = initialUrl.match(/[?&]medicineId=([^&]+)/);
+          const remMatch = initialUrl.match(/[?&]reminderTimeId=([^&]+)/);
+          const schedMatch = initialUrl.match(/[?&]scheduledTime=([^&]+)/);
+          if (medMatch && medMatch[1]) {
+            appLog.debug('Initial URL alarm deep link found', { initialUrl });
+            handleIncomingAlarm({
+              medicineId: decodeURIComponent(medMatch[1]),
+              reminderTimeId: remMatch ? decodeURIComponent(remMatch[1]) : 'test-reminder',
+              scheduledTime: schedMatch
+                ? decodeURIComponent(schedMatch[1])
+                : new Date().toISOString(),
+            });
+            return;
+          }
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+
+      // 4. Notifee initialNotification (kullanıcı bildirime tıkladığında)
       const initialNotification = await notifee.getInitialNotification();
       if (initialNotification) {
         console.log('Initial notification bulundu:', initialNotification);
@@ -867,7 +1019,7 @@ function AppContent() {
 
         // Bu alarm zaten handle edildi mi kontrol et (ertele/aldım)
         if (data?.medicineId && data?.reminderTimeId) {
-          const today = new Date().toISOString().split('T')[0];
+          const today = getLocalDateKey(new Date()); // YEREL gun (UTC degil) — bkz. src/domain/doseLog.ts
           const key = `${data.medicineId}-${data.reminderTimeId}-${today}`;
           const handled = await isAlarmHandled(key);
           if (handled) {
@@ -875,7 +1027,7 @@ function AppContent() {
             return;
           }
 
-          setPendingAlarm({
+          handleIncomingAlarm({
             medicineId: data.medicineId as string,
             reminderTimeId: data.reminderTimeId as string,
             scheduledTime: (data.scheduledTime as string) || new Date().toISOString(),
@@ -892,13 +1044,9 @@ function AppContent() {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [handleIncomingAlarm, handleAction]);
 
-  // pendingAlarm hazir oldugunda navigate etme islemi useAlarmNavigation hook'u
-  // icinde yonetiliyor (src/hooks/useAlarmNavigation.ts:148-153). Bu effect kaldirildi.
-
-  // KRİTİK: Uygulama arka plandan öne geldiğinde pending-alarm kontrol et
-  // Native modülden gelen anlık alarm tetikleme event'i
+  // KRİTİK: Native modülden gelen anlık alarm tetikleme event'i
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('OnAlarmTriggered', async (data: any) => {
       appLog.debug('DeviceEventEmitter OnAlarmTriggered received', data);
@@ -923,6 +1071,20 @@ function AppContent() {
     const handleUrl = ({ url }: { url: string }) => {
       appLog.debug('Linking URL received', { url });
       if (url.includes('alarm')) {
+        const medMatch = url.match(/[?&]medicineId=([^&]+)/);
+        const remMatch = url.match(/[?&]reminderTimeId=([^&]+)/);
+        const schedMatch = url.match(/[?&]scheduledTime=([^&]+)/);
+        if (medMatch && medMatch[1]) {
+          handleIncomingAlarm({
+            medicineId: decodeURIComponent(medMatch[1]),
+            reminderTimeId: remMatch ? decodeURIComponent(remMatch[1]) : 'test-reminder',
+            scheduledTime: schedMatch
+              ? decodeURIComponent(schedMatch[1])
+              : new Date().toISOString(),
+          });
+          return;
+        }
+
         AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM).then(raw => {
           if (raw) {
             AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
@@ -937,11 +1099,12 @@ function AppContent() {
               originalScheduledTime: pending.originalScheduledTime,
             });
           } else {
-            handleIncomingAlarm({
-              medicineId: 'test-medicine',
-              reminderTimeId: 'test-reminder',
-              scheduledTime: new Date().toISOString(),
-            });
+            // v1.7.4 (Faz 0.4): SENTETİK TEST ALARMI ÜRETİMİ KALDIRILDI.
+            // `ilachatirlatici://alarm` parametresiz geldiğinde (tarayıcıdan da
+            // tetiklenebilir — intent-filter BROWSABLE) ve bekleyen alarm
+            // yokken, burada uydurma bir `test-medicine` alarmı üretilip
+            // doğrulama atlanarak tam ekran alarm açılıyordu.
+            appLog.warn('Alarm deep link parametresiz geldi ve bekleyen alarm yok, yoksayildi');
           }
         });
       }
@@ -955,12 +1118,33 @@ function AppContent() {
   useEffect(() => {
     const appStateListener = AppState.addEventListener('change', async nextState => {
       if (nextState === 'active' || nextState === 'inactive') {
+        // 1. Native getInitialAlarm kontrol et
+        try {
+          const { NativeModules } = require('react-native');
+          if (NativeModules.AlarmModule?.getInitialAlarm) {
+            const initAlarm = await NativeModules.AlarmModule.getInitialAlarm();
+            if (initAlarm?.medicineId) {
+              await NativeModules.AlarmModule.clearInitialAlarm().catch(() => undefined);
+              appLog.debug('AppState changed: native getInitialAlarm found', initAlarm);
+              handleIncomingAlarm({
+                medicineId: initAlarm.medicineId,
+                reminderTimeId: initAlarm.reminderTimeId || 'test-reminder',
+                scheduledTime: initAlarm.scheduledTime || new Date().toISOString(),
+              });
+              return;
+            }
+          }
+        } catch (_e) {
+          /* ignore */
+        }
+
+        // 2. AsyncStorage pending-alarm kontrol et
         try {
           const pendingRaw = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM);
           if (pendingRaw) {
             await AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
             const pending = JSON.parse(pendingRaw);
-            if (pending.ts && Date.now() - pending.ts < 60_000 && pending.medicineId) {
+            if (pending.ts && Date.now() - pending.ts < 120_000 && pending.medicineId) {
               appLog.debug('AppState changed: pending-alarm found', {
                 nextState,
                 medicineId: pending.medicineId,
@@ -968,7 +1152,7 @@ function AppContent() {
               });
               const isTest =
                 pending.medicineId === 'test-medicine' || pending.isTestAlarm === 'true';
-              const today = new Date().toISOString().split('T')[0];
+              const today = getLocalDateKey(new Date()); // YEREL gun (UTC degil) — bkz. src/domain/doseLog.ts
               const key = `${pending.medicineId}-${pending.reminderTimeId}-${today}`;
               const handled = !isTest && (await isAlarmHandled(key));
               if (!handled) {
@@ -995,14 +1179,6 @@ function AppContent() {
 
   useEffect(() => {
     if (bootRecovery) {
-      const total = bootRecovery.reminders + bootRecovery.snoozes;
-      const triggerName = getTriggerDisplayName(bootRecovery.trigger);
-
-      Alert.alert(
-        '✅ Alarmlar Senkronize Edildi',
-        `${triggerName} sonrası ${bootRecovery.reminders} hatırlatma${bootRecovery.snoozes > 0 ? ` ve ${bootRecovery.snoozes} erteleme` : ''} yeniden planlandı.`,
-        [{ text: 'Tamam', style: 'default' }]
-      );
       clearBootRecovery();
     }
   }, [bootRecovery]);
@@ -1288,6 +1464,10 @@ function AppContent() {
       {/* Güvenlik Overlay'leri - App arka planda çalışmaya devam etsin */}
       {renderSecurityLoading()}
       {renderPinOverlay()}
+
+      {/* Canlı Bakıcı & Hasta Acil Durum / Doz Modalları — Ekranın en üstünde gösterilir */}
+      <CaregiverFullScreenAlertModal />
+      <PatientFullScreenReminderModal />
     </NavigationContainer>
   );
 }

@@ -325,3 +325,20 @@ jest.mock('react-native-sound', () => {
   return SoundMock;
 });
 
+// Mock expo-clipboard
+jest.mock('expo-clipboard', () => ({
+  setStringAsync: jest.fn().mockResolvedValue(true),
+  getStringAsync: jest.fn().mockResolvedValue(''),
+  hasStringAsync: jest.fn().mockResolvedValue(true),
+}));
+
+// Mock react-native-inappbrowser-reborn
+jest.mock('react-native-inappbrowser-reborn', () => ({
+  InAppBrowser: {
+    isAvailable: jest.fn().mockResolvedValue(true),
+    open: jest.fn().mockResolvedValue({ type: 'dismiss' }),
+    close: jest.fn(),
+  },
+}));
+
+

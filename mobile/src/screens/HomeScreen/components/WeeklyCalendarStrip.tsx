@@ -5,6 +5,7 @@ import { tr, enUS } from 'date-fns/locale';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useHaptics } from '../../../hooks/useHaptics';
+import { withAlpha } from '../../../utils/colors';
 
 interface DayStatus {
   date: Date;
@@ -86,9 +87,7 @@ export const WeeklyCalendarStrip: React.FC<WeeklyCalendarStripProps> = ({
                 styles.dayName,
                 {
                   color: item.isSelected
-                    ? isDark
-                      ? '#2DD4BF'
-                      : '#0F766E'
+                    ? colors.primary
                     : item.isToday
                       ? colors.primary
                       : isDark
@@ -106,13 +105,13 @@ export const WeeklyCalendarStrip: React.FC<WeeklyCalendarStripProps> = ({
                 styles.dayNumberCircle,
                 item.isSelected
                   ? {
-                      backgroundColor: isDark ? '#14B8A6' : '#0F766E',
+                      backgroundColor: colors.primary,
                     }
                   : item.isToday
                     ? {
                         borderWidth: 1.5,
                         borderColor: colors.primary,
-                        backgroundColor: isDark ? 'rgba(13, 148, 136, 0.15)' : '#F0FDFA',
+                        backgroundColor: withAlpha(colors.primary, 0.15),
                       }
                     : {
                         backgroundColor: 'transparent',
@@ -126,9 +125,7 @@ export const WeeklyCalendarStrip: React.FC<WeeklyCalendarStripProps> = ({
                     color: item.isSelected
                       ? '#FFFFFF'
                       : item.isToday
-                        ? isDark
-                          ? '#2DD4BF'
-                          : '#0F766E'
+                        ? colors.primary
                         : isDark
                           ? '#F8FAFC'
                           : '#0F172A',

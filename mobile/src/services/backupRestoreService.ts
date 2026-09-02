@@ -7,6 +7,7 @@
 
 import { format } from 'date-fns';
 import Share from 'react-native-share';
+import * as Clipboard from 'expo-clipboard';
 import { Medicine, MedicineLog, ReminderTime, UserSettings } from '../types';
 import { createScopedLogger } from '../utils/logger';
 
@@ -250,19 +251,20 @@ export function base64ToUtf8(base64: string): string {
 
 /**
  * Yedek paketini JSON dosyası olarak paylaşım ekranında açar (WhatsApp, E-posta, Dosyalara Kaydet vb.).
+ * Android 11-15 scoped storage uyumluluğu için useInternalStorage: true zorunludur.
  */
 export async function shareBackup(
   payload: BackupPayload
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const dateStr = format(new Date(), 'yyyy-MM-dd_HHmm');
-    const filename = `ilac-hatirlatici-yedek-${dateStr}`;
-    const jsonString = JSON.stringify(payload, null, 2);
+): Promise<{ success: boolean; error?: string; copiedToClipboard?: boolean }> {
+  const dateStr = format(new Date(), 'yyyy-MM-dd_HHmm');
+  const filename = `ilac-hatirlatici-yedek-${dateStr}`;
+  const jsonString = JSON.stringify(payload, null, 2);
 
-    // Android/iOS native share standard Base64 Data URL with internal storage provider
+  try {
     const base64Data = utf8ToBase64(jsonString);
     const url = `data:application/json;base64,${base64Data}`;
 
+    // Tier 1: Standart Base64 dosya paylaşımı (useInternalStorage ile internal cache kullanılır)
     await Share.open({
       title: 'İlaç Hatırlatıcı Veri Yedeği',
       subject: `İlaç Hatırlatıcı Yedeği (${dateStr})`,
@@ -270,17 +272,66 @@ export async function shareBackup(
       filename,
       url,
       type: 'application/json',
-    });
+      // `useInternalStorage` react-native-share'in Android secenegi; kurulu
+      // surumun TS tiplerinde YOK ama calisma zamaninda var ve BILEREK
+      // kullaniliyor (bkz. arsiv v1.5.3: "json yedekleme paylasim null uri
+      // hatasi" — FileProvider yerine dahili depolamadan paylasmak sorunu
+      // cozdu). Davranisi bozmamak icin kaldirmiyor, tipi daraltiyoruz.
+      useInternalStorage: true,
+    } as Parameters<typeof Share.open>[0] & { useInternalStorage?: boolean });
 
     log.info('Yedek başarıyla paylaşıldı', { filename });
     return { success: true };
-  } catch (error: unknown) {
-    const err = error as { message?: string };
-    if (err?.message?.includes('User did not share') || err?.message?.includes('cancelled')) {
+  } catch (primaryError: unknown) {
+    const err = primaryError as { message?: string };
+    if (
+      err?.message?.includes('User did not share') ||
+      err?.message?.includes('cancelled') ||
+      err?.message?.includes('CANCELLED') ||
+      err?.message?.includes('dismissed')
+    ) {
       log.debug('Kullanıcı paylaşımı iptal etti');
       return { success: false, error: 'cancelled' };
     }
-    log.error('Yedek paylaşım hatası', error);
-    return { success: false, error: err?.message || 'Bilinmeyen hata' };
+
+    log.warn(
+      'Tier 1 dosya paylaşımı başarısız oldu, Tier 2 metin paylaşımı deneniyor',
+      primaryError
+    );
+
+    // Tier 2: Metin/JSON paylaşım fallback (Dosya intent'i reddedilirse)
+    try {
+      await Share.open({
+        title: 'İlaç Hatırlatıcı Veri Yedeği (JSON)',
+        subject: `İlaç Hatırlatıcı Yedeği (${dateStr})`,
+        message: jsonString,
+        type: 'text/plain',
+      });
+      log.info('Yedek metin formatında başarıyla paylaşıldı');
+      return { success: true };
+    } catch (fallbackError: unknown) {
+      const fbErr = fallbackError as { message?: string };
+      if (
+        fbErr?.message?.includes('User did not share') ||
+        fbErr?.message?.includes('cancelled') ||
+        fbErr?.message?.includes('CANCELLED') ||
+        fbErr?.message?.includes('dismissed')
+      ) {
+        return { success: false, error: 'cancelled' };
+      }
+
+      // Tier 3: Panoya Kopyalama Fallback (Kritik acil durum kalkanı)
+      try {
+        await Clipboard.setStringAsync(jsonString);
+        log.info('Yedek panoya kopyalandı');
+        return { success: true, copiedToClipboard: true };
+      } catch (clipboardErr) {
+        log.error('Yedek paylaşım ve kopyalama tamamen başarısız', clipboardErr);
+        return {
+          success: false,
+          error: err?.message || 'Yedekleme dosyası oluşturulamadı.',
+        };
+      }
+    }
   }
 }

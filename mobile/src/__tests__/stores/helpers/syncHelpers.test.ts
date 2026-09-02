@@ -202,4 +202,97 @@ describe('mergeSettingsWithUndefined', () => {
     const result = mergeSettingsWithUndefined(local, {});
     expect(result).toEqual(local);
   });
+
+  // ── SON-YAZAN-KAZANIR (v1.7.1) ──────────────────────────────────────────
+  // Eskiden bulut KOSULSUZ kaziniyordu ve bir cihazda yapilan ayar
+  // degisikligi indirme yarisini kaybettiginde sessizce geri aliniyordu
+  // (cihazda kanitlandi: tam ekran alarm anahtari yeniden baslatmada eski
+  // degerine donuyordu). Artik `settingsUpdatedAt` damgasi karsilastiriliyor.
+
+  it('damga YOKSA bulut kazanir (temiz kurulum davranisi korunur)', () => {
+    // Damgasiz yerel state "yasi bilinmiyor" demektir; yeni kurulumda yerel
+    // VARSAYILANLARIN kullanicinin bulut ayarlarini ezmemesi icin bulut kazanir.
+    const localOn: UserSettings = { ...local, fullScreenAlarmEnabled: true };
+    const cloud: Partial<UserSettings> = { fullScreenAlarmEnabled: false };
+
+    const result = mergeSettingsWithUndefined(localOn, cloud);
+
+    expect(result.fullScreenAlarmEnabled).toBe(false);
+  });
+
+  it('YEREL damga daha yeni ise bulut HICBIR alani yazmaz', () => {
+    const localNewer: UserSettings = {
+      ...local,
+      fullScreenAlarmEnabled: false,
+      language: 'tr',
+      settingsUpdatedAt: '2026-05-02T10:00:00.000Z',
+    };
+    const cloud: Partial<UserSettings> = {
+      fullScreenAlarmEnabled: true,
+      language: 'en',
+      settingsUpdatedAt: '2026-05-02T09:00:00.000Z',
+    };
+
+    const result = mergeSettingsWithUndefined(localNewer, cloud);
+
+    expect(result.fullScreenAlarmEnabled).toBe(false);
+    expect(result.language).toBe('tr');
+    expect(result).toEqual(localNewer);
+  });
+
+  it('BULUT damgasi daha yeni ise bulut kazanir', () => {
+    const localOlder: UserSettings = {
+      ...local,
+      fullScreenAlarmEnabled: false,
+      settingsUpdatedAt: '2026-05-02T08:00:00.000Z',
+    };
+    const cloud: Partial<UserSettings> = {
+      fullScreenAlarmEnabled: true,
+      settingsUpdatedAt: '2026-05-02T09:00:00.000Z',
+    };
+
+    const result = mergeSettingsWithUndefined(localOlder, cloud);
+
+    expect(result.fullScreenAlarmEnabled).toBe(true);
+    expect(result.settingsUpdatedAt).toBe('2026-05-02T09:00:00.000Z');
+  });
+
+  it('damgalar ESIT ise bulut kazanir (belirlenimci)', () => {
+    const stamp = '2026-05-02T09:00:00.000Z';
+    const localSame: UserSettings = {
+      ...local,
+      fullScreenAlarmEnabled: false,
+      settingsUpdatedAt: stamp,
+    };
+    const cloud: Partial<UserSettings> = { fullScreenAlarmEnabled: true, settingsUpdatedAt: stamp };
+
+    expect(mergeSettingsWithUndefined(localSame, cloud).fullScreenAlarmEnabled).toBe(true);
+  });
+
+  it('gecersiz damga tanimsiz gibi ele alinir (bulut kazanir)', () => {
+    const localBadStamp: UserSettings = {
+      ...local,
+      fullScreenAlarmEnabled: false,
+      settingsUpdatedAt: 'not-a-date',
+    };
+    const cloud: Partial<UserSettings> = {
+      fullScreenAlarmEnabled: true,
+      settingsUpdatedAt: '2020-01-01T00:00:00.000Z',
+    };
+
+    expect(mergeSettingsWithUndefined(localBadStamp, cloud).fullScreenAlarmEnabled).toBe(true);
+  });
+
+  it('YEREL damgali, bulut damgasiz ise bulut kazanir (eski dokuman)', () => {
+    // Bulut dokumaninin yasi bilinmiyor: kiyaslanacak bir sey yok, eski
+    // davranis korunur.
+    const localStamped: UserSettings = {
+      ...local,
+      fullScreenAlarmEnabled: false,
+      settingsUpdatedAt: '2026-05-02T10:00:00.000Z',
+    };
+    const cloud: Partial<UserSettings> = { fullScreenAlarmEnabled: true };
+
+    expect(mergeSettingsWithUndefined(localStamped, cloud).fullScreenAlarmEnabled).toBe(true);
+  });
 });

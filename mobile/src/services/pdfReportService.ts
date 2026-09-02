@@ -7,6 +7,7 @@ import { createScopedLogger } from '../utils/logger';
 // I/O bagimliligi olmadan test edilebilir.
 import { fixTurkishCharacters, escapeHtml, escapeSvgText } from './pdfReportHelpers';
 import Share from 'react-native-share';
+import { SymptomLog } from '../stores/symptomStore';
 import { Platform } from 'react-native';
 
 const log = createScopedLogger('PDFReportService');
@@ -21,6 +22,7 @@ export interface ReportData {
     start: Date;
     end: Date;
   };
+  symptomLogs?: SymptomLog[];
 }
 
 export interface ReportOptions {
@@ -217,15 +219,46 @@ function generateHTMLReport(data: ReportData, options: ReportOptions): string {
     })
     .join('');
 
-  // İlaç kartları
+  // İlaç kartları (Klinik detaylar: Talimat, Etken Madde, Besin Etkileşimi)
+  const getInstructionLabel = (inst?: string) => {
+    if (!inst) return '';
+    const mapTr: Record<string, string> = {
+      before_meal: 'Aç Karnına (Yemekten önce)',
+      after_meal: 'Tok Karnına (Yemekten sonra)',
+      with_meal: 'Yemekle birlikte',
+      empty_stomach: 'Aç karnına',
+      before_sleep: 'Yatmadan önce',
+    };
+    const mapEn: Record<string, string> = {
+      before_meal: 'Before meal',
+      after_meal: 'After meal',
+      with_meal: 'With meal',
+      empty_stomach: 'Empty stomach',
+      before_sleep: 'Before sleep',
+    };
+    return (options.language === 'tr' ? mapTr[inst] : mapEn[inst]) || inst;
+  };
+
   const medicineCards = activeMedicines
     .map(med => {
       const dosage = med.dosage ? fixTurkishCharacters(med.dosage) : '';
       const freq = `${med.frequency}x ${t.perDay}`;
+      const instLabel = med.instructions ? getInstructionLabel(med.instructions) : '';
       const stock = med.stockEnabled ? ` · ${t.stock}: ${med.stockCount} ${t.remaining}` : '';
+      const ingredients =
+        med.activeIngredients && med.activeIngredients.length > 0
+          ? `<div style="font-size:8.5px;color:#0D9488;margin-top:2px;">🧪 ${options.language === 'tr' ? 'Etken Madde' : 'Active Ingredient'}: ${escapeHtml(fixTurkishCharacters(med.activeIngredients.join(', ')))}</div>`
+          : '';
+      const foodWarn =
+        med.foodInteractions && med.foodInteractions.length > 0
+          ? `<div style="font-size:8px;color:#D97706;margin-top:1px;">⚠️ ${options.language === 'tr' ? 'Besin Dikkat' : 'Food Caution'}: ${escapeHtml(med.foodInteractions.join(', '))}</div>`
+          : '';
+
       return `<div class="med-card">
       <div class="med-name">${escapeHtml(fixTurkishCharacters(med.name))}</div>
-      <div class="med-info">${escapeHtml(dosage ? dosage + ' · ' : '')}${escapeHtml(freq)}${escapeHtml(stock)}</div>
+      <div class="med-info">${escapeHtml(dosage ? dosage + ' · ' : '')}${escapeHtml(freq)}${instLabel ? ' · ' + escapeHtml(instLabel) : ''}${escapeHtml(stock)}</div>
+      ${ingredients}
+      ${foodWarn}
     </div>`;
     })
     .join('');
@@ -365,6 +398,59 @@ ${
           <td>${escapeHtml(format(scheduledDate, 'HH:mm'))}</td>
           <td class="${isTaken ? 'status-taken' : 'status-not'}">${statusLabel}</td>
           <td>${escapeHtml(fixTurkishCharacters(reasonDisplay || '-'))}</td>
+        </tr>`;
+      })
+      .join('')}
+    </tbody>
+  </table>
+</div>`
+    : ''
+}
+
+${
+  data.symptomLogs && data.symptomLogs.length > 0
+    ? `<div class="section">
+  <div class="sec-title">${options.language === 'tr' ? 'Klinik Vital Bulgular & Semptom Günlüğü (Hekim Özeti)' : 'Clinical Vitals & Symptoms Summary'}</div>
+  <table>
+    <thead><tr><th>${options.language === 'tr' ? 'Tarih' : 'Date'}</th><th>${options.language === 'tr' ? 'Kayıt Türü' : 'Type'}</th><th>${options.language === 'tr' ? 'Ölçüm / Şiddet' : 'Value / Severity'}</th><th>${options.language === 'tr' ? 'İlaç' : 'Medicine'}</th><th>${options.language === 'tr' ? 'Notlar' : 'Notes'}</th></tr></thead>
+    <tbody>
+    ${data.symptomLogs
+      .slice(0, 30)
+      .map(sLog => {
+        const sDate = new Date(sLog.timestamp);
+        let valDisplay = '-';
+        if (sLog.type === 'blood_pressure') {
+          valDisplay = `${sLog.systolic || '-'}/${sLog.diastolic || '-'} mmHg (Nabız: ${sLog.pulse || '-'})`;
+        } else if (sLog.type === 'blood_sugar') {
+          valDisplay = `${sLog.glucose || '-'} mg/dL`;
+        } else if (sLog.type === 'heart_rate') {
+          valDisplay = `${sLog.pulse || '-'} bpm`;
+        } else {
+          valDisplay =
+            sLog.severity === 'severe'
+              ? 'Şiddetli'
+              : sLog.severity === 'moderate'
+                ? 'Orta'
+                : 'Hafif';
+        }
+
+        const typeLabels: Record<string, string> = {
+          blood_pressure: 'Tansiyon',
+          blood_sugar: 'Kan Şekeri',
+          heart_rate: 'Nabız',
+          dizziness: 'Baş Dönmesi',
+          nausea: 'Bulantı',
+          headache: 'Baş Ağrısı',
+          stomach_pain: 'Mide Ağrısı',
+          fatigue: 'Halsizlik',
+        };
+
+        return `<tr>
+          <td>${escapeHtml(format(sDate, 'dd/MM HH:mm', { locale }))}</td>
+          <td><strong>${escapeHtml(typeLabels[sLog.type] || sLog.type)}</strong></td>
+          <td>${escapeHtml(valDisplay)}</td>
+          <td>${escapeHtml(sLog.medicineName || '-')}</td>
+          <td>${escapeHtml(sLog.notes || '-')}</td>
         </tr>`;
       })
       .join('')}

@@ -7,13 +7,13 @@ import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SettingsSection, SettingRow } from '../../../components/settings';
 import { useAlert } from '../../../contexts/AlertContext';
-import { scheduleTestAlarmNotification } from '../../../utils/notifications';
 import {
   ALARM_SOUND_LIST,
   getSoundDisplayName,
   previewAlarmSound,
   stopAlarmSound,
 } from '../../../utils/alarmSoundManager';
+import { useOemShieldStatus } from '../../../hooks/useOemShieldStatus';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList, UserSettings, AlarmSoundType } from '../../../types';
 
@@ -26,6 +26,9 @@ interface NotificationsSectionProps {
   isDark: boolean;
   navigation: NativeStackNavigationProp<RootStackParamList>;
   language: string;
+  onBatteryPress?: () => void;
+  /** Teşhis paneline (Canlı Alarm & Sistem Teşhisi kartı) kaydırır. */
+  onGoToDiagnostics?: () => void;
 }
 
 const VOLUME_LEVELS = [
@@ -85,11 +88,63 @@ export function NotificationsSection({
   isDark,
   navigation,
   language,
+  onBatteryPress,
+  onGoToDiagnostics,
 }: NotificationsSectionProps) {
   const isTr = language === 'tr';
-  const { showInfo } = useAlert();
   const [showCriticalDrawer, setShowCriticalDrawer] = useState(true);
-  const [isTestScheduled, setIsTestScheduled] = useState(false);
+
+  // İzin durumu, Teşhis paneliyle AYNI paylaşımlı kaynaktan okunur; bu bölüm
+  // daha önce hiç izin okumuyordu ve OS izni yokken bile "koruma var" diyordu.
+  const { status: shieldStatus, isResolved: isShieldResolved } = useOemShieldStatus();
+
+  // Uyarı YALNIZCA veri hazır ve izin gerçekten kapalıyken gösterilir
+  // (ilk render'da flash etmesin).
+  const showFullScreenPermissionWarning =
+    isShieldResolved && shieldStatus?.fullScreenIntent === false;
+
+  const { showAlert, hideAlert } = useAlert();
+  const fullScreenAlarmEnabled = settings.fullScreenAlarmEnabled !== false;
+
+  /**
+   * Tam ekran alarm toggle'ı.
+   *
+   * Onay diyaloğu YALNIZCA KAPATMA yönünde çıkar — açarken çıkmaz.
+   * Vurgulu (dolu) buton bilinçli olarak "Vazgeç": riskli seçim (alarmı
+   * kapatmak) yalnızca ince çerçeveli buton olarak sunulur.
+   */
+  const handleToggleFullScreenAlarm = (nextValue: boolean) => {
+    if (nextValue) {
+      updateSettings({ fullScreenAlarmEnabled: true });
+      return;
+    }
+
+    showAlert({
+      type: 'warning',
+      title: isTr ? 'Tam ekran alarmı kapat?' : 'Turn off full-screen alarm?',
+      message: isTr
+        ? 'İlaç alarmlarınız artık kilit ekranını uyandırmayacak ve tam ekran açılmayacak.\n\nYalnızca normal bildirim gelecek; telefon sessizde veya Rahatsız Etmeyin modundayken ilaç alarmınız SESSİZ KALABİLİR ve dozu kaçırabilirsiniz.'
+        : 'Your medication alarms will no longer wake the lock screen or open full screen.\n\nOnly a normal notification will arrive; while the phone is silent or in Do Not Disturb your alarm MAY STAY SILENT and you could miss a dose.',
+      buttons: [
+        {
+          // style: 'cancel' burada SEMANTİK değil, GÖRSEL bir tercih:
+          // ince çerçeveli (vurgusuz) buton. Bu stilde otomatik kapanma
+          // olmadığı için hideAlert elle çağrılıyor.
+          text: isTr ? 'Yine de kapat' : 'Turn off anyway',
+          style: 'cancel',
+          onPress: () => {
+            hideAlert();
+            updateSettings({ fullScreenAlarmEnabled: false });
+          },
+        },
+        {
+          // Son ve 'cancel' olmayan buton → vurgulu (dolu) buton.
+          text: isTr ? 'Vazgeç' : 'Keep it on',
+          style: 'default',
+        },
+      ],
+    });
+  };
 
   const currentSoundId = settings.alarmSound || 'soft_chime';
   const currentSoundName = getSoundDisplayName(currentSoundId, language);
@@ -110,20 +165,6 @@ export function NotificationsSection({
   const handleSelectVolume = (volume: number) => {
     updateSettings({ alarmVolume: volume });
     previewAlarmSound(volume, currentSoundId, 2000);
-  };
-
-  const handleRunLockScreenTest = async () => {
-    try {
-      setIsTestScheduled(true);
-      await scheduleTestAlarmNotification(5 / 60, isTr ? 'tr' : 'en', {
-        fullScreenAlarmEnabled: true,
-        alarmSound: settings.alarmSound,
-        alarmVolume: settings.alarmVolume,
-      });
-      setTimeout(() => setIsTestScheduled(false), 7000);
-    } catch {
-      setIsTestScheduled(false);
-    }
   };
 
   return (
@@ -373,25 +414,51 @@ export function NotificationsSection({
         </View>
       )}
 
-      {/* 3. Kritik Hatırlatıcılar (Genişletilebilir Akıllı Inset Drawer) */}
+      {/* 3. Kilit ekranında tam ekran alarm (Genişletilebilir Inset Drawer) */}
       <SettingRow
         icon={{ name: 'notifications', color: '#EF4444' }}
-        label={isTr ? 'Kritik Hatırlatıcılar' : 'Critical Alerts'}
+        label={isTr ? 'Kilit ekranında tam ekran alarm' : 'Full-screen alarm on lock screen'}
         description={
-          isTr ? 'Sessiz modda ve kilit ekranında çalar' : 'Rings even in silent & lock screen'
+          fullScreenAlarmEnabled
+            ? isTr
+              ? 'Açık — ilaç vaktinde kilit ekranı uyanır, tam ekran alarm açılır.'
+              : 'On — the lock screen wakes and a full-screen alarm opens at dose time.'
+            : isTr
+              ? 'Kapalı — yalnızca normal bildirim gelir; sesi ve önceliği sistem bildirim ayarlarına ve Rahatsız Etmeyin durumuna tabidir.'
+              : 'Off — only a normal notification arrives; its sound and priority follow system notification settings and Do Not Disturb.'
         }
         onPress={() => setShowCriticalDrawer(!showCriticalDrawer)}
         showChevron
         chevronDirection={showCriticalDrawer ? 'up' : 'down'}
         rightElement={
           <Switch
-            value={settings.fullScreenAlarmEnabled !== false}
-            onValueChange={val => updateSettings({ fullScreenAlarmEnabled: val })}
+            value={fullScreenAlarmEnabled}
+            onValueChange={handleToggleFullScreenAlarm}
             trackColor={{ false: isDark ? '#334155' : '#CBD5E1', true: '#0F766E' }}
-            thumbColor={settings.fullScreenAlarmEnabled !== false ? '#FFFFFF' : '#F8FAFC'}
+            thumbColor={fullScreenAlarmEnabled ? '#FFFFFF' : '#F8FAFC'}
           />
         }
       />
+
+      {/* İzin Uyarısı — toggle açık olsa bile OS izni yoksa tam ekran alarm açılamaz */}
+      {showFullScreenPermissionWarning && (
+        <View
+          style={[
+            styles.permissionWarningRow,
+            {
+              backgroundColor: isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.10)',
+              borderColor: isDark ? 'rgba(251, 191, 36, 0.35)' : 'rgba(217, 119, 6, 0.25)',
+            },
+          ]}
+        >
+          <Ionicons name="warning" size={15} color={isDark ? '#FBBF24' : '#D97706'} />
+          <Text style={[styles.permissionWarningText, { color: isDark ? '#FCD34D' : '#B45309' }]}>
+            {isTr
+              ? 'Tam ekran bildirim izni kapalı — bu ayar açık olsa bile alarm kilit ekranında açılamaz. Ayarlar > Bildirimler > Tam ekran bildirimler.'
+              : 'Full-screen notification permission is off — the alarm cannot open on the lock screen even with this setting on. Settings > Notifications > Full-screen notifications.'}
+          </Text>
+        </View>
+      )}
 
       {/* Kritik Hatırlatıcı Detay & Canlı Kilit Ekranı Test Çekmecesi */}
       {showCriticalDrawer && (
@@ -451,34 +518,40 @@ export function NotificationsSection({
                 {isTr ? 'Hayati Doz Kaçırma Koruması' : 'Life-saving Dose Protection'}
               </Text>
               <Text style={[styles.itemDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                {isTr
-                  ? 'İlaç vaktinde kilit ekranını uyandırır ve tam ekran acil alarm arayüzünü açar.'
-                  : 'Wakes lock screen and opens full-screen emergency alarm.'}
+                {fullScreenAlarmEnabled
+                  ? isTr
+                    ? 'İlaç vaktinde kilit ekranını uyandırır ve tam ekran acil alarm arayüzünü açar.'
+                    : 'Wakes lock screen and opens full-screen emergency alarm.'
+                  : isTr
+                    ? 'Şu an KAPALI — kilit ekranı uyandırılmaz, tam ekran alarm açılmaz.'
+                    : 'Currently OFF — the lock screen is not woken and no full-screen alarm opens.'}
               </Text>
             </View>
           </View>
 
-          {/* 2. Canlı 5 Saniyelik Kilit Ekranı Alarm Testi */}
-          <View
+          {/* 2. Teşhis paneline yönlendirme — test butonu TEK yerde (Ekran A) */}
+          <TouchableOpacity
             style={[
               styles.drawerItem,
               {
                 borderTopWidth: StyleSheet.hairlineWidth,
                 borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
-                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.06)',
+                backgroundColor: isDark ? 'rgba(13, 148, 136, 0.14)' : 'rgba(13, 148, 136, 0.07)',
               },
             ]}
+            onPress={onGoToDiagnostics}
+            activeOpacity={0.7}
           >
             <View
               style={[
                 styles.iconBox,
                 {
-                  backgroundColor: isDark ? '#10B98125' : '#10B98115',
-                  borderColor: '#10B98140',
+                  backgroundColor: isDark ? '#0D948825' : '#0D948815',
+                  borderColor: '#0D948840',
                 },
               ]}
             >
-              <Ionicons name="timer" size={18} color="#10B981" />
+              <Ionicons name="pulse" size={18} color={isDark ? '#2DD4BF' : '#0D9488'} />
             </View>
 
             <View style={styles.textCol}>
@@ -488,41 +561,17 @@ export function NotificationsSection({
                   { color: isDark ? '#FFFFFF' : '#0F172A', fontWeight: '700' },
                 ]}
               >
-                {isTr ? 'Kilit Ekranında Canlı Test Et' : 'Live Test on Lock Screen'}
+                {isTr ? 'Alarm çalışıyor mu?' : 'Is the alarm working?'}
               </Text>
               <Text style={[styles.itemDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
                 {isTr
-                  ? 'Butona basın, güç tuşuyla ekranı kilitleyin ve 5 sn sonra alarmı görün.'
-                  : 'Press button, lock phone with power key, and watch alarm pop up in 5s.'}
+                  ? 'Teşhis panelinde test edin — süre seçip adım adım sonucu görün.'
+                  : 'Test it in the diagnostics panel — pick a delay and see step-by-step results.'}
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.previewButton,
-                {
-                  backgroundColor: isTestScheduled ? '#10B981' : '#EF4444',
-                  borderColor: isTestScheduled ? '#059669' : '#DC2626',
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                },
-              ]}
-              onPress={handleRunLockScreenTest}
-              disabled={isTestScheduled}
-              activeOpacity={0.8}
-            >
-              <Ionicons name={isTestScheduled ? 'checkmark' : 'flash'} size={12} color="#FFFFFF" />
-              <Text style={[styles.previewText, { color: '#FFFFFF' }]}>
-                {isTestScheduled
-                  ? isTr
-                    ? 'Kuruldu!'
-                    : 'Armed!'
-                  : isTr
-                    ? 'Test Et (5s)'
-                    : 'Test (5s)'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+            <Ionicons name="arrow-up-circle" size={22} color={isDark ? '#2DD4BF' : '#0D9488'} />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -547,11 +596,42 @@ export function NotificationsSection({
         onPress={() => navigation.navigate('TtsSettings')}
         showChevron
       />
+
+      {/* 6. Pil & Güç Optimizasyonu */}
+      <SettingRow
+        icon={{ name: 'battery-charging', color: '#10B981' }}
+        label={isTr ? 'Pil & Güç Optimizasyonu' : 'Battery & Power Optimization'}
+        description={
+          isTr
+            ? 'Alarmların kaçmaması için arka plan ve pil rehberi'
+            : 'Background power and battery whitelist guide'
+        }
+        onPress={onBatteryPress}
+        showChevron
+      />
     </SettingsSection>
   );
 }
 
 const styles = StyleSheet.create({
+  permissionWarningRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  permissionWarningText: {
+    flex: 1,
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
   drawerContainer: {
     marginHorizontal: 12,
     marginVertical: 8,

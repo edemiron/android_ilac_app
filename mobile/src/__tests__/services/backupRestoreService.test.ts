@@ -8,7 +8,13 @@ import {
   BACKUP_SCHEMA_VERSION,
 } from '../../services/backupRestoreService';
 import Share from 'react-native-share';
+import * as Clipboard from 'expo-clipboard';
 import { UserSettings } from '../../types';
+
+jest.mock('expo-clipboard', () => ({
+  setStringAsync: jest.fn().mockResolvedValue(true),
+  getStringAsync: jest.fn().mockResolvedValue(''),
+}));
 
 jest.mock('react-native-share', () => ({
   open: jest.fn().mockResolvedValue({ success: true }),
@@ -120,7 +126,8 @@ describe('backupRestoreService', () => {
     expect(result.error).toContain('JSON');
   });
 
-  it('calls Share.open with base64 data URL on shareBackup', async () => {
+  it('calls Share.open with base64 data URL and useInternalStorage on shareBackup', async () => {
+    (Share.open as jest.Mock).mockReset().mockResolvedValueOnce({ success: true });
     const payload = createBackupPayload(mockMedicines, mockReminderTimes, mockLogs, mockSettings);
 
     const result = await shareBackup(payload);
@@ -129,6 +136,48 @@ describe('backupRestoreService', () => {
     const shareCallArgs = (Share.open as jest.Mock).mock.calls[0][0];
     expect(shareCallArgs.url).toMatch(/^data:application\/json;base64,/);
     expect(shareCallArgs.type).toBe('application/json');
+    expect(shareCallArgs.useInternalStorage).toBe(true);
+  });
+
+  it('falls back to Tier 2 plain text share if base64 file share throws native error', async () => {
+    (Share.open as jest.Mock)
+      .mockReset()
+      .mockRejectedValueOnce(
+        new Error(
+          "Attempt to invoke virtual method 'java.lang.String android.net.Uri.getScheme()' on a null object reference"
+        )
+      )
+      .mockResolvedValueOnce({ success: true });
+
+    const payload = createBackupPayload(mockMedicines, mockReminderTimes, mockLogs, mockSettings);
+    const result = await shareBackup(payload);
+
+    expect(result.success).toBe(true);
+    expect(Share.open).toHaveBeenCalledTimes(2);
+    const fallbackCallArgs = (Share.open as jest.Mock).mock.calls[1][0];
+    expect(fallbackCallArgs.type).toBe('text/plain');
+    expect(fallbackCallArgs.message).toContain('Aspirin');
+  });
+
+  it('falls back to Tier 3 clipboard copy if all Share dialogs fail', async () => {
+    (Share.open as jest.Mock).mockReset().mockRejectedValue(new Error('Share intent failed'));
+
+    const payload = createBackupPayload(mockMedicines, mockReminderTimes, mockLogs, mockSettings);
+    const result = await shareBackup(payload);
+
+    expect(result.success).toBe(true);
+    expect(result.copiedToClipboard).toBe(true);
+    expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles user cancellation gracefully without error', async () => {
+    (Share.open as jest.Mock).mockReset().mockRejectedValueOnce(new Error('User did not share'));
+
+    const payload = createBackupPayload(mockMedicines, mockReminderTimes, mockLogs, mockSettings);
+    const result = await shareBackup(payload);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('cancelled');
   });
 
   it('correctly encodes and decodes UTF-8 strings with Turkish characters and emojis', () => {

@@ -35,6 +35,10 @@ interface Props {
   onPhotoScanPress?: () => void;
   /** Fotoğraf AI analizi devam ediyor mu */
   isAnalyzingPhoto?: boolean;
+  /** Sesli asistan ikonu gösterilsin mi */
+  showVoiceIcon?: boolean;
+  /** Sesli asistan tıklanınca çağrılır */
+  onVoicePress?: () => void;
 }
 
 export function MedicineNameInput({
@@ -53,6 +57,8 @@ export function MedicineNameInput({
   showPhotoIcon,
   onPhotoScanPress,
   isAnalyzingPhoto,
+  showVoiceIcon = true,
+  onVoicePress,
 }: Props) {
   const styles = createStyles(colors);
   // Autocomplete kapanmasini 200ms geciktiriyoruz ki kullanici bir secenegi tiklayabilsin.
@@ -85,34 +91,78 @@ export function MedicineNameInput({
     }, 200);
   };
 
-  const renderAutocompleteItem = ({ item }: { item: MedicineAutocompleteResult }) => (
-    <TouchableOpacity style={styles.autocompleteItem} onPress={() => onSelectAutocomplete(item)}>
-      <View style={styles.autocompleteItemContent}>
-        <Text style={styles.autocompleteItemName}>{item.name}</Text>
-        <Text style={styles.autocompleteItemDosage}>
-          {item.dosage} - {item.manufacturer}
-        </Text>
-      </View>
-      <View style={styles.matchBadge}>
-        <Text style={styles.matchBadgeText}>{item.matchScore}%</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderAutocompleteItem = ({ item }: { item: MedicineAutocompleteResult }) => {
+    const subtitle = [item.dosage, item.manufacturer].filter(Boolean).join(' • ');
+    return (
+      <TouchableOpacity
+        style={styles.autocompleteItem}
+        onPress={() => onSelectAutocomplete(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.autocompleteItemContent}>
+          <Text style={styles.autocompleteItemName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          {subtitle ? (
+            <Text style={styles.autocompleteItemDosage} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+        <View style={[styles.matchBadge, { backgroundColor: colors.primary + '15' }]}>
+          <Text style={[styles.matchBadgeText, { color: colors.primary }]}>{item.matchScore}%</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.inputGroup}>
       <Text style={styles.label}>{label} *</Text>
       <View style={styles.autocompleteContainer}>
         <View style={styles.inputRow}>
-          <TextInput
-            style={[styles.input, (showBarcodeIcon || showPhotoIcon) && styles.inputWithIcon]}
-            value={value}
-            onChangeText={handleChangeText}
-            onFocus={onFocus}
-            onBlur={handleBlur}
-            placeholder={placeholder}
-            placeholderTextColor={colors.placeholder}
-          />
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={[
+                styles.input,
+                (showBarcodeIcon || showPhotoIcon || (showVoiceIcon && onVoicePress)) &&
+                  styles.inputWithIcon,
+                value.length > 0 && styles.inputWithClear,
+              ]}
+              value={value}
+              onChangeText={handleChangeText}
+              onFocus={onFocus}
+              onBlur={handleBlur}
+              placeholder={placeholder}
+              placeholderTextColor={colors.placeholder}
+            />
+            {value.length > 0 && (
+              <TouchableOpacity
+                style={styles.clearBtn}
+                onPress={() => {
+                  onChangeText('');
+                  onBlur();
+                }}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel="Yazıyı temizle"
+                accessibilityRole="button"
+              >
+                <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+          {showVoiceIcon && onVoicePress && (
+            <TouchableOpacity
+              style={[styles.iconBtn, { backgroundColor: colors.primary + '15' }]}
+              onPress={onVoicePress}
+              activeOpacity={0.7}
+            >
+              {/* v1.7.4: mikrofon ikonu → kalem. Konuşma tanıma yok; bu buton
+                  "cümleyle yazarak ekle" modalını açıyor. */}
+              <Ionicons name="create-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )}
           {showPhotoIcon && onPhotoScanPress && (
             <TouchableOpacity
               style={[styles.iconBtn, { backgroundColor: colors.primary + '15' }]}
@@ -153,6 +203,12 @@ export function MedicineNameInput({
 
         {autocompleteState.showAutocomplete && autocompleteState.results.length > 0 && (
           <View style={styles.autocompleteDropdown}>
+            <View style={styles.autocompleteHeader}>
+              <Ionicons name="sparkles" size={14} color={colors.primary} />
+              <Text style={[styles.autocompleteHeaderText, { color: colors.textSecondary }]}>
+                TİTCK İlaç Önerileri
+              </Text>
+            </View>
             <FlatList
               data={autocompleteState.results}
               renderItem={renderAutocompleteItem}
@@ -172,7 +228,6 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     inputGroup: {
       marginTop: 20,
-      zIndex: 10,
     },
     label: {
       fontSize: 14,
@@ -185,8 +240,13 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       gap: 8,
     },
-    input: {
+    inputWrapper: {
       flex: 1,
+      position: 'relative',
+      justifyContent: 'center',
+    },
+    input: {
+      width: '100%',
       backgroundColor: colors.card,
       borderRadius: 16,
       paddingHorizontal: 16,
@@ -195,6 +255,18 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.text,
       borderWidth: 1,
       borderColor: colors.border,
+    },
+    inputWithClear: {
+      paddingRight: 38,
+    },
+    clearBtn: {
+      position: 'absolute',
+      right: 10,
+      height: 40,
+      width: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2,
     },
     inputWithIcon: {
       // extra right padding when icon present — handled via Row gap
@@ -210,7 +282,6 @@ const createStyles = (colors: ThemeColors) =>
     },
     autocompleteContainer: {
       position: 'relative',
-      zIndex: 10,
     },
     autocompleteLoading: {
       position: 'absolute',
@@ -218,32 +289,37 @@ const createStyles = (colors: ThemeColors) =>
       top: 14,
     },
     autocompleteDropdown: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      backgroundColor: colors.card,
-      borderRadius: 12,
+      backgroundColor: colors.background,
+      borderRadius: 14,
       borderWidth: 1,
-      borderColor: colors.inputBorder,
-      marginTop: 4,
-      maxHeight: 200,
-      elevation: 5,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-      zIndex: 1000,
+      borderColor: colors.border,
+      marginTop: 8,
+      maxHeight: 230,
+      overflow: 'hidden',
+    },
+    autocompleteHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      backgroundColor: colors.primary + '08',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    autocompleteHeaderText: {
+      fontSize: 12,
+      fontWeight: '600',
     },
     autocompleteList: {
-      maxHeight: 200,
+      maxHeight: 180,
     },
     autocompleteItem: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
       borderBottomWidth: 1,
       borderBottomColor: colors.divider,
     },

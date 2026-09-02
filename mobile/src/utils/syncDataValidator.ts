@@ -167,6 +167,10 @@ const UserSettingsSchema = z.object({
   alarmModeEnabled: z.boolean(),
   conflictIntervalMinutes: z.number().min(5).max(60).default(10),
   seniorModeEnabled: z.boolean().optional(),
+  // v1.7.1: bulut birlestirmesinde son-yazan-kazanir damgasi. `z.object()`
+  // strict DEGIL, yani semada YER ALMAYAN alanlar SESSIZCE SILINIR — damga
+  // burada tanimli olmasa import yolunda kaybolurdu.
+  settingsUpdatedAt: z.string().optional(),
   // Güvenlik ayarları
   securityEnabled: z.boolean().optional(),
   securityType: z.enum(['pin', 'biometric', 'both', 'none']).optional(),

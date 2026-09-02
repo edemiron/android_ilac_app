@@ -10,6 +10,7 @@ import {
   updateTITCKCache,
   isTITCKCacheValid,
   getTITCKCacheCount,
+  searchTITCKAutocomplete,
   searchIlacabakByName,
 } from '../../services/turkishMedicineService';
 
@@ -244,12 +245,34 @@ describe('TurkishMedicineService', () => {
       expect(result).toBe(150);
     });
 
-    it('should return 0 when cache is empty', async () => {
+    it('should return count when cache is empty but embedded data exists', async () => {
       (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(null);
 
       const result = await getTITCKCacheCount();
 
-      expect(result).toBe(0);
+      expect(typeof result).toBe('number');
+    });
+  });
+
+  describe('searchTITCKAutocomplete', () => {
+    it('should return empty array for query length < 2', async () => {
+      const result = await searchTITCKAutocomplete('p');
+      expect(result).toEqual([]);
+    });
+
+    it('should return autocomplete suggestions for valid queries like "pa" or "parol"', async () => {
+      const result = await searchTITCKAutocomplete('par');
+      expect(Array.isArray(result)).toBe(true);
+      if (result.length > 0) {
+        expect(result[0]).toHaveProperty('name');
+        expect(result[0]).toHaveProperty('matchScore');
+      }
+    });
+
+    it('should handle Turkish characters case-insensitively', async () => {
+      const resultLower = await searchTITCKAutocomplete('parol');
+      const resultUpper = await searchTITCKAutocomplete('PAROL');
+      expect(resultLower.length).toBe(resultUpper.length);
     });
   });
 

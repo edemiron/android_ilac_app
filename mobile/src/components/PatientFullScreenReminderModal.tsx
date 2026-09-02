@@ -95,11 +95,24 @@ export function PatientFullScreenReminderModal() {
     return name.slice(0, 2).toUpperCase();
   };
 
-  const timeFormatted = reminderData.scheduledTime
-    ? reminderData.scheduledTime.includes('T')
-      ? reminderData.scheduledTime.split('T')[1].slice(0, 5)
-      : reminderData.scheduledTime
-    : '';
+  const timeFormatted = (() => {
+    if (!reminderData?.scheduledTime) {
+      const now = new Date();
+      return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    }
+    const trimmed = reminderData.scheduledTime.trim();
+    if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^\d{1,2}:\d{2}:\d{2}$/.test(trimmed)) {
+      return trimmed.slice(0, 5);
+    }
+    const parsedDate = new Date(trimmed);
+    if (!isNaN(parsedDate.getTime())) {
+      return `${String(parsedDate.getHours()).padStart(2, '0')}:${String(parsedDate.getMinutes()).padStart(2, '0')}`;
+    }
+    return trimmed;
+  })();
 
   const screenWidth = (() => {
     try {

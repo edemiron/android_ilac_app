@@ -10,7 +10,7 @@ import type { RootStackParamList } from '../../../types';
 interface ProfileSectionProps {
   user: { email?: string | null; displayName?: string | null } | null;
   isSyncing: boolean;
-  onSync: () => void;
+  onAccountPress: () => void;
   navigation: NativeStackNavigationProp<RootStackParamList>;
   language: string;
 }
@@ -18,7 +18,7 @@ interface ProfileSectionProps {
 export function ProfileSection({
   user,
   isSyncing,
-  onSync,
+  onAccountPress,
   navigation,
   language,
 }: ProfileSectionProps) {
@@ -34,7 +34,7 @@ export function ProfileSection({
           (isTr ? 'Misafir Hesap • Giriş Yap / Kayıt Ol' : 'Guest Account • Sign In / Register')
         }
         value={isSyncing ? (isTr ? 'Eşitleniyor...' : 'Syncing...') : undefined}
-        onPress={isSyncing ? undefined : user?.email ? onSync : () => navigation.navigate('Login')}
+        onPress={user?.email ? onAccountPress : () => navigation.navigate('Login')}
         showChevron
       />
 

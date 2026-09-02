@@ -9,10 +9,12 @@ import {
   resetPassword as authResetPassword,
   loginWithGoogle,
   signOutFromGoogle,
+  updateUserDisplayName,
 } from '../services/authService';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import Config from 'react-native-config';
 import { useMedicineStore } from '../stores/medicineStore';
+import { migrateCaregiverRelationshipIds } from '../services/caregiverService';
 import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('AuthContext');
@@ -30,6 +32,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   loginWithGoogleProvider: () => Promise<void>;
@@ -77,6 +80,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         // PERFORMANCE: Firebase sync'i ARKA PLANDA yap (sadece gerçek kullanıcılar için)
         if (newUserId !== 'guest_local_user') {
+          // v1.7.4: yeni Firestore kuralları erişimi deterministik kimlikli
+          // ilişki dokümanından okuyor; bu sürümden önce kurulmuş rastgele
+          // kimlikli ilişkileri taşı, yoksa bakıcı hastanın verisini göremez.
+          void migrateCaregiverRelationshipIds(newUserId).catch((err: unknown) => {
+            log.warn('Bakici iliski kimligi migrasyonu atlandi', err);
+          });
+
           log.debug('Firebase sync başlatılıyor (background)', { userId: newUserId });
           useMedicineStore
             .getState()
@@ -97,10 +107,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Firebase user null, check if guest session exists
         const isGuest = await AsyncStorage.getItem('@guest_session');
         if (isGuest === 'true') {
+          const savedGuestName = await AsyncStorage.getItem('@guest_display_name');
           const guestUser: AuthUser = {
             uid: 'guest_local_user',
             email: null,
-            displayName: 'Misafir Kullanıcı',
+            displayName: savedGuestName || 'Misafir Kullanıcı',
             photoURL: null,
           };
           useMedicineStore.getState().setUserId('guest_local_user');
@@ -250,15 +261,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const updateDisplayName = async (newDisplayName: string) => {
+    try {
+      setError(null);
+      const trimmed = newDisplayName.trim();
+      if (!trimmed) {
+        throw new Error('Kullanıcı adı boş olamaz.');
+      }
+
+      if (user?.uid === 'guest_local_user') {
+        await AsyncStorage.setItem('@guest_display_name', trimmed);
+        setUser(prev => (prev ? { ...prev, displayName: trimmed } : null));
+        return;
+      }
+
+      const updatedUser = await updateUserDisplayName(trimmed);
+      setUser(updatedUser);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'İsim güncellenemedi';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
   const loginAsGuest = async () => {
     try {
       setError(null);
       setIsLoading(true);
       await AsyncStorage.setItem('@guest_session', 'true');
+      const savedGuestName = await AsyncStorage.getItem('@guest_display_name');
       const guestUser: AuthUser = {
         uid: 'guest_local_user',
         email: null,
-        displayName: 'Misafir Kullanıcı',
+        displayName: savedGuestName || 'Misafir Kullanıcı',
         photoURL: null,
       };
       setUser(guestUser);
@@ -281,6 +316,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isAuthenticated: !!user,
         login,
         register,
+        updateDisplayName,
         logout,
         resetPassword,
         loginWithGoogleProvider,

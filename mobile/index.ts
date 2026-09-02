@@ -5,6 +5,8 @@ import notifee, {
   TriggerType,
   AlarmType,
   AndroidImportance,
+  AndroidCategory,
+  AndroidVisibility,
 } from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging from '@react-native-firebase/messaging';
@@ -14,7 +16,17 @@ import { registerBootTask } from './src/utils/bootHandler';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { stopAlarmSound } from './src/utils/alarmSoundManager';
 import { stopSpeaking } from './src/utils/speech';
-import { STORAGE_KEYS, CHANNELS } from './src/constants';
+import { STORAGE_KEYS } from './src/constants';
+// Kanal kimliklerinin tek kaynagi. ONEMLI: bu dosya notifee ARKA PLAN
+// handler'ini kaydeder; eskiden `CHANNELS.ALARM` uzerinden eski `-v4` kanalina
+// bildirim gonderiyordu (uygulama kapaliyken calan alarm yolu).
+import { ALARM_CHANNEL_ID, EMERGENCY_SOS_CHANNEL_ID } from './src/utils/notifications/channels';
+import { wakeAndOpenApp } from './src/utils/notifications/wake';
+// "Bu doz bugun zaten alindi mi?" kararinin TEK KAYNAGI. Eskiden bu dosyada
+// kendi kopyasi vardi ve `reminderTimeId || medicineId` OR'u yuzunden ilacin
+// herhangi bir dozu kaydedilince o gunun DIGER dozlarinin alarmi da
+// susturuluyordu (bkz. src/domain/doseLog.ts dosya basi).
+import { isDoseLogged, getLocalDateKey } from './src/domain/doseLog';
 
 const appName = 'main';
 
@@ -24,47 +36,152 @@ registerBootTask();
 // FIREBASE CLOUD MESSAGING (FCM) BACKGROUND HANDLER
 // Uygulama kapalıyken veya arka plandayken gelen push bildirimleri
 // doğrudan Notifee ile sistem bildirim çubuğunda sesli/titreşimli açar.
+// Acil Durum (SOS) çağrılarında yüksek öncelikli siren ve kilit ekranı uyarısı verir.
 // ============================================================
 messaging().setBackgroundMessageHandler(async remoteMessage => {
   console.log('[FCM Background] Mesaj alındı:', remoteMessage);
   try {
     const data = (remoteMessage.data as any) || {};
+    const isEmergency =
+      data?.type === 'emergency_sos' ||
+      data?.type === 'EMERGENCY_SOS' ||
+      data?.type === 'emergency';
+
     const title =
-      remoteMessage.notification?.title || (data?.title as string) || 'İlaç Hatırlatıcı';
+      remoteMessage.notification?.title ||
+      (data?.title as string) ||
+      (isEmergency ? '🚨 ACİL DURUM ÇAĞRISI!' : 'İlaç Hatırlatıcı');
+
+    const patientName = (data?.patientName as string) || 'Hastanız';
     const body =
-      remoteMessage.notification?.body || (data?.body as string) || (data?.message as string) || '';
-    const channelId = (data?.channelId as string) || 'caregiver-live-alerts-v1';
+      remoteMessage.notification?.body ||
+      (data?.body as string) ||
+      (data?.message as string) ||
+      (isEmergency ? `${patientName} acil durum butonuna basarak yardım talep etti!` : '');
+
+    const channelId = isEmergency
+      ? EMERGENCY_SOS_CHANNEL_ID
+      : (data?.channelId as string) || 'caregiver-live-alerts-v6';
+
+    const sound = isEmergency ? 'sound_urgent_alert' : 'default';
 
     try {
       await notifee.createChannel({
         id: channelId,
-        name: 'Bakıcı Canlı Bildirimleri',
+        name: isEmergency ? '🚨 Acil Durum (SOS) Alarmları' : 'Bakıcı Canlı Bildirimleri',
         importance: AndroidImportance.HIGH,
-        sound: 'default',
+        sound,
         vibration: true,
+        vibrationPattern: isEmergency ? [0, 800, 400, 800, 400, 1200] : [0, 250, 250, 250],
+        bypassDnd: isEmergency,
+        visibility: AndroidVisibility.PUBLIC,
+        lights: true,
+        lightColor: '#FF0000',
       });
     } catch (_chErr) {
       // ignore
     }
 
+    const notificationId = isEmergency
+      ? `sos_${data?.alertId || data?.id || 'alert'}`
+      : `med_log_${data?.patientId || 'patient'}_${data?.scheduledTime || ''}_${data?.status || 'status'}`;
+
+    const notificationTag = isEmergency
+      ? `sos_${data?.alertId || data?.id || 'alert'}`
+      : `caregiver_log_${data?.patientId || 'patient'}`;
+
     await notifee.displayNotification({
+      id: notificationId,
       title,
       body,
       android: {
         channelId,
         importance: AndroidImportance.HIGH,
-        sound: 'default',
-        vibrationPattern: [0, 250, 250, 250],
+        sound,
+        tag: notificationTag,
+        vibrationPattern: isEmergency ? [0, 800, 400, 800, 400, 1200] : [0, 250, 250, 250],
         pressAction: {
           id: 'default',
+          launchActivity: 'default',
         },
+        fullScreenAction: isEmergency
+          ? {
+              id: 'default',
+              launchActivity: 'default',
+            }
+          : undefined,
+        category: isEmergency ? AndroidCategory.ALARM : AndroidCategory.REMINDER,
+        visibility: AndroidVisibility.PUBLIC,
+        // NOT: `bypassDnd` BILDIRIM seviyesinde yok — yalnizca KANAL
+        // ozelligidir (notifee tipinde de yok, tsc bunu hata olarak
+        // isaretliyordu). Ustelik manifest'te ACCESS_NOTIFICATION_POLICY
+        // olmadigi icin Android bu istegi kanal seviyesinde de yok sayiyor.
+        // Bkz. utils/notifications/channels.ts icindeki not.
+        lights: isEmergency ? ['#FF0000', 300, 600] : undefined,
+        autoCancel: true,
+        actions: isEmergency
+          ? [
+              {
+                title: '📞 Hastayı Ara',
+                pressAction: {
+                  id: 'call_patient',
+                  launchActivity: 'default',
+                },
+              },
+              {
+                title: '❌ Bildirimi Kapat',
+                pressAction: {
+                  id: 'dismiss_alert',
+                },
+              },
+            ]
+          : undefined,
       },
-      data: data,
+      data: {
+        ...data,
+        isEmergency: isEmergency ? 'true' : 'false',
+      },
     });
+
+    if (isEmergency) {
+      try {
+        await wakeAndOpenApp();
+      } catch (_wakeErr) {
+        // ignore
+      }
+    }
   } catch (e) {
     console.error('[FCM Background] Bildirim gösterme hatası:', e);
   }
 });
+
+// ============================================================
+// HELPER: Bugün bu doz zaten alınmış/atlanmış mı?
+//
+// ⚠️ v1.7.4 — KARAR MANTIĞI ARTIK `src/domain/doseLog.ts` İÇİNDE.
+// Burada iki hata vardı:
+//   1) `(reminderTimeId && ...) || (medicineId && ...)` — `medicineId` her
+//      logda dolu olduğu için ilacın sabah dozu alınınca akşam alarmı da
+//      "zaten alınmış" sayılıp arka planda iptal ediliyordu.
+//   2) `toISOString().split('T')[0]` UTC günü verir; TR (UTC+3) 00:00–03:00
+//      arası dozlar bir önceki güne düşüyordu.
+// ============================================================
+async function isMedicineDoseAlreadyLogged(
+  medicineId?: string,
+  reminderTimeId?: string,
+  _scheduledTime?: string
+): Promise<boolean> {
+  if (!medicineId && !reminderTimeId) return false;
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.MEDICINE_STORAGE);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    const logs = parsed?.state?.medicineLogs || [];
+    return isDoseLogged(logs, { reminderTimeId, medicineId });
+  } catch (_e) {
+    return false;
+  }
+}
 
 // ============================================================
 // HANDLED ALARMS SET
@@ -144,7 +261,10 @@ async function getSnoozeSettings(): Promise<{ snoozeDuration: number; maxSnoozeC
 function getAlarmKey(data: any): string {
   const medId = data?.medicineId || 'unknown';
   const remId = data?.reminderTimeId || 'unknown';
-  const today = new Date().toISOString().split('T')[0];
+  // ⚠️ v1.7.4 — YEREL gün. Eskiden UTC günü kullanılıyordu; App.tsx tarafı da
+  // UTC kullandığı için "aynı" görünüyordu ama TR'de gün sınırı 03:00'a
+  // kayıyordu. Artık iki taraf da src/domain/doseLog.ts'i kullanıyor.
+  const today = getLocalDateKey(new Date());
   return `${medId}-${remId}-${today}`;
 }
 
@@ -179,6 +299,21 @@ async function cancelAlarmCompletely(notification: any): Promise<void> {
       /* */
     }
   }
+
+  try {
+    const displayed = await notifee.getDisplayedNotifications();
+    for (const d of displayed) {
+      if (
+        d.id === notification?.id ||
+        (medId && d.notification?.data?.medicineId === medId) ||
+        (medId && remId && d.id === `alarm-${medId}-${remId}`)
+      ) {
+        if (d.id) await notifee.cancelDisplayedNotification(d.id);
+      }
+    }
+  } catch (_e) {
+    /* ignore */
+  }
 }
 
 // ============================================================
@@ -209,6 +344,24 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
         if (notification.id) {
           try {
             await notifee.cancelDisplayedNotification(notification.id);
+          } catch (_e) {
+            /* */
+          }
+        }
+        return;
+      }
+
+      // KADEME 1: Bugün bu doz zaten alınmış/atlanmışsa ekranı uyandırma
+      const medId = notification.data?.medicineId as string;
+      const remId = notification.data?.reminderTimeId as string;
+      const schedTime = notification.data?.scheduledTime as string;
+      const alreadyLogged = !isTest && (await isMedicineDoseAlreadyLogged(medId, remId, schedTime));
+      if (alreadyLogged) {
+        console.log('[BG] SKIP: Medicine dose already logged for today:', medId, remId);
+        if (notification.id) {
+          try {
+            await notifee.cancelDisplayedNotification(notification.id);
+            await notifee.cancelNotification(notification.id);
           } catch (_e) {
             /* */
           }
@@ -371,7 +524,7 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
             body: `${notification.body?.split('\n')[0] || 'İlacınızı almayı unutmayın!'}\n⏰ ${timeStr}`,
             android: {
               ...(notification.android || {}),
-              channelId: CHANNELS.ALARM,
+              channelId: ALARM_CHANNEL_ID,
             },
             data: {
               medicineId,

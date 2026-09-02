@@ -2,14 +2,15 @@
  * useDutyPharmacyController — DutyPharmacyScreen Presenter Hook
  *
  * Design Pattern: Presenter / Controller
- * GPS konum tespiti, şehir ve ilçe bazlı nöbetçi eczane sorguları,
- * harita yönlendirme ve arama işlemlerini UI bileşeninden izole eder.
+ * GPS konum tespiti, en yakından uzağa sıralı nöbetçi eczane sorguları,
+ * harita yönlendirme, reçete yönetimi ve yenileme alarmlarını koordine eder.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { useMedicineStore } from '../../../stores/medicineStore';
 import {
   getDutyPharmacies,
   callPharmacy,
@@ -19,6 +20,13 @@ import {
   type UserCoordinates,
   POPULAR_CITIES,
 } from '../../../services/pharmacyService';
+import {
+  getPrescriptions,
+  savePrescription,
+  updatePrescription,
+  deletePrescription,
+} from '../../../services/prescriptionService';
+import type { Prescription, PrescriptionInput } from '../../../types/prescription';
 
 export function useDutyPharmacyController() {
   const navigation = useNavigation();
@@ -26,12 +34,23 @@ export function useDutyPharmacyController() {
   const { language } = useLanguage();
   const isTr = language === 'tr';
 
+  const medicines = useMedicineStore(state => state.medicines);
+
+  // Tab State: 'pharmacies' (Nöbetçi Eczaneler) | 'prescriptions' (Reçetelerim & Yenileme)
+  const [activeTab, setActiveTab] = useState<'pharmacies' | 'prescriptions'>('pharmacies');
+
+  // Eczane State
   const [selectedCity, setSelectedCity] = useState<string>('En Yakınlar');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [pharmacies, setPharmacies] = useState<DutyPharmacy[]>([]);
   const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [locating, setLocating] = useState<boolean>(false);
+
+  // Reçete State
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [isPrescriptionModalVisible, setIsPrescriptionModalVisible] = useState(false);
+  const [editingPrescription, setEditingPrescription] = useState<Prescription | null>(null);
 
   // GPS Konumunu Al
   const fetchLocation = useCallback(async () => {
@@ -42,10 +61,18 @@ export function useDutyPharmacyController() {
     return coords;
   }, []);
 
-  // İlk açılışta GPS iste ve listeyi getir
+  // Reçeteleri Yükle
+  const loadPrescriptions = useCallback(async () => {
+    const data = await getPrescriptions();
+    setPrescriptions(data);
+  }, []);
+
+  // İlk açılışta GPS iste, eczaneleri ve reçeteleri getir
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
+
+    loadPrescriptions();
 
     fetchLocation().then(coords => {
       if (!isMounted) return;
@@ -60,7 +87,7 @@ export function useDutyPharmacyController() {
     return () => {
       isMounted = false;
     };
-  }, [fetchLocation]);
+  }, [fetchLocation, loadPrescriptions]);
 
   // Filtreler veya arama değiştiğinde eczaneleri güncelle
   useEffect(() => {
@@ -88,6 +115,41 @@ export function useDutyPharmacyController() {
     setLoading(false);
   };
 
+  // Reçete Kaydet / Güncelle
+  const handleSavePrescription = async (data: PrescriptionInput, editingId?: string) => {
+    if (editingId) {
+      await updatePrescription(editingId, data);
+    } else {
+      await savePrescription(data);
+    }
+    await loadPrescriptions();
+  };
+
+  // Reçete Sil
+  const handleDeletePrescription = async (id: string) => {
+    await deletePrescription(id);
+    await loadPrescriptions();
+  };
+
+  // Reçeteyi Düzenlemek için Aç
+  const handleOpenEditPrescription = (item: Prescription) => {
+    setEditingPrescription(item);
+    setIsPrescriptionModalVisible(true);
+  };
+
+  // Yeni Reçete Modalını Aç
+  const handleOpenNewPrescription = () => {
+    setEditingPrescription(null);
+    setIsPrescriptionModalVisible(true);
+  };
+
+  // Reçeteden En Yakın Eczaneyi Bulmaya Geç
+  const handlePrescriptionFindPharmacy = (_prescription?: Prescription) => {
+    setActiveTab('pharmacies');
+    setSelectedCity('En Yakınlar');
+    setSearchQuery('');
+  };
+
   const detectedLocationName =
     userLocation?.formattedAddress ||
     (userLocation?.city
@@ -100,6 +162,8 @@ export function useDutyPharmacyController() {
     isDark,
     isTr,
     language,
+    activeTab,
+    setActiveTab,
     selectedCity,
     setSelectedCity,
     searchQuery,
@@ -113,5 +177,16 @@ export function useDutyPharmacyController() {
     handleCallPharmacy: callPharmacy,
     handleOpenMap: openPharmacyMap,
     popularCities: POPULAR_CITIES,
+    // Reçete Değerleri
+    prescriptions,
+    allMedicines: medicines,
+    isPrescriptionModalVisible,
+    setIsPrescriptionModalVisible,
+    editingPrescription,
+    handleOpenNewPrescription,
+    handleOpenEditPrescription,
+    handleSavePrescription,
+    handleDeletePrescription,
+    handlePrescriptionFindPharmacy,
   };
 }

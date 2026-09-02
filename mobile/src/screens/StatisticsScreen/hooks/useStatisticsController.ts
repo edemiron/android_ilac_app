@@ -12,6 +12,7 @@ import { tr, enUS } from 'date-fns/locale';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useMedicineStore } from '../../../stores/medicineStore';
+import { useSymptomStore } from '../../../stores/symptomStore';
 import { useAlert } from '../../../contexts/AlertContext';
 import {
   generatePDFReport,
@@ -252,6 +253,8 @@ export function useStatisticsController() {
           days
         );
 
+        reportData.symptomLogs = useSymptomStore.getState().getRecentLogs(30);
+
         const options: ReportOptions = {
           days,
           includeDetails: true,
@@ -307,6 +310,51 @@ export function useStatisticsController() {
     });
   }, [language, showAlert, handleGeneratePDF]);
 
+  const handleShareWhatsAppSummary = useCallback(async () => {
+    try {
+      const isTr = language === 'tr';
+      const periodName =
+        selectedPeriod === 'weekly'
+          ? isTr
+            ? 'Son 7 Gün'
+            : 'Last 7 Days'
+          : isTr
+            ? 'Son 30 Gün'
+            : 'Last 30 Days';
+
+      const medListText = medicineBreakdown
+        .slice(0, 5)
+        .map(m => `• ${m.name}: %${m.adherenceRate} (${m.taken}/${m.total})`)
+        .join('\n');
+
+      const message = isTr
+        ? `📊 *İlaç Hatırlatıcı — Sağlık & Tedavi Karnesi*\n\n` +
+          `🗓️ *Dönem:* ${periodName}\n` +
+          `🎯 *Genel İlaç Uyumu:* %${overallStats.adherenceRate}\n` +
+          `✅ *Alınan Dozlar:* ${overallStats.taken} / ${overallStats.total}\n` +
+          `⚠️ *Atlanan / Kaçırılan:* ${overallStats.missed + overallStats.skipped}\n` +
+          `🔥 *Düzenli Kullanım Serisi:* ${overallStats.currentStreak} gün\n\n` +
+          (medListText ? `🩺 *İlaç Bazlı Başarı:*\n${medListText}\n\n` : '') +
+          `_İlaç Hatırlatıcı & Refakatçi Takip Sistemi ile güvenle oluşturuldu._`
+        : `📊 *Medication Adherence Scorecard*\n\n` +
+          `🗓️ *Period:* ${periodName}\n` +
+          `🎯 *Overall Adherence:* ${overallStats.adherenceRate}%\n` +
+          `✅ *Taken:* ${overallStats.taken} / ${overallStats.total}\n` +
+          `⚠️ *Missed/Skipped:* ${overallStats.missed + overallStats.skipped}\n` +
+          `🔥 *Current Streak:* ${overallStats.currentStreak} days\n\n` +
+          (medListText ? `🩺 *Medication Breakdown:*\n${medListText}\n\n` : '') +
+          `_Generated securely by Medicine Reminder & Caregiver App._`;
+
+      const { Share } = require('react-native');
+      await Share.share({
+        message,
+        title: isTr ? 'İlaç Tedavi Karnesi' : 'Medication Scorecard',
+      });
+    } catch (err) {
+      log.error('handleShareWhatsAppSummary error', err);
+    }
+  }, [language, selectedPeriod, overallStats, medicineBreakdown]);
+
   return {
     colors,
     isDark,
@@ -330,5 +378,6 @@ export function useStatisticsController() {
     medicineBreakdown,
     handleGeneratePDF,
     showPDFOptions,
+    handleShareWhatsAppSummary,
   };
 }

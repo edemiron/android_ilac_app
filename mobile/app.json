@@ -7,7 +7,7 @@
   "expo": {
     "name": "İlaç Hatırlatıcı",
     "slug": "ilac-hatirlatici",
-    "version": "1.4.0",
+    "version": "1.7.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -24,10 +24,12 @@
         "UIBackgroundModes": ["audio", "fetch", "remote-notification"],
         "NSCameraUsageDescription": "Barkod taramak için kamera erişimi gereklidir.",
         "NSSpeechRecognitionUsageDescription": "Sesli hatırlatmalar için konuşma tanıma gereklidir."
-      }
+      },
+      "buildNumber": "53"
     },
     "scheme": "ilachatirlatici",
     "android": {
+      "versionCode": 53,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4ECDC4"
@@ -55,9 +57,7 @@
         "USE_FULL_SCREEN_INTENT",
         "POST_NOTIFICATIONS",
         "CAMERA",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_SPECIAL_USE",
-        "SYSTEM_ALERT_WINDOW"
+        "FOREGROUND_SERVICE"
       ]
     },
     "web": {
@@ -96,7 +96,7 @@
         "projectId": "your-eas-project-id"
       },
       "firebase": {
-        "apiKey": "AIzaSyAKUg-0PsR-awOb-b3RjyrDo9UmNfsD45A",
+        "apiKey": "AIzaSyAHpY_bOKu1GqFB_Yr4cXk3FSpd8kynfb4",
         "authDomain": "ilachatirlatici-15a71.firebaseapp.com",
         "projectId": "ilachatirlatici-15a71",
         "storageBucket": "ilachatirlatici-15a71.firebasestorage.app",
@@ -104,16 +104,16 @@
         "appId": "1:506876057044:android:5d2d26ddbe32c8c4d53241"
       },
       "google": {
-        "androidClientId": "506876057044-8vbjg0f0lju3l9k7orerkt64a415ls8v.apps.googleusercontent.com",
+        "androidClientId": "506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com",
         "webClientId": "506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com"
       }
     }
   },
-  "version": "1.4.0",
+  "version": "1.7.5",
   "android": {
-    "versionCode": 20
+    "versionCode": 53
   },
   "ios": {
-    "buildNumber": "20"
+    "buildNumber": "53"
   }
 }

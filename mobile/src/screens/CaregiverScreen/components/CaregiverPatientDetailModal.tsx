@@ -34,6 +34,7 @@ import {
   logMedicineTakenByCaregiver,
   sendRemoteReminderToPatient,
 } from '../../../services/caregiverService';
+import { getTelUri, formatPhoneNumber } from '../../../utils/phoneHelpers';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useHaptics } from '../../../hooks/useHaptics';
 
@@ -127,9 +128,20 @@ export function CaregiverPatientDetailModal({
   const handleCallPatient = () => {
     haptics.trigger('selection');
     if (phoneNumber) {
-      Linking.openURL(`tel:${phoneNumber}`);
+      const uri = getTelUri(phoneNumber);
+      Linking.openURL(uri).catch(() => {
+        Alert.alert(
+          isTr ? 'Arama Başlatılamadı' : 'Could Not Start Call',
+          isTr ? 'Cihazınızda arama uygulaması açılamadı.' : 'Could not open the dialer app.'
+        );
+      });
     } else {
-      Linking.openURL(`tel:`);
+      Alert.alert(
+        isTr ? 'Telefon Numarası Yok' : 'No Phone Number',
+        isTr
+          ? `${patientName} henüz profiline bir telefon numarası eklememiş. Acil durumlarda hastanıza doğrudan ulaşabilmek için hastanızın Ayarlar > Hesap Bilgileri ekranından telefon numarasını eklemesini isteyebilirsiniz.`
+          : `${patientName} has not added a phone number yet. Please ask the patient to add their number in Settings > Account Details.`
+      );
     }
   };
 
@@ -277,9 +289,22 @@ export function CaregiverPatientDetailModal({
                     <Text style={styles.liveBadgeText}>CANLI</Text>
                   </View>
                 </View>
-                <Text style={[styles.patientEmail, { color: colors.textSecondary }]}>
-                  {patient.email || (isTr ? 'Takipte' : 'Monitoring')}
-                </Text>
+                <View style={styles.contactRow}>
+                  <Text style={[styles.patientEmail, { color: colors.textSecondary }]}>
+                    {patient.email || (isTr ? 'Takipte' : 'Monitoring')}
+                  </Text>
+                  {phoneNumber ? (
+                    <View
+                      style={[
+                        styles.phoneBadge,
+                        { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#DCFCE7' },
+                      ]}
+                    >
+                      <Ionicons name="call" size={10} color="#16A34A" />
+                      <Text style={styles.phoneBadgeText}>{formatPhoneNumber(phoneNumber)}</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
             </View>
 
@@ -1004,7 +1029,26 @@ const styles = StyleSheet.create({
   },
   patientEmail: {
     fontSize: 12.5,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
     marginTop: 2,
+  },
+  phoneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  phoneBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#16A34A',
   },
   headerRightActions: {
     flexDirection: 'row',

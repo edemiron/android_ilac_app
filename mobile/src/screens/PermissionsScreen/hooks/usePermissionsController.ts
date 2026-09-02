@@ -2,8 +2,8 @@
  * usePermissionsController — PermissionsScreen Presenter Hook
  *
  * Design Pattern: Presenter / Controller
- * Bildirim, kesin alarm, pil tasarrufu muafiyeti ve OEM izin
- * sorgulama ve ayarlar yönlendirmelerini UI bileşeninden izole eder.
+ * Bildirim, kesin alarm, pil tasarrufu muafiyeti ve Evrensel OEM Kalkanı
+ * kontrollerini ve ayar yönlendirmelerini koordine eder.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -18,6 +18,14 @@ import {
   openFullScreenIntentSettings,
   openPowerManagerSettings,
 } from '../../../utils/notifications';
+import {
+  detectOEMShieldStatus,
+  getOEMGuide,
+  openOEMShieldSetting,
+  OEMShieldStatus,
+  OEMShieldGuide,
+} from '../../../utils/oemShieldEngine';
+import { runLockScreenAlarmTest } from '../../../utils/notifications/testAlarm';
 
 export interface PermissionStatus {
   notifications: boolean;
@@ -33,15 +41,22 @@ export function usePermissionsController() {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
   const [permissions, setPermissions] = useState<PermissionStatus | null>(null);
+  const [oemShieldStatus, setOemShieldStatus] = useState<OEMShieldStatus | null>(null);
+  const [oemGuide, setOemGuide] = useState<OEMShieldGuide | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRequesting, setIsRequesting] = useState(false);
+  const [isTestingAlarm, setIsTestingAlarm] = useState(false);
+  const [testAlarmScheduled, setTestAlarmScheduled] = useState(false);
 
   const checkPermissions = useCallback(async () => {
     setIsLoading(true);
-    const status = await checkAllPermissions();
+    const [status, oemStatus] = await Promise.all([checkAllPermissions(), detectOEMShieldStatus()]);
+
     setPermissions(status);
+    setOemShieldStatus(oemStatus);
+    setOemGuide(getOEMGuide(oemStatus.oem, language));
     setIsLoading(false);
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     checkPermissions();
@@ -79,6 +94,27 @@ export function usePermissionsController() {
     setTimeout(checkPermissions, 1000);
   };
 
+  const handleOpenOEMSetting = async (
+    actionType: 'autostart' | 'battery' | 'popup' | 'exact_alarm' | 'notification' | 'fullscreen'
+  ) => {
+    await openOEMShieldSetting(actionType);
+    setTimeout(checkPermissions, 1000);
+  };
+
+  const handleStartAlarmTest = async () => {
+    try {
+      setIsTestingAlarm(true);
+      // Tek kaynak: ayarlar motor tarafından store'dan okunur.
+      await runLockScreenAlarmTest({ seconds: 10, language: language === 'tr' ? 'tr' : 'en' });
+      setTestAlarmScheduled(true);
+      setTimeout(() => {
+        setIsTestingAlarm(false);
+      }, 12000);
+    } catch (_e) {
+      setIsTestingAlarm(false);
+    }
+  };
+
   const allPermissionsGranted = Boolean(
     permissions &&
     permissions.notifications &&
@@ -91,8 +127,12 @@ export function usePermissionsController() {
     isDark,
     language,
     permissions,
+    oemShieldStatus,
+    oemGuide,
     isLoading,
     isRequesting,
+    isTestingAlarm,
+    testAlarmScheduled,
     allPermissionsGranted,
     checkPermissions,
     handleRequestNotifications,
@@ -101,5 +141,7 @@ export function usePermissionsController() {
     handleOpenNotificationSettings,
     handleOpenFullScreenIntentSettings,
     handleOpenPowerManagerSettings,
+    handleOpenOEMSetting,
+    handleStartAlarmTest,
   };
 }

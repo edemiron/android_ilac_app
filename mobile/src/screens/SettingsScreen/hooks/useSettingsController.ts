@@ -2,7 +2,7 @@
  * useSettingsController — SettingsScreen Presenter Hook
  *
  * Design Pattern: Presenter / Controller
- * Genel ayarlar, profil, tema, dil, bildirimler, dev mode sayacı,
+ * Genel ayarlar, profil, hesap modalı, tema, dil, bildirimler, dev mode sayacı,
  * FAQ ve JSON yedekleme akışlarını UI bileşeninden izole eder.
  */
 
@@ -24,6 +24,8 @@ export function useSettingsController() {
   const { showAlert, showError, showInfo } = useAlert();
 
   const [isDevMode, setIsDevMode] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showBatteryModal, setShowBatteryModal] = useState(false);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
 
@@ -36,6 +38,22 @@ export function useSettingsController() {
       .catch(err => {
         log.debug('Failed to read dev-mode from storage', err);
       });
+  }, []);
+
+  const handleAccountPress = useCallback(() => {
+    setShowAccountModal(true);
+  }, []);
+
+  const handleCloseAccountModal = useCallback(() => {
+    setShowAccountModal(false);
+  }, []);
+
+  const handleBatteryPress = useCallback(() => {
+    setShowBatteryModal(true);
+  }, []);
+
+  const handleCloseBatteryModal = useCallback(() => {
+    setShowBatteryModal(false);
   }, []);
 
   const handleVersionPress = useCallback(() => {
@@ -94,7 +112,14 @@ export function useSettingsController() {
       state.settings
     );
     const result = await shareBackup(payload);
-    if (!result.success && result.error !== 'cancelled') {
+    if (result.success && result.copiedToClipboard) {
+      showInfo(
+        language === 'tr' ? 'Yedek Panoya Kopyalandı' : 'Backup Copied to Clipboard',
+        language === 'tr'
+          ? 'Yedekleme verileriniz panoya kopyalandı. İstediğiniz yere yapıştırıp saklayabilirsiniz.'
+          : 'Your backup data has been copied to the clipboard. You can paste and save it anywhere.'
+      );
+    } else if (!result.success && result.error !== 'cancelled') {
       showError(
         language === 'tr' ? 'Yedekleme Hatası' : 'Backup Error',
         result.error ||
@@ -109,6 +134,12 @@ export function useSettingsController() {
     ...base,
     t,
     isDevMode,
+    showAccountModal,
+    handleAccountPress,
+    handleCloseAccountModal,
+    showBatteryModal,
+    handleBatteryPress,
+    handleCloseBatteryModal,
     handleVersionPress,
     handleFAQPress,
     handleExportBackup,

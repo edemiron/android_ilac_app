@@ -9,12 +9,14 @@ import { SettingsSection } from './SettingsSection';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useUserProfile } from '../../hooks/useUserProfile';
+import { useHaptics } from '../../hooks/useHaptics';
 import { ACCENT_LIST, AccentId } from '../../theme/palettes';
 
 export function AccentColorSection() {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
   const { profile, setAccentColor } = useUserProfile();
+  const haptics = useHaptics();
   const isTr = language === 'tr';
 
   const activePalette = ACCENT_LIST.find(p => p.id === profile.accentColor);
@@ -36,7 +38,10 @@ export function AccentColorSection() {
                     transform: [{ scale: isSelected ? 1.08 : 1 }],
                   },
                 ]}
-                onPress={() => setAccentColor(palette.id as AccentId)}
+                onPress={() => {
+                  haptics.trigger('selection');
+                  setAccentColor(palette.id as AccentId);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={
                   `${isTr ? 'Vurgu rengi' : 'Accent color'}: ${isTr ? palette.nameTr : palette.nameEn}` +

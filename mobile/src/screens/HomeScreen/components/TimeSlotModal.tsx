@@ -14,6 +14,7 @@ import { ThemeColors } from '../../../contexts/ThemeContext';
 import { TimeSlotGroupData } from './TimeSlotGrid';
 import { TimelineItem } from './TimelineItem';
 import { withAlpha, ALPHA } from '../../../utils/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface TimeSlotModalProps {
   visible: boolean;
@@ -36,6 +37,7 @@ export const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
   onTakeNow,
   snoozes,
 }) => {
+  const insets = useSafeAreaInsets();
   if (!slot) return null;
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -54,6 +56,7 @@ export const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
                 {
                   backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
                   borderColor: isDark ? '#334155' : '#E2E8F0',
+                  paddingBottom: Math.max(insets.bottom, 20) + 16,
                 },
               ]}
             >

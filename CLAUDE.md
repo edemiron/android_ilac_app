@@ -67,6 +67,7 @@ Server/web kurulumu, ABI yapılandırması, seed scriptler, API key rotation run
 - **Atomic commit:** sprint-based, her sprint = 1 commit, format: `Sprint N: ...`. `--no-verify` → `.claude/settings.local.json` allowlist.
 - **Coverage disiplini:** eşik = `current - 5%` (sprint başına +5 headroom). Detaylar → jest.config.js.
 - **PR workflow:** default `master`, aktif `fix/critical-issues-and-improvements`. Template'ler → `docs/pull-requests/`.
+- **Otomatik Operasyon Arşivleme (`docs/archive/`):** Her teknik işlem, geliştirme, hata düzeltmesi veya sürüm sonrasında `docs/archive/[version]_YYYY-MM-DD_HH-mm_[konu-basligi].md` formatında kalıcı arşiv kaydı oluşturulmalı ve `docs/archive/ARCHIVE_INDEX.md` kataloğu güncellenmelidir.
 
 ---
 

@@ -119,6 +119,42 @@ let isPlaying = false;
 let currentVolume = 0.8;
 let previewTimeout: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * Her playAlarmSound cagrisina artan bir kusak (generation) numarasi verilir.
+ *
+ * Neden: `new Sound(file, base, cb)` yuklemesi asenkron ve callback modul
+ * seviyesindeki `soundInstance` degiskenine kapaniyordu. Yukleme surerken ikinci
+ * bir playAlarmSound gelirse, BIRINCI instance'in callback'i artik IKINCI
+ * instance'i gorup `play()` cagiriyor; `stopAlarmSound()` ise sadece son
+ * referansi durdurabiliyordu. Sonuc: calan ama artik referanslanmayan bir Sound
+ * ("Simdi Al"dan sonra susmayan alarm).
+ *
+ * Cozum: callback yalnizca kendi kusagi hala guncelse oynatir ve calan her
+ * instance `liveInstances` icinde tutulur; stopAlarmSound hepsini durdurur.
+ */
+let playGeneration = 0;
+const liveInstances = new Set<Sound>();
+
+function releaseInstance(instance: Sound): void {
+  liveInstances.delete(instance);
+  try {
+    instance.stop(() => {
+      try {
+        instance.release();
+      } catch (_e) {
+        /* ignore */
+      }
+    });
+  } catch (error) {
+    log.debug('releaseInstance hatasi', { error });
+    try {
+      instance.release();
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+}
+
 export async function playAlarmSound(
   volume: number = 80,
   soundId: string = 'soft_chime',
@@ -129,16 +165,12 @@ export async function playAlarmSound(
     previewTimeout = null;
   }
 
-  // Eğer zaten çalıyorsa durdurup yenisini yükle
-  if (soundInstance) {
-    try {
-      soundInstance.stop();
-      soundInstance.release();
-      soundInstance = null;
-    } catch (_e) {
-      // ignore
-    }
+  // Onceki kusagi gecersiz kil ve calan TUM instance'lari durdur.
+  const generation = ++playGeneration;
+  for (const instance of Array.from(liveInstances)) {
+    releaseInstance(instance);
   }
+  soundInstance = null;
 
   isPlaying = true;
   currentVolume = Math.max(0, Math.min(100, volume)) / 100;
@@ -149,35 +181,92 @@ export async function playAlarmSound(
   return new Promise(resolve => {
     const basePath = Platform.OS === 'android' ? Sound.MAIN_BUNDLE : Sound.MAIN_BUNDLE;
 
-    soundInstance = new Sound(soundFilename, basePath, error => {
-      if (error) {
-        log.error('Sound load error', error);
-        isPlaying = false;
-        resolve();
-        return;
-      }
+    const loadAndPlay = (filename: string, isFallback: boolean = false) => {
+      // KRITIK: callback modul seviyesindeki `soundInstance` degiskenine DEGIL,
+      // kendi instance'ina bakar (bkz. playGeneration aciklamasi).
+      let instance: Sound | undefined;
+      let playWhenConstructed = false;
 
-      if (!isPlaying || !soundInstance) {
-        soundInstance?.release();
-        resolve();
-        return;
-      }
+      const startPlayback = (target: Sound) => {
+        soundInstance = target;
+        target.setVolume(currentVolume);
+        target.setNumberOfLoops(loop ? -1 : 0);
 
-      soundInstance.setVolume(currentVolume);
-      soundInstance.setNumberOfLoops(loop ? -1 : 0);
+        target.play(success => {
+          if (!success) {
+            log.warn('Sound playback stopped unexpectedly');
+          }
+          if (!loop) {
+            liveInstances.delete(target);
+            if (generation === playGeneration) {
+              isPlaying = false;
+            }
+          }
+        });
 
-      soundInstance.play(success => {
-        if (!success) {
-          log.warn('Sound playback stopped unexpectedly');
+        log.debug(`Playing alarm via react-native-sound: ${filename}`);
+      };
+
+      instance = new Sound(filename, basePath, error => {
+        if (error) {
+          log.error(`Sound load error for ${filename}`, error);
+          if (instance) {
+            liveInstances.delete(instance);
+          }
+          if (!isFallback && filename !== 'sound_soft_chime.wav') {
+            log.debug('Trying fallback sound_soft_chime.wav');
+            loadAndPlay('sound_soft_chime.wav', true);
+            return;
+          }
+          if (generation === playGeneration) {
+            isPlaying = false;
+          }
+          resolve();
+          return;
         }
-        if (!loop) {
-          isPlaying = false;
+
+        // Bu kusak artik gecerli degilse (arada stop veya yeni bir play geldi)
+        // ASLA oynatma — ve instance'i mutlaka birak.
+        if (!isPlaying || generation !== playGeneration) {
+          log.debug('Sound yuklendi ama kusak gecersiz, birakiliyor', {
+            filename,
+            generation,
+            current: playGeneration,
+          });
+          if (instance) {
+            releaseInstance(instance);
+          } else {
+            // Senkron callback: instance henuz yok, olusunca birakilacak.
+            playWhenConstructed = false;
+          }
+          resolve();
+          return;
         }
+
+        if (!instance) {
+          // Callback, constructor daha donmeden SENKRON cagrildi; nesneye
+          // henuz referans yok. Oynatmayi construction sonrasina ertele.
+          playWhenConstructed = true;
+          resolve();
+          return;
+        }
+
+        startPlayback(instance);
+        resolve();
       });
 
-      log.debug('Playing alarm via react-native-sound');
-      resolve();
-    });
+      liveInstances.add(instance);
+
+      if (playWhenConstructed) {
+        if (isPlaying && generation === playGeneration) {
+          startPlayback(instance);
+        } else {
+          releaseInstance(instance);
+        }
+      }
+    };
+
+    loadAndPlay(soundFilename);
   });
 }
 
@@ -208,21 +297,18 @@ export async function stopAlarmSound(): Promise<void> {
     previewTimeout = null;
   }
 
-  log.debug('Stopping alarm sound');
+  log.debug('Stopping alarm sound', { liveInstances: liveInstances.size });
   isPlaying = false;
 
-  if (soundInstance) {
-    try {
-      const sound = soundInstance;
-      soundInstance = null;
-      sound.stop(() => {
-        sound.release();
-        log.debug('Sound stopped and released');
-      });
-    } catch (error) {
-      log.error('Error stopping sound', error);
-    }
+  // Kusagi ilerlet: yolda olan yukleme callback'leri artik oynatmayacak.
+  playGeneration += 1;
+  soundInstance = null;
+
+  for (const instance of Array.from(liveInstances)) {
+    releaseInstance(instance);
   }
+
+  log.debug('Sound stopped and released');
 }
 
 export function isAlarmPlaying(): boolean {

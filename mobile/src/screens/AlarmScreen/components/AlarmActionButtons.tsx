@@ -4,7 +4,6 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import type { TranslationKey } from '../../../contexts/LanguageContext';
 
 interface AlarmActionButtonsProps {
@@ -15,7 +14,6 @@ interface AlarmActionButtonsProps {
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   onTake: () => void;
   onSnooze: () => void;
-  onVoiceReply: () => void;
   onSkip: () => void;
 }
 
@@ -27,7 +25,6 @@ export function AlarmActionButtons({
   t,
   onTake,
   onSnooze,
-  onVoiceReply,
   onSkip,
 }: AlarmActionButtonsProps) {
   const durationLabel =
@@ -64,15 +61,15 @@ export function AlarmActionButtons({
         </Text>
       </TouchableOpacity>
 
-      {/* Sesli Komut butonu */}
-      <TouchableOpacity style={styles.voiceButton} onPress={onVoiceReply} activeOpacity={0.8}>
-        <Ionicons name="mic-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-        <Text style={styles.voiceButtonText}>
-          {language === 'tr'
-            ? 'Sesle Yanıtla ("Aldım" / "Ertele")'
-            : 'Voice Reply ("Taken" / "Snooze")'}
-        </Text>
-      </TouchableOpacity>
+      {/*
+        v1.7.4 (Faz 0.6): "Sesle Yanıtla" butonu KALDIRILDI.
+        Uygulamada konuşma tanıma kütüphanesi YOKTU; modal sabit bir
+        "Dinleniyor..." metni gösteriyor, altında "Aldım/Ertele/Atla"
+        simülasyon butonları bulunuyordu. Yaşlı kullanıcı telefona konuşuyor,
+        hiçbir şey olmuyor, alarm çalmaya devam ediyordu; kırmızı "Atla"
+        butonu ise tek dokunuşla dozu atlatıyordu.
+        Gerçek STT eklenirse: izin akışı + gerçek transkript + "Atla" için onay.
+      */}
 
       {/* Atla butonu */}
       <TouchableOpacity style={styles.skipButton} onPress={onSkip} activeOpacity={0.8}>

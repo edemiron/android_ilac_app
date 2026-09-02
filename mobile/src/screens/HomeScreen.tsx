@@ -18,6 +18,8 @@ import { RootStackParamList } from '../types';
 import { withAlpha, ALPHA } from '../utils/colors';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { SkipReasonModal } from '../components/common/SkipReasonModal';
+import { EmergencySosModal } from '../components/common/EmergencySosModal';
+import { BatchMedicineImportModal } from '../components/common/BatchMedicineImportModal';
 
 // Alt Bileşenler
 import { CurrentDoseCard } from './HomeScreen/components/CurrentDoseCard';
@@ -34,6 +36,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const [batchImportVisible, setBatchImportVisible] = React.useState(false);
   const {
     colors,
     isDark,
@@ -70,10 +73,14 @@ export default function HomeScreen() {
     setSkipModalVisible,
     skipTargetReminder,
     setSkipTargetReminder,
+    emergencyModalVisible,
+    setEmergencyModalVisible,
+    caregiverPhone,
     handleTake,
     handleSkip,
     handleConfirmSkip,
     handleSnooze,
+    handleEmergencySos,
   } = useHomeController();
 
   // 1. Yaşlı Dostu Modu (Senior Mode View)
@@ -99,6 +106,7 @@ export default function HomeScreen() {
           }}
           onToggleSeniorMode={toggleSeniorMode}
           onNavigateToPharmacy={() => navigation.navigate('DutyPharmacy' as never)}
+          onSosPress={handleEmergencySos}
         />
         <SkipReasonModal
           visible={skipModalVisible}
@@ -108,6 +116,16 @@ export default function HomeScreen() {
             setSkipTargetReminder(null);
           }}
           onConfirm={handleConfirmSkip}
+        />
+        <EmergencySosModal
+          visible={emergencyModalVisible}
+          onClose={() => setEmergencyModalVisible(false)}
+          userId={user?.uid}
+          userName={user?.displayName || firstName || 'Hasta'}
+          caregiverPhone={caregiverPhone}
+          onNavigateToPharmacy={() => navigation.navigate('DutyPharmacy' as never)}
+          colors={colors}
+          language={language}
         />
       </SafeAreaView>
     );
@@ -132,6 +150,7 @@ export default function HomeScreen() {
           onCaregiverPress={() => navigation.navigate('Caregiver' as never)}
           onNotificationPress={() => navigation.navigate('NotificationCenter' as never)}
           onSettingsPress={() => navigation.navigate('Settings' as never)}
+          onSosPress={handleEmergencySos}
         />
 
         {/* 2. Compact Haftalık Takvim Çubuğu */}
@@ -140,6 +159,36 @@ export default function HomeScreen() {
           onSelectDate={setSelectedCalendarDate}
           medicineLogsSummary={weeklyLogsSummary}
         />
+
+        {/* 2.2. Çoklu İlaç & Reçete AI Hızlı Aktarma Butonu */}
+        <TouchableOpacity
+          style={[
+            styles.batchImportBanner,
+            {
+              backgroundColor: isDark ? 'rgba(78, 205, 196, 0.12)' : '#E6FFFA',
+              borderColor: isDark ? 'rgba(78, 205, 196, 0.3)' : '#B2F5EA',
+            },
+          ]}
+          onPress={() => setBatchImportVisible(true)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.batchImportIconBg}>
+            <Ionicons name="camera" size={16} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.batchImportTitle, { color: isDark ? '#E6FFFA' : '#234E52' }]}>
+              {language === 'tr'
+                ? '📸 Çoklu İlaç / Reçete AI ile Tara'
+                : '📸 Batch AI Medicine Import'}
+            </Text>
+            <Text style={[styles.batchImportSubtitle, { color: isDark ? '#A0AEC0' : '#4A5568' }]}>
+              {language === 'tr'
+                ? 'Kutuları veya reçeteyi tek fotoğrafla listeye aktarın'
+                : 'Import multiple boxes with one photo'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={isDark ? '#E6FFFA' : '#234E52'} />
+        </TouchableOpacity>
 
         {/* 2.5. Stok Azaldı & Nöbetçi Eczane Köprüsü */}
         {lowStockMedicines && lowStockMedicines.length > 0 && (
@@ -211,6 +260,11 @@ export default function HomeScreen() {
 
         {/* 4. Sıradaki İlaç (Current Dose Hero Card) */}
         <CurrentDoseCard
+          key={
+            currentReminder
+              ? `current-reminder-${currentReminder.reminderTime.id}`
+              : 'all-reminders-completed'
+          }
           reminder={currentReminder}
           colors={colors}
           isDark={isDark}
@@ -325,6 +379,25 @@ export default function HomeScreen() {
           setSkipTargetReminder(null);
         }}
       />
+
+      {/* Acil Durum (SOS) Yardım Merkezi Modalı */}
+      <EmergencySosModal
+        visible={emergencyModalVisible}
+        onClose={() => setEmergencyModalVisible(false)}
+        userId={user?.uid}
+        userName={user?.displayName || firstName || 'Hasta'}
+        caregiverPhone={caregiverPhone}
+        onNavigateToPharmacy={() => navigation.navigate('DutyPharmacy' as never)}
+        colors={colors}
+        language={language}
+      />
+
+      {/* Çoklu İlaç & Reçete AI İçe Aktarma Modalı */}
+      <BatchMedicineImportModal
+        visible={batchImportVisible}
+        onClose={() => setBatchImportVisible(false)}
+        onSuccess={() => onRefresh()}
+      />
     </SafeAreaView>
   );
 }
@@ -335,6 +408,34 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  batchImportBanner: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  batchImportIconBg: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#4ECDC4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  batchImportTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  batchImportSubtitle: {
+    fontSize: 11.5,
+    marginTop: 1,
   },
   slimLowStockBanner: {
     marginHorizontal: 16,

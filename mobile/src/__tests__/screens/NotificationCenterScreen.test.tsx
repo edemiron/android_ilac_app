@@ -68,6 +68,12 @@ jest.mock('../../contexts/LanguageContext', () => ({
   }),
 }));
 
+// Test alarmi tek kaynaktan yonetiliyor: utils/notifications/testAlarm
+const mockRunLockScreenAlarmTest = jest.fn().mockResolvedValue({ ok: true, steps: [] });
+jest.mock('../../utils/notifications/testAlarm', () => ({
+  runLockScreenAlarmTest: (...args: any[]) => mockRunLockScreenAlarmTest(...args),
+}));
+
 const mockScheduleTestAlarmNotification = jest.fn().mockResolvedValue('notif-123');
 jest.mock('../../utils/notifications/schedule', () => ({
   scheduleTestAlarmNotification: (...args: any[]) => mockScheduleTestAlarmNotification(...args),
@@ -170,7 +176,9 @@ describe('NotificationCenterScreen', () => {
     await act(async () => {
       fireEvent.press(testButton);
     });
-    expect(mockScheduleTestAlarmNotification).toHaveBeenCalledTimes(1);
+    expect(mockRunLockScreenAlarmTest).toHaveBeenCalledTimes(1);
+    // Ayarlar motor tarafindan store'dan okunur; buradan partial ayar gecilmez.
+    expect(mockRunLockScreenAlarmTest).toHaveBeenCalledWith({ seconds: 5, language: 'tr' });
   });
 
   it('renders quick settings navigation buttons', () => {

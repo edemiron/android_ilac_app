@@ -91,6 +91,8 @@ export async function searchOpenFoodFacts(
   }
 }
 
+import { normalizeBarcode } from '../utils/barcodeHelpers';
+
 // ============ TİTCK EXCEL CACHE ============
 
 const TITCK_CACHE_KEY = '@titck_medicine_cache';
@@ -101,43 +103,70 @@ interface TITCKMedicine {
   barcode: string;
   name: string;
   manufacturer: string;
-  price: number;
+  price?: number;
   atcCode?: string;
   dosage?: string;
 }
 
 /**
- * TİTCK cache'den barkod ara
+ * TİTCK cache'den barkod ara (AsyncStorage + Gömülü 7,944 İlaçlık Offline DB)
  */
-export async function searchTITCKCache(barcode: string): Promise<Partial<GlobalMedicine> | null> {
+export async function searchTITCKCache(
+  rawBarcode: string
+): Promise<Partial<GlobalMedicine> | null> {
+  const barcode = normalizeBarcode(rawBarcode) || (rawBarcode ? rawBarcode.trim() : '');
+  if (!barcode) return null;
+
   try {
-    log.debug('TITCK Cache aranıyor', { barcode });
+    log.debug('TITCK Cache aranıyor', { rawBarcode, barcode });
 
+    // 1. Önce dinamik AsyncStorage cache kontrolü (kullanıcı/admin güncellemesi varsa)
     const cacheData = await AsyncStorage.getItem(TITCK_CACHE_KEY);
-    if (!cacheData) {
-      log.debug('TITCK Cache boş');
-      return null;
+    if (cacheData) {
+      try {
+        const medicines: TITCKMedicine[] = JSON.parse(cacheData);
+        const found = medicines.find(m => m.barcode === barcode);
+        if (found) {
+          log.debug('TITCK AsyncStorage Cache bulundu', { name: found.name });
+          const fixedName = fixTurkishCharacters(found.name);
+          return {
+            barcode: found.barcode,
+            name: fixedName,
+            manufacturer: found.manufacturer,
+            dosage: fixTurkishCharacters(found.dosage || extractDosageFromName(found.name)),
+            form: detectMedicineForm(found.name),
+            country: 'TR',
+          };
+        }
+      } catch (_e) {
+        /* ignore */
+      }
     }
 
-    const medicines: TITCKMedicine[] = JSON.parse(cacheData);
-    const found = medicines.find(m => m.barcode === barcode);
-
-    if (!found) {
-      log.debug('TITCK Cache bulunamadı');
-      return null;
+    // 2. Gömülü Offline TİTCK veri tabanı kontrolü (7,944 güncel ilaç)
+    let embeddedData: Record<string, any> | null = null;
+    try {
+      embeddedData = require('../assets/data/titck_medicines.json');
+    } catch (_e) {
+      embeddedData = null;
     }
 
-    log.debug('TITCK Cache bulundu', { name: found.name });
+    if (embeddedData && embeddedData[barcode]) {
+      const item = embeddedData[barcode];
+      log.debug('TITCK Gömülü Veri Tabanında Bulundu', { name: item.name });
+      return {
+        barcode,
+        name: fixTurkishCharacters(item.name),
+        genericName: item.genericName,
+        manufacturer: item.manufacturer || 'Bilinmiyor',
+        dosage: item.dosage || fixTurkishCharacters(extractDosageFromName(item.name)),
+        form: item.form || detectMedicineForm(item.name),
+        country: 'TR',
+      };
+    }
 
-    const fixedName = fixTurkishCharacters(found.name);
-    return {
-      barcode: found.barcode,
-      name: fixedName,
-      manufacturer: found.manufacturer,
-      dosage: fixTurkishCharacters(found.dosage || extractDosageFromName(found.name)),
-      form: detectMedicineForm(found.name),
-      country: 'TR',
-    };
+    log.debug('TITCK Cache bulunamadı', { barcode });
+    return null;
   } catch (error) {
     log.error('TITCK Cache hata', error);
     return null;
@@ -182,12 +211,123 @@ export async function isTITCKCacheValid(): Promise<boolean> {
 export async function getTITCKCacheCount(): Promise<number> {
   try {
     const cacheData = await AsyncStorage.getItem(TITCK_CACHE_KEY);
-    if (!cacheData) return 0;
+    if (cacheData) {
+      const medicines: TITCKMedicine[] = JSON.parse(cacheData);
+      return medicines.length;
+    }
 
-    const medicines: TITCKMedicine[] = JSON.parse(cacheData);
-    return medicines.length;
+    try {
+      const embeddedData = require('../assets/data/titck_medicines.json');
+      return Object.keys(embeddedData).length;
+    } catch {
+      return 0;
+    }
   } catch {
     return 0;
+  }
+}
+
+/**
+ * Türkçe karakter normalizasyonu (harf eşitsizliklerini gidermek için)
+ */
+function normalizeSearchText(str: string | null | undefined): string {
+  return (str || '')
+    .replace(/İ/g, 'i')
+    .replace(/I/g, 'ı')
+    .replace(/ı/g, 'i')
+    .replace(/Ğ/g, 'g')
+    .replace(/ğ/g, 'g')
+    .replace(/Ü/g, 'u')
+    .replace(/ü/g, 'u')
+    .replace(/Ş/g, 's')
+    .replace(/ş/g, 's')
+    .replace(/Ö/g, 'o')
+    .replace(/ö/g, 'o')
+    .replace(/Ç/g, 'c')
+    .replace(/ç/g, 'c')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * TİTCK veri tabanında (18.088 ilaç) akıllı ve hızlı otomatik tamamlama araması
+ * Kullanıcı isim yazarken (örn: "pa", "parol") anında sonuç döndürür.
+ */
+export async function searchTITCKAutocomplete(
+  searchQuery: string,
+  maxResults: number = 8
+): Promise<import('../types').MedicineAutocompleteResult[]> {
+  const q = normalizeSearchText(searchQuery);
+  if (!q || q.length < 2) {
+    return [];
+  }
+
+  try {
+    let embeddedData: Record<string, any> | null = null;
+    try {
+      embeddedData = require('../assets/data/titck_medicines.json');
+    } catch (_e) {
+      embeddedData = null;
+    }
+
+    if (!embeddedData) {
+      return [];
+    }
+
+    const results: import('../types').MedicineAutocompleteResult[] = [];
+    const entries = Object.entries(embeddedData);
+
+    for (let i = 0; i < entries.length; i++) {
+      const [barcode, med] = entries[i];
+      const nameNorm = normalizeSearchText(med.name);
+      const genericNorm = normalizeSearchText(med.genericName);
+
+      let score = 0;
+      if (nameNorm === q) {
+        score = 100;
+      } else if (nameNorm.startsWith(q)) {
+        score = 90;
+      } else {
+        const words = nameNorm.split(/[\s\-+/]+/);
+        if (words.some(w => w.startsWith(q))) {
+          score = 80;
+        } else if (nameNorm.includes(q)) {
+          score = 65;
+        } else if (genericNorm && (genericNorm.startsWith(q) || genericNorm.includes(q))) {
+          score = 50;
+        }
+      }
+
+      if (score > 0) {
+        if (med.status === 'Aktif' || med.isVerified) {
+          score += 5; // Aktif ilaçlara öncelik
+        }
+
+        results.push({
+          id: barcode,
+          barcode,
+          name: fixTurkishCharacters(med.name),
+          dosage: med.dosage || fixTurkishCharacters(extractDosageFromName(med.name)),
+          form: med.form || detectMedicineForm(med.name),
+          manufacturer: fixTurkishCharacters(med.manufacturer || 'Bilinmiyor'),
+          genericName: med.genericName ? fixTurkishCharacters(med.genericName) : undefined,
+          atcCode: med.atcCode,
+          prescriptionType: med.prescriptionType,
+          matchScore: score,
+        });
+      }
+    }
+
+    // Skoruna göre sırala (yüksek skor önce), eşitlikte kısa isim önce
+    results.sort((a, b) => {
+      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+      return a.name.length - b.name.length;
+    });
+
+    return results.slice(0, maxResults);
+  } catch (error) {
+    log.error('searchTITCKAutocomplete hatasi', error);
+    return [];
   }
 }
 

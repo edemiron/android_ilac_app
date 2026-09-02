@@ -179,7 +179,10 @@ describe('notifications/listeners', () => {
       },
     });
 
-    expect(onAction).toHaveBeenCalledWith('snooze', { medicineId: 'med-3' });
+    expect(onAction).toHaveBeenCalledWith('snooze', {
+      medicineId: 'med-3',
+      notificationId: 'notif-3',
+    });
   });
 });
 

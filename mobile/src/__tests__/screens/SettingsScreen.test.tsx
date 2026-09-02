@@ -17,11 +17,20 @@ jest.mock('react-native', () => ({
   ScrollView: 'ScrollView',
   Switch: 'Switch',
   TouchableOpacity: 'TouchableOpacity',
+  Modal: 'Modal',
+  Image: 'Image',
+  ActivityIndicator: 'ActivityIndicator',
+  ToastAndroid: { show: jest.fn() },
+  Share: { share: jest.fn() },
   NativeModules: {
     WidgetDataModule: { setWidgetData: jest.fn() },
   },
   UIManager: { setLayoutAnimationEnabledExperimental: jest.fn() },
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
+  // useOemShieldStatus paylasimli hook'u AppState'i dinliyor.
+  AppState: {
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
 }));
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -135,7 +144,8 @@ jest.mock('../../components/settings', () => {
     CaregiverSection: simpleMock, // Sprint 90
     AppearanceSection: simpleMock,
     AccentColorSection: simpleMock,
-    NotificationSection: simpleMock,
+    // NotificationSection KALDIRILDI (v1.7.1): tam ekran alarm anahtarini
+    // onay diyalogu OLMADAN degistiren olu bir ikinci bilesendi.
     DevTestSection: simpleMock,
     QuietHoursSection: simpleMock,
     AdditionalFeaturesSection: simpleMock,

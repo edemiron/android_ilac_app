@@ -36,6 +36,8 @@ export interface HeaderProps {
   onSettingsPress?: () => void;
   /** Bakıcı / Caregiver ikonuna tıklandığında çalışacak callback. */
   onCaregiverPress?: () => void;
+  /** Acil Durum / SOS butonuna tıklandığında çalışacak callback. */
+  onSosPress?: () => void;
   /** Dış container stili (margin vb.). */
   style?: StyleProp<ViewStyle>;
 }
@@ -51,6 +53,7 @@ export function Header({
   onNotificationPress,
   onSettingsPress,
   onCaregiverPress,
+  onSosPress,
   style,
 }: HeaderProps) {
   const { colors, isDark } = useTheme();
@@ -84,7 +87,7 @@ export function Header({
       transition={motiTransitions.standard}
       style={[styles.container, style]}
     >
-      {/* 1. Top Bar: Avatar + Greeting + Action Buttons (Caregiver + Bell + Settings) */}
+      {/* 1. Top Bar: Avatar + Greeting + Action Buttons (SOS + Caregiver + Bell + Settings) */}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.topLeft}
@@ -99,19 +102,36 @@ export function Header({
         </TouchableOpacity>
 
         <View style={styles.topRightActions}>
+          {onSosPress && (
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' },
+              ]}
+              onPress={onSosPress}
+              activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              accessibilityLabel={language === 'tr' ? 'Acil Durum SOS' : 'Emergency SOS'}
+            >
+              <Ionicons name="alert-circle" size={21} color="#DC2626" />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={onCaregiverPress}
             activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
             accessibilityLabel={language === 'tr' ? 'Bakıcı Takibi' : 'Caregiver'}
           >
-            <Ionicons name="people-outline" size={21} color={isDark ? '#2DD4BF' : '#0F766E'} />
+            <Ionicons name="people-outline" size={21} color={colors.primary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionButton}
             onPress={onNotificationPress}
             activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
             accessibilityLabel="Notifications"
           >
             <Ionicons
@@ -125,6 +145,7 @@ export function Header({
             style={styles.actionButton}
             onPress={onSettingsPress || onAvatarPress}
             activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
             accessibilityLabel="Settings"
           >
             <Ionicons name="settings-outline" size={22} color={isDark ? '#F8FAFC' : '#1E293B'} />
@@ -158,9 +179,9 @@ export function Header({
             size={52}
             strokeWidth={5.5}
             progress={progressPercent}
-            color={isDark ? '#14B8A6' : '#0F766E'}
+            color={colors.primary}
             trackColor={isDark ? 'rgba(255, 255, 255, 0.12)' : '#E2E8F0'}
-            textColor={isDark ? '#5EEAD4' : '#0F766E'}
+            textColor={colors.primary}
           />
         </View>
       </View>
@@ -191,7 +212,7 @@ const makeStyles = (colors: ThemeColors, isDark: boolean) =>
     greetingTitle: {
       fontSize: 18,
       fontWeight: '700',
-      color: isDark ? '#2DD4BF' : '#0F766E',
+      color: colors.primary,
       letterSpacing: -0.3,
       flexShrink: 1,
     },

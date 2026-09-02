@@ -13,6 +13,7 @@ import type { ThemeColors } from '../../../contexts/ThemeContext';
 
 interface DoctorReportCardProps {
   onShowPDFOptions: () => void;
+  onShareWhatsApp?: () => void;
   isGeneratingPDF: boolean;
   colors: ThemeColors;
   isDark?: boolean;
@@ -21,6 +22,7 @@ interface DoctorReportCardProps {
 
 export function DoctorReportCard({
   onShowPDFOptions,
+  onShareWhatsApp,
   isGeneratingPDF,
   colors,
   isDark,
@@ -59,29 +61,50 @@ export function DoctorReportCard({
             : 'Export and share a clinical PDF adherence report with your doctor or pharmacist via WhatsApp or Email.'}
         </Text>
 
-        <TouchableOpacity
-          style={[styles.exportBtn, { backgroundColor: colors.primary }]}
-          onPress={onShowPDFOptions}
-          disabled={isGeneratingPDF}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={isTr ? 'Doktora Rapor Gönder' : 'Share Report'}
-        >
-          {isGeneratingPDF ? (
-            <ActivityIndicator color={colors.textOnPrimary || '#FFFFFF'} size="small" />
-          ) : (
-            <>
-              <Ionicons
-                name="document-text-outline"
-                size={18}
-                color={colors.textOnPrimary || '#FFFFFF'}
-              />
-              <Text style={[styles.exportBtnText, { color: colors.textOnPrimary || '#FFFFFF' }]}>
-                {isTr ? 'Doktora PDF Raporu Gönder' : 'Generate & Share PDF'}
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[styles.exportBtn, { backgroundColor: colors.primary }]}
+            onPress={onShowPDFOptions}
+            disabled={isGeneratingPDF}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={isTr ? 'Doktora Rapor Gönder' : 'Share Report'}
+          >
+            {isGeneratingPDF ? (
+              <ActivityIndicator color={colors.textOnPrimary || '#FFFFFF'} size="small" />
+            ) : (
+              <>
+                <Ionicons
+                  name="document-text-outline"
+                  size={18}
+                  color={colors.textOnPrimary || '#FFFFFF'}
+                />
+                <Text style={[styles.exportBtnText, { color: colors.textOnPrimary || '#FFFFFF' }]}>
+                  {isTr ? 'Resmi PDF Raporu' : 'Generate PDF'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {onShareWhatsApp && (
+            <TouchableOpacity
+              style={[
+                styles.whatsappBtn,
+                {
+                  backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#DCFCE7',
+                  borderColor: isDark ? 'rgba(34, 197, 94, 0.3)' : '#86EFAC',
+                },
+              ]}
+              onPress={onShareWhatsApp}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="logo-whatsapp" size={18} color="#16A34A" />
+              <Text style={styles.whatsappBtnText}>
+                {isTr ? 'WhatsApp Özeti' : 'Share Summary'}
               </Text>
-            </>
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -132,13 +155,19 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 14,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   exportBtn: {
+    flex: 1.2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 14,
-    gap: 8,
+    gap: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
@@ -146,7 +175,22 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   exportBtnText: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  whatsappBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
+  },
+  whatsappBtnText: {
+    color: '#16A34A',
+    fontSize: 13,
     fontWeight: '700',
   },
 });

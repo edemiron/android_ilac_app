@@ -1,0 +1,4 @@
+--------- beginning of system
+08-28 23:55:21.136  1446  1765 I ActivityManager: Start proc 16960:com.google.android.apps.turbo/u0a221 for broadcast {com.google.android.apps.turbo/com.google.android.apps.turbo.nudges.broadcasts.BatteryStatusChangedReceiver}
+08-28 23:55:21.314  1446  3177 I ActivityManager: Flag disabled. Ignoring finishAttachApplication from uid: 10221. pid: 16960
+08-28 23:55:21.319  1446  3177 I ActivityManager: Killing 16273:com.samsung.android.bbc.bbcagent/1000 (adj 999): empty #19

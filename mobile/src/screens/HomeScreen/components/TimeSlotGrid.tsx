@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useHaptics } from '../../../hooks/useHaptics';
 import { ThemeColors } from '../../../contexts/ThemeContext';
+import { withAlpha } from '../../../utils/colors';
 import { TodayReminder } from '../types';
 
 export interface TimeSlotGroupData {
@@ -88,12 +89,10 @@ export const TimeSlotGrid: React.FC<TimeSlotGridProps> = ({
                   <View
                     style={[
                       styles.activeBadge,
-                      { backgroundColor: isDark ? 'rgba(13, 148, 136, 0.2)' : '#CCFBF1' },
+                      { backgroundColor: withAlpha(colors.primary, 0.15) },
                     ]}
                   >
-                    <Text
-                      style={[styles.activeBadgeText, { color: isDark ? '#2DD4BF' : '#0F766E' }]}
-                    >
+                    <Text style={[styles.activeBadgeText, { color: colors.primary }]}>
                       {language === 'tr' ? 'Aktif' : 'Active'}
                     </Text>
                   </View>

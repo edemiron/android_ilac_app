@@ -63,6 +63,12 @@ export const WheelTimePickerModal: React.FC<WheelTimePickerModalProps> = ({
     setSelectedMinutes(m);
   };
 
+  const handleSetExactMinute = (targetMinute: number) => {
+    const timeStr = `${selectedHours.toString().padStart(2, '0')}:${targetMinute.toString().padStart(2, '0')}`;
+    setSelectedTime(timeStr);
+    setSelectedMinutes(targetMinute);
+  };
+
   const handleDone = () => {
     onConfirm(selectedTime, selectedHours, selectedMinutes);
   };
@@ -106,6 +112,42 @@ export const WheelTimePickerModal: React.FC<WheelTimePickerModalProps> = ({
                     {isTr ? 'Tamam' : 'Done'}
                   </Text>
                 </TouchableOpacity>
+              </View>
+
+              {/* Hızlı Dakika Seçim Butonları */}
+              <View style={styles.quickPillsRow}>
+                {[0, 15, 30, 45].map(min => {
+                  const isSelected = selectedMinutes === min;
+                  return (
+                    <TouchableOpacity
+                      key={min}
+                      style={[
+                        styles.quickPill,
+                        {
+                          backgroundColor: isSelected
+                            ? colors.primary
+                            : isDark
+                              ? '#334155'
+                              : '#F1F5F9',
+                        },
+                      ]}
+                      onPress={() => handleSetExactMinute(min)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.quickPillText,
+                          {
+                            color: isSelected ? '#FFFFFF' : isDark ? '#E2E8F0' : '#475569',
+                            fontWeight: isSelected ? '700' : '500',
+                          },
+                        ]}
+                      >
+                        :{min.toString().padStart(2, '0')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {/* Wheel Picker */}
@@ -160,5 +202,22 @@ const styles = StyleSheet.create({
   confirmText: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  quickPillsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  quickPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  quickPillText: {
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
   },
 });

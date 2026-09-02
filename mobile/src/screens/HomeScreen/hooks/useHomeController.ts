@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import {
   format,
   differenceInDays,
@@ -448,6 +449,24 @@ export function useHomeController() {
     return groupedTimeline.find(s => s.key === activeModalSlotKey) || null;
   }, [groupedTimeline, activeModalSlotKey]);
 
+  const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
+  const [caregiverPhone, setCaregiverPhone] = useState<string>('');
+
+  useEffect(() => {
+    if (user?.uid) {
+      import('../../../services/caregiverService').then(({ getUserPhoneNumber }) => {
+        getUserPhoneNumber(user.uid).then(phone => {
+          if (phone) setCaregiverPhone(phone);
+        });
+      });
+    }
+  }, [user?.uid]);
+
+  const handleEmergencySos = useCallback(() => {
+    ReactNativeHapticFeedback.trigger('impactHeavy');
+    setEmergencyModalVisible(true);
+  }, []);
+
   return {
     colors,
     isDark,
@@ -488,9 +507,13 @@ export function useHomeController() {
     setSkipModalVisible,
     skipTargetReminder,
     setSkipTargetReminder,
+    emergencyModalVisible,
+    setEmergencyModalVisible,
+    caregiverPhone,
     handleTake,
     handleSkip,
     handleConfirmSkip,
     handleSnooze,
+    handleEmergencySos,
   };
 }

@@ -46,78 +46,114 @@ export function PendingInvitesList({
         </View>
       </View>
 
-      {pendingInvites.map(invite => (
-        <View
-          key={invite.id}
-          style={[
-            styles.card,
-            {
-              backgroundColor: colors.card,
-              borderColor: '#FDE68A',
-              shadowColor: colors.shadow,
-            },
-          ]}
-        >
-          <View style={styles.inviteItem}>
-            <View style={[styles.iconContainer, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="time-outline" size={22} color="#D97706" />
-            </View>
+      {pendingInvites.map(invite => {
+        const isExpired = new Date(invite.expiresAt) < new Date();
 
-            <View style={styles.inviteInfo}>
-              <Text style={[styles.inviteEmail, { color: colors.text }]} numberOfLines={1}>
-                {invite.caregiverEmail || (isTr ? 'Açık Davet Kodu' : 'Open Invite Code')}
-              </Text>
-              <View style={styles.codeRow}>
-                <View
-                  style={[
-                    styles.codePill,
-                    { backgroundColor: isDark ? colors.inputBackground : '#F1F5F9' },
-                  ]}
-                >
-                  <Text style={[styles.codeText, { color: colors.primary }]}>{invite.id}</Text>
-                </View>
-                <Text style={[styles.expiresText, { color: colors.textSecondary }]}>
-                  {expiresText(invite.expiresAt)}
-                </Text>
+        return (
+          <View
+            key={invite.id}
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.card,
+                borderColor: isExpired ? '#FCA5A5' : '#FDE68A',
+                shadowColor: colors.shadow,
+              },
+            ]}
+          >
+            <View style={styles.inviteItem}>
+              <View
+                style={[
+                  styles.iconContainer,
+                  { backgroundColor: isExpired ? '#FEE2E2' : '#FEF3C7' },
+                ]}
+              >
+                <Ionicons
+                  name={isExpired ? 'alert-circle-outline' : 'time-outline'}
+                  size={22}
+                  color={isExpired ? '#DC2626' : '#D97706'}
+                />
               </View>
-            </View>
 
-            <View style={styles.inviteActions}>
-              {onShareInvite && (
+              <View style={styles.inviteInfo}>
+                <Text style={[styles.inviteEmail, { color: colors.text }]} numberOfLines={1}>
+                  {invite.caregiverEmail || (isTr ? 'Açık Davet Kodu' : 'Open Invite Code')}
+                </Text>
+                <View style={styles.codeRow}>
+                  <View
+                    style={[
+                      styles.codePill,
+                      {
+                        backgroundColor: isExpired
+                          ? isDark
+                            ? '#3B1818'
+                            : '#FEE2E2'
+                          : isDark
+                            ? colors.inputBackground
+                            : '#F1F5F9',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.codeText, { color: isExpired ? '#DC2626' : colors.primary }]}
+                    >
+                      {invite.id}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.expiresText,
+                      { color: isExpired ? '#DC2626' : colors.textSecondary },
+                    ]}
+                  >
+                    {isExpired
+                      ? isTr
+                        ? 'Süresi Doldu'
+                        : 'Expired'
+                      : expiresText(invite.expiresAt)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.inviteActions}>
+                {!isExpired && onShareInvite && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: isDark ? colors.inputBackground : '#F1F5F9' },
+                    ]}
+                    onPress={() => onShareInvite(invite.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="share-social" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
+
+                {!isExpired && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: isDark ? colors.inputBackground : '#F1F5F9' },
+                    ]}
+                    onPress={() => onOpenQR(invite.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="qr-code" size={18} color={colors.text} />
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    { backgroundColor: isDark ? colors.inputBackground : '#F1F5F9' },
-                  ]}
-                  onPress={() => onShareInvite(invite.id)}
+                  style={[styles.actionButton, { backgroundColor: '#FEE2E2' }]}
+                  onPress={() => onCancelInvite(invite.id)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="share-social" size={18} color={colors.primary} />
+                  <Ionicons name="close" size={18} color="#DC2626" />
                 </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: isDark ? colors.inputBackground : '#F1F5F9' },
-                ]}
-                onPress={() => onOpenQR(invite.id)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="qr-code" size={18} color={colors.text} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: '#FEE2E2' }]}
-                onPress={() => onCancelInvite(invite.id)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="close" size={18} color="#DC2626" />
-              </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }

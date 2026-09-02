@@ -104,8 +104,14 @@ export function CaregiverHeroCard({
         <Ionicons name="lock-closed" size={14} color="#059669" />
         <Text style={[styles.securityText, { color: colors.textSecondary }]}>
           {isTr
-            ? '256-Bit Uçtan Uca Şifreli & KVKK Uyumlu Sağlık Paylaşımı'
-            : '256-Bit Encrypted & HIPAA/GDPR Compliant Sharing'}
+            ? // v1.7.4 (Faz 0.6): "256-Bit Uçtan Uca Şifreli & KVKK Uyumlu" iddiası
+              // KALDIRILDI. Uçtan uca şifreleme YOK: veriler AsyncStorage'da ve
+              // Firestore'da düz metin duruyor; "sağlık kasası" modülü ölü koddu
+              // ve tekrar eden anahtarlı XOR ile kriptografik olarak geçersizdi.
+              // Yanıltıcı beyan riski taşıyordu. Doğru olanı yazıyoruz: erişim
+              // yetkiye bağlı (Firestore kuralları + aktif bakıcı ilişkisi).
+              'Yalnızca izin verdiğiniz bakıcı görebilir'
+            : 'Visible only to caregivers you authorize'}
         </Text>
       </View>
     </View>

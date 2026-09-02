@@ -187,7 +187,8 @@ describe('scheduleTestAlarmNotification', () => {
   it('uses English title when language=en', async () => {
     await scheduleTestAlarmNotification(5, 'en');
     const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
-    expect(call[0].title).toContain('Test Medicine');
+    expect(call[0].title).toContain('TEST ALARM');
+    expect(call[0].title).toContain('not a real dose');
   });
 
   it('enforces minimum 5 seconds delay', async () => {

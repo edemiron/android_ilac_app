@@ -1,0 +1,490 @@
+Activity Resolver Table:
+  Schemes:
+      ilachatirlatici:
+        f601ccc com.ilachatirlatici/.MainActivity filter 4b29e2a
+          Action: "android.intent.action.VIEW"
+          Category: "android.intent.category.DEFAULT"
+          Category: "android.intent.category.BROWSABLE"
+          Scheme: "ilachatirlatici"
+
+  Non-Data Actions:
+      android.intent.action.MAIN:
+        f601ccc com.ilachatirlatici/.MainActivity filter 67a9b15
+          Action: "android.intent.action.MAIN"
+          Category: "android.intent.category.LAUNCHER"
+
+Receiver Resolver Table:
+  Non-Data Actions:
+      android.intent.action.BATTERY_OKAY:
+        d797385 com.ilachatirlatici/androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy filter bc6e5da
+          Action: "android.intent.action.BATTERY_OKAY"
+          Action: "android.intent.action.BATTERY_LOW"
+      android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED:
+        ab2f418 com.ilachatirlatici/app.notifee.core.AlarmPermissionBroadcastReceiver filter 7216e71
+          Action: "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
+      android.intent.action.ACTION_POWER_DISCONNECTED:
+        7cedef com.ilachatirlatici/androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy filter b8a50fc
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+      android.intent.action.QUICKBOOT_POWERON:
+        eb52b93 com.ilachatirlatici/expo.modules.notifications.service.NotificationsService filter d1c87d0
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+        14798a com.ilachatirlatici/app.notifee.core.RebootBroadcastReceiver filter 7bfbfb
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "android.intent.action.BOOT_COMPLETED"
+        548a456 com.ilachatirlatici/app.notifee.core.NotificationAlarmReceiver filter 2845cd7
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "android.intent.action.BOOT_COMPLETED"
+      com.htc.intent.action.QUICKBOOT_POWERON:
+        eb52b93 com.ilachatirlatici/expo.modules.notifications.service.NotificationsService filter d1c87d0
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+        14798a com.ilachatirlatici/app.notifee.core.RebootBroadcastReceiver filter 7bfbfb
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "android.intent.action.BOOT_COMPLETED"
+        548a456 com.ilachatirlatici/app.notifee.core.NotificationAlarmReceiver filter 2845cd7
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "android.intent.action.BOOT_COMPLETED"
+      androidx.profileinstaller.action.SAVE_PROFILE:
+        f13d139 com.ilachatirlatici/androidx.profileinstaller.ProfileInstallReceiver filter 681f12c
+          Action: "androidx.profileinstaller.action.SAVE_PROFILE"
+      com.ilachatirlatici.MEDICINE_TAKEN:
+        f2016f7 com.ilachatirlatici/.MedicineWidgetProvider filter 1b33964
+          Action: "com.ilachatirlatici.MEDICINE_TAKEN"
+          Action: "android.appwidget.action.APPWIDGET_UPDATE"
+      android.intent.action.DEVICE_STORAGE_LOW:
+        e547a0b com.ilachatirlatici/androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy filter 6a980e8
+          Action: "android.intent.action.DEVICE_STORAGE_LOW"
+          Action: "android.intent.action.DEVICE_STORAGE_OK"
+      android.net.conn.CONNECTIVITY_CHANGE:
+        6e2c301 com.ilachatirlatici/androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy filter 9bd85a6
+          Action: "android.net.conn.CONNECTIVITY_CHANGE"
+      com.ilachatirlatici.ALARM_TRIGGER:
+        aba541b com.ilachatirlatici/.AlarmReceiver filter ed839b8
+          Action: "com.ilachatirlatici.ALARM_TRIGGER"
+      android.intent.action.LOCKED_BOOT_COMPLETED:
+        ff6d391 com.ilachatirlatici/.BootReceiver filter 3b472f6
+          Action: "android.intent.action.LOCKED_BOOT_COMPLETED"
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+      expo.modules.notifications.NOTIFICATION_EVENT:
+        eb52b93 com.ilachatirlatici/expo.modules.notifications.service.NotificationsService filter d1c87d0
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+      android.intent.action.DEVICE_STORAGE_OK:
+        e547a0b com.ilachatirlatici/androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy filter 6a980e8
+          Action: "android.intent.action.DEVICE_STORAGE_LOW"
+          Action: "android.intent.action.DEVICE_STORAGE_OK"
+      androidx.profileinstaller.action.INSTALL_PROFILE:
+        f13d139 com.ilachatirlatici/androidx.profileinstaller.ProfileInstallReceiver filter 45a37e
+          Action: "androidx.profileinstaller.action.INSTALL_PROFILE"
+      com.google.android.c2dm.intent.RECEIVE:
+        c2417cd com.ilachatirlatici/io.invertase.firebase.messaging.ReactNativeFirebaseMessagingReceiver filter 2cc882
+          Action: "com.google.android.c2dm.intent.RECEIVE"
+        16763c9 com.ilachatirlatici/com.google.firebase.iid.FirebaseInstanceIdReceiver filter fe2eace
+          Action: "com.google.android.c2dm.intent.RECEIVE"
+      android.app.action.APP_BLOCK_STATE_CHANGED:
+        bef39c4 com.ilachatirlatici/app.notifee.core.BlockStateBroadcastReceiver filter a0d80ad
+          Action: "android.app.action.APP_BLOCK_STATE_CHANGED"
+          Action: "android.app.action.NOTIFICATION_CHANNEL_GROUP_BLOCK_STATE_CHANGED"
+          Action: "android.app.action.NOTIFICATION_CHANNEL_BLOCK_STATE_CHANGED"
+      android.intent.action.BATTERY_LOW:
+        d797385 com.ilachatirlatici/androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy filter bc6e5da
+          Action: "android.intent.action.BATTERY_OKAY"
+          Action: "android.intent.action.BATTERY_LOW"
+      android.intent.action.TIMEZONE_CHANGED:
+        ff6d391 com.ilachatirlatici/.BootReceiver filter 3b472f6
+          Action: "android.intent.action.LOCKED_BOOT_COMPLETED"
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+        8ceabe7 com.ilachatirlatici/androidx.work.impl.background.systemalarm.RescheduleReceiver filter 409c394
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.BOOT_COMPLETED"
+      android.intent.action.TIME_SET:
+        ff6d391 com.ilachatirlatici/.BootReceiver filter 3b472f6
+          Action: "android.intent.action.LOCKED_BOOT_COMPLETED"
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+        8ceabe7 com.ilachatirlatici/androidx.work.impl.background.systemalarm.RescheduleReceiver filter 409c394
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.BOOT_COMPLETED"
+      androidx.profileinstaller.action.SKIP_FILE:
+        f13d139 com.ilachatirlatici/androidx.profileinstaller.ProfileInstallReceiver filter 6eb30df
+          Action: "androidx.profileinstaller.action.SKIP_FILE"
+      androidx.profileinstaller.action.BENCHMARK_OPERATION:
+        f13d139 com.ilachatirlatici/androidx.profileinstaller.ProfileInstallReceiver filter d747f5
+          Action: "androidx.profileinstaller.action.BENCHMARK_OPERATION"
+      android.intent.action.BOOT_COMPLETED:
+        ff6d391 com.ilachatirlatici/.BootReceiver filter 3b472f6
+          Action: "android.intent.action.LOCKED_BOOT_COMPLETED"
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+        eb52b93 com.ilachatirlatici/expo.modules.notifications.service.NotificationsService filter d1c87d0
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+        8ceabe7 com.ilachatirlatici/androidx.work.impl.background.systemalarm.RescheduleReceiver filter 409c394
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.BOOT_COMPLETED"
+        14798a com.ilachatirlatici/app.notifee.core.RebootBroadcastReceiver filter 7bfbfb
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "android.intent.action.BOOT_COMPLETED"
+        548a456 com.ilachatirlatici/app.notifee.core.NotificationAlarmReceiver filter 2845cd7
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "android.intent.action.BOOT_COMPLETED"
+      android.app.action.NOTIFICATION_CHANNEL_GROUP_BLOCK_STATE_CHANGED:
+        bef39c4 com.ilachatirlatici/app.notifee.core.BlockStateBroadcastReceiver filter a0d80ad
+          Action: "android.app.action.APP_BLOCK_STATE_CHANGED"
+          Action: "android.app.action.NOTIFICATION_CHANNEL_GROUP_BLOCK_STATE_CHANGED"
+          Action: "android.app.action.NOTIFICATION_CHANNEL_BLOCK_STATE_CHANGED"
+      android.intent.action.ACTION_POWER_CONNECTED:
+        7cedef com.ilachatirlatici/androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy filter b8a50fc
+          Action: "android.intent.action.ACTION_POWER_DISCONNECTED"
+          Action: "android.intent.action.ACTION_POWER_CONNECTED"
+      android.app.action.NOTIFICATION_CHANNEL_BLOCK_STATE_CHANGED:
+        bef39c4 com.ilachatirlatici/app.notifee.core.BlockStateBroadcastReceiver filter a0d80ad
+          Action: "android.app.action.APP_BLOCK_STATE_CHANGED"
+          Action: "android.app.action.NOTIFICATION_CHANNEL_GROUP_BLOCK_STATE_CHANGED"
+          Action: "android.app.action.NOTIFICATION_CHANNEL_BLOCK_STATE_CHANGED"
+      android.appwidget.action.APPWIDGET_UPDATE:
+        f2016f7 com.ilachatirlatici/.MedicineWidgetProvider filter 1b33964
+          Action: "com.ilachatirlatici.MEDICINE_TAKEN"
+          Action: "android.appwidget.action.APPWIDGET_UPDATE"
+      androidx.work.diagnostics.REQUEST_DIAGNOSTICS:
+        cd01f83 com.ilachatirlatici/androidx.work.impl.diagnostics.DiagnosticsReceiver filter 898500
+          Action: "androidx.work.diagnostics.REQUEST_DIAGNOSTICS"
+      android.intent.action.MY_PACKAGE_REPLACED:
+        ff6d391 com.ilachatirlatici/.BootReceiver filter 3b472f6
+          Action: "android.intent.action.LOCKED_BOOT_COMPLETED"
+          Action: "android.intent.action.TIMEZONE_CHANGED"
+          Action: "android.intent.action.TIME_SET"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+        eb52b93 com.ilachatirlatici/expo.modules.notifications.service.NotificationsService filter d1c87d0
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+      androidx.work.impl.background.systemalarm.UpdateProxies:
+        a378e3d com.ilachatirlatici/androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver filter 72c5632
+          Action: "androidx.work.impl.background.systemalarm.UpdateProxies"
+      android.intent.action.REBOOT:
+        eb52b93 com.ilachatirlatici/expo.modules.notifications.service.NotificationsService filter d1c87d0
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+
+Service Resolver Table:
+  Non-Data Actions:
+      com.google.firebase.MESSAGING_EVENT:
+        7c2afe2 com.ilachatirlatici/io.invertase.firebase.messaging.ReactNativeFirebaseMessagingService filter a47ef73
+          Action: "com.google.firebase.MESSAGING_EVENT"
+        1882e30 com.ilachatirlatici/expo.modules.notifications.service.ExpoFirebaseMessagingService filter e2e7aa9
+          Action: "com.google.firebase.MESSAGING_EVENT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+        adfe82e com.ilachatirlatici/com.google.firebase.messaging.FirebaseMessagingService filter ba80fcf
+          Action: "com.google.firebase.MESSAGING_EVENT"
+          mPriority=-500, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+      com.google.android.gms.metadata.MODULE_DEPENDENCIES:
+        479fd5c com.ilachatirlatici/com.google.android.gms.metadata.ModuleDependencies filter 44b1865
+          Action: "com.google.android.gms.metadata.MODULE_DEPENDENCIES"
+
+Domain verification status:
+
+Permissions:
+  Permission [com.ilachatirlatici.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION] (6264d38):
+    sourcePackage=com.ilachatirlatici
+    uid=10330 gids=[] type=0 prot=signature
+    perm=PermissionInfo{b262111 com.ilachatirlatici.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION}
+    flags=0x0
+
+Registered ContentProviders:
+  com.ilachatirlatici/com.google.mlkit.common.internal.MlKitInitProvider:
+    Provider{1757276 com.ilachatirlatici/com.google.mlkit.common.internal.MlKitInitProvider}
+  com.ilachatirlatici/io.invertase.firebase.app.ReactNativeFirebaseAppInitProvider:
+    Provider{525e077 com.ilachatirlatici/io.invertase.firebase.app.ReactNativeFirebaseAppInitProvider}
+  com.ilachatirlatici/expo.modules.filesystem.FileSystemFileProvider:
+    Provider{e8f04e4 com.ilachatirlatici/expo.modules.filesystem.FileSystemFileProvider}
+  com.ilachatirlatici/com.google.firebase.provider.FirebaseInitProvider:
+    Provider{2babd4d com.ilachatirlatici/com.google.firebase.provider.FirebaseInitProvider}
+  com.ilachatirlatici/expo.modules.imagepicker.fileprovider.ImagePickerFileProvider:
+    Provider{5be4002 com.ilachatirlatici/expo.modules.imagepicker.fileprovider.ImagePickerFileProvider}
+  com.ilachatirlatici/cl.json.RNShareFileProvider:
+    Provider{d0e0d13 com.ilachatirlatici/cl.json.RNShareFileProvider}
+  com.ilachatirlatici/expo.modules.clipboard.ClipboardFileProvider:
+    Provider{6a98b50 com.ilachatirlatici/expo.modules.clipboard.ClipboardFileProvider}
+  com.ilachatirlatici/com.canhub.cropper.CropFileProvider:
+    Provider{e82e149 com.ilachatirlatici/com.canhub.cropper.CropFileProvider}
+  com.ilachatirlatici/androidx.startup.InitializationProvider:
+    Provider{5d45a4e com.ilachatirlatici/androidx.startup.InitializationProvider}
+  com.ilachatirlatici/io.invertase.notifee.NotifeeInitProvider:
+    Provider{542676f com.ilachatirlatici/io.invertase.notifee.NotifeeInitProvider}
+  com.ilachatirlatici/io.invertase.firebase.crashlytics.ReactNativeFirebaseCrashlyticsInitProvider:
+    Provider{7a40c7c com.ilachatirlatici/io.invertase.firebase.crashlytics.ReactNativeFirebaseCrashlyticsInitProvider}
+  com.ilachatirlatici/com.google.android.gms.ads.MobileAdsInitProvider:
+    Provider{8f4905 com.ilachatirlatici/com.google.android.gms.ads.MobileAdsInitProvider}
+
+ContentProvider Authorities:
+  [com.ilachatirlatici.mlkitinitprovider]:
+    Provider{1757276 com.ilachatirlatici/com.google.mlkit.common.internal.MlKitInitProvider}
+      applicationInfo=ApplicationInfo{41fcd5a com.ilachatirlatici}
+  [com.ilachatirlatici.reactnativefirebaseappinitprovider]:
+    Provider{525e077 com.ilachatirlatici/io.invertase.firebase.app.ReactNativeFirebaseAppInitProvider}
+      applicationInfo=ApplicationInfo{fb80b8b com.ilachatirlatici}
+  [com.ilachatirlatici.ClipboardFileProvider]:
+    Provider{6a98b50 com.ilachatirlatici/expo.modules.clipboard.ClipboardFileProvider}
+      applicationInfo=ApplicationInfo{d637468 com.ilachatirlatici}
+  [com.ilachatirlatici.reactnativefirebasecrashlyticsinitprovider]:
+    Provider{7a40c7c com.ilachatirlatici/io.invertase.firebase.crashlytics.ReactNativeFirebaseCrashlyticsInitProvider}
+      applicationInfo=ApplicationInfo{1407081 com.ilachatirlatici}
+  [com.ilachatirlatici.ImagePickerFileProvider]:
+    Provider{5be4002 com.ilachatirlatici/expo.modules.imagepicker.fileprovider.ImagePickerFileProvider}
+      applicationInfo=ApplicationInfo{f7d6526 com.ilachatirlatici}
+  [com.ilachatirlatici.notifee-init-provider]:
+    Provider{542676f com.ilachatirlatici/io.invertase.notifee.NotifeeInitProvider}
+      applicationInfo=ApplicationInfo{e99d567 com.ilachatirlatici}
+  [com.ilachatirlatici.firebaseinitprovider]:
+    Provider{2babd4d com.ilachatirlatici/com.google.firebase.provider.FirebaseInitProvider}
+      applicationInfo=ApplicationInfo{b2f6f14 com.ilachatirlatici}
+  [com.ilachatirlatici.mobileadsinitprovider]:
+    Provider{8f4905 com.ilachatirlatici/com.google.android.gms.ads.MobileAdsInitProvider}
+      applicationInfo=ApplicationInfo{48293bd com.ilachatirlatici}
+  [com.ilachatirlatici.rnshare.fileprovider]:
+    Provider{d0e0d13 com.ilachatirlatici/cl.json.RNShareFileProvider}
+      applicationInfo=ApplicationInfo{5caadb2 com.ilachatirlatici}
+  [com.ilachatirlatici.androidx-startup]:
+    Provider{5d45a4e com.ilachatirlatici/androidx.startup.InitializationProvider}
+      applicationInfo=ApplicationInfo{1e46103 com.ilachatirlatici}
+  [com.ilachatirlatici.FileSystemFileProvider]:
+    Provider{e8f04e4 com.ilachatirlatici/expo.modules.filesystem.FileSystemFileProvider}
+      applicationInfo=ApplicationInfo{f1e6880 com.ilachatirlatici}
+  [com.ilachatirlatici.cropper.fileprovider]:
+    Provider{e82e149 com.ilachatirlatici/com.canhub.cropper.CropFileProvider}
+      applicationInfo=ApplicationInfo{6c9aeb9 com.ilachatirlatici}
+
+Key Set Manager:
+  [com.ilachatirlatici]
+      Signing KeySets: 98
+
+Packages:
+  Package [com.ilachatirlatici] (b1146c8):
+    appId=10330
+    pkg=Package{9c4361 com.ilachatirlatici}
+    codePath=/data/app/~~xd4AoH8V2YuXE1BLc7lIBg==/com.ilachatirlatici-3naO-w1cupoqu3noW0mcyA==
+    resourcePath=/data/app/~~xd4AoH8V2YuXE1BLc7lIBg==/com.ilachatirlatici-3naO-w1cupoqu3noW0mcyA==
+    legacyNativeLibraryDir=/data/app/~~xd4AoH8V2YuXE1BLc7lIBg==/com.ilachatirlatici-3naO-w1cupoqu3noW0mcyA==/lib
+    extractNativeLibs=false
+    primaryCpuAbi=arm64-v8a
+    secondaryCpuAbi=null
+    cpuAbiOverride=null
+    versionCode=52 minSdk=24 targetSdk=36
+    minExtensionVersions=[]
+    versionName=1.7.4
+    usesNonSdkApi=false
+    splits=[base]
+    apkSigningVersion=2
+    flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]
+    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PARTIALLY_DIRECT_BOOT_AWARE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    forceQueryable=false
+    queriesIntents=[Intent { act=android.intent.action.VIEW cat=[android.intent.category.BROWSABLE] dat=https:/... }, Intent { act=android.support.customtabs.action.CustomTabsService }, Intent { act=android.intent.action.INSERT dat=content://*/... typ=vnd.android.cursor.dir/event }, Intent { act=android.intent.action.VIEW dat=sms:xx }, Intent { act=android.intent.action.DIAL }, Intent { act=android.media.action.IMAGE_CAPTURE }, Intent { act=android.media.action.ACTION_VIDEO_CAPTURE }, Intent { act=androidx.camera.extensions.action.VENDOR_ACTION }, Intent { act=android.intent.action.GET_CONTENT cat=[android.intent.category.OPENABLE] dat=content://*/... typ=*/* }, Intent { act=android.intent.action.OPEN_DOCUMENT_TREE }]
+    dataDir=/data/user/0/com.ilachatirlatici
+    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]
+    usesOptionalLibraries:
+      androidx.camera.extensions.impl
+      android.ext.adservices
+    usesLibraryFiles:
+      /system/framework/sec_camerax_impl.jar
+    timeStamp=2026-09-03 00:29:35
+    lastUpdateTime=2026-09-03 00:29:35
+    installerPackageName=null
+    installerPackageUid=-1
+    initiatingPackageName=com.android.shell
+    originatingPackageName=null
+    packageSource=1
+    appMetadataFilePath=null
+    signatures=PackageSignatures{f584f06 version:2, signatures:[65145aec], past signatures:[]}
+    installPermissionsFixed=true
+    pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]
+    privatePkgFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PARTIALLY_DIRECT_BOOT_AWARE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    apexModuleName=null
+    declared permissions:
+      com.ilachatirlatici.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: prot=signature
+    requested permissions:
+      android.permission.ACCESS_FINE_LOCATION
+      android.permission.ACCESS_COARSE_LOCATION
+      android.permission.CAMERA
+      android.permission.FOREGROUND_SERVICE
+      android.permission.INTERNET
+      android.permission.POST_NOTIFICATIONS
+      android.permission.RECEIVE_BOOT_COMPLETED
+      android.permission.SCHEDULE_EXACT_ALARM
+      android.permission.USE_EXACT_ALARM
+      android.permission.USE_FULL_SCREEN_INTENT
+      android.permission.TURN_SCREEN_ON
+      android.permission.VIBRATE
+      android.permission.WAKE_LOCK
+      android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+      android.permission.ACCESS_NETWORK_STATE
+      android.permission.USE_FINGERPRINT
+      android.permission.USE_BIOMETRIC
+      com.google.android.c2dm.permission.RECEIVE
+      com.google.android.gms.permission.AD_ID
+      android.permission.ACCESS_ADSERVICES_ATTRIBUTION
+      android.permission.ACCESS_ADSERVICES_AD_ID
+      android.permission.ACCESS_ADSERVICES_TOPICS
+      com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE
+      com.ilachatirlatici.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+      android.permission.ACCESS_NOTIFICATION_POLICY
+      com.sec.android.provider.badge.permission.READ
+      com.sec.android.provider.badge.permission.WRITE
+      com.htc.launcher.permission.READ_SETTINGS
+      com.htc.launcher.permission.UPDATE_SHORTCUT
+      com.sonyericsson.home.permission.BROADCAST_BADGE
+      com.sonymobile.home.permission.PROVIDER_INSERT_BADGE
+      com.anddoes.launcher.permission.UPDATE_COUNT
+      com.majeur.launcher.permission.UPDATE_BADGE
+      com.huawei.android.launcher.permission.CHANGE_BADGE
+      com.huawei.android.launcher.permission.READ_SETTINGS
+      com.huawei.android.launcher.permission.WRITE_SETTINGS
+      android.permission.READ_APP_BADGE
+      com.oppo.launcher.permission.READ_SETTINGS
+      com.oppo.launcher.permission.WRITE_SETTINGS
+      me.everything.badger.permission.BADGE_COUNT_READ
+      me.everything.badger.permission.BADGE_COUNT_WRITE
+    install permissions:
+      com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE: granted=true
+      android.permission.ACCESS_ADSERVICES_TOPICS: granted=true
+      com.google.android.c2dm.permission.RECEIVE: granted=true
+      android.permission.ACCESS_NOTIFICATION_POLICY: granted=true
+      com.sec.android.provider.badge.permission.READ: granted=true
+      android.permission.FOREGROUND_SERVICE: granted=true
+      android.permission.RECEIVE_BOOT_COMPLETED: granted=true
+      android.permission.ACCESS_ADSERVICES_AD_ID: granted=true
+      android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS: granted=true
+      com.ilachatirlatici.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: granted=true
+      android.permission.INTERNET: granted=true
+      android.permission.USE_EXACT_ALARM: granted=true
+      android.permission.USE_FULL_SCREEN_INTENT: granted=true
+      android.permission.ACCESS_NETWORK_STATE: granted=true
+      android.permission.ACCESS_ADSERVICES_ATTRIBUTION: granted=true
+      android.permission.USE_FINGERPRINT: granted=true
+      com.sec.android.provider.badge.permission.WRITE: granted=false
+      android.permission.SCHEDULE_EXACT_ALARM: granted=false
+      android.permission.VIBRATE: granted=true
+      android.permission.TURN_SCREEN_ON: granted=false
+      android.permission.USE_BIOMETRIC: granted=true
+      com.google.android.gms.permission.AD_ID: granted=true
+      android.permission.WAKE_LOCK: granted=true
+    User 0: ceDataInode=83846 installed=true hidden=false suspended=false distractionFlags=0 stopped=false notLaunched=false enabled=0 instant=false virtual=false
+      installReason=0
+      firstInstallTime=2026-08-31 03:45:28
+      uninstallReason=0
+      gids=[3003]
+      runtime permissions:
+        android.permission.POST_NOTIFICATIONS: granted=true, flags=[ USER_SET|USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]
+        android.permission.ACCESS_FINE_LOCATION: granted=false, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]
+        android.permission.ACCESS_COARSE_LOCATION: granted=false, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]
+        android.permission.CAMERA: granted=true, flags=[ USER_SET|USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]
+      enabledComponents:
+        androidx.work.impl.background.systemalarm.RescheduleReceiver
+        androidx.work.impl.background.systemjob.SystemJobService
+
+Queries:
+  system apps queryable: false
+  queries via forceQueryable:
+  queries via package name:
+  queries via component:
+    com.samsung.android.bixby.agent:
+      com.ilachatirlatici
+    com.android.settings.intelligence:
+      com.ilachatirlatici
+    com.google.android.apps.messaging:
+      com.ilachatirlatici
+    com.sand.aircast:
+      com.ilachatirlatici
+    com.flexcil.flexcilnote:
+      com.ilachatirlatici
+    com.tradingview.tradingviewapp:
+      com.ilachatirlatici
+    com.asus.glidex:
+      com.ilachatirlatici
+    com.oakever.tiletrip:
+      com.ilachatirlatici
+    com.ilachatirlatici:
+      com.google.android.documentsui
+      com.microsoft.skydrive
+      com.google.android.apps.messaging
+      com.google.android.googlequicksearchbox
+      com.android.chrome
+      com.google.android.setupwizard
+      com.fluidtouch.noteshelf2
+      com.sec.android.app.sbrowser
+      com.google.android.apps.docs
+      com.google.android.apps.photos
+      com.google.android.photopicker
+      com.fluidtouch.noteshelf3
+      com.alphainventor.filemanager
+  queryable via interaction:
+    User 0:
+      [com.android.settings,com.android.wallpaperbackup,com.android.localtransport,com.sec.android.iaft,com.samsung.android.app.omcagent,com.samsung.gpuwatchapp,com.samsung.android.photoremasterservice,com.samsung.android.da.daagent,com.samsung.android.vtcamerasettings,com.samsung.android.fmm,com.samsung.android.cameraxservice,com.samsung.android.app.settings.bixby,com.wssyncmldm,com.sec.android.app.parser,com.samsung.android.svcagent,com.samsung.aasaservice,com.android.providers.settings,com.samsung.android.bbc.bbcagent,com.sec.bcservice,com.sec.android.app.servicemodeapp,com.samsung.android.knox.pushmanager,com.sec.mhs.smarttethering,com.samsung.android.bixby.wakeup,com.sec.android.app.applinker,com.sec.imsservice,com.android.server.telecom,com.sec.enterprise.mdm.services.simpin,com.samsung.android.wifi.ai,com.sec.android.soagent,com.sec.usbsettings,com.samsung.android.aircommandmanager,com.sec.android.app.SecSetupWizard,com.samsung.android.themecenter,com.sec.factory.camera,com.samsung.android.brightnessbackupservice,com.samsung.android.lool,com.skms.android.agent,com.samsung.android.smartswitchassistant,com.samsung.SMT,com.samsung.android.smartface,com.samsung.android.knox.zt.framework,com.qti.snapdragon.qdcm_ff,com.samsung.android.knox.attestation,com.sec.android.app.hwmoduletest,com.samsung.android.biometrics.app.setting,com.sec.android.app.factorykeystring,com.samsung.android.hdmapp,com.android.keychain,android,com.sec.sve,com.android.dynsystem,com.samsung.android.providers.factory,com.sec.android.app.wlantest,com.samsung.android.provider.filterprovider,com.samsung.android.keycustomizationinfobackupservice,com.sec.imslogger,com.samsung.android.mdecservice,com.samsung.android.app.dressroom,com.android.location.fused,com.sec.android.emergencylauncher,com.samsung.android.forest,com.sec.facatfunction,com.samsung.accessibility,com.samsung.android.peripheral.framework,com.samsung.android.sume.nn.service,com.sec.android.sdhms,com.sec.modem.settings,com.android.inputdevices,com.sec.android.app.quicktool,com.samsung.android.dqagent,com.samsung.android.stickercenter,com.sec.android.diagmonagent,com.sec.android.smartfpsadjuster,com.sec.android.app.desktoplauncher]:
+        com.ilachatirlatici
+      [com.google.android.gsf,com.google.android.gms]:
+        com.ilachatirlatici
+  queryable via uses-library:
+
+Dexopt state:
+  [com.ilachatirlatici]
+    path: /data/app/~~xd4AoH8V2YuXE1BLc7lIBg==/com.ilachatirlatici-3naO-w1cupoqu3noW0mcyA==/base.apk
+      arm64: [status=verify] [reason=install] [primary-abi]
+        [location is /data/app/~~xd4AoH8V2YuXE1BLc7lIBg==/com.ilachatirlatici-3naO-w1cupoqu3noW0mcyA==/oat/arm64/base.odex]
+
+Compiler stats:
+  [com.ilachatirlatici]
+     base.apk - 964
+
+HeimdAllFS state:
+  HeimdAllFS does not supported.

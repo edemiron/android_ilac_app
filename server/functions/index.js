@@ -69,6 +69,86 @@ exports.geminiSearch = onCall(async (request) => {
 });
 
 /**
+ * Genel amaçlı Gemini üretimi (onCall) — metin ve/veya görsel.
+ *
+ * ⚠️ v1.7.4 (Faz 0.3): İstemci eskiden APK'ya GÖMÜLÜ bir API anahtarıyla
+ * doğrudan `generativelanguage.googleapis.com`a istek atıyordu. Anahtar
+ * Hermes bytecode'undan çıkarılabildiği için kota/fatura istismarına açıktı;
+ * ayrıca `config/ai` dokümanı kimlik doğrulamasız okunabildiğinden anahtarlar
+ * oradan da sızıyordu. Tüm AI çağrıları artık BURADAN geçer.
+ *
+ * Güvenlik notları:
+ *  - `request.auth` zorunlu.
+ *  - Model, izinli listeyle sınırlı: istemci keyfi model/endpoint enjekte edemez.
+ *  - Görsel boyutu sınırlı (base64 ~8 MB) — bellek/maliyet koruması.
+ */
+const ALLOWED_GEMINI_MODELS = new Set([
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+]);
+const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+const MAX_INLINE_IMAGE_CHARS = 8 * 1024 * 1024; // base64 karakter sayısı
+
+exports.geminiGenerate = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Bu servisi kullanmak için giriş yapmalısınız.');
+  }
+
+  const { prompt, imageBase64, imageMimeType, model, temperature, maxOutputTokens } =
+    request.data || {};
+
+  if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+    throw new HttpsError('invalid-argument', 'prompt parametresi gereklidir.');
+  }
+  if (imageBase64 !== undefined) {
+    if (typeof imageBase64 !== 'string' || imageBase64.length === 0) {
+      throw new HttpsError('invalid-argument', 'imageBase64 geçersiz.');
+    }
+    if (imageBase64.length > MAX_INLINE_IMAGE_CHARS) {
+      throw new HttpsError('invalid-argument', 'Görsel çok büyük.');
+    }
+  }
+  if (!GEMINI_API_KEY) {
+    throw new HttpsError('unavailable', 'Gemini API servisi henüz yapılandırılmamış.');
+  }
+
+  const selectedModel = ALLOWED_GEMINI_MODELS.has(model) ? model : DEFAULT_GEMINI_MODEL;
+
+  const parts = [{ text: prompt }];
+  if (imageBase64) {
+    parts.push({
+      inlineData: {
+        mimeType: typeof imageMimeType === 'string' ? imageMimeType : 'image/jpeg',
+        data: imageBase64,
+      },
+    });
+  }
+
+  try {
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        contents: [{ parts }],
+        generationConfig: {
+          temperature: typeof temperature === 'number' ? Math.min(Math.max(temperature, 0), 1) : 0.4,
+          maxOutputTokens:
+            typeof maxOutputTokens === 'number' ? Math.min(Math.max(maxOutputTokens, 64), 8192) : 2048,
+        },
+      },
+      { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
+    );
+
+    const result = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return { success: true, result, model: selectedModel };
+  } catch (error) {
+    console.error('geminiGenerate error:', error.message);
+    throw new HttpsError('internal', 'AI servisi yanıt vermedi.');
+  }
+});
+
+/**
  * Claude (Anthropic) ile ilaç ara (onCall)
  */
 exports.claudeSearch = onCall(async (request) => {
@@ -115,15 +195,22 @@ exports.claudeSearch = onCall(async (request) => {
 });
 
 /**
- * Health check
+ * ⚠️ v1.7.4 — `health` KALDIRILDI (Faz 0.2, KRİTİK GÜVENLİK)
+ *
+ * Eski hâli `onRequest({ cors: true })` idi, yani KİMLİK DOĞRULAMASIZ public
+ * HTTPS endpoint. Tek bir GET isteği ile:
+ *   - `users` koleksiyonunun TAMAMI (uid, isim, e-posta, FCM/Expo push token),
+ *   - `caregiverRelationships` tamamı (telefon numaraları, bakıcı token'ları)
+ * JSON olarak dönüyordu; `?testPatientId=<uid>` parametresiyle de HERHANGİ bir
+ * hastanın bakıcılarına push bildirimi gönderilebiliyordu.
+ *
+ * "Sağlık kontrolü" için kullanıcı verisi döndürmek hiçbir koşulda doğru
+ * değil. Servis durumu gerekiyorsa kimlik doğrulamalı `onCall` + admin claim
+ * arkasında, YALNIZCA sayaç/durum döndüren bir fonksiyon yazılmalı.
+ *
+ * NOT: Bu fonksiyon canlıya deploy edilmiş olabilir; kodu silmek yetmez,
+ * `firebase functions:delete health` ile ortamdan da kaldırılmalıdır.
  */
-exports.health = onRequest({ cors: true }, (req, res) => {
-  res.json({
-    status: 'OK',
-    gemini: GEMINI_API_KEY ? 'Configured' : 'Missing',
-    claude: ANTHROPIC_API_KEY ? 'Configured' : 'Missing',
-  });
-});
 
 /**
  * ⚡ OTOMATİK CLOUD TRIGGER: Hasta İlaç Aldığında/Atladığında Bakıcıya Anında FCM Gönder
@@ -183,73 +270,32 @@ exports.onMedicineLogCreated = onDocumentCreated('users/{userId}/medicineLogs/{l
       scheduledTime,
     };
 
+    const collapseKey = `patient_${userId}_${time || 'log'}_${status}`;
+    const notificationTag = `med_log_${userId}_${status}`;
+
     const androidConfig = {
       priority: 'high',
+      collapseKey,
       notification: {
         channelId: 'caregiver-live-alerts-v1',
         sound: 'default',
         priority: 'max',
         visibility: 'public',
         defaultVibrateTimings: true,
+        tag: notificationTag,
       },
     };
 
-    const promises = [];
-
-    // 1. TOPIC BROADCAST: patient_{userId} konusuna yayın yap (Anında tüm bağlı bakıcılar alır!)
+    // 1. TOPIC BROADCAST: patient_${userId} konusuna tekil yayın yap (Tüm bağlı bakıcılar tek seferde alır)
     const topicMessage = {
       topic: `patient_${userId}`,
       notification: notificationPayload,
       data: dataPayload,
       android: androidConfig,
     };
-    promises.push(
-      admin.messaging().send(topicMessage)
-        .then(msgId => console.log(`[onMedicineLogCreated] Topic patient_${userId} mesajı gönderildi: ${msgId}`))
-        .catch(err => console.warn(`[onMedicineLogCreated] Topic gönderim hatası: ${err.message}`))
-    );
 
-    // 2. DIRECT TOKEN MESSAGES: caregiverRelationships koleksiyonunu tara (filtresiz geniş arama)
-    const relSnap = await db.collection('caregiverRelationships')
-      .where('patientId', '==', userId)
-      .get();
-
-    console.log(`[onMedicineLogCreated] Bulunan ilişki sayısı: ${relSnap.size}`);
-
-    const sentTokens = new Set();
-
-    for (const doc of relSnap.docs) {
-      const rel = doc.data();
-      let token = rel.caregiverFcmToken;
-
-      if (!token && rel.caregiverId) {
-        try {
-          const cUserDoc = await db.collection('users').doc(rel.caregiverId).get();
-          if (cUserDoc.exists) {
-            const cData = cUserDoc.data();
-            token = cData?.pushToken || cData?.caregiverFcmToken || cData?.fcmToken;
-          }
-        } catch (_cErr) {}
-      }
-
-      if (token && !sentTokens.has(token)) {
-        sentTokens.add(token);
-        const directMessage = {
-          token,
-          notification: notificationPayload,
-          data: dataPayload,
-          android: androidConfig,
-        };
-        promises.push(
-          admin.messaging().send(directMessage)
-            .then(msgId => console.log(`[onMedicineLogCreated] Direct token mesajı gönderildi (${token.slice(0, 15)}...): ${msgId}`))
-            .catch(err => console.warn(`[onMedicineLogCreated] Direct token gönderim hatası: ${err.message}`))
-        );
-      }
-    }
-
-    await Promise.all(promises);
-    console.log(`[onMedicineLogCreated] Toplam ${promises.length} bildirim akışı tamamlandı.`);
+    const msgId = await admin.messaging().send(topicMessage);
+    console.log(`[onMedicineLogCreated] Topic patient_${userId} mesajı başarıyla gönderildi: ${msgId}`);
   } catch (error) {
     console.error('[onMedicineLogCreated] Hata:', error);
   }
@@ -291,44 +337,168 @@ exports.onRemoteReminderCreated = onDocumentCreated('users/{userId}/remoteRemind
       scheduledTime: reminder.scheduledTime || '',
     };
 
+    const collapseKey = `reminder_${event.params.reminderId}`;
+    const notificationTag = `reminder_${event.params.reminderId}`;
+
     const androidConfig = {
       priority: 'high',
+      collapseKey,
       notification: {
         channelId: 'patient-remote-reminders-v1',
         sound: 'default',
         priority: 'max',
         visibility: 'public',
         defaultVibrateTimings: true,
+        tag: notificationTag,
       },
     };
 
-    const promises = [];
-
-    // 1. Topic: user_{userId}
-    promises.push(
-      admin.messaging().send({
-        topic: `user_${userId}`,
-        notification: notificationPayload,
-        data: dataPayload,
-        android: androidConfig,
-      }).catch(err => console.warn('Remote reminder topic error:', err.message))
-    );
-
-    // 2. Direct Token
-    if (token) {
-      promises.push(
-        admin.messaging().send({
-          token,
-          notification: notificationPayload,
-          data: dataPayload,
-          android: androidConfig,
-        }).catch(err => console.warn('Remote reminder token error:', err.message))
-      );
-    }
-
-    await Promise.all(promises);
-    console.log(`[onRemoteReminderCreated] Hasta ${userId} kullanıcısına FCM iletildi.`);
+    // Topic user_{userId} broadcast
+    await admin.messaging().send({
+      topic: `user_${userId}`,
+      notification: notificationPayload,
+      data: dataPayload,
+      android: androidConfig,
+    });
+    console.log(`[onRemoteReminderCreated] Hasta ${userId} konusuna FCM iletildi.`);
   } catch (error) {
     console.error('[onRemoteReminderCreated] Hata:', error);
+  }
+});
+
+/**
+ * 🚨 OTOMATİK CLOUD TRIGGER: Hasta Acil Durum SOS Butonuna Bastığında Tüm Bakıcılara Anında Yüksek Öncelikli Sirenli FCM Gönder
+ */
+exports.onEmergencyAlertCreated = onDocumentCreated('users/{userId}/emergencyAlerts/{alertId}', async (event) => {
+  const snapshot = event.data;
+  if (!snapshot) return;
+
+  const alertData = snapshot.data();
+  const userId = event.params.userId;
+  const alertId = event.params.alertId;
+
+  try {
+    const db = admin.firestore();
+    const patientName = alertData.patientName || 'Hastanız';
+    const customNote = alertData.customNote || '';
+    const bodyText = customNote || `${patientName} acil durum butonuna basarak yardım talep etti! Lütfen hemen kontrol edin veya arayın.`;
+    const titleText = `🚨 ACİL DURUM: ${patientName} Yardım İstiyor!`;
+
+    const notificationPayload = {
+      title: titleText,
+      body: bodyText,
+    };
+
+    const dataPayload = {
+      title: titleText,
+      body: bodyText,
+      type: 'emergency_sos',
+      alertId,
+      patientId: userId,
+      patientName,
+      patientPhone: alertData.patientPhone || '',
+      customNote,
+      mapsUrl: alertData.location?.mapsUrl || '',
+      createdAt: alertData.createdAt || new Date().toISOString(),
+      channelId: 'emergency-sos-v6',
+      sound: 'sound_urgent_alert',
+    };
+
+    const collapseKey = `sos_${alertId}`;
+    const notificationTag = `sos_${alertId}`;
+
+    const androidConfig = {
+      priority: 'high',
+      collapseKey,
+      notification: {
+        channelId: 'emergency-sos-v6',
+        sound: 'sound_urgent_alert',
+        priority: 'max',
+        visibility: 'public',
+        defaultVibrateTimings: true,
+        tag: notificationTag,
+      },
+    };
+
+    // 1. TOPIC: patient_{userId} (Bağlı tüm bakıcılar anında tekil uyanır)
+    const msgId = await admin.messaging().send({
+      topic: `patient_${userId}`,
+      notification: notificationPayload,
+      data: dataPayload,
+      android: androidConfig,
+    });
+    console.log(`[onEmergencyAlertCreated] Topic patient_${userId} SOS iletildi: ${msgId}`);
+  } catch (error) {
+    console.error('[onEmergencyAlertCreated] Hata:', error);
+  }
+});
+
+/**
+ * 🚨 OTOMATİK CLOUD TRIGGER: Bakıcı /caregiverAlerts koleksiyonuna acil durum yazıldığında bakıcıya doğrudan FCM uyarısı gönder
+ */
+exports.onCaregiverAlertCreated = onDocumentCreated('users/{caregiverId}/caregiverAlerts/{alertId}', async (event) => {
+  const snapshot = event.data;
+  if (!snapshot) return;
+
+  const alertData = snapshot.data();
+  const caregiverId = event.params.caregiverId;
+
+  // Sadece acil durum SOS alert'leri için özel siren bildirimi tetikle
+  if (alertData.type !== 'emergency_sos' && alertData.type !== 'EMERGENCY_SOS') {
+    return;
+  }
+
+  try {
+    const db = admin.firestore();
+    const patientName = alertData.patientName || 'Hastanız';
+    const bodyText = alertData.customNote || `${patientName} acil durum butonuna basarak yardım talep etti! Lütfen hemen kontrol edin veya arayın.`;
+    const titleText = `🚨 ACİL DURUM: ${patientName} Yardım İstiyor!`;
+
+    const notificationPayload = {
+      title: titleText,
+      body: bodyText,
+    };
+
+    const dataPayload = {
+      title: titleText,
+      body: bodyText,
+      type: 'emergency_sos',
+      alertId: event.params.alertId,
+      patientId: alertData.patientId || '',
+      patientName,
+      patientPhone: alertData.patientPhone || '',
+      customNote: alertData.customNote || '',
+      mapsUrl: alertData.location?.mapsUrl || '',
+      createdAt: alertData.createdAt || new Date().toISOString(),
+      channelId: 'emergency-sos-v6',
+      sound: 'sound_urgent_alert',
+    };
+
+    const collapseKey = `sos_${event.params.alertId}`;
+    const notificationTag = `sos_${event.params.alertId}`;
+
+    const androidConfig = {
+      priority: 'high',
+      collapseKey,
+      notification: {
+        channelId: 'emergency-sos-v6',
+        sound: 'sound_urgent_alert',
+        priority: 'max',
+        visibility: 'public',
+        defaultVibrateTimings: true,
+        tag: notificationTag,
+      },
+    };
+
+    // Topic user_{caregiverId}
+    const msgId = await admin.messaging().send({
+      topic: `user_${caregiverId}`,
+      notification: notificationPayload,
+      data: dataPayload,
+      android: androidConfig,
+    });
+    console.log(`[onCaregiverAlertCreated] Bakıcı ${caregiverId} kullanıcısına SOS FCM iletildi: ${msgId}`);
+  } catch (error) {
+    console.error('[onCaregiverAlertCreated] Hata:', error);
   }
 });

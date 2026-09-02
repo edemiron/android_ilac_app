@@ -10,9 +10,9 @@ import notifee from '@notifee/react-native';
 import {
   sendTestNotification,
   requestNotificationPermissions,
-  scheduleTestAlarmNotification,
   scheduleMedicineNotification,
 } from '../utils/notifications';
+import { runLockScreenAlarmTest } from '../utils/notifications/testAlarm';
 import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInteraction';
 import { useAlert } from '../contexts/AlertContext';
 import { speak } from '../utils/speech';
@@ -21,7 +21,8 @@ import { useLanguage, Language } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { createScopedLogger } from '../utils/logger';
-import { CHANNELS } from '../constants';
+// Kanal kimliklerinin tek kaynagi (eskiden `constants.ts` → olu `CHANNELS`).
+import { ALARM_CHANNEL_ID } from '../utils/notifications/channels';
 
 // Sprint 5.2: Test data + pure helpers ./useSettingsHelpers.ts'e tasindi.
 import {
@@ -60,7 +61,7 @@ export function useSettingsScreen() {
     medicines,
     reminderTimes,
   } = useMedicineStore();
-  const { user, logout } = useAuth();
+  const { user, logout, updateDisplayName } = useAuth();
   const { isPremium, remainingDays } = useSubscription();
 
   const [pickerState, setPickerState] = useState({
@@ -188,7 +189,11 @@ export function useSettingsScreen() {
       }
 
       try {
-        await scheduleTestAlarmNotification(minutes, language);
+        // Tek kaynak: ayarlar motor tarafından store'dan okunur.
+        await runLockScreenAlarmTest({
+          seconds: Math.max(1, Math.round(minutes * 60)),
+          language: language === 'tr' ? 'tr' : 'en',
+        });
         const scheduledTime = new Date(Date.now() + minutes * 60 * 1000);
         const timeStr = format(scheduledTime, 'HH:mm:ss');
 
@@ -518,7 +523,7 @@ export function useSettingsScreen() {
             subtitle: `${notifTimeStr} • İlaç Vakti`,
             body: `${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.\n⏰ Saat: ${notifTimeStr}`,
             android: {
-              channelId: CHANNELS.ALARM,
+              channelId: ALARM_CHANNEL_ID,
               category: 'alarm' as never,
               importance: 4, // HIGH
               visibility: 1, // PUBLIC
@@ -697,6 +702,7 @@ export function useSettingsScreen() {
     settings,
     updateSettings,
     isSyncing,
+    lastSyncAt,
     user,
     isPremium,
     remainingDays,
@@ -716,6 +722,7 @@ export function useSettingsScreen() {
     handleClearAllData,
     handleSync,
     handleLogout,
+    updateDisplayName,
     formatLastSync,
     formatTimeDisplay,
     getThemeLabel,

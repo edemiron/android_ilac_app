@@ -161,13 +161,25 @@ describe('Notification Service', () => {
       await scheduleTestAlarmNotification(5, 'tr');
 
       const trCall = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
-      expect(trCall[0].title).toMatch(/Test [Iİ]lac[iı]/i);
+      expect(trCall[0].title).toContain('TEST ALARMI');
 
       jest.clearAllMocks();
       await scheduleTestAlarmNotification(5, 'en');
 
       const enCall = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
-      expect(enCall[0].title).toContain('Test Medicine');
+      expect(enCall[0].title).toContain('TEST ALARM');
+    });
+
+    it('labels the notification unmistakably as a TEST (not a real dose)', async () => {
+      await scheduleTestAlarmNotification(5, 'tr');
+
+      const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
+      // Kullanici bunu gercek bir doz hatirlatmasi sanmamali.
+      expect(call[0].title).toContain('TEST');
+      expect(call[0].title).toContain('gerçek doz değil');
+      expect(call[0].body).toContain('ilaç almanız gerekmiyor');
+      expect(call[0].title).not.toMatch(/Aspirin|500mg/);
+      expect(call[0].body).not.toMatch(/Aspirin/);
     });
   });
 

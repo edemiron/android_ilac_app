@@ -35,6 +35,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { radius } from '../../theme/tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export interface ModalSheetProps {
   visible: boolean;
@@ -60,6 +61,8 @@ export function ModalSheet({
   style,
 }: ModalSheetProps) {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 20) + 24;
 
   return (
     <Modal
@@ -89,6 +92,7 @@ export function ModalSheet({
               {
                 backgroundColor: colors.card,
                 borderColor: colors.border,
+                paddingBottom: bottomPadding,
               },
               style,
             ]}
@@ -98,10 +102,7 @@ export function ModalSheet({
           >
             {showHandle && (
               <View
-                style={[
-                  styles.handle,
-                  { backgroundColor: isDark ? colors.textMuted : '#D1D5DB' },
-                ]}
+                style={[styles.handle, { backgroundColor: isDark ? colors.textMuted : '#D1D5DB' }]}
               />
             )}
 

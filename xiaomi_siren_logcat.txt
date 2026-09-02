@@ -1,0 +1,15 @@
+--------- beginning of main
+08-29 00:20:03.364  2911 31148 E AudioTrack: Failed to load XML file: /odm/etc/audio/audio_lowpower_app_list.xml
+08-29 00:20:03.365  2911 31148 D AudioTrack: set(): (sessionId=21193), mcallback is 0, streamType 4, sampleRate 44100, format 0x1, channelMask 0x1, frameCount 22050, flags 0x1, notificationFrames 0,transferType 0, mClientAttributionSource AttributionSourceState{pid: 19216, uid: 10389, deviceId: 0, packageName: com.ilachatirlatici, attributionTag: (null), token: binder:0xb400007074d3da80, renouncedPermissions: [], next: []}
+08-29 00:20:03.373  2911 31148 D AudioTrack: AudioTrack::setVolume L:1.000000 R:1.000000 sessionid=21193
+08-29 00:20:03.375  2911 31148 D AudioTrack: AudioTrack::setVolume L:1.000000 R:1.000000 sessionid=21193
+08-29 00:20:03.375  2911 31148 I AudioTrack: start(3567): prior state:STATE_STOPPED packageName: com.ilachatirlatici
+08-29 00:20:03.389  2911  3051 D AudioTrack: onAudioDeviceUpdate AudioPortDebug[ID:00000003] deviceType:AUDIO_DEVICE_OUT_SPEAKER(00000002)
+08-29 00:20:05.146  2911 31148 I AudioTrack: stop(sessionID=21193), packageName: com.ilachatirlatici
+08-29 00:20:05.146  2911 31148 D AudioTrack: stop(3567): prior state:STATE_ACTIVE
+08-29 00:20:05.146  2911 31148 D AudioTrack: stop(3567): called with 88200 frames delivered
+08-29 00:20:05.591  2911 31125 D AudioTrack: AudioTrack::setVolume L:1.000000 R:1.000000 sessionid=21193
+08-29 00:20:05.591  2911 31125 I AudioTrack: start(3567): prior state:STATE_STOPPED packageName: com.ilachatirlatici
+08-29 00:20:05.597  2911 31148 I AudioTrack: pause(sessionID=21193) pause(3567): prior state:STATE_ACTIVE packageName: com.ilachatirlatici
+08-29 00:20:05.640  2911 31148 W AudioTrack: pauseAndWait: timeout expired state:7 still pausing:7 after 40 ms
+08-29 00:20:05.640  2911 31148 D AudioTrack: flush(3567): prior state:STATE_PAUSED

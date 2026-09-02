@@ -257,14 +257,20 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // Gerçek karanlık mod durumunu hesapla
   const isDark = theme === 'system' ? systemColorScheme === 'dark' : theme === 'dark';
 
-  // Sprint 63: Accent palette'ten primary rengi al
+  // Sprint 63 & Theme Polish: Accent palette'ten primary ve türev renkleri al
   const { palette } = useAccent();
   const baseColors = isDark ? darkColors : lightColors;
+  const activePrimary = isDark ? palette.darkPrimary : palette.lightPrimary;
   const colors = {
     ...baseColors,
-    primary: isDark ? palette.darkPrimary : palette.lightPrimary,
+    primary: activePrimary,
     primaryDark: isDark ? palette.darkPrimary : palette.lightPrimary,
     primaryLight: isDark ? palette.lightPrimary : palette.lightPrimary,
+    primaryFixed: palette.lightPrimary,
+    borderFocused: activePrimary,
+    tabActive: activePrimary,
+    gradientStart: activePrimary,
+    gradientEnd: isDark ? palette.lightPrimary : palette.darkPrimary,
   };
 
   if (!isLoaded) {

@@ -15,6 +15,16 @@ describe('timeCalculator utils', () => {
       // Mevcut davranis: trim uygulanmiyor
       expect(formatTimeDisplay(' 08:30 ')).toBe(' 08:30 ');
     });
+
+    it('formats HH:mm:ss to HH:mm', () => {
+      expect(formatTimeDisplay('14:30:45')).toBe('14:30');
+    });
+
+    it('converts ISO date strings to local HH:mm format', () => {
+      const d = new Date(2026, 7, 28, 20, 31, 0); // Local date
+      const iso = d.toISOString();
+      expect(formatTimeDisplay(iso)).toBe('20:31');
+    });
   });
 
   describe('getInstructionText', () => {

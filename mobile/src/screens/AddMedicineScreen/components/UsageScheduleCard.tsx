@@ -1,16 +1,18 @@
 /**
  * UsageScheduleCard — İlaç Kullanım Planı & Hatırlatıcı Saatleri Kartı
+ *
+ * Frekans (Günde kaç kez), Hatırlatma Saatleri ve Kullanım Talimatını (Aç/Tok)
+ * kompakt, sezgisel ve doğal hekim reçetesi sırasıyla sunar.
  */
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import type { ThemeColors } from '../../../contexts/ThemeContext';
-import type { MedicineInstruction, ScheduleType, ReminderTime } from '../../../types';
+import type { MedicineInstruction, ReminderTime } from '../../../types';
 import type { TimePickerState } from '../../../types/addMedicine.types';
 import {
   FrequencySelector,
-  ScheduleSelector,
   InstructionSelector,
   ReminderTimes,
 } from '../../../components/addMedicine';
@@ -19,17 +21,6 @@ interface UsageScheduleCardProps {
   frequency: number;
   onFrequencyChange: (freq: number) => void;
   onAutoTimes: (times: string[]) => void;
-  scheduleType: ScheduleType;
-  specificDays: number[];
-  intervalDays: number;
-  cycleDaysOn: number;
-  cycleDaysOff: number;
-  endDate: string | null;
-  onScheduleTypeChange: (type: ScheduleType) => void;
-  onSpecificDaysChange: (days: number[]) => void;
-  onIntervalDaysChange: (interval: number) => void;
-  onCycleChange: (on: number, off: number) => void;
-  onEndDateChange: (date: string | null) => void;
   instruction: MedicineInstruction;
   onInstructionChange: (inst: MedicineInstruction) => void;
   instructionOptions: { value: MedicineInstruction; label: string }[];
@@ -58,17 +49,6 @@ export function UsageScheduleCard({
   frequency,
   onFrequencyChange,
   onAutoTimes,
-  scheduleType,
-  specificDays,
-  intervalDays,
-  cycleDaysOn,
-  cycleDaysOff,
-  endDate,
-  onScheduleTypeChange,
-  onSpecificDaysChange,
-  onIntervalDaysChange,
-  onCycleChange,
-  onEndDateChange,
   instruction,
   onInstructionChange,
   instructionOptions,
@@ -94,6 +74,7 @@ export function UsageScheduleCard({
 }: UsageScheduleCardProps) {
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      {/* 1. Günde Kaç Kez? (Frekans) */}
       <FrequencySelector
         value={frequency}
         onSelect={onFrequencyChange}
@@ -102,29 +83,7 @@ export function UsageScheduleCard({
         colors={colors}
       />
 
-      <ScheduleSelector
-        scheduleType={scheduleType}
-        specificDays={specificDays}
-        intervalDays={intervalDays}
-        cycleDaysOn={cycleDaysOn}
-        cycleDaysOff={cycleDaysOff}
-        endDate={endDate}
-        onScheduleTypeChange={onScheduleTypeChange}
-        onSpecificDaysChange={onSpecificDaysChange}
-        onIntervalDaysChange={onIntervalDaysChange}
-        onCycleChange={onCycleChange}
-        onEndDateChange={onEndDateChange}
-        colors={colors}
-      />
-
-      <InstructionSelector
-        value={instruction}
-        onSelect={onInstructionChange}
-        options={instructionOptions}
-        label={labelInstruction}
-        colors={colors}
-      />
-
+      {/* 2. Hatırlatma Zamanları (Saatler) */}
       <ReminderTimes
         previewTimes={previewTimes}
         customTimes={customTimes}
@@ -143,6 +102,15 @@ export function UsageScheduleCard({
         label={labelReminderTimes}
         colors={colors}
         language={language}
+      />
+
+      {/* 3. Kullanım Talimatı (Aç/Tok Durumu) */}
+      <InstructionSelector
+        value={instruction}
+        onSelect={onInstructionChange}
+        options={instructionOptions}
+        label={labelInstruction}
+        colors={colors}
       />
     </View>
   );

@@ -143,6 +143,7 @@ export function HomeScreenLayoutA({
       </Text>
       {reminder ? (
         <CurrentDoseCard
+          key={`current-reminder-${reminder.reminderTime.id}`}
           reminder={reminder}
           colors={colors}
           isDark={isDark}

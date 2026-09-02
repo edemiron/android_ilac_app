@@ -124,11 +124,28 @@ export async function checkAllPermissions(): Promise<PermissionStatus> {
  * Full screen intent izin ayarlarini ac (Android 14+)
  */
 export async function openFullScreenIntentSettings(): Promise<void> {
-  if (Platform.OS === 'android' && Platform.Version >= 34) {
+  if (Platform.OS === 'android') {
     try {
-      await Linking.sendIntent('android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT');
-    } catch (_error) {
-      // Fallback: Uygulama ayarlarini ac
+      const { NativeModules } = require('react-native');
+      if (NativeModules?.AlarmModule?.openOEMPopupSettings) {
+        await NativeModules.AlarmModule.openOEMPopupSettings();
+        return;
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+
+    if (Platform.Version >= 34) {
+      try {
+        await Linking.sendIntent('android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT', [
+          { key: 'package', value: 'package:com.ilachatirlatici' },
+        ]);
+        return;
+      } catch (_error) {
+        // Fallback: Uygulama ayarlarini ac
+        await notifee.openNotificationSettings();
+      }
+    } else {
       await notifee.openNotificationSettings();
     }
   }

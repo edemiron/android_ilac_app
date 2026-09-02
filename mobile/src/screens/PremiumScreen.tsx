@@ -29,6 +29,7 @@ export default function PremiumScreen() {
     remainingDays,
     monthlyPrice,
     yearlyPrice,
+    lifetimePrice,
     yearlySavings,
     features,
     selectedPeriod,
@@ -73,6 +74,16 @@ export default function PremiumScreen() {
 
         {/* Fiyatlandırma Paketleri */}
         <View style={styles.pricingContainer}>
+          {/* Ömür Boyu (Lifetime) Paket */}
+          <PricingOptionCard
+            period="lifetime"
+            isSelected={selectedPeriod === 'lifetime'}
+            onSelect={() => setSelectedPeriod('lifetime')}
+            price={lifetimePrice}
+            colors={colors}
+            language={language}
+          />
+
           {/* Yıllık Paket */}
           <PricingOptionCard
             period="yearly"

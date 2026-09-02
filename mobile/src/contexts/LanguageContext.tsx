@@ -169,6 +169,9 @@ const tr = {
 
   // Hata mesajları
   error_required_field: 'Bu alan zorunludur',
+  error_medicine_name_required: 'Lütfen ilacınızın adını giriniz (Örn: Parol, Aspirin).',
+  error_medicine_name_required_title: 'İlaç Adı Gerekli',
+  error_reminder_times_required: 'Lütfen en az bir hatırlatma saati ekleyiniz.',
   error_invalid_time: 'Geçersiz zaman formatı',
   error_network: 'Bağlantı hatası',
   error_unknown: 'Bilinmeyen hata',
@@ -353,6 +356,9 @@ const en: typeof tr = {
 
   // Error messages
   error_required_field: 'This field is required',
+  error_medicine_name_required: 'Please enter the medicine name (e.g. Parol, Aspirin).',
+  error_medicine_name_required_title: 'Medicine Name Required',
+  error_reminder_times_required: 'Please add at least one reminder time.',
   error_invalid_time: 'Invalid time format',
   error_network: 'Network error',
   error_unknown: 'Unknown error',

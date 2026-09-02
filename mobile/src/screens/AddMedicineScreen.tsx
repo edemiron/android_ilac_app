@@ -1,10 +1,14 @@
 /**
  * AddMedicineScreen — İlaç Ekleme ve Düzenleme Ekranı
  *
- * Design Pattern: Presenter Pattern / Declarative View
- * Tüm form state'leri, validasyonlar, zamanlayıcılar ve autocomplete işleyicileri
- * `useAddMedicineController` Presenter Hook'una aktarılmıştır.
- * Form ekranı 5 ana kart bileşeniyle deklaratif ve son derece temiz biçimde oluşturulmuştur.
+ * Design Pattern: Presenter Pattern / Declarative View & Progressive Disclosure
+ *
+ * HİBRİT ŞAMPİYON MODEL & İNCE DOKUNUŞLAR (v1.4.9):
+ * 1. Temel İlaç & Dozaj Kartı (TİTCK Canlı Arama, Sesli Reçete Asistanı & Kutu Fotoğraf Çipi)
+ * 2. Zamanlama & Kullanım Kartı (Günde kaç kez, saatler, aç/tok durumu)
+ * 3. Gelişmiş Seçenekler İçe Açılır Çekmecesi (Kür, Fotoğraf, Kategori, Stok & Titreşim - İsteğe Bağlı)
+ * 4. Form Kaydet / İptal Eylemleri
+ * 5. Kutlama & İlk Doz Hatırlatma Modalı (Başarı mikro-animasyonu ve haptik titreşim)
  */
 
 import React from 'react';
@@ -14,10 +18,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // Alt Bileşenler (Modular Form Cards)
 import { BasicInfoCard } from './AddMedicineScreen/components/BasicInfoCard';
 import { UsageScheduleCard } from './AddMedicineScreen/components/UsageScheduleCard';
-import { AppearanceCard } from './AddMedicineScreen/components/AppearanceCard';
-import { AdvancedAlarmCard } from './AddMedicineScreen/components/AdvancedAlarmCard';
-import { InventoryCard } from './AddMedicineScreen/components/InventoryCard';
-import { FormButtons } from '../components/addMedicine';
+import { AdvancedOptionsAccordion } from './AddMedicineScreen/components/AdvancedOptionsAccordion';
+import {
+  FormButtons,
+  MedicineAddedCelebrationModal,
+  VoiceAddMedicineModal,
+  EReceteImportModal,
+} from '../components/addMedicine';
 
 // Presenter Hook
 import { useAddMedicineController } from './AddMedicineScreen/hooks/useAddMedicineController';
@@ -46,6 +53,7 @@ export default function AddMedicineScreen() {
     settings,
     handleScanBarcode,
     handleScanPhotoBox,
+    handleRemovePhoto,
     isAnalyzingPhoto,
     handleSave,
     handleCancel,
@@ -54,6 +62,19 @@ export default function AddMedicineScreen() {
     handleAutoTimes,
     medicines,
     instructionOptions,
+    // Yeni İnce Dokunuşlar
+    celebrationState,
+    handleDismissCelebration,
+    voiceModalVisible,
+    setVoiceModalVisible,
+    handleApplyVoiceMedicine,
+    // Klinik Güvenlik & E-Reçete (Sprint 104)
+    foodInteractions,
+    duplicateWarning,
+    titckKubKtUrl,
+    showEReceteModal,
+    setShowEReceteModal,
+    handleSelectEReceteMedicine,
   } = useAddMedicineController();
 
   return (
@@ -68,7 +89,7 @@ export default function AddMedicineScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* KART 1: Temel Bilgiler (Ad, Dozaj, Çapraz Etkileşim) */}
+          {/* KART 1: Temel Bilgiler (Ad, TİTCK Autocomplete, E-Reçete, Gıda Rozetleri, Çift Doz Kalkanı, KÜB/KT) */}
           <BasicInfoCard
             name={formState.name}
             onChangeName={text => updateFormField('name', text)}
@@ -81,6 +102,13 @@ export default function AddMedicineScreen() {
             barcodeScanned={!!routeParams.barcode}
             onScanPhotoBox={handleScanPhotoBox}
             isAnalyzingPhoto={isAnalyzingPhoto}
+            onVoicePress={() => setVoiceModalVisible(true)}
+            onOpenERecetePress={() => setShowEReceteModal(true)}
+            foodInteractions={foodInteractions}
+            duplicateWarning={duplicateWarning}
+            titckKubKtUrl={titckKubKtUrl}
+            imageUri={formState.imageUri}
+            onRemovePhoto={handleRemovePhoto}
             dosageAmount={formState.dosageAmount}
             medicineForm={formState.medicineForm}
             onDosageAmountChange={handleDosageAmountChange}
@@ -93,25 +121,11 @@ export default function AddMedicineScreen() {
             labelDosage={t('medicine_dosage')}
           />
 
-          {/* KART 2: Kullanım Planı & Hatırlatıcı Saatleri */}
+          {/* KART 2: Sezgisel Kullanım Planı & Hatırlatıcı Saatleri */}
           <UsageScheduleCard
             frequency={formState.frequency}
             onFrequencyChange={freq => updateFormField('frequency', freq)}
             onAutoTimes={handleAutoTimes}
-            scheduleType={formState.scheduleType}
-            specificDays={formState.specificDays}
-            intervalDays={formState.intervalDays}
-            cycleDaysOn={formState.cycleDaysOn}
-            cycleDaysOff={formState.cycleDaysOff}
-            endDate={formState.endDate}
-            onScheduleTypeChange={type => updateFormField('scheduleType', type)}
-            onSpecificDaysChange={days => updateFormField('specificDays', days)}
-            onIntervalDaysChange={int => updateFormField('intervalDays', int)}
-            onCycleChange={(on, off) => {
-              updateFormField('cycleDaysOn', on);
-              updateFormField('cycleDaysOff', off);
-            }}
-            onEndDateChange={end => updateFormField('endDate', end)}
             instruction={formState.instruction}
             onInstructionChange={inst => updateFormField('instruction', inst)}
             instructionOptions={instructionOptions}
@@ -136,30 +150,34 @@ export default function AddMedicineScreen() {
             labelReminderTimes={t('medicine_reminder_times')}
           />
 
-          {/* KART 3: Görünüm ve Ekstralar */}
-          <AppearanceCard
+          {/* KART 3: İsteğe Bağlı Gelişmiş Seçenekler Çekmecesi (Kür, Fotoğraf, Kategori, Titreşim, Stok & SKT) */}
+          <AdvancedOptionsAccordion
+            formState={formState}
+            isEditing={isEditing}
+            scheduleType={formState.scheduleType}
+            specificDays={formState.specificDays}
+            intervalDays={formState.intervalDays}
+            cycleDaysOn={formState.cycleDaysOn}
+            cycleDaysOff={formState.cycleDaysOff}
+            endDate={formState.endDate}
+            onScheduleTypeChange={type => updateFormField('scheduleType', type)}
+            onSpecificDaysChange={days => updateFormField('specificDays', days)}
+            onIntervalDaysChange={int => updateFormField('intervalDays', int)}
+            onCycleChange={(on, off) => {
+              updateFormField('cycleDaysOn', on);
+              updateFormField('cycleDaysOff', off);
+            }}
+            onEndDateChange={end => updateFormField('endDate', end)}
             imageUri={formState.imageUri}
             onImageChange={uri => updateFormField('imageUri', uri)}
             selectedColor={formState.selectedColor}
             onColorChange={color => updateFormField('selectedColor', color)}
             category={formState.category}
             onCategoryChange={cat => updateFormField('category', cat)}
-            colors={colors}
-            language={language}
-          />
-
-          {/* KART 4: Gelişmiş Alarm Ayarları */}
-          <AdvancedAlarmCard
-            formState={formState}
             onVibrationPatternChange={(pattern: 'default' | 'heartbeat' | 'urgent' | 'soft') =>
               updateFormField('vibrationPattern', pattern)
             }
-            colors={colors}
-            language={language}
-          />
-
-          {/* KART 5: Stok ve SKT */}
-          <InventoryCard
+            onIsCriticalChange={isCritical => updateFormField('isCritical', isCritical)}
             stockEnabled={formState.stockEnabled}
             stockCount={formState.stockCount}
             stockThreshold={formState.stockThreshold}
@@ -191,6 +209,32 @@ export default function AddMedicineScreen() {
           colors={colors}
         />
       </KeyboardAvoidingView>
+
+      {/* 🎙️ Sesli Reçete Asistanı Modalı */}
+      <VoiceAddMedicineModal
+        visible={voiceModalVisible}
+        onApplyParsedMedicine={handleApplyVoiceMedicine}
+        onClose={() => setVoiceModalVisible(false)}
+        colors={colors}
+        language={language}
+      />
+
+      {/* 🇹🇷 E-Reçete Hızlı İçe Aktarma Modalı */}
+      <EReceteImportModal
+        visible={showEReceteModal}
+        onClose={() => setShowEReceteModal(false)}
+        onSelectMedicine={handleSelectEReceteMedicine}
+        colors={colors}
+        language={language}
+      />
+
+      {/* 🎉 İlaç Başarıyla Eklendi / Güncellendi Kutlama Modalı */}
+      <MedicineAddedCelebrationModal
+        data={celebrationState}
+        onDismiss={handleDismissCelebration}
+        colors={colors}
+        language={language}
+      />
     </SafeAreaView>
   );
 }

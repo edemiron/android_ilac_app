@@ -126,9 +126,7 @@ export function HomeScreenLayoutB({
 
       {/* Kart 5: 7-gün Mini Chart (korundu) */}
       {miniChartData.length > 0 && (
-        <View
-          style={[styles.card, { backgroundColor: colors.surfaceContainerLow, marginTop: 16 }]}
-        >
+        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLow, marginTop: 16 }]}>
           <MiniChart data={miniChartData} title={tr ? 'Son 7 Gün' : 'Last 7 Days'} />
         </View>
       )}
@@ -136,11 +134,9 @@ export function HomeScreenLayoutB({
       {/* Kart 6: Şu An (CurrentDoseCard) — SectionHeader ile */}
       {reminder && (
         <View style={styles.section}>
-          <SectionHeader
-            title={tr ? 'Şu An' : 'Now'}
-            icon="⏰"
-          />
+          <SectionHeader title={tr ? 'Şu An' : 'Now'} icon="⏰" />
           <CurrentDoseCard
+            key={`current-reminder-${reminder.reminderTime.id}`}
             reminder={reminder}
             colors={colors}
             isDark={isDark}
@@ -159,8 +155,12 @@ export function HomeScreenLayoutB({
         accessibilityRole="button"
         accessibilityLabel={
           showPlan
-            ? tr ? 'Bugün planını gizle' : 'Hide today plan'
-            : tr ? 'Bugün planını göster' : 'Show today plan'
+            ? tr
+              ? 'Bugün planını gizle'
+              : 'Hide today plan'
+            : tr
+              ? 'Bugün planını göster'
+              : 'Show today plan'
         }
       >
         <SectionHeader

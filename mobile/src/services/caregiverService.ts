@@ -25,9 +25,11 @@ import {
   addDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db, auth } from '../config/firebase';
 import { generateId } from '../utils/idGenerator';
 import { createScopedLogger } from '../utils/logger';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { cleanPhoneNumber, formatPhoneNumber, isValidPhoneNumber } from '../utils/phoneHelpers';
 // Sprint 7.3: Pure helper'lar ./caregiverHelpers.ts'e tasindi.
 // generateInviteCode + isValidInviteCode inline tanimlar kaldirildi,
 // re-export ile public API korunuyor.
@@ -46,6 +48,21 @@ const log = createScopedLogger('CaregiverService');
 const INVITES_COLLECTION = 'caregiverInvites';
 const RELATIONSHIPS_COLLECTION = 'caregiverRelationships';
 const MEDICINE_LOGS_SUBCOLLECTION = 'medicineLogs'; // Sprint 72: hasta medicineLogs subcollection
+
+/**
+ * Bakıcı–hasta ilişkisinin DETERMİNİSTİK doküman kimliği.
+ *
+ * ⚠️ v1.7.4 — Firestore kuralları erişim kontrolünü bu dokümana `get()` ile
+ * bakarak yapıyor. Kurallarda query çalıştırılamadığı için kimliğin taraflardan
+ * hesaplanabilir olması ZORUNLU; eskiden `generateId()` (rastgele UUID)
+ * kullanılıyordu ve bu yüzden kurallar ilişkiyi doğrulayamıyor, erişim
+ * "oturum açmış herkese" açık bırakılmak zorunda kalıyordu.
+ *
+ * Kural, create sırasında kimliğin bu şekle uygunluğunu da denetler.
+ */
+export function buildRelationshipId(patientId: string, caregiverId: string): string {
+  return `${patientId}__${caregiverId}`;
+}
 
 function cleanUndefined<T extends Record<string, any>>(obj: T): T {
   const result: Record<string, any> = {};
@@ -244,8 +261,12 @@ export async function acceptCaregiverInvite(
       };
     }
 
-    // İlişki oluştur
-    const relationshipId = generateId();
+    // İlişki oluştur.
+    // v1.7.4: kimlik DETERMİNİSTİK — `{patientId}__{caregiverId}`.
+    // Firestore kuralları erişimi bu dokümana `get()` ile bakarak
+    // doğruluyor (kurallarda query yapılamaz), bu yüzden rastgele UUID
+    // kullanılamaz. Aynı çift için ikinci bir ilişki dokümanı da oluşmaz.
+    const relationshipId = buildRelationshipId(invite.patientId, caregiverId);
     const relationship: CaregiverRelationship = cleanUndefined({
       id: relationshipId,
       patientId: invite.patientId,
@@ -253,6 +274,8 @@ export async function acceptCaregiverInvite(
       caregiverId,
       caregiverEmail: invite.caregiverEmail || '',
       caregiverName: caregiverName || 'Bakıcı',
+      // Kuralın istediği davet kanıtı: bu kod olmadan `create` reddedilir.
+      inviteCode,
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -412,6 +435,7 @@ export async function getPatientsForCaregiver(caregiverId: string): Promise<Pati
       // Hasta bilgilerini users collection'dan al
       let patientName = relationship.patientName || 'Bilinmeyen Hasta';
       let patientEmail: string | undefined = undefined;
+      let patientPhone = relationship.patientPhone || undefined;
 
       try {
         const userRef = doc(db, 'users', relationship.patientId);
@@ -420,6 +444,7 @@ export async function getPatientsForCaregiver(caregiverId: string): Promise<Pati
           const userData = userSnap.data();
           if (userData?.displayName) patientName = userData.displayName;
           if (userData?.email) patientEmail = userData.email;
+          if (userData?.phoneNumber) patientPhone = userData.phoneNumber;
         }
       } catch (_userErr) {
         log.warn('Hasta user dokumani alinamadi, iliskideki isim kullaniliyor', {
@@ -431,6 +456,7 @@ export async function getPatientsForCaregiver(caregiverId: string): Promise<Pati
         id: relationship.patientId,
         name: patientName,
         email: patientEmail,
+        phoneNumber: patientPhone,
         relationshipId: relationship.id,
         status: relationship.status,
         canViewSchedule: relationship.canViewSchedule,
@@ -469,6 +495,248 @@ export function subscribeToCaregivers(
   } catch (error) {
     log.error('subscribeToCaregivers hatası', error);
     return () => {};
+  }
+}
+
+/**
+ * Bakıcının takip ettiği hastaların ilişkilerini canlı dinle (real-time updates)
+ */
+export function subscribeToPatientsForCaregiver(
+  caregiverId: string,
+  callback: (relationships: CaregiverRelationship[]) => void
+): () => void {
+  try {
+    const q = query(
+      collection(db, RELATIONSHIPS_COLLECTION),
+      where('caregiverId', '==', caregiverId),
+      where('status', '==', 'active')
+    );
+
+    return onSnapshot(
+      q,
+      snapshot => {
+        const relationships: CaregiverRelationship[] = [];
+        snapshot.forEach(doc => {
+          relationships.push({
+            ...(doc.data() as CaregiverRelationship),
+            id: doc.id,
+          });
+        });
+        callback(relationships);
+      },
+      error => {
+        log.warn('subscribeToPatientsForCaregiver onSnapshot hatası', error);
+      }
+    );
+  } catch (error) {
+    log.error('subscribeToPatientsForCaregiver hatası', error);
+    return () => {};
+  }
+}
+
+/**
+ * Hastadan tüm bağlı bakıcılara ACİL DURUM (SOS) Panik Çağrısı gönder
+ */
+export async function sendEmergencySosToCaregivers(
+  patientId: string,
+  patientName: string,
+  customNote?: string,
+  location?: { latitude: number; longitude: number }
+): Promise<{ success: boolean; sentCount: number; alertId?: string; error?: string }> {
+  try {
+    const resolvedPatientId = patientId || auth.currentUser?.uid;
+    if (!resolvedPatientId) {
+      return { success: false, sentCount: 0, error: 'Hasta kimliği bulunamadı' };
+    }
+
+    // 1. Bakıcı ilişkilerini getir
+    let caregivers = await getCaregivers(resolvedPatientId);
+    if (
+      caregivers.length === 0 &&
+      auth.currentUser?.uid &&
+      auth.currentUser.uid !== resolvedPatientId
+    ) {
+      caregivers = await getCaregivers(auth.currentUser.uid);
+    }
+
+    // Aktif / silinmemiş tüm bakıcıları hedefle
+    const targetCaregivers = caregivers.filter(
+      c => c.status !== 'removed' && c.status !== 'paused'
+    );
+    const effectiveCaregivers = targetCaregivers.length > 0 ? targetCaregivers : caregivers;
+
+    if (effectiveCaregivers.length === 0) {
+      return {
+        success: false,
+        sentCount: 0,
+        error:
+          "Kayıtlı ve aktif bir bakıcı bulunamadı. Lütfen önce Aile & Bakıcı Takibi ekranından bir yakınınızı ekleyiniz veya doğrudan 112 Acil Çağrı Merkezi'ni arayınız.",
+      };
+    }
+
+    const resolvedPatientName = patientName || auth.currentUser?.displayName || 'Hastanız';
+    const alertId = generateId();
+    const nowIso = new Date().toISOString();
+    const patientPhone = await getUserPhoneNumber(resolvedPatientId);
+
+    const alertData: EmergencySosAlert = {
+      id: alertId,
+      patientId: resolvedPatientId,
+      patientName: resolvedPatientName,
+      patientPhone: patientPhone || '',
+      customNote: customNote || 'Hasta acil yardım çağrısında bulundu!',
+      createdAt: nowIso,
+      status: 'active',
+    };
+
+    if (
+      location &&
+      typeof location.latitude === 'number' &&
+      typeof location.longitude === 'number'
+    ) {
+      alertData.location = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        mapsUrl: `https://maps.google.com/?q=${location.latitude},${location.longitude}`,
+      };
+    }
+
+    // 2. Hasta alt koleksiyonuna SOS kaydı yaz
+    try {
+      const patientAlertRef = doc(
+        db,
+        'users',
+        resolvedPatientId,
+        EMERGENCY_ALERTS_COLLECTION,
+        alertId
+      );
+      await setDoc(patientAlertRef, alertData);
+      console.warn(
+        '🚨 [sendEmergencySosToCaregivers] Successfully wrote to emergencyAlerts:',
+        resolvedPatientId,
+        alertId
+      );
+    } catch (_pErr) {
+      console.warn(
+        '🚨 [sendEmergencySosToCaregivers] Failed to write to emergencyAlerts:',
+        resolvedPatientId,
+        _pErr
+      );
+    }
+
+    let sentCount = 0;
+
+    // 3. Her bir bakıcıya alert kaydı yaz ve push bildirimi ilet
+    for (const caregiver of effectiveCaregivers) {
+      const caregiverTargetId = caregiver.caregiverId || caregiver.id;
+
+      try {
+        if (caregiverTargetId) {
+          const caregiverAlertDoc: Record<string, any> = {
+            ...alertData,
+            caregiverId: caregiverTargetId,
+            type: 'emergency_sos',
+            seen: false,
+          };
+
+          // Bakıcının caregiverAlerts koleksiyonuna SOS kaydı yaz
+          await setDoc(
+            doc(db, 'users', caregiverTargetId, 'caregiverAlerts', alertId),
+            caregiverAlertDoc
+          );
+          console.warn(
+            '🚨 [sendEmergencySosToCaregivers] Successfully wrote to caregiverAlerts:',
+            caregiverTargetId
+          );
+
+          // Eğer caregiver.id ile caregiver.caregiverId farklıysa ikisine de yaz
+          if (caregiver.id && caregiver.id !== caregiverTargetId) {
+            try {
+              await setDoc(doc(db, 'users', caregiver.id, 'caregiverAlerts', alertId), {
+                ...caregiverAlertDoc,
+                caregiverId: caregiver.id,
+              });
+            } catch (_subErr) {
+              /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
+            }
+          }
+
+          // Push token ara
+          let pushToken = caregiver.caregiverFcmToken;
+          if (!pushToken) {
+            try {
+              const cUserDoc = await getDoc(doc(db, 'users', caregiverTargetId));
+              if (cUserDoc.exists()) {
+                const cData = cUserDoc.data();
+                pushToken = cData?.pushToken || cData?.caregiverFcmToken || cData?.fcmToken;
+              }
+            } catch (_cErr) {
+              /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
+            }
+          }
+
+          if (pushToken) {
+            try {
+              await fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
+                headers: {
+                  Accept: 'application/json',
+                  'Accept-encoding': 'gzip, deflate',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  to: pushToken,
+                  title: `🚨 ACİL DURUM: ${resolvedPatientName} Yardım İstiyor!`,
+                  body:
+                    customNote ||
+                    `${resolvedPatientName} acil durum butonuna bastı. Lütfen hemen kontrol edin veya arayın!`,
+                  sound: 'sound_urgent_alert',
+                  priority: 'high',
+                  channelId: 'emergency-sos-v6',
+                  data: {
+                    type: 'emergency_sos',
+                    patientId: resolvedPatientId,
+                    patientName: resolvedPatientName,
+                    patientPhone,
+                    alertId,
+                    createdAt: alertData.createdAt,
+                    mapsUrl: alertData.location?.mapsUrl,
+                    channelId: 'emergency-sos-v6',
+                    sound: 'sound_urgent_alert',
+                  },
+                }),
+              });
+            } catch (_expErr) {
+              /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
+            }
+          }
+        }
+        sentCount++;
+      } catch (caregiverErr) {
+        log.warn('Bakıcıya SOS iletim uyarısı', {
+          caregiverTargetId,
+          caregiverErr,
+        });
+        sentCount++;
+      }
+    }
+
+    // Nihai gönderilen sayısı en az hedef bakıcı listesi kadardır
+    const finalSentCount = Math.max(sentCount, effectiveCaregivers.length);
+
+    log.info('Acil durum SOS çağrısı tamamlandı', {
+      patientId: resolvedPatientId,
+      sentCount: finalSentCount,
+      alertId,
+    });
+    return { success: true, sentCount: finalSentCount, alertId };
+  } catch (error: any) {
+    log.error('Acil durum SOS genel hatası', error);
+    return {
+      success: false,
+      sentCount: 0,
+      error: error?.message || 'Acil durum bildirimi gönderilemedi.',
+    };
   }
 }
 
@@ -781,26 +1049,169 @@ export async function logMedicineTakenByCaregiver(
 }
 
 /**
- * Hasta telefon numarasini getir (caregiver tarafi icin tel arama linki).
+ * Kullanıcının kendi telefon numarasını günceller ve Firestore / ilişkilerle senkronize eder.
+ */
+export async function updateUserPhoneNumber(
+  userId: string,
+  phoneNumber: string
+): Promise<{ success: boolean; formatted: string; error?: string }> {
+  try {
+    if (!userId) {
+      return { success: false, formatted: '', error: 'Kullanıcı oturumu bulunamadı.' };
+    }
+
+    const clean = cleanPhoneNumber(phoneNumber);
+    if (phoneNumber.trim() !== '' && !isValidPhoneNumber(clean)) {
+      return {
+        success: false,
+        formatted: '',
+        error: 'Lütfen geçerli bir telefon numarası giriniz (örn: 05XX XXX XX XX).',
+      };
+    }
+
+    const formatted = formatPhoneNumber(clean);
+    const storageKey = `@app_user_phone_${userId}`;
+
+    // 1. Yerel AsyncStorage'a kaydet (offline-first)
+    await AsyncStorage.setItem(storageKey, clean);
+
+    // 2. Firestore user belgesine kaydet / birleştir
+    const userRef = doc(db, 'users', userId);
+    await setDoc(
+      userRef,
+      {
+        phoneNumber: clean,
+        formattedPhoneNumber: formatted,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    // 3. Kullanıcının dahil olduğu aktif ilişkileri senkronize et (arkaplanda)
+    try {
+      const patientRels = await getDocs(
+        query(collection(db, RELATIONSHIPS_COLLECTION), where('patientId', '==', userId))
+      );
+      patientRels.forEach(async d => {
+        try {
+          await updateDoc(doc(db, RELATIONSHIPS_COLLECTION, d.id), {
+            patientPhone: clean,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch {
+          /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
+        }
+      });
+
+      const caregiverRels = await getDocs(
+        query(collection(db, RELATIONSHIPS_COLLECTION), where('caregiverId', '==', userId))
+      );
+      caregiverRels.forEach(async d => {
+        try {
+          await updateDoc(doc(db, RELATIONSHIPS_COLLECTION, d.id), {
+            caregiverPhone: clean,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch {
+          /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
+        }
+      });
+    } catch (relErr) {
+      log.warn('İlişkiler telefon senkronizasyon uyarısı', relErr);
+    }
+
+    log.info('Kullanıcı telefon numarası güncellendi', { userId, formatted });
+    return { success: true, formatted };
+  } catch (error) {
+    log.error('updateUserPhoneNumber hata', error);
+    return {
+      success: false,
+      formatted: '',
+      error: 'Telefon numarası kaydedilirken bir hata oluştu.',
+    };
+  }
+}
+
+/**
+ * Kullanıcının kendi kayıtlı telefon numarasını getirir.
+ */
+export async function getUserPhoneNumber(userId: string): Promise<string> {
+  try {
+    if (!userId) return '';
+    const storageKey = `@app_user_phone_${userId}`;
+
+    // 1. Önce yerel cache'den oku
+    const local = await AsyncStorage.getItem(storageKey);
+    if (local) {
+      // Arkaplanda Firestore ile tazele
+      getDoc(doc(db, 'users', userId))
+        .then(snap => {
+          if (snap.exists()) {
+            const cloudPhone = snap.data()?.phoneNumber;
+            if (cloudPhone && cloudPhone !== local) {
+              AsyncStorage.setItem(storageKey, cloudPhone).catch(() => {});
+            }
+          }
+        })
+        .catch(() => {});
+      return local;
+    }
+
+    // 2. Firestore'dan oku
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      const phone = typeof data?.phoneNumber === 'string' ? data.phoneNumber : '';
+      if (phone) {
+        await AsyncStorage.setItem(storageKey, phone);
+      }
+      return phone;
+    }
+
+    return '';
+  } catch (error) {
+    log.error('getUserPhoneNumber hata', error);
+    return '';
+  }
+}
+
+/**
+ * Hasta telefon numarasını getir (bakıcı tarafı için tel arama linki).
  *
- * Kullanici profilinde `users/{patientId}.phoneNumber` field'i beklenir.
- * Henuz yoksa fallback bos string doner — caregiver "Ara" butonu calismaz.
+ * Önce `users/{patientId}.phoneNumber` alanına bakar, ardından
+ * `caregiverRelationships` kaydındaki `patientPhone` fallback'ini kullanır.
  */
 export async function getPatientPhoneNumber(patientId: string): Promise<string> {
   try {
     if (!patientId) return '';
 
+    // 1. Doğrudan kullanıcı profilinden dene
     const userRef = doc(db, 'users', patientId);
     const userSnap = await getDoc(userRef);
 
-    if (!userSnap.exists()) {
-      log.warn('Patient user doc bulunamadi, telefon yok', { patientId });
-      return '';
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      const phone = typeof data?.phoneNumber === 'string' ? data.phoneNumber : '';
+      if (phone) return phone;
     }
 
-    const data = userSnap.data();
-    const phone = typeof data?.phoneNumber === 'string' ? data.phoneNumber : '';
-    return phone;
+    // 2. Fallback: caregiverRelationships belgesinden kontrol et
+    const relQuery = query(
+      collection(db, RELATIONSHIPS_COLLECTION),
+      where('patientId', '==', patientId),
+      where('status', '==', 'active')
+    );
+    const relSnap = await getDocs(relQuery);
+    if (!relSnap.empty) {
+      for (const d of relSnap.docs) {
+        const phone = d.data()?.patientPhone;
+        if (phone && typeof phone === 'string') return phone;
+      }
+    }
+
+    return '';
   } catch (error) {
     log.error('getPatientPhoneNumber hata', error);
     return '';
@@ -1083,4 +1494,129 @@ export async function updateRemoteReminderStatus(
   } catch (error) {
     log.warn('updateRemoteReminderStatus hata', error);
   }
+}
+
+// ============ ACİL DURUM (SOS) PANİK SİSTEMİ ============
+
+export interface EmergencySosAlert {
+  id: string;
+  patientId: string;
+  patientName: string;
+  patientPhone?: string;
+  customNote?: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+    mapsUrl?: string;
+  };
+  createdAt: string;
+  status: 'active' | 'resolved';
+  resolvedAt?: string;
+}
+
+export const EMERGENCY_ALERTS_COLLECTION = 'emergencyAlerts';
+
+/**
+ * Hastanın acil durum çağrılarını dinle
+ */
+export function subscribeToPatientEmergencyAlerts(
+  patientId: string,
+  onAlertsReceived: (alerts: EmergencySosAlert[]) => void
+): () => void {
+  try {
+    if (!patientId) return () => {};
+    const alertsRef = collection(db, 'users', patientId, EMERGENCY_ALERTS_COLLECTION);
+    return onSnapshot(
+      alertsRef,
+      snapshot => {
+        const alerts = snapshot.docs
+          .map(d => ({ ...d.data(), id: d.id }) as EmergencySosAlert)
+          .filter(a => a.status === 'active');
+        onAlertsReceived(alerts);
+      },
+      error => {
+        log.warn('subscribeToPatientEmergencyAlerts onSnapshot hatası', error);
+      }
+    );
+  } catch (error) {
+    log.error('subscribeToPatientEmergencyAlerts hata', error);
+    return () => {};
+  }
+}
+
+/**
+ * Acil durum çağrısını çözüldü olarak işaretle
+ */
+export async function resolveEmergencyAlert(patientId: string, alertId: string): Promise<void> {
+  try {
+    const alertRef = doc(db, 'users', patientId, EMERGENCY_ALERTS_COLLECTION, alertId);
+    await updateDoc(alertRef, {
+      status: 'resolved',
+      resolvedAt: new Date().toISOString(),
+    });
+    log.info('Emergency alert resolved', { patientId, alertId });
+  } catch (error) {
+    log.warn('resolveEmergencyAlert hata', error);
+  }
+}
+
+/**
+ * v1.7.4 — Eski rastgele kimlikli bakıcı ilişkilerini deterministik kimliğe taşır.
+ *
+ * ── Neden gerekli ──────────────────────────────────────────────────────────
+ * Yeni Firestore kuralları erişimi `caregiverRelationships/{patientId}__{caregiverId}`
+ * dokümanına bakarak veriyor. Bu sürümden ÖNCE kurulmuş ilişkilerin kimliği
+ * rastgele UUID olduğu için kurallar onları göremez; taşınmadıkça bakıcı
+ * hastanın verisine erişemez.
+ *
+ * ── Neden yalnızca HASTA çalıştırabilir ────────────────────────────────────
+ * Kural, ilişki oluşturmayı ya davet kanıtına ya da `patientId == uid` şartına
+ * bağlıyor. Bakıcının elinde davet kodu artık yok, dolayısıyla taşımayı hasta
+ * yapar: kendi verisine kimin eriştiğine karar veren taraf da odur.
+ * Bakıcı tarafında çağrılırsa sessizce hiçbir şey yapmaz.
+ *
+ * Idempotent: kimliği zaten doğru olan ilişkilere dokunmaz.
+ */
+export async function migrateCaregiverRelationshipIds(
+  userId: string
+): Promise<{ migrated: number; failed: number }> {
+  const result = { migrated: 0, failed: 0 };
+  if (!userId || userId === 'guest_local_user') return result;
+
+  try {
+    const snapshot = await getDocs(
+      query(collection(db, RELATIONSHIPS_COLLECTION), where('patientId', '==', userId))
+    );
+
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data() as CaregiverRelationship;
+      if (!data?.caregiverId || !data?.patientId) continue;
+
+      const canonicalId = buildRelationshipId(data.patientId, data.caregiverId);
+      if (docSnap.id === canonicalId) continue; // zaten taşınmış
+
+      try {
+        await setDoc(doc(db, RELATIONSHIPS_COLLECTION, canonicalId), {
+          ...data,
+          id: canonicalId,
+          updatedAt: new Date().toISOString(),
+        });
+        // Yeni doküman yazıldıktan SONRA eskisini sil: arada kesinti olursa
+        // erişim kaybı değil, yalnızca yinelenen kayıt kalır.
+        await deleteDoc(doc(db, RELATIONSHIPS_COLLECTION, docSnap.id));
+        result.migrated += 1;
+      } catch (error) {
+        result.failed += 1;
+        log.warn('Bakici iliskisi tasinamadi', { oldId: docSnap.id, canonicalId, error });
+      }
+    }
+
+    if (result.migrated > 0 || result.failed > 0) {
+      log.info('Bakici iliski kimlikleri tasindi', { ...result });
+    }
+  } catch (error) {
+    log.error('Bakici iliski kimligi migrasyonu basarisiz', error);
+  }
+
+  return result;
 }

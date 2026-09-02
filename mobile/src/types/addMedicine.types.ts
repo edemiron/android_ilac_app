@@ -29,6 +29,7 @@ export interface AddMedicineFormState {
   requireBarcodeOnTake: boolean;
   barcode?: string;
   vibrationPattern: 'default' | 'heartbeat' | 'urgent' | 'soft';
+  isCritical?: boolean;
 
   // Gelişmiş Zamanlama
   scheduleType: import('./index').ScheduleType;

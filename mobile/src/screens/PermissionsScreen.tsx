@@ -2,9 +2,8 @@
  * PermissionsScreen — Sistem İzinleri & Donanım Optimizasyonu Ekranı
  *
  * Design Pattern: Presenter Pattern / Declarative View
- * Tüm Android izin durum kontrolleri, izin talepleri ve ayar açma akışları
+ * Tüm Android izin durum kontrolleri, izin talepleri ve Evrensel OEM Kalkanı
  * `usePermissionsController` Presenter Hook'una devredilmiştir.
- * Bu dosya yalnızca UI elemanlarının düzenini koordine eder.
  */
 
 import React from 'react';
@@ -17,6 +16,7 @@ import { PermissionsHeader } from './PermissionsScreen/components/PermissionsHea
 import { PermissionItemRow } from './PermissionsScreen/components/PermissionItemRow';
 import { PermissionsInfoBox } from './PermissionsScreen/components/PermissionsInfoBox';
 import { PermissionsActionButtons } from './PermissionsScreen/components/PermissionsActionButtons';
+import { OEMShieldCard } from './PermissionsScreen/components/OEMShieldCard';
 
 // Presenter Hook
 import { usePermissionsController } from './PermissionsScreen/hooks/usePermissionsController';
@@ -29,10 +29,15 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
   const navigation = useNavigation<any>();
   const {
     colors,
+    isDark,
     language,
     permissions,
+    oemShieldStatus,
+    oemGuide,
     isLoading,
     isRequesting,
+    isTestingAlarm,
+    testAlarmScheduled,
     allPermissionsGranted,
     handleRequestNotifications,
     handleRequestExactAlarm,
@@ -40,6 +45,8 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
     handleOpenNotificationSettings,
     handleOpenFullScreenIntentSettings,
     handleOpenPowerManagerSettings,
+    handleOpenOEMSetting,
+    handleStartAlarmTest,
   } = usePermissionsController();
 
   const handleCompleteOrBack =
@@ -72,7 +79,22 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
           onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
         />
 
-        {/* 2. İzin Listesi Konteyneri */}
+        {/* 2. Cihaz Koruma Kalkanı & Canlı Donanım Alarm Testi (OEM Shield Card) */}
+        {Platform.OS === 'android' && oemGuide && (
+          <OEMShieldCard
+            oemShieldStatus={oemShieldStatus}
+            oemGuide={oemGuide}
+            colors={colors}
+            isDark={isDark}
+            language={language}
+            isTestingAlarm={isTestingAlarm}
+            testAlarmScheduled={testAlarmScheduled}
+            onPressStepAction={handleOpenOEMSetting}
+            onStartAlarmTest={handleStartAlarmTest}
+          />
+        )}
+
+        {/* 3. Temel Sistem İzinleri Listesi Konteyneri */}
         <View style={[styles.permissionsContainer, { backgroundColor: colors.card }]}>
           {/* Bildirim İzni */}
           <PermissionItemRow
@@ -145,29 +167,6 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
             />
           )}
 
-          {/* Cihaza Özel Ayarlar (Xiaomi, Samsung, Huawei vb.) */}
-          {Platform.OS === 'android' && permissions?.powerManagerRestricted && (
-            <PermissionItemRow
-              iconName="phone-portrait-outline"
-              iconColor="#F59E0B"
-              title={
-                language === 'tr'
-                  ? `${permissions.manufacturer || 'Cihaz'} Özel Ayarlar`
-                  : `${permissions.manufacturer || 'Device'} Settings`
-              }
-              description={
-                language === 'tr'
-                  ? 'Oto-başlatma veya arka plan izni (alarm için önerilen)'
-                  : 'Auto-start or background permission (recommended for alarms)'
-              }
-              isGranted={false}
-              actionText={language === 'tr' ? 'Ayarla' : 'Set'}
-              onPressAction={handleOpenPowerManagerSettings}
-              isOptional
-              colors={colors}
-            />
-          )}
-
           {/* Bildirim Kanalı Ayarları */}
           <PermissionItemRow
             iconName="settings-outline"
@@ -186,10 +185,10 @@ export default function PermissionsScreen({ onComplete }: PermissionsScreenProps
           />
         </View>
 
-        {/* 3. Bilgilendirme Kutusu */}
+        {/* 4. Bilgilendirme Kutusu */}
         <PermissionsInfoBox colors={colors} language={language} />
 
-        {/* 4. Devam Et & Şimdilik Atla Butonları */}
+        {/* 5. Devam Et & Şimdilik Atla Butonları */}
         <PermissionsActionButtons
           allPermissionsGranted={allPermissionsGranted}
           onComplete={handleCompleteOrBack}

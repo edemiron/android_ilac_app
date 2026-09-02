@@ -28,6 +28,10 @@ jest.mock('react-native', () => ({
         : null
     );
   },
+  Platform: {
+    OS: 'android',
+    select: (obj: Record<string, unknown>) => obj.android ?? obj.default,
+  },
   StyleSheet: {
     create: <T,>(s: T): T => s,
     flatten: <T,>(s: T): T => s,
@@ -83,5 +87,28 @@ describe('WheelTimePicker & WheelTimePickerModal', () => {
 
     fireEvent.press(getByText('Tamam'));
     expect(mockOnConfirm).toHaveBeenCalledWith('11:58', 11, 58);
+  });
+
+  it('updates time when quick minute pills are pressed', () => {
+    const mockOnConfirm = jest.fn();
+    const mockOnCancel = jest.fn();
+
+    const { getByText } = render(
+      <WheelTimePickerModal
+        visible={true}
+        initialTime="11:58"
+        onConfirm={mockOnConfirm}
+        onCancel={mockOnCancel}
+      />
+    );
+
+    expect(getByText(':00')).toBeTruthy();
+    expect(getByText(':15')).toBeTruthy();
+    expect(getByText(':30')).toBeTruthy();
+    expect(getByText(':45')).toBeTruthy();
+
+    fireEvent.press(getByText(':30'));
+    fireEvent.press(getByText('Tamam'));
+    expect(mockOnConfirm).toHaveBeenCalledWith('11:30', 11, 30);
   });
 });

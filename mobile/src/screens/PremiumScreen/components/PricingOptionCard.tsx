@@ -29,6 +29,7 @@ export function PricingOptionCard({
   language,
 }: PricingOptionCardProps) {
   const isYearly = period === 'yearly';
+  const isLifetime = period === 'lifetime';
 
   return (
     <TouchableOpacity
@@ -43,6 +44,14 @@ export function PricingOptionCard({
       onPress={onSelect}
       activeOpacity={0.8}
     >
+      {isLifetime && (
+        <View style={[styles.savingsBadge, { backgroundColor: '#10B981' }]}>
+          <Text style={styles.savingsBadgeText}>
+            {language === 'tr' ? '⭐ EN POPÜLER — TEK SEFERLİK' : '⭐ BEST VALUE — ONE-TIME'}
+          </Text>
+        </View>
+      )}
+
       {isYearly && savingsPercentage && (
         <View style={[styles.savingsBadge, { backgroundColor: colors.primary }]}>
           <Text style={styles.savingsBadgeText}>
@@ -53,22 +62,37 @@ export function PricingOptionCard({
 
       <View style={styles.pricingContent}>
         <Text style={[styles.pricingLabel, { color: colors.text }]}>
-          {isYearly
+          {isLifetime
             ? language === 'tr'
-              ? 'Yıllık'
-              : 'Yearly'
-            : language === 'tr'
-              ? 'Aylık'
-              : 'Monthly'}
+              ? 'Ömür Boyu (Lifetime)'
+              : 'Lifetime Access'
+            : isYearly
+              ? language === 'tr'
+                ? 'Yıllık'
+                : 'Yearly'
+              : language === 'tr'
+                ? 'Aylık'
+                : 'Monthly'}
         </Text>
         <View style={styles.priceRow}>
           <Text style={[styles.price, { color: colors.primary }]}>{price}</Text>
           <Text style={[styles.pricePeriod, { color: colors.textSecondary }]}>
-            /{isYearly ? (language === 'tr' ? 'yıl' : 'year') : language === 'tr' ? 'ay' : 'month'}
+            {isLifetime
+              ? language === 'tr'
+                ? ' / tek sefer'
+                : ' / one-time'
+              : `/${isYearly ? (language === 'tr' ? 'yıl' : 'year') : language === 'tr' ? 'ay' : 'month'}`}
           </Text>
         </View>
         {pricePerMonth && (
           <Text style={[styles.pricePerMonth, { color: colors.textMuted }]}>{pricePerMonth}</Text>
+        )}
+        {isLifetime && (
+          <Text style={[styles.pricePerMonth, { color: colors.textMuted }]}>
+            {language === 'tr'
+              ? 'Abonelik yok, sonsuza dek kullanım'
+              : 'No subscription, forever yours'}
+          </Text>
         )}
       </View>
 

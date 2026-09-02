@@ -46,7 +46,17 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
     if (Platform.OS === 'android') {
       try {
         await notifee.createChannel({
-          id: 'caregiver-live-alerts-v1',
+          id: 'emergency-sos-v6',
+          name: '🚨 Acil Durum (SOS) Alarmları',
+          importance: AndroidImportance.HIGH,
+          sound: 'sound_urgent_alert',
+          vibration: true,
+          vibrationPattern: [0, 800, 400, 800, 400, 1200],
+          bypassDnd: true,
+        });
+
+        await notifee.createChannel({
+          id: 'caregiver-live-alerts-v6',
           name: 'Bakıcı Canlı Bildirimleri',
           importance: AndroidImportance.HIGH,
           sound: 'default',
@@ -219,10 +229,28 @@ export function formatCaregiverNotification(data: CaregiverNotificationData): {
 } {
   const { type, medicineName, patientName, scheduledTime } = data;
 
-  const patient = patientName || 'Hastanız';
-  const time = scheduledTime?.includes('T')
-    ? scheduledTime.split('T')[1].slice(0, 5)
-    : scheduledTime || '';
+  // v1.7.1 ONARIM: asagidaki basliklarda `${patient}` yaziyordu — boyle bir
+  // degisken YOK. Yani her bakici bildirimi formatlanirken
+  // `ReferenceError: patient is not defined` firlatiliyordu (tsc'de 5 kez
+  // "Cannot find name 'patient'", ESLint'te no-undef). `patientName`
+  // opsiyonel oldugu icin bos kaldiginda nötr bir ifadeye duser.
+  const patient = patientName?.trim() || 'Hastanız';
+
+  const time = (() => {
+    if (!scheduledTime) return '';
+    const trimmed = scheduledTime.trim();
+    if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^\d{1,2}:\d{2}:\d{2}$/.test(trimmed)) {
+      return trimmed.slice(0, 5);
+    }
+    const parsedDate = new Date(trimmed);
+    if (!isNaN(parsedDate.getTime())) {
+      return `${String(parsedDate.getHours()).padStart(2, '0')}:${String(parsedDate.getMinutes()).padStart(2, '0')}`;
+    }
+    return trimmed;
+  })();
 
   switch (type) {
     case 'missed':

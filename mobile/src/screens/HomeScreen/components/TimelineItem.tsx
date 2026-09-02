@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { ThemeColors } from '../../../contexts/ThemeContext';
 import { useHaptics } from '../../../hooks/useHaptics';
 import { formatTimeDisplay } from '../../../utils/timeCalculator';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { type TodayReminder } from '../types';
 import { getRelativeTimeText } from '../helpers';
 
@@ -36,13 +37,28 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
   const haptics = useHaptics();
   const isTaken = log?.status === 'taken';
   const isSkipped = log?.status === 'skipped';
-  const { isPast } = getRelativeTimeText(reminder.reminderTime.time, language, log);
+  const {
+    isPast,
+    isNow,
+    minutesDiff,
+    text: relativeTime,
+  } = getRelativeTimeText(reminder.reminderTime.time, language, log);
   const isMissed = isPast && !isTaken && !isSkipped;
   const isCompleted = isTaken || isSkipped;
+  const isTooEarly = !isPast && !isNow && minutesDiff > 45;
+  const [showEarlyConfirm, setShowEarlyConfirm] = useState(false);
 
   const handleTake = () => {
     haptics.success();
     onTakeNow();
+  };
+
+  const handleTakePress = () => {
+    if (isTooEarly) {
+      setShowEarlyConfirm(true);
+    } else {
+      handleTake();
+    }
   };
 
   // Instruction display label
@@ -137,16 +153,71 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
           </View>
         ) : (
           <TouchableOpacity
-            style={[styles.takeButton, { backgroundColor: colors.primary }]}
-            onPress={handleTake}
+            style={[
+              styles.takeButton,
+              isTooEarly
+                ? {
+                    backgroundColor: isDark
+                      ? 'rgba(45, 212, 191, 0.12)'
+                      : 'rgba(13, 148, 136, 0.08)',
+                    borderColor: isDark ? 'rgba(45, 212, 191, 0.35)' : 'rgba(13, 148, 136, 0.35)',
+                    borderWidth: 1,
+                  }
+                : { backgroundColor: colors.primary },
+            ]}
+            onPress={handleTakePress}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             activeOpacity={0.7}
+            accessibilityLabel={
+              isTooEarly
+                ? language === 'tr'
+                  ? 'Erken Al'
+                  : 'Take Early'
+                : language === 'tr'
+                  ? 'Al'
+                  : 'Take'
+            }
           >
-            <Ionicons name="checkmark" size={13} color="#FFFFFF" />
-            <Text style={styles.takeButtonText}>{language === 'tr' ? 'Al' : 'Take'}</Text>
+            <Ionicons
+              name={isTooEarly ? 'time-outline' : 'checkmark'}
+              size={13}
+              color={isTooEarly ? (isDark ? '#2DD4BF' : '#0F766E') : '#FFFFFF'}
+            />
+            <Text
+              style={[
+                styles.takeButtonText,
+                isTooEarly && { color: isDark ? '#2DD4BF' : '#0F766E' },
+              ]}
+            >
+              {isTooEarly
+                ? language === 'tr'
+                  ? 'Erken Al'
+                  : 'Take Early'
+                : language === 'tr'
+                  ? 'Al'
+                  : 'Take'}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Klinik Erken Doz Güvenlik Onay Modalı */}
+      <ConfirmDialog
+        visible={showEarlyConfirm}
+        title={language === 'tr' ? '⚠️ Erken İlaç Alım Uyarısı' : '⚠️ Early Medication Warning'}
+        message={
+          language === 'tr'
+            ? `${fullName} ilacınızın planlanan saati ${formatTimeDisplay(reminder.reminderTime.time)} (${relativeTime}).\n\nİlaçları planlanan saatinden çok önce almak etken maddenin vücutta birikmesine (doz aşımı) ve yan etkilere yol açabilir.\n\nİlacı gerçekten şimdi mi aldınız?`
+            : `The scheduled time for ${fullName} is ${formatTimeDisplay(reminder.reminderTime.time)} (${relativeTime}).\n\nTaking medication significantly earlier than scheduled may cause drug accumulation and adverse side effects.\n\nDid you really take it now?`
+        }
+        confirmLabel={language === 'tr' ? 'Evet, Erken Aldım' : 'Yes, Take Early'}
+        cancelLabel={language === 'tr' ? 'Vazgeç' : 'Cancel'}
+        onConfirm={() => {
+          setShowEarlyConfirm(false);
+          handleTake();
+        }}
+        onClose={() => setShowEarlyConfirm(false)}
+      />
     </View>
   );
 };

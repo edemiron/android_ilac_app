@@ -11,12 +11,12 @@ const { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } = require('f
 
 // Firebase config
 const firebaseConfig = {
-  apiKey: "AIzaSyAKUg-0PsR-awOb-b3RjyrDo9UmNfsD45A",
-  authDomain: "ilachatirlatici-15a71.firebaseapp.com",
-  projectId: "ilachatirlatici-15a71",
-  storageBucket: "ilachatirlatici-15a71.firebasestorage.app",
-  messagingSenderId: "506876057044",
-  appId: "1:506876057044:android:5d2d26ddbe32c8c4d53241",
+  apiKey: "AIzaSyAsqXQZZiVM1EPF0k8MW_b2AsiUv4XSJhM",
+  authDomain: "ilacantiv1.firebaseapp.com",
+  projectId: "ilacantiv1",
+  storageBucket: "ilacantiv1.firebasestorage.app",
+  messagingSenderId: "708668760763",
+  appId: "1:708668760763:android:2fb620035e210d5ca3ff9e",
 };
 
 // Initialize Firebase

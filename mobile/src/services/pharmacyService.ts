@@ -566,17 +566,46 @@ export async function callPharmacy(phone: string): Promise<boolean> {
 }
 
 /**
- * Eczanenin haritasını açar (Google Maps / Apple Maps).
+ * Eczanenin harita navigasyonunu başlatır (Google Maps / Apple Maps Canlı Yol Tarifi).
+ * Koordinat varsa doğrudan rota modunda açar, yoksa adres araması yapar.
  */
 export async function openPharmacyMap(pharmacy: DutyPharmacy): Promise<boolean> {
-  const query = encodeURIComponent(`${pharmacy.name}, ${pharmacy.address}`);
-  const url =
-    Platform.OS === 'ios'
-      ? `http://maps.apple.com/?q=${query}`
-      : `https://www.google.com/maps/search/?api=1&query=${query}`;
+  const hasCoords =
+    typeof pharmacy.latitude === 'number' &&
+    typeof pharmacy.longitude === 'number' &&
+    !Number.isNaN(pharmacy.latitude) &&
+    !Number.isNaN(pharmacy.longitude) &&
+    pharmacy.latitude !== 0 &&
+    pharmacy.longitude !== 0;
+
+  const encodedAddress = encodeURIComponent(`${pharmacy.name}, ${pharmacy.address}`);
+
+  let url: string;
+  if (Platform.OS === 'ios') {
+    // Apple Maps Canlı Rota Modu (dirflg=d: driving)
+    url = hasCoords
+      ? `http://maps.apple.com/?daddr=${pharmacy.latitude},${pharmacy.longitude}&dirflg=d`
+      : `http://maps.apple.com/?q=${encodedAddress}`;
+  } else {
+    // Google Maps Canlı Rota Modu (travelmode=driving)
+    url = hasCoords
+      ? `https://www.google.com/maps/dir/?api=1&destination=${pharmacy.latitude},${pharmacy.longitude}&travelmode=driving`
+      : `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+  }
 
   try {
-    await Linking.openURL(url);
+    log.info('Eczane harita yol tarifi açılıyor', { pharmacyName: pharmacy.name, hasCoords, url });
+    const supported = await Linking.canOpenURL(url).catch(() => false);
+    if (supported) {
+      await Linking.openURL(url);
+      return true;
+    }
+
+    // Yedek web Google Maps rotası
+    const fallbackUrl = hasCoords
+      ? `https://www.google.com/maps?q=${pharmacy.latitude},${pharmacy.longitude}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+    await Linking.openURL(fallbackUrl);
     return true;
   } catch (error) {
     log.error('Harita açma hatası', error);

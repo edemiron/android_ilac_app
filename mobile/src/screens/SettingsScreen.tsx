@@ -7,7 +7,7 @@
  * Bu dosya yalnızca alt bileşenleri koordine eden salt bir görünüm katmanıdır.
  */
 
-import React from 'react';
+import React, { useCallback, useRef } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,6 +23,9 @@ import { AccentColorSection } from '../components/settings/AccentColorSection';
 
 // Modüler Alt Bileşenler
 import { ProfileSection } from './SettingsScreen/components/ProfileSection';
+import { AccountDetailsModal } from './SettingsScreen/components/AccountDetailsModal';
+import { BatteryOptimizationModal } from './SettingsScreen/components/BatteryOptimizationModal';
+import { AlarmDiagnosticCard } from './SettingsScreen/components/AlarmDiagnosticCard';
 import { NotificationsSection } from './SettingsScreen/components/NotificationsSection';
 import { AccessibilitySection } from './SettingsScreen/components/AccessibilitySection';
 import { DataSecuritySection } from './SettingsScreen/components/DataSecuritySection';
@@ -33,6 +36,16 @@ import { LogoutButton } from './SettingsScreen/components/LogoutButton';
 import { useSettingsController } from './SettingsScreen/hooks/useSettingsController';
 
 export default function SettingsScreen() {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const diagnosticsOffsetRef = useRef<number>(0);
+
+  const scrollToDiagnostics = useCallback(() => {
+    scrollViewRef.current?.scrollTo({
+      y: Math.max(0, diagnosticsOffsetRef.current - 12),
+      animated: true,
+    });
+  }, []);
+
   const {
     navigation,
     colors,
@@ -44,6 +57,7 @@ export default function SettingsScreen() {
     settings,
     updateSettings,
     isSyncing,
+    lastSyncAt,
     user,
     isPremium,
     remainingDays,
@@ -58,9 +72,16 @@ export default function SettingsScreen() {
     handleClearAllData,
     handleSync,
     handleLogout,
+    updateDisplayName,
     getThemeLabel,
     getLanguageLabel,
     isDevMode,
+    showAccountModal,
+    handleAccountPress,
+    handleCloseAccountModal,
+    showBatteryModal,
+    handleBatteryPress,
+    handleCloseBatteryModal,
     handleVersionPress,
     handleFAQPress,
     handleExportBackup,
@@ -88,7 +109,11 @@ export default function SettingsScreen() {
         }}
       />
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* 1. Üst Profil & Premium Kartı */}
         <ProfileHeaderCard
           displayName={user?.displayName}
@@ -103,12 +128,28 @@ export default function SettingsScreen() {
         <ProfileSection
           user={user}
           isSyncing={isSyncing}
-          onSync={handleSync}
+          onAccountPress={handleAccountPress}
           navigation={navigation}
           language={language}
         />
 
-        {/* 3. Bildirim Ayarları Bölümü */}
+        {/* 3. Canlı Sistem & Alarm Teşhis Paneli */}
+        {/* Bildirimler bölümündeki "Teşhis panelinde test edin" satırı buraya
+            kaydırır; y konumunu onLayout ile ölçüyoruz. */}
+        <View
+          onLayout={event => {
+            diagnosticsOffsetRef.current = event.nativeEvent.layout.y;
+          }}
+        >
+          <AlarmDiagnosticCard
+            language={language}
+            isDark={isDark}
+            colors={colors}
+            onBatteryPress={handleBatteryPress}
+          />
+        </View>
+
+        {/* 4. Bildirim Ayarları Bölümü */}
         <NotificationsSection
           settings={settings}
           updateSettings={updateSettings}
@@ -118,9 +159,11 @@ export default function SettingsScreen() {
           isDark={isDark}
           navigation={navigation}
           language={language}
+          onBatteryPress={handleBatteryPress}
+          onGoToDiagnostics={scrollToDiagnostics}
         />
 
-        {/* 4. Görünüm & Dil Tercihleri */}
+        {/* 5. Görünüm & Dil Tercihleri */}
         <AppearanceSection
           showThemePicker={pickerState.showThemePicker}
           showLanguagePicker={pickerState.showLanguagePicker}
@@ -180,6 +223,32 @@ export default function SettingsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Hesap Bilgileri Modalı */}
+      <AccountDetailsModal
+        visible={showAccountModal}
+        onClose={handleCloseAccountModal}
+        user={user}
+        isSyncing={isSyncing}
+        lastSyncAt={lastSyncAt}
+        onSync={handleSync}
+        onUpdateDisplayName={updateDisplayName}
+        colors={colors}
+        isDark={isDark}
+        language={language}
+        onLogout={() => {
+          handleCloseAccountModal();
+          handleLogout();
+        }}
+      />
+
+      {/* Pil ve Güç Optimizasyonu Modalı */}
+      <BatteryOptimizationModal
+        visible={showBatteryModal}
+        onClose={handleCloseBatteryModal}
+        isDark={isDark}
+        language={language}
+      />
     </SafeAreaView>
   );
 }

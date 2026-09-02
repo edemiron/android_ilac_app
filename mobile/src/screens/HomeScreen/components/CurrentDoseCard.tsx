@@ -12,6 +12,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { formatTimeDisplay } from '../../../utils/timeCalculator';
 import { ThemeColors } from '../../../contexts/ThemeContext';
 import { ModalSheet } from '../../../components/common/ModalSheet';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { SNOOZE_OPTIONS, type TodayReminder } from '../types';
 import { getRelativeTimeText } from '../helpers';
 import { MedicineAvatar } from './MedicineAvatar';
@@ -36,11 +37,13 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
   onSkip,
 }) => {
   const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
+  const [showEarlyTakeConfirm, setShowEarlyTakeConfirm] = useState(false);
 
   // If all doses for today are done or no medicines scheduled
   if (!reminder) {
     return (
       <View
+        key="celebrate-card"
         style={[
           styles.celebrateCard,
           {
@@ -70,7 +73,19 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
     text: relativeTime,
     isNow,
     isPast,
+    minutesDiff,
   } = getRelativeTimeText(reminder.reminderTime.time, language, reminder.log);
+
+  // Klinik Güvenlik: İlaç saatine 45 dakikadan fazla varsa erken alım güvenlik kilidi devreye girer
+  const isTooEarly = !isPast && !isNow && minutesDiff > 45;
+
+  const handleTakePress = () => {
+    if (isTooEarly) {
+      setShowEarlyTakeConfirm(true);
+    } else {
+      if (onTake) onTake();
+    }
+  };
 
   const statusBg = isNow
     ? isDark
@@ -113,8 +128,9 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
           : null;
 
   return (
-    <>
+    <React.Fragment key={reminder.reminderTime.id}>
       <View
+        key={`current-dose-${reminder.reminderTime.id}`}
         style={[
           styles.currentDoseCard,
           {
@@ -179,36 +195,81 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
           </View>
         </View>
 
-        {/* Action Buttons: [ ✓ Şimdi Al ] + [ ⏱️ Ertele ] + [ ✕ Atla ] */}
+        {/* Action Buttons: [ ✓ Şimdi Al / ⏳ Erken Al ] + [ ⏱️ Ertele (vakti gelince) ] + [ ✕ Atla ] */}
         <View style={styles.currentDoseActions}>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.takeBtn, { backgroundColor: colors.primary }]}
-            onPress={onTake}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-          >
-            <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-            <Text style={styles.takeBtnText}>{language === 'tr' ? 'Şimdi Al' : 'Take Now'}</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={[
               styles.actionBtn,
-              styles.snoozeBtn,
-              {
-                borderColor: isDark ? 'rgba(245, 158, 11, 0.35)' : '#FDE68A',
-                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#FFFBEB',
-              },
+              styles.takeBtn,
+              isTooEarly
+                ? {
+                    backgroundColor: isDark
+                      ? 'rgba(45, 212, 191, 0.12)'
+                      : 'rgba(13, 148, 136, 0.08)',
+                    borderColor: isDark ? 'rgba(45, 212, 191, 0.35)' : 'rgba(13, 148, 136, 0.35)',
+                    borderWidth: 1.5,
+                  }
+                : { backgroundColor: colors.primary },
             ]}
-            onPress={() => setShowSnoozeOptions(true)}
+            onPress={handleTakePress}
             activeOpacity={0.8}
             accessibilityRole="button"
+            accessibilityLabel={
+              isTooEarly
+                ? language === 'tr'
+                  ? 'Erken Al'
+                  : 'Take Early'
+                : language === 'tr'
+                  ? 'Şimdi Al'
+                  : 'Take Now'
+            }
+            accessibilityHint={
+              isTooEarly
+                ? language === 'tr'
+                  ? 'İlacı planlanan saatinden önce almak için güvenlik onayı ister'
+                  : 'Requests safety confirmation to take medication before scheduled time'
+                : undefined
+            }
           >
-            <Ionicons name="time-outline" size={16} color={isDark ? '#F59E0B' : '#D97706'} />
-            <Text style={[styles.snoozeBtnText, { color: isDark ? '#F59E0B' : '#D97706' }]}>
-              {language === 'tr' ? 'Ertele' : 'Snooze'}
+            <Ionicons
+              name={isTooEarly ? 'time-outline' : 'checkmark-circle'}
+              size={18}
+              color={isTooEarly ? (isDark ? '#2DD4BF' : '#0F766E') : '#FFFFFF'}
+            />
+            <Text
+              style={[styles.takeBtnText, isTooEarly && { color: isDark ? '#2DD4BF' : '#0F766E' }]}
+            >
+              {isTooEarly
+                ? language === 'tr'
+                  ? 'Erken Al'
+                  : 'Take Early'
+                : language === 'tr'
+                  ? 'Şimdi Al'
+                  : 'Take Now'}
             </Text>
           </TouchableOpacity>
+
+          {!isTooEarly && (
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                styles.snoozeBtn,
+                {
+                  borderColor: isDark ? 'rgba(245, 158, 11, 0.35)' : '#FDE68A',
+                  backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#FFFBEB',
+                },
+              ]}
+              onPress={() => setShowSnoozeOptions(true)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={language === 'tr' ? 'Ertele' : 'Snooze'}
+            >
+              <Ionicons name="time-outline" size={16} color={isDark ? '#F59E0B' : '#D97706'} />
+              <Text style={[styles.snoozeBtnText, { color: isDark ? '#F59E0B' : '#D97706' }]}>
+                {language === 'tr' ? 'Ertele' : 'Snooze'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[
@@ -222,6 +283,7 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
             onPress={onSkip}
             activeOpacity={0.8}
             accessibilityRole="button"
+            accessibilityLabel={language === 'tr' ? 'Atla' : 'Skip'}
           >
             <Ionicons name="play-skip-forward" size={14} color={isDark ? '#EF4444' : '#DC2626'} />
             <Text style={[styles.skipBtnText, { color: isDark ? '#EF4444' : '#DC2626' }]}>
@@ -230,6 +292,24 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Klinik Erken Doz Güvenlik Onay Modalı */}
+      <ConfirmDialog
+        visible={showEarlyTakeConfirm}
+        title={language === 'tr' ? '⚠️ Erken İlaç Alım Uyarısı' : '⚠️ Early Medication Warning'}
+        message={
+          language === 'tr'
+            ? `${reminder.medicine.name} ilacınızın planlanan saati ${formatTimeDisplay(reminder.reminderTime.time)} (${relativeTime}).\n\nİlaçları planlanan saatinden çok önce almak etken maddenin vücutta birikmesine (doz aşımı) ve yan etkilere yol açabilir.\n\nİlacı gerçekten şimdi mi aldınız?`
+            : `The scheduled time for ${reminder.medicine.name} is ${formatTimeDisplay(reminder.reminderTime.time)} (${relativeTime}).\n\nTaking medication significantly earlier than scheduled may cause drug accumulation and adverse side effects.\n\nDid you really take it now?`
+        }
+        confirmLabel={language === 'tr' ? 'Evet, Erken Aldım' : 'Yes, Take Early'}
+        cancelLabel={language === 'tr' ? 'Vazgeç' : 'Cancel'}
+        onConfirm={() => {
+          setShowEarlyTakeConfirm(false);
+          if (onTake) onTake();
+        }}
+        onClose={() => setShowEarlyTakeConfirm(false)}
+      />
 
       <ModalSheet
         visible={showSnoozeOptions}
@@ -253,7 +333,7 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
           ))}
         </View>
       </ModalSheet>
-    </>
+    </React.Fragment>
   );
 };
 

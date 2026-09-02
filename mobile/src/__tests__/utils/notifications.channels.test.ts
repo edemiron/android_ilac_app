@@ -6,7 +6,12 @@ jest.mock('@notifee/react-native', () => ({
   __esModule: true,
   default: {
     createChannel: jest.fn().mockResolvedValue('channel-id'),
+    // v1.7.1: createNotificationChannels sonunda eski kanal temizligi yapiyor
+    getChannels: jest.fn().mockResolvedValue([]),
+    deleteChannel: jest.fn().mockResolvedValue(undefined),
   },
+  AndroidImportance: { HIGH: 4, DEFAULT: 3, LOW: 2 },
+  AndroidVisibility: { PUBLIC: 1, PRIVATE: 0 },
 }));
 
 jest.mock('../../utils/logger', () => ({
@@ -35,8 +40,12 @@ import {
 describe('notifications/channels', () => {
   describe('constants', () => {
     it('CHANNEL_VERSION is defined', () => {
-      expect(CHANNEL_VERSION).toBe('v5');
+      expect(typeof CHANNEL_VERSION).toBe('string');
+      expect(CHANNEL_VERSION.length).toBeGreaterThan(0);
     });
+
+    // v1.7.1: surum ekinin gecmiste kullanilmis bir deger olmamasi
+    // notifications.channelIds.test.ts icinde ayrica dogrulaniyor.
 
     it('channel IDs include version', () => {
       expect(ALARM_CHANNEL_ID).toContain(CHANNEL_VERSION);

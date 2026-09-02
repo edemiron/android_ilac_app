@@ -26,14 +26,31 @@ jest.mock('react-native', () => ({
   Text: 'Text',
   TextInput: 'TextInput',
   TouchableOpacity: 'TouchableOpacity',
+  Modal: ({ children, visible }: { children: React.ReactNode; visible: boolean }) =>
+    visible ? children : null,
+  KeyboardAvoidingView: ({ children }: { children: React.ReactNode }) => children,
+  ScrollView: ({ children }: { children: React.ReactNode }) => children,
+  Alert: { alert: jest.fn() },
+  Platform: { OS: 'android', select: (obj: Record<string, unknown>) => obj.android || obj.default },
+  Linking: {
+    openURL: jest.fn().mockResolvedValue(true),
+    canOpenURL: jest.fn().mockResolvedValue(true),
+  },
+  NativeModules: {
+    WidgetDataModule: {
+      setWidgetData: jest.fn(),
+    },
+  },
   FlatList: ({
     data,
     renderItem,
     ListEmptyComponent,
+    ListHeaderComponent,
   }: {
     data: Array<{ id?: string }>;
     renderItem: (info: { item: unknown; index: number }) => React.ReactNode;
     ListEmptyComponent?: React.ReactNode;
+    ListHeaderComponent?: React.ReactNode;
   }) => {
     const React = require('react');
     if (!data || data.length === 0)
@@ -41,6 +58,7 @@ jest.mock('react-native', () => ({
     return React.createElement(
       'View',
       null,
+      ListHeaderComponent,
       data.map((item, index) =>
         React.createElement('View', { key: item.id || index }, renderItem({ item, index }))
       )
@@ -76,9 +94,9 @@ jest.mock('../../contexts/LanguageContext', () => ({
 
 describe('DutyPharmacyScreen', () => {
   it('renders title and search bar', async () => {
-    const { getByText, getByPlaceholderText } = render(<DutyPharmacyScreen />);
+    const { getAllByText, getByPlaceholderText } = render(<DutyPharmacyScreen />);
 
-    expect(getByText('Nöbetçi Eczaneler')).toBeTruthy();
+    expect(getAllByText('Nöbetçi Eczaneler').length).toBeGreaterThan(0);
     expect(getByPlaceholderText('Eczane, ilçe veya mahalle ara...')).toBeTruthy();
   });
 
@@ -87,5 +105,11 @@ describe('DutyPharmacyScreen', () => {
 
     const pharmacyName = await findByText('Kadıköy Şifa Eczanesi');
     expect(pharmacyName).toBeTruthy();
+  });
+
+  it('renders prescription tab button', async () => {
+    const { getByText } = render(<DutyPharmacyScreen />);
+
+    expect(getByText('Reçetelerim')).toBeTruthy();
   });
 });

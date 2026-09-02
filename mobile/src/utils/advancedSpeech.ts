@@ -16,6 +16,20 @@ let maxRepeatCount = 1;
 let repeatInterval: NodeJS.Timeout | null = null;
 let isSpeaking = false;
 
+/**
+ * Konusma kusagi (generation).
+ *
+ * Neden: speakAdvancedMedicineReminder ilk cumleyi `await` edip SONRA
+ * scheduleRepeat() kuruyordu. Kullanici "Simdi Al"a basinca
+ * stopAdvancedSpeaking() -> Tts.stop() -> 'tts-cancel' -> bekleyen await
+ * cozuluyor ve akis devam edip DURDURMADAN SONRA yeni bir tekrar interval'i
+ * kuruyordu; alarm kapandiktan sonra ses geri geliyordu.
+ *
+ * stopAdvancedSpeaking bu sayaci ilerletir; yolda olan her akis kendi kusaginin
+ * hala guncel olup olmadigini kontrol eder.
+ */
+let speechGeneration = 0;
+
 let currentSpeechRate = 1.1;
 let currentPitch = 1.0;
 
@@ -85,8 +99,11 @@ export async function speakAdvancedMedicineReminder(
 
   await initTts(speechRate, pitch);
 
-  // Önceki tekrarı temizle
-  stopAdvancedSpeaking();
+  // Önceki tekrarı temizle (bu, kusagi da ilerletir)
+  await stopAdvancedSpeaking();
+
+  // Bu cagriya ait kusak — stop sonrasi alinir.
+  const generation = ++speechGeneration;
 
   // Aktif alarm durumunu kaydet (tekrarlar için)
   activeAlarmState = {
@@ -110,10 +127,17 @@ export async function speakAdvancedMedicineReminder(
   // İlk seslendirme
   await speakWithPromise(message, language, speechRate, pitch);
 
+  // KRITIK: ilk cumle beklenirken durdurulduysa (veya yeni bir alarm bastiysa)
+  // tekrar interval'i KURULMAZ.
+  if (generation !== speechGeneration) {
+    log.debug('TTS durduruldu, tekrar planlanmiyor', { generation, current: speechGeneration });
+    return;
+  }
+
   // Tekrar gerekliyse zamanla
   if (repeatCount > 1) {
     currentRepeatCount = 1;
-    scheduleRepeat(message, language, speechRate, pitch);
+    scheduleRepeat(message, language, speechRate, pitch, generation);
   }
 }
 
@@ -239,14 +263,24 @@ function scheduleRepeat(
   message: string,
   language: 'tr' | 'en',
   speechRate: number = 0.5,
-  pitch: number = 1.0
+  pitch: number = 1.0,
+  generation: number = speechGeneration
 ): void {
   // Her 8 saniyede bir tekrar et (ilk seslendirme + bekleme süresi)
   const repeatDelay = 8000;
 
   repeatInterval = setInterval(async () => {
+    // Kusak gecersizse interval'i kendini temizleyerek kapat.
+    if (generation !== speechGeneration) {
+      if (repeatInterval) {
+        clearInterval(repeatInterval);
+        repeatInterval = null;
+      }
+      return;
+    }
+
     if (currentRepeatCount >= maxRepeatCount) {
-      stopAdvancedSpeaking();
+      await stopAdvancedSpeaking();
       return;
     }
 
@@ -263,6 +297,9 @@ function scheduleRepeat(
  */
 export async function stopAdvancedSpeaking(): Promise<void> {
   log.debug('Gelişmiş TTS durduruluyor');
+
+  // Kusagi ilerlet: yolda olan her akis artik tekrar kurmayacak.
+  speechGeneration += 1;
 
   // Tekrar interval'ını temizle
   if (repeatInterval) {

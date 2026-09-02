@@ -14,7 +14,7 @@ import { useSubscription } from '../../../contexts/SubscriptionContext';
 import { useAlert } from '../../../contexts/AlertContext';
 import { SUBSCRIPTION_PLANS } from '../../../services/subscriptionService';
 
-export type BillingPeriod = 'monthly' | 'yearly';
+export type BillingPeriod = 'monthly' | 'yearly' | 'lifetime';
 
 export function usePremiumController() {
   const navigation = useNavigation();
@@ -27,6 +27,7 @@ export function usePremiumController() {
     remainingDays,
     monthlyPrice,
     yearlyPrice,
+    lifetimePrice,
     yearlySavings,
     upgrade,
     cancel,
@@ -37,14 +38,27 @@ export function usePremiumController() {
 
   const features = SUBSCRIPTION_PLANS.premium.features;
 
+  const getPeriodLabel = () => {
+    if (selectedPeriod === 'lifetime')
+      return language === 'tr' ? 'Ömür Boyu (Tek Seferlik)' : 'Lifetime (One-Time)';
+    if (selectedPeriod === 'yearly') return language === 'tr' ? 'Yıllık' : 'Yearly';
+    return language === 'tr' ? 'Aylık' : 'Monthly';
+  };
+
+  const getPeriodPrice = () => {
+    if (selectedPeriod === 'lifetime') return lifetimePrice;
+    if (selectedPeriod === 'yearly') return yearlyPrice;
+    return monthlyPrice;
+  };
+
   const handlePurchase = async () => {
     setIsLoading(true);
     try {
       showConfirm(
         language === 'tr' ? 'Satın Alma' : 'Purchase',
         language === 'tr'
-          ? `${selectedPeriod === 'yearly' ? 'Yıllık' : 'Aylık'} Premium abonelik satın alınacak.\n\nFiyat: ${selectedPeriod === 'yearly' ? yearlyPrice : monthlyPrice}`
-          : `${selectedPeriod === 'yearly' ? 'Yearly' : 'Monthly'} Premium subscription will be purchased.\n\nPrice: ${selectedPeriod === 'yearly' ? yearlyPrice : monthlyPrice}`,
+          ? `${getPeriodLabel()} Premium erişim satın alınacak.\n\nFiyat: ${getPeriodPrice()}`
+          : `${getPeriodLabel()} Premium access will be purchased.\n\nPrice: ${getPeriodPrice()}`,
         async () => {
           try {
             await upgrade(selectedPeriod, `test_transaction_${Date.now()}`);
@@ -106,6 +120,7 @@ export function usePremiumController() {
     remainingDays,
     monthlyPrice,
     yearlyPrice,
+    lifetimePrice,
     yearlySavings,
     features,
     selectedPeriod,

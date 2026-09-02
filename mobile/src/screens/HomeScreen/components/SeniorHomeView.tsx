@@ -27,6 +27,7 @@ export interface SeniorHomeViewProps {
   onSkipMedicine: (reminderTimeId: string, medicineId: string, medicineName: string) => void;
   onToggleSeniorMode: () => void;
   onNavigateToPharmacy?: () => void;
+  onSosPress?: () => void;
 }
 
 export function SeniorHomeView({
@@ -38,6 +39,7 @@ export function SeniorHomeView({
   onSkipMedicine,
   onToggleSeniorMode,
   onNavigateToPharmacy,
+  onSosPress,
 }: SeniorHomeViewProps) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
@@ -104,7 +106,7 @@ export function SeniorHomeView({
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* 1. Üst Bar: Büyük Tarih ve Kolay Mod Rozeti */}
+      {/* 1. Üst Bar: Büyük Tarih, SOS ve Kolay Mod Rozeti */}
       <View style={styles.topBar}>
         <View style={styles.greetingContainer}>
           <Text style={[styles.dateText, { color: colors.textSecondary }]}>{todayFormatted}</Text>
@@ -114,23 +116,44 @@ export function SeniorHomeView({
           </Text>
         </View>
 
-        {/* Standart Moda Geçiş Hapı */}
-        <TouchableOpacity
-          onPress={onToggleSeniorMode}
-          style={[
-            styles.modeTogglePill,
-            {
-              backgroundColor: isDark ? colors.surfaceContainer : '#E2E8F0',
-              borderColor: colors.border,
-            },
-          ]}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="sparkles" size={16} color={colors.primary} />
-          <Text style={[styles.modeToggleText, { color: colors.text }]}>
-            {language === 'tr' ? 'Standart Mod' : 'Standard'}
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {onSosPress && (
+            <TouchableOpacity
+              onPress={onSosPress}
+              style={[
+                styles.modeTogglePill,
+                {
+                  backgroundColor: '#DC2626',
+                  borderColor: '#B91C1C',
+                },
+              ]}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="alert-circle" size={18} color="#FFFFFF" />
+              <Text style={[styles.modeToggleText, { color: '#FFFFFF', fontWeight: '800' }]}>
+                SOS
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Standart Moda Geçiş Hapı */}
+          <TouchableOpacity
+            onPress={onToggleSeniorMode}
+            style={[
+              styles.modeTogglePill,
+              {
+                backgroundColor: isDark ? colors.surfaceContainer : '#E2E8F0',
+                borderColor: colors.border,
+              },
+            ]}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="sparkles" size={16} color={colors.primary} />
+            <Text style={[styles.modeToggleText, { color: colors.text }]}>
+              {language === 'tr' ? 'Standart Mod' : 'Standard'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* 2. Ana Odak İlaç Kartı (Aktif İlaç Varsa) */}

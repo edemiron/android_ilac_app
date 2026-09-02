@@ -1,15 +1,7 @@
-/**
- * AlarmScreen — Tam Ekran İlaç Alarmı Ekranı
- *
- * Design Pattern: Presenter Pattern / Declarative View
- * Tüm ses, titreşim, TTS sesli okuma, phantom kontrolü ve bildirim yönetimi
- * `useAlarmController` Presenter Hook'una devredilmiştir. Bu dosya yalnızca UI düzeninden sorumludur.
- */
-
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SkipReasonModal } from '../components/common/SkipReasonModal';
-import { VoiceCommandModal } from '../components/common/VoiceCommandModal';
+import { MissedDoseTriageModal } from '../components/common/MissedDoseTriageModal';
 
 // Alt Bileşenler (Modular UI)
 import { AlarmTimeHeader } from './AlarmScreen/components/AlarmTimeHeader';
@@ -35,13 +27,13 @@ export default function AlarmScreen() {
     snoozeDuration,
     skipModalVisible,
     setSkipModalVisible,
-    voiceModalVisible,
-    setVoiceModalVisible,
+    missedDoseModalVisible,
+    setMissedDoseModalVisible,
+    missedDoseEvaluation,
     handleTake,
     handleSkip,
     handleConfirmSkip,
     handleSnooze,
-    handleVoiceCommand,
   } = useAlarmController();
 
   // İlaç bulunamadığında fallback ekranı
@@ -89,12 +81,13 @@ export default function AlarmScreen() {
       {/* 1. Üst Kısım: Dijital Saat & Tarih */}
       <AlarmTimeHeader currentTime={currentTime} currentDate={currentDate} />
 
-      {/* 2. Orta Kısım: Animasyonlu İlaç Bilgi Kartı */}
+      {/* 2. Orta Kısım: Animasyonlu İlaç Bilgi Kartı & Gıda Rozetleri */}
       <AlarmMedicineCard
         medicine={medicine}
         pulseAnim={pulseAnim}
         instructionDisplayText={instructionDisplayText}
         t={t}
+        onOpenMissedDoseGuide={() => setMissedDoseModalVisible(true)}
       />
 
       {/* 3. Alt Kısım: Eylem Butonları */}
@@ -106,7 +99,6 @@ export default function AlarmScreen() {
         t={t}
         onTake={handleTake}
         onSnooze={handleSnooze}
-        onVoiceReply={() => setVoiceModalVisible(true)}
         onSkip={handleSkip}
       />
 
@@ -118,11 +110,12 @@ export default function AlarmScreen() {
         onCancel={() => setSkipModalVisible(false)}
       />
 
-      {/* Sesli Komut Modalı */}
-      <VoiceCommandModal
-        visible={voiceModalVisible}
-        onCommandRecognized={handleVoiceCommand}
-        onClose={() => setVoiceModalVisible(false)}
+      {/* Kaçırılan Doz Klinik Rehberlik Modalı */}
+      <MissedDoseTriageModal
+        visible={missedDoseModalVisible}
+        onClose={() => setMissedDoseModalVisible(false)}
+        evaluation={missedDoseEvaluation}
+        language={language as 'tr' | 'en'}
       />
     </View>
   );

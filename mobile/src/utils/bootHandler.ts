@@ -13,12 +13,15 @@ import { createScopedLogger } from './logger';
 import { scheduleMedicineNotification } from './notifications';
 import { ALARM_ACTIONS } from './notifications/config';
 import { Medicine, ReminderTime } from '../types';
-import { STORAGE_KEYS, CHANNELS, NOTIFICATION_IDS } from '../constants';
+import { STORAGE_KEYS, NOTIFICATION_IDS } from '../constants';
+// Kanal kimliklerinin tek kaynagi. Eskiden `constants.ts` icindeki olu `CHANNELS`
+// sabitinden geliyordu ve boot bildirimleri ESKI `-v4` kanallarina dusuyordu
+// (cihaz logcat'inde dogrulandi: alarm-sync-notification → medicine-reminders-v4).
+import { ALARM_CHANNEL_ID, SYNC_STATUS_CHANNEL_ID } from './notifications/channels';
+// Native AlarmModule'e TEK KOPRU (bkz. notifications/nativeAlarm.ts).
+import { scheduleNativeAlarm, ALARM_KIND_SNOOZE } from './notifications/nativeAlarm';
 
 const log = createScopedLogger('BootHandler');
-
-const ALARM_CHANNEL_ID = CHANNELS.ALARM;
-const REMINDER_CHANNEL_ID = CHANNELS.REMINDER;
 const BOOT_RECOVERY_KEY = STORAGE_KEYS.BOOT_RECOVERY;
 const SYNC_NOTIFICATION_ID = NOTIFICATION_IDS.ALARM_SYNC;
 
@@ -73,7 +76,7 @@ async function scheduleActiveSnooze(
     timestamp: triggerTime.getTime(),
     alarmManager: {
       allowWhileIdle: true,
-      type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE,
+      type: AlarmType.SET_ALARM_CLOCK,
     },
   };
 
@@ -132,6 +135,15 @@ async function scheduleActiveSnooze(
       trigger
     );
 
+    // Native AlarmManager.setAlarmClock ile de donanımsal garantile.
+    // KIND_SNOOZE zorunlu: boot sonrasi geri yuklenen erteleme, ayni
+    // hatirlatmanin ANA alarminin requestCode'unu ezmemeli.
+    await scheduleNativeAlarm(
+      triggerTime.getTime(),
+      { medicineId: snooze.medicineId, reminderTimeId: snooze.reminderTimeId },
+      ALARM_KIND_SNOOZE
+    );
+
     return notificationId;
   } catch (error) {
     log.error('Failed to schedule snooze', error);
@@ -146,9 +158,32 @@ export interface BootRecoveryResult {
   timestamp: string;
 }
 
+/**
+ * Bu tetikleyici GERÇEK bir cihaz yeniden başlatması mı?
+ *
+ * v1.7.4 (Faz 1.2): "Alarmlar Senkronize Edildi" bildirimi eskiden HER
+ * `reRegisterAllAlarms` sonunda gösteriliyordu — yani uygulamanın her
+ * açılışında ve `AlarmCheckWorker` ile **15 dakikada bir**. İki sonucu vardı:
+ *   1. Bildirim spam'i (kullanıcı için anlamsız bir teknik mesaj),
+ *   2. SESLİ hatırlatma kanalından gittiği için ilaç alarmıyla aynı anda
+ *      çalıp "aynı melodi, iki farklı ses seviyesi" etkisi yaratıyordu.
+ * Mesaj yalnızca gerçek yeniden başlatmadan sonra anlamlıdır: orada kullanıcı
+ * "alarmlarım hâlâ kurulu mu?" diye haklı bir kaygı taşır.
+ */
+function isRealDeviceBoot(trigger: string): boolean {
+  return trigger.includes('BOOT_COMPLETED');
+}
+
 async function showRecoveryNotification(result: BootRecoveryResult): Promise<void> {
   const total = result.reminders + result.snoozes;
   if (total === 0) return;
+
+  if (!isRealDeviceBoot(result.trigger)) {
+    log.debug('Durum bildirimi atlandi (gercek yeniden baslatma degil)', {
+      trigger: result.trigger,
+    });
+    return;
+  }
 
   try {
     // Önce varolan bildirimi iptal et (duplicate önleme)
@@ -164,8 +199,10 @@ async function showRecoveryNotification(result: BootRecoveryResult): Promise<voi
       subtitle,
       body,
       android: {
-        channelId: REMINDER_CHANNEL_ID,
-        importance: AndroidImportance.DEFAULT,
+        // v1.7.4: SESLİ hatırlatma kanalı yerine sessiz durum kanalı.
+        // Eskiden ilaç alarmıyla aynı anda çalıp çift ses üretiyordu.
+        channelId: SYNC_STATUS_CHANNEL_ID,
+        importance: AndroidImportance.LOW,
         visibility: AndroidVisibility.PUBLIC,
         autoCancel: true,
         smallIcon: 'ic_notification',

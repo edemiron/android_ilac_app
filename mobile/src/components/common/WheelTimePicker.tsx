@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -34,33 +35,70 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
 }) => {
   const flatListRef = useRef<FlatList>(null);
   const [localIndex, setLocalIndex] = useState(selectedIndex);
+  const isUserScrolling = useRef(false);
 
+  // Deterministik piksel snap offsetleri
+  const snapOffsets = useMemo(() => data.map((_, i) => i * ITEM_HEIGHT), [data]);
+
+  // Sadece dışarıdan gelen prop değişiminde (kullanıcı kaydırmıyorken) hizala
   useEffect(() => {
-    setLocalIndex(selectedIndex);
-    if (flatListRef.current) {
-      flatListRef.current.scrollToOffset({
+    if (!isUserScrolling.current) {
+      setLocalIndex(selectedIndex);
+      flatListRef.current?.scrollToOffset({
         offset: selectedIndex * ITEM_HEIGHT,
         animated: false,
       });
     }
   }, [selectedIndex]);
 
+  const settleToIndex = useCallback(
+    (offsetY: number) => {
+      const maxOffset = (data.length - 1) * ITEM_HEIGHT;
+      const clampedOffset = Math.max(0, Math.min(offsetY, maxOffset));
+      const targetIndex = Math.max(
+        0,
+        Math.min(Math.round(clampedOffset / ITEM_HEIGHT), data.length - 1)
+      );
+
+      setLocalIndex(targetIndex);
+      onSelect(targetIndex);
+      isUserScrolling.current = false;
+    },
+    [data.length, onSelect]
+  );
+
+  const handleScrollBeginDrag = () => {
+    isUserScrolling.current = true;
+  };
+
+  const handleMomentumScrollBegin = () => {
+    isUserScrolling.current = true;
+  };
+
+  const handleScrollEndDrag = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    settleToIndex(e.nativeEvent.contentOffset.y);
+  };
+
   const handleMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetY = e.nativeEvent.contentOffset.y;
-    const index = Math.max(0, Math.min(Math.round(offsetY / ITEM_HEIGHT), data.length - 1));
-    setLocalIndex(index);
-    onSelect(index);
+    settleToIndex(e.nativeEvent.contentOffset.y);
   };
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = e.nativeEvent.contentOffset.y;
-    const index = Math.max(0, Math.min(Math.round(offsetY / ITEM_HEIGHT), data.length - 1));
-    if (index !== localIndex) {
-      setLocalIndex(index);
+    const maxOffset = (data.length - 1) * ITEM_HEIGHT;
+    const clampedOffset = Math.max(0, Math.min(offsetY, maxOffset));
+    const targetIndex = Math.max(
+      0,
+      Math.min(Math.round(clampedOffset / ITEM_HEIGHT), data.length - 1)
+    );
+
+    if (targetIndex !== localIndex) {
+      setLocalIndex(targetIndex);
     }
   };
 
   const handleItemPress = (index: number) => {
+    isUserScrolling.current = false;
     setLocalIndex(index);
     onSelect(index);
     flatListRef.current?.scrollToOffset({
@@ -71,7 +109,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
 
   return (
     <View style={styles.columnContainer}>
-      {/* İki Yatay Çizgi: Seçili elemanın üstü ve altı (Görseldeki gibi) */}
+      {/* İki Yatay Çizgi: Seçili elemanın üstü ve altı */}
       <View
         pointerEvents="none"
         style={[
@@ -95,23 +133,27 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         keyExtractor={item => item.toString()}
         showsVerticalScrollIndicator={false}
         snapToInterval={ITEM_HEIGHT}
-        snapToAlignment="center"
-        decelerationRate="fast"
+        snapToOffsets={snapOffsets}
+        decelerationRate={Platform?.OS === 'ios' ? 'normal' : 'fast'}
+        contentContainerStyle={styles.flatListContent}
         getItemLayout={(_, index) => ({
           length: ITEM_HEIGHT,
           offset: ITEM_HEIGHT * index,
           index,
         })}
         initialScrollIndex={selectedIndex}
+        onScrollBeginDrag={handleScrollBeginDrag}
+        onMomentumScrollBegin={handleMomentumScrollBegin}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        onScrollEndDrag={handleScrollEndDrag}
         onMomentumScrollEnd={handleMomentumScrollEnd}
-        ListHeaderComponent={<View style={{ height: ITEM_HEIGHT * 2 }} />}
-        ListFooterComponent={<View style={{ height: ITEM_HEIGHT * 2 }} />}
+        overScrollMode="never"
+        bounces={true}
+        nestedScrollEnabled={true}
         renderItem={({ item, index }) => {
           const distance = Math.abs(index - localIndex);
 
-          // Görseldeki hiyerarşik renk ve boyutlandırma
           let textColor = isDark ? '#F8FAFC' : '#1E293B';
           let fontSize = 30;
           let fontWeight: '700' | '400' | '300' = '700';
@@ -130,7 +172,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
             <TouchableOpacity
               style={styles.itemWrapper}
               onPress={() => handleItemPress(index)}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
               <Text
                 style={[
@@ -160,7 +202,6 @@ export interface WheelTimePickerProps {
 export const WheelTimePicker: React.FC<WheelTimePickerProps> = ({ value, onChange }) => {
   const { isDark } = useTheme();
 
-  // İlk saat ve dakikayı belirle
   const parseInitialTime = useCallback(() => {
     if (value instanceof Date) {
       return { hours: value.getHours(), minutes: value.getMinutes() };
@@ -185,19 +226,25 @@ export const WheelTimePicker: React.FC<WheelTimePickerProps> = ({ value, onChang
     setMinutes(updated.minutes);
   }, [parseInitialTime]);
 
-  const handleHourSelect = (index: number) => {
-    const newHour = HOURS[index];
-    setHours(newHour);
-    const timeStr = `${newHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-    onChange(timeStr, newHour, minutes);
-  };
+  const handleHourSelect = useCallback(
+    (index: number) => {
+      const newHour = HOURS[index];
+      setHours(newHour);
+      const timeStr = `${newHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      onChange(timeStr, newHour, minutes);
+    },
+    [minutes, onChange]
+  );
 
-  const handleMinuteSelect = (index: number) => {
-    const newMinute = MINUTES[index];
-    setMinutes(newMinute);
-    const timeStr = `${hours.toString().padStart(2, '0')}:${newMinute.toString().padStart(2, '0')}`;
-    onChange(timeStr, hours, newMinute);
-  };
+  const handleMinuteSelect = useCallback(
+    (index: number) => {
+      const newMinute = MINUTES[index];
+      setMinutes(newMinute);
+      const timeStr = `${hours.toString().padStart(2, '0')}:${newMinute.toString().padStart(2, '0')}`;
+      onChange(timeStr, hours, newMinute);
+    },
+    [hours, onChange]
+  );
 
   return (
     <View style={styles.pickerContainer}>
@@ -210,8 +257,10 @@ export const WheelTimePicker: React.FC<WheelTimePickerProps> = ({ value, onChang
         isDark={isDark}
       />
 
-      {/* Sütunlar Arası Boşluk */}
-      <View style={styles.columnGap} />
+      {/* Sütunlar Arası İki Nokta (Separator) */}
+      <View style={styles.separatorContainer}>
+        <Text style={[styles.separatorText, { color: isDark ? '#94A3B8' : '#64748B' }]}>:</Text>
+      </View>
 
       {/* Dakika Sütunu */}
       <WheelColumn
@@ -232,7 +281,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginVertical: 10,
+    marginVertical: 8,
   },
   columnContainer: {
     width: 90,
@@ -240,8 +289,19 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  columnGap: {
-    width: 30,
+  separatorContainer: {
+    width: 24,
+    height: WHEEL_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  separatorText: {
+    fontSize: 26,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  flatListContent: {
+    paddingVertical: ITEM_HEIGHT * 2,
   },
   itemWrapper: {
     height: ITEM_HEIGHT,

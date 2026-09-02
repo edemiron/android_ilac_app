@@ -827,6 +827,198 @@ describe('MedicineStore', () => {
 
       expect(mockUploadAllDataToCloud).toHaveBeenCalled();
     });
+
+    /**
+     * v1.7.1 — C4. Bulut birlestirmesi eskiden KOSULSUZ kazaniyordu ve ayar
+     * yan etkileri (uyanma/uyku penceresi degisince hatirlatma saatlerinin
+     * yeniden uretilmesi) sync yolunda HIC calismiyordu.
+     */
+    describe('ayar birlestirme ve yan etkiler (C4)', () => {
+      const cloudBase = {
+        medicines: [],
+        reminderTimes: [],
+        medicineLogs: [],
+      };
+
+      it('YEREL degisiklik daha yeni ise bulut ayarlarini EZMEZ', async () => {
+        const store = useMedicineStore.getState();
+        store.setUserId('test-user-123');
+
+        // Yerel: kullanici tam ekran alarmi KAPATTI (damgalanir).
+        store.updateSettings({ fullScreenAlarmEnabled: false });
+        const localStamp = useMedicineStore.getState().settings.settingsUpdatedAt;
+        expect(localStamp).toBeTruthy();
+
+        // Bulut: DAHA ESKI bir dokuman, ayar hala acik.
+        mockDownloadAllDataFromCloud.mockResolvedValue({
+          ...cloudBase,
+          settings: {
+            fullScreenAlarmEnabled: true,
+            settingsUpdatedAt: new Date(Date.parse(localStamp!) - 60_000).toISOString(),
+          },
+        });
+
+        await useMedicineStore.getState().syncFromCloud();
+
+        // Eskiden burada `true` donuyordu: kullanicinin kararı sessizce
+        // geri aliniyordu (cihazda kanitlandi).
+        expect(useMedicineStore.getState().settings.fullScreenAlarmEnabled).toBe(false);
+      });
+
+      it('BULUT daha yeni ise yerel ayarin uzerine yazar', async () => {
+        const store = useMedicineStore.getState();
+        store.setUserId('test-user-123');
+        store.updateSettings({ fullScreenAlarmEnabled: false });
+        const localStamp = useMedicineStore.getState().settings.settingsUpdatedAt;
+
+        mockDownloadAllDataFromCloud.mockResolvedValue({
+          ...cloudBase,
+          settings: {
+            fullScreenAlarmEnabled: true,
+            settingsUpdatedAt: new Date(Date.parse(localStamp!) + 60_000).toISOString(),
+          },
+        });
+
+        await useMedicineStore.getState().syncFromCloud();
+
+        expect(useMedicineStore.getState().settings.fullScreenAlarmEnabled).toBe(true);
+      });
+
+      it('bulut ayarlarinda OLMAYAN alanlar yerelde korunur', async () => {
+        const store = useMedicineStore.getState();
+        store.setUserId('test-user-123');
+        store.updateSettings({ ttsVolume: 35 });
+
+        // Eski bir bulut dokumani TTS alanlarini hic icermiyor.
+        mockDownloadAllDataFromCloud.mockResolvedValue({
+          ...cloudBase,
+          settings: { wakeUpTime: '07:00' },
+        });
+
+        await useMedicineStore.getState().syncFromCloud();
+
+        const { settings } = useMedicineStore.getState();
+        expect(settings.wakeUpTime).toBe('07:00');
+        // Eskiden `getSettingsFromCloud` eksik alanlari VARSAYILANLA
+        // dolduruyordu ve bu deger 80'e donuyordu.
+        expect(settings.ttsVolume).toBe(35);
+      });
+
+      it('bulut uyanma/uyku penceresi degisince hatirlatma saatleri yenilenir', async () => {
+        const store = useMedicineStore.getState();
+        store.setUserId('test-user-123');
+        store.addMedicine({
+          name: 'Gunde 2 Doz',
+          dosage: '100mg',
+          frequency: 2,
+          color: MEDICINE_COLORS[0],
+          startDate: '2024-01-01',
+        });
+
+        const before = useMedicineStore
+          .getState()
+          .reminderTimes.map(rt => rt.time)
+          .sort();
+        expect(before.length).toBeGreaterThan(0);
+
+        mockDownloadAllDataFromCloud.mockResolvedValue({
+          ...cloudBase,
+          settings: {
+            wakeUpTime: '05:00',
+            sleepTime: '19:00',
+            settingsUpdatedAt: new Date(Date.now() + 60_000).toISOString(),
+          },
+        });
+
+        await useMedicineStore.getState().syncFromCloud();
+
+        const after = useMedicineStore
+          .getState()
+          .reminderTimes.map(rt => rt.time)
+          .sort();
+
+        expect(useMedicineStore.getState().settings.wakeUpTime).toBe('05:00');
+        // Eskiden saatler ESKI pencereye gore kaliyordu.
+        expect(after).not.toEqual(before);
+      });
+    });
+  });
+
+  /**
+   * v1.7.2 — C4 devami. Buluta YALNIZCA degisen alanlar yazilir.
+   *
+   * Eskiden `updateSettings` tum `nextSettings`i gonderiyor ve
+   * `syncSettingsToCloud` dokumani `setDoc` ile komple eziyordu. Indirme
+   * sadece uygulama acilisinda yapildigi icin bayat kalmis bir cihazda TEK
+   * bir ayar degistirmek, diger cihazin yeni degerlerini buluttan SILIYORDU.
+   */
+  describe('updateSettings — buluta kismi yazim (C4)', () => {
+    it('buluta YALNIZCA degisen alani gonderir', () => {
+      const store = useMedicineStore.getState();
+      store.setUserId('test-user-123');
+      mockSyncSettingsToCloud.mockClear();
+
+      useMedicineStore.getState().updateSettings({ alarmVolume: 100 });
+
+      expect(mockSyncSettingsToCloud).toHaveBeenCalledTimes(1);
+      const [, payload] = mockSyncSettingsToCloud.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+      ];
+
+      expect(Object.keys(payload).sort()).toEqual(['alarmVolume', 'settingsUpdatedAt']);
+      expect(payload.alarmVolume).toBe(100);
+      // Degismemis alanlar gonderilmemeli: gonderilse bayat deger diger
+      // cihazin yeni degerini buluttan silerdi.
+      expect(payload.wakeUpTime).toBeUndefined();
+      expect(payload.quietHoursEnabled).toBeUndefined();
+    });
+
+    it('birden fazla alan degistiyse hepsini ama SADECE onlari gonderir', () => {
+      const store = useMedicineStore.getState();
+      store.setUserId('test-user-123');
+      mockSyncSettingsToCloud.mockClear();
+
+      useMedicineStore.getState().updateSettings({
+        quietHoursEnabled: true,
+        quietHoursStart: '22:30',
+      });
+
+      const [, payload] = mockSyncSettingsToCloud.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+      ];
+      expect(Object.keys(payload).sort()).toEqual(
+        ['quietHoursEnabled', 'quietHoursStart', 'settingsUpdatedAt'].sort()
+      );
+    });
+
+    it('damgayi her zaman ekler (son-yazan-kazanir icin gerekli)', () => {
+      const store = useMedicineStore.getState();
+      store.setUserId('test-user-123');
+      mockSyncSettingsToCloud.mockClear();
+
+      useMedicineStore.getState().updateSettings({ vibrationEnabled: false });
+
+      const [, payload] = mockSyncSettingsToCloud.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+      ];
+      expect(payload.settingsUpdatedAt).toBe(
+        useMedicineStore.getState().settings.settingsUpdatedAt
+      );
+      expect(Number.isNaN(Date.parse(payload.settingsUpdatedAt as string))).toBe(false);
+    });
+
+    it('skipCloudSync ile hic yazmaz', () => {
+      const store = useMedicineStore.getState();
+      store.setUserId('test-user-123');
+      mockSyncSettingsToCloud.mockClear();
+
+      useMedicineStore.getState().updateSettings({ alarmVolume: 55 }, { skipCloudSync: true });
+
+      expect(mockSyncSettingsToCloud).not.toHaveBeenCalled();
+    });
   });
 
   describe('clearAllData', () => {

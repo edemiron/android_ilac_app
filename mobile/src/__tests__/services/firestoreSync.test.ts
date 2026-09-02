@@ -10,6 +10,8 @@ import {
   uploadAllDataToCloud,
   downloadAllDataFromCloud,
   deleteAllUserData,
+  getSettingsFromCloud,
+  syncSettingsToCloud,
 } from '../../services/firestoreSync';
 import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../../types';
 
@@ -55,6 +57,15 @@ jest.mock('../../utils/logger', () => ({
 
 describe('Firestore Sync Service', () => {
   const userId = 'test-user-123';
+
+  /** Yukleme testleri icin minimal ayar nesnesi. */
+  const mockSettingsForUpload = {
+    wakeUpTime: '08:00',
+    sleepTime: '23:00',
+    language: 'tr',
+    vibrationEnabled: true,
+    alarmModeEnabled: true,
+  } as UserSettings;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -275,21 +286,190 @@ describe('Firestore Sync Service', () => {
       expect(result).toBeNull();
     });
 
-    it('should return data with default settings if none exist', async () => {
+    /**
+     * v1.7.1 — C4: ayar dokumani yoksa artik BOS nesne doner.
+     *
+     * Eskiden `DEFAULT_SETTINGS` donuyordu; birlestirmede bu varsayilanlar
+     * kullanicinin YEREL ayarlarini eziyordu (ornegin ttsVolume 35 → 80).
+     * Yerel ayarlarin korunmasi icin bulutta olmayan alan hic donmemeli.
+     */
+    it('bulutta ayar dokumani yoksa BOS ayar doner (yerel korunur)', async () => {
       mockGetDocs.mockResolvedValue({
-        docs: [],
-        forEach: () => {},
+        docs: [
+          {
+            id: 'med-1',
+            ref: { id: 'med-1' },
+            data: () => ({ id: 'med-1', name: 'X' }),
+          },
+        ],
+        forEach: function (cb: (doc: unknown) => void) {
+          cb({ id: 'med-1', ref: { id: 'med-1' }, data: () => ({ id: 'med-1', name: 'X' }) });
+        },
       });
 
-      mockGetDoc.mockResolvedValue({
-        exists: () => false,
-      });
+      mockGetDoc.mockResolvedValue({ exists: () => false });
 
       const result = await downloadAllDataFromCloud(userId);
 
-      if (result) {
-        expect(result.settings.language).toBe('tr');
-        expect(result.settings.wakeUpTime).toBe('08:00');
+      expect(result).not.toBeNull();
+      expect(result?.settings).toEqual({});
+    });
+  });
+
+  /**
+   * v1.7.1 — C4. `getSettingsFromCloud` alanlari TEK TEK sayiyordu ve
+   * listede 13 ayar YOKTU (guvenlik, TTS, kalici bildirim): buluta
+   * yukleniyor ama GERI INDIRILMIYORDU. Ayrica her alan `?? varsayilan`
+   * ile donduruldugu icin bulut KOSULSUZ kaziniyordu.
+   */
+  describe('getSettingsFromCloud', () => {
+    it('bulutta yazili TUM alanlari dondurur (TTS / guvenlik / kalici bildirim dahil)', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          wakeUpTime: '06:30',
+          ttsVolume: 35,
+          ttsRepeatCount: 3,
+          securityEnabled: true,
+          securityType: 'pin',
+          lockTimeout: 120,
+          persistentNotificationEnabled: false,
+          persistentNotificationDuration: 30,
+          settingsUpdatedAt: '2026-05-02T09:00:00.000Z',
+        }),
+      });
+
+      const settings = await getSettingsFromCloud(userId);
+
+      expect(settings).toEqual({
+        wakeUpTime: '06:30',
+        ttsVolume: 35,
+        ttsRepeatCount: 3,
+        securityEnabled: true,
+        securityType: 'pin',
+        lockTimeout: 120,
+        persistentNotificationEnabled: false,
+        persistentNotificationDuration: 30,
+        settingsUpdatedAt: '2026-05-02T09:00:00.000Z',
+      });
+    });
+
+    it('dokumanda OLMAYAN alani VARSAYILANLA doldurmaz', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({ wakeUpTime: '06:30' }),
+      });
+
+      const settings = await getSettingsFromCloud(userId);
+
+      // Eskiden burada 15 alan + varsayilanlar donuyordu.
+      expect(Object.keys(settings ?? {})).toEqual(['wakeUpTime']);
+      expect(settings?.ttsVolume).toBeUndefined();
+    });
+
+    it('settingsUpdatedAt yoksa Firestore updatedAt damgasina duser', async () => {
+      const date = new Date('2026-05-02T09:00:00.000Z');
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          wakeUpTime: '06:30',
+          updatedAt: { toDate: () => date },
+        }),
+      });
+
+      const settings = await getSettingsFromCloud(userId);
+
+      expect(settings?.settingsUpdatedAt).toBe(date.toISOString());
+      // `updatedAt` bir UserSettings alani DEGIL; sizdirilmamali.
+      expect((settings as Record<string, unknown>)?.updatedAt).toBeUndefined();
+    });
+
+    it('dokuman yoksa null doner', async () => {
+      mockGetDoc.mockResolvedValue({ exists: () => false });
+
+      await expect(getSettingsFromCloud(userId)).resolves.toBeNull();
+    });
+  });
+
+  describe('syncSettingsToCloud', () => {
+    it('son-yazan-kazanir damgasini buluta yazar', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, {
+        ...mockSettingsForUpload,
+        settingsUpdatedAt: '2026-05-02T09:00:00.000Z',
+      });
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      expect(written.settingsUpdatedAt).toBe('2026-05-02T09:00:00.000Z');
+    });
+
+    it('damga yoksa yukleme aninda uretir', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, mockSettingsForUpload);
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      expect(typeof written.settingsUpdatedAt).toBe('string');
+      expect(Number.isNaN(Date.parse(written.settingsUpdatedAt as string))).toBe(false);
+    });
+
+    /**
+     * v1.7.2 — korlemesine tam dokuman yazimi kaldirildi.
+     *
+     * Indirme yalnizca uygulama acilisinda yapildigi icin bir cihaz gunlerce
+     * bayat kalabiliyor. Eskiden o cihazda TEK bir ayar degistirmek
+     * dokumanin TAMAMINI yaziyor ve diger cihazin yeni degerlerini buluttan
+     * SILIYORDU. Bu kayip alan bazli damgayla cozulmez: bayat deger taze
+     * damgayla yazilir. Bu yuzden yazim artik kismi + merge.
+     */
+    it('merge: true ile yazar (degismeyen alanlar dokumanda kalir)', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, { alarmVolume: 100 });
+
+      expect(mockSetDoc).toHaveBeenCalledTimes(1);
+      expect(mockSetDoc.mock.calls[0][2]).toEqual({ merge: true });
+    });
+
+    it('YALNIZCA verilen alanlari yazar — digerlerine dokunmaz', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, { quietHoursEnabled: true });
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      // Yalnizca degisen alan + iki damga. `alarmVolume` GONDERILMEMELI:
+      // gonderilse bayat deger diger cihazin yeni degerini ezerdi.
+      expect(Object.keys(written).sort()).toEqual(
+        ['quietHoursEnabled', 'settingsUpdatedAt', 'updatedAt'].sort()
+      );
+      expect(written.alarmVolume).toBeUndefined();
+      expect(written.wakeUpTime).toBeUndefined();
+    });
+
+    it('tanimsiz alanlari atlar (Firestore undefined kabul etmez)', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, {
+        alarmVolume: 90,
+        quietHoursStart: undefined,
+      });
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      expect(written.alarmVolume).toBe(90);
+      expect('quietHoursStart' in written).toBe(false);
+    });
+
+    it('ilk tam yukleme hala TUM alanlari yazar', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, mockSettingsForUpload);
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      for (const key of Object.keys(mockSettingsForUpload)) {
+        expect(written[key]).toBe(
+          (mockSettingsForUpload as unknown as Record<string, unknown>)[key]
+        );
       }
     });
   });

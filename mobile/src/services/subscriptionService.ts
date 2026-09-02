@@ -17,9 +17,21 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
       monthly: 0,
       yearly: 0,
     },
-    features: ['2 ilaç takibi', 'Temel hatırlatmalar', '5 barkod tarama hakkı'],
+    features: ['Sınırsız ilaç takibi', 'Temel hatırlatmalar', '5 barkod tarama hakkı'],
     limits: {
-      maxMedicines: 2,
+      /**
+       * v1.7.4 (Faz 0.6): ÜCRETSİZ PLANDA İLAÇ SINIRI KALDIRILDI (2 → sınırsız).
+       *
+       * Neden: ilaç hatırlatma bu uygulamanın güvenlik işlevidir; paywall'ın
+       * arkasına konmaz. Onboarding'de "6+ İlaç (Yoğun / Kronik Tedavi)"
+       * seçeneği sunulan hedef kitle 3. ilacını ekleyemiyordu — üstelik limit
+       * form DOLDURULDUKTAN sonra, kaydet anında çıkıyordu.
+       * Ayrıca satın alma akışı sahteydi (`test_transaction_*`, Play Billing
+       * entegrasyonu yok), yani limitin kaldırılabileceği gerçek bir yol da
+       * yoktu. Premium, bakıcı ağı / PDF rapor / bulut gibi EK özelliklere
+       * bağlanmalı.
+       */
+      maxMedicines: -1,
       aiSearchPerDay: 0,
       cloudSync: false,
       adFree: false,
@@ -33,6 +45,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
     price: {
       monthly: 49.99,
       yearly: 349.99, // %42 indirimli
+      lifetime: 499.99, // Tek seferlik ömür boyu erişim
     },
     features: [
       'Sınırsız ilaç takibi',
@@ -122,41 +135,32 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
 }
 
 /**
- * Kullanıcıyı premium'a yükselt
+ * Kullanıcıyı premium'a yükselt.
+ *
+ * ⚠️ v1.7.4 (Faz 0.6) — İSTEMCİ TARAFLI YÜKSELTME DEVRE DIŞI.
+ *
+ * Eski hâli, ÖDEME ALMADAN Firestore'a `tier: 'premium'` yazıyordu:
+ *   - `PremiumScreen` `upgrade(period, \`test_transaction_${Date.now()}\`)`
+ *     çağırıyor, `purchaseService` sahte bir transactionId üretiyordu;
+ *     Play Billing entegrasyonu (react-native-iap / RevenueCat) hiç yoktu.
+ *   - Firestore kuralı `subscription` yazmasını sahibine açtığı için kullanıcı
+ *     doğrudan da kendini premium yapabiliyordu.
+ * Play Ödeme politikası açısından da red sebebiydi (uygulama içi dijital ürün
+ * fiyatı gösterip Play Billing kullanmamak).
+ *
+ * Kural artık `allow write: if false`; yazma YALNIZCA Play makbuzunu doğrulayan
+ * sunucuda (Admin SDK) yapılmalı. Bu fonksiyon, gerçek entegrasyon gelene kadar
+ * sessizce başarılı olmak yerine açıkça hata verir.
  */
 export async function upgradeToPremium(
-  userId: string,
-  billingPeriod: 'monthly' | 'yearly',
-  transactionId?: string
+  _userId: string,
+  _billingPeriod: 'monthly' | 'yearly' | 'lifetime',
+  _transactionId?: string
 ): Promise<void> {
-  try {
-    const subRef = getUserSubscriptionRef(userId);
-    const now = new Date();
-
-    // Bitiş tarihini hesapla
-    const endDate = new Date(now);
-    if (billingPeriod === 'monthly') {
-      endDate.setMonth(endDate.getMonth() + 1);
-    } else {
-      endDate.setFullYear(endDate.getFullYear() + 1);
-    }
-
-    const subscription: UserSubscription = {
-      tier: 'premium',
-      startDate: now.toISOString(),
-      endDate: endDate.toISOString(),
-      isActive: true,
-      platform: 'android',
-      transactionId,
-    };
-
-    await setDoc(subRef, subscription);
-    await AsyncStorage.setItem(LOCAL_SUBSCRIPTION_KEY, JSON.stringify(subscription));
-    log.debug('Premium abonelik aktiflestirildi');
-  } catch (error) {
-    log.error('Premium yukseltme hatasi', error);
-    throw error;
-  }
+  log.error('upgradeToPremium cagrildi ama istemci tarafli yukseltme devre disi');
+  throw new Error(
+    'Satın alma henüz kullanılamıyor. Abonelik, ödeme doğrulaması sunucu tarafında tamamlandığında etkinleşecek.'
+  );
 }
 
 /**

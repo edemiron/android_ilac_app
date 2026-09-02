@@ -1,9 +1,13 @@
 /**
  * HeroSecurityShieldCard — Canlı Güvenlik Kalkanı & Sağlık Gizliliği Paneli
  *
- * 2026 Modern Security Hero:
  * - Uygulamanın aktif koruma seviyesini gösteren dinamik kalkan
- * - 256-bit AES donanım şifreleme ve HIPAA tıbbi veri gizlilik mührü
+ *
+ * v1.7.4 (Faz 0.6): "256-bit AES donanım şifreleme ve HIPAA mührü" ifadesi
+ * KALDIRILDI — böyle bir şifreleme yok. Gerçek durum: uygulama kilidi için
+ * PIN, `expo-secure-store` içinde salt'lı 10.000 turluk SHA-256 zinciri olarak
+ * saklanır ve sabit zamanlı karşılaştırılır (bkz. utils/security.ts). İlaç/doz
+ * verisi ise şifrelenmemiş; erişim Firestore kurallarıyla sınırlanır.
  */
 
 import React from 'react';

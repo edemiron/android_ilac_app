@@ -128,10 +128,31 @@ function getSingleDoseTime(
 }
 
 /**
- * Saati okunabilir formata çevirir (24 saat formatı)
+ * Saati okunabilir formata çevirir (24 saat formatı, yerel saat dilimine duyarlı)
  */
-export function formatTimeDisplay(time: string): string {
-  // Zaten HH:mm formatında, direkt döndür
+export function formatTimeDisplay(time?: string | null): string {
+  if (!time) return '';
+  const trimmed = time.trim();
+  if (!trimmed) return '';
+
+  // Zaten HH:mm formatında ise (veya testlerdeki gibi boşluklu formatı koru)
+  if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
+    return time;
+  }
+  if (/^\d{1,2}:\d{2}:\d{2}$/.test(trimmed)) {
+    return trimmed.slice(0, 5);
+  }
+
+  // ISO / UTC tarih stringi ise
+  if (trimmed.includes('T') || trimmed.includes('-') || trimmed.includes('/')) {
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      const h = String(parsed.getHours()).padStart(2, '0');
+      const m = String(parsed.getMinutes()).padStart(2, '0');
+      return `${h}:${m}`;
+    }
+  }
+
   return time;
 }
 

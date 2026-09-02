@@ -12,16 +12,82 @@ import {
   isAlarmNotificationId,
   isSnoozeNotificationId,
   extractDisplayedMedicineId,
+  parseAlarmNotificationId,
+  type AlarmNotificationTarget,
 } from './ids';
+import { cancelNativeAlarmResources, ALARM_KIND_MAIN, ALARM_KIND_SNOOZE } from './nativeAlarm';
 
 const log = createScopedLogger('NotificationCancel');
 
 /**
- * Tek bir bildirimi iptal et
+ * Bilinen ilaç/hatırlatma kimliklerini store'dan oku.
+ *
+ * LAZY REQUIRE bilinçli: `cancel.ts` notifications barrel'ında, store da bu
+ * barrel'ı import ediyor → statik import dairesel bağımlılık oluşturur.
  */
-export async function cancelNotification(notificationId: string): Promise<void> {
+function readKnownIdsFromStore(): { medicineIds: string[]; reminderTimeIds: string[] } {
+  try {
+    const storeModule = require('../../stores/medicineStore') as {
+      useMedicineStore: {
+        getState: () => {
+          medicines?: Array<{ id: string }>;
+          reminderTimes?: Array<{ id: string }>;
+        };
+      };
+    };
+    const state = storeModule.useMedicineStore.getState();
+    return {
+      medicineIds: (state.medicines || []).map(m => m.id).filter(Boolean),
+      reminderTimeIds: (state.reminderTimes || []).map(r => r.id).filter(Boolean),
+    };
+  } catch (error) {
+    log.debug('store kimlikleri okunamadi', { error });
+    return { medicineIds: [], reminderTimeIds: [] };
+  }
+}
+
+/**
+ * Tek bir bildirimi iptal et.
+ *
+ * @param notificationId Notifee bildirim kimliği.
+ * @param target Alarm bildirimleri için ilaç/hatırlatma kimlikleri. VERİLMESİ
+ *   ÖNERİLİR: bildirim id'si tire ile bölünerek güvenilir şekilde
+ *   çözümlenemez (bkz. `parseAlarmNotificationId`). Verilmezse kimlikler
+ *   store'daki bilinen kimliklerle eşleştirilerek bulunur; bulunamazsa native
+ *   iptal ATLANIR (yanlış kimlikle çağrılmaz) ve uyarı loglanır.
+ */
+export async function cancelNotification(
+  notificationId: string,
+  target?: AlarmNotificationTarget
+): Promise<void> {
   try {
     await notifee.cancelNotification(notificationId);
+
+    const isAlarm = isAlarmNotificationId(notificationId);
+    const isSnooze = isSnoozeNotificationId(notificationId);
+
+    // v1.7.1: ERTELEME de native kaynak birakiyor.
+    //
+    // Eskiden burada yalnizca `alarm-` onekli kimlikler islenirdi; `snooze-`
+    // kimlikleri erken donuyordu. Ama `scheduleSnoozeNotification` da
+    // `scheduleNativeAlarm` cagiriyor — sonuc: iptal edilen bir erteleme,
+    // arkasinda ARMED bir AlarmManager alarmi ve tam ekran tasiyici bildirim
+    // birakiyordu (hayalet tam ekran alarm).
+    if (!isAlarm && !isSnooze) {
+      return;
+    }
+
+    const resolved = target ?? parseAlarmNotificationId(notificationId, readKnownIdsFromStore());
+
+    if (!resolved) {
+      log.warn(
+        'Alarm bildirim kimligi cozumlenemedi, native iptal atlandi (dogru kimlikleri parametre olarak gecirin)',
+        { notificationId }
+      );
+      return;
+    }
+
+    await cancelNativeAlarmResources(resolved, isSnooze ? ALARM_KIND_SNOOZE : ALARM_KIND_MAIN);
   } catch (error) {
     log.error('Bildirim iptal edilirken hata', error);
   }

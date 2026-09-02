@@ -1,4 +1,4 @@
-export { SettingIcon } from './SettingIcon';
+﻿export { SettingIcon } from './SettingIcon';
 export { SettingRow } from './SettingRow';
 export { SettingsSection } from './SettingsSection';
 export { OptionPicker } from './OptionPicker';
@@ -7,7 +7,6 @@ export { ProfileHeaderCard } from './ProfileHeaderCard';
 export { DailyScheduleSection } from './DailyScheduleSection';
 export { AppearanceSection } from './AppearanceSection';
 export { AccentColorSection } from './AccentColorSection';
-export { NotificationSection } from './NotificationSection';
 export { DevTestSection } from './DevTestSection';
 export { QuietHoursSection } from './QuietHoursSection';
 export { AdditionalFeaturesSection } from './AdditionalFeaturesSection';

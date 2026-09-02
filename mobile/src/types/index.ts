@@ -40,6 +40,7 @@ export interface Medicine {
   barcode?: string; // İlacın barkodu
   vibrationPattern?: 'default' | 'heartbeat' | 'urgent' | 'soft'; // Özel titreşim deseni
   customTimes?: string[]; // Özel saatler
+  isCritical?: boolean; // Hayati / Kritik İlaç (Israrlı alarm, kalkan ve yüksek ses seviyesi)
 
   // Gelişmiş Zamanlama / Doz Takvimi
   scheduleType?: ScheduleType;
@@ -47,6 +48,55 @@ export interface Medicine {
   intervalDays?: number; // X günde bir (örn: 2)
   cycleDaysOn?: number; // Döngüde ilaç alınacak gün sayısı (örn: 21)
   cycleDaysOff?: number; // Döngüde ara verilecek gün sayısı (örn: 7)
+
+  // Klinik Farmakoloji & Güvenlik (Sprint 104)
+  foodInteractions?: FoodInteractionType[];
+  activeIngredients?: string[];
+  titckKubKtUrl?: string;
+  missedDoseRule?: MissedDoseRule;
+  refillThreshold?: number;
+  batchNumber?: string;
+}
+
+export type FoodInteractionType =
+  | 'dairy' // Süt / Kalsiyum emilim engeli
+  | 'grapefruit' // Greyfurt sitokrom P450 etkileşimi
+  | 'alcohol' // Alkol karaciğer/sedasyon riski
+  | 'sunlight' // Güneş ışığına duyarlılık / fotosensitivite
+  | 'caffeine' // Kafein taşikardi/emilim
+  | 'empty_stomach_strict'; // Kesin aç karnına
+
+export type MissedDoseRule =
+  | 'take_now_if_half_time' // Yarı zaman geçmediyse hemen al
+  | 'skip_if_close_to_next' // Sonraki doza yakınsa atla
+  | 'never_double_dose'; // Asla çift doz alma
+
+export interface FoodInteractionInfo {
+  type: FoodInteractionType;
+  icon: string;
+  titleTr: string;
+  titleEn: string;
+  warningTr: string;
+  warningEn: string;
+  severity: 'critical' | 'moderate' | 'info';
+}
+
+export interface EReceteItem {
+  name: string;
+  dosage: string;
+  frequency: number;
+  instructions?: MedicineInstruction;
+  barcode?: string;
+  activeIngredients?: string[];
+  durationDays?: number;
+}
+
+export interface EReceteData {
+  recipeNo: string;
+  doctorName?: string;
+  hospitalName?: string;
+  date?: string;
+  medicines: EReceteItem[];
 }
 
 export type ScheduleType = 'daily' | 'specific_days' | 'interval_days' | 'cycle';
@@ -104,6 +154,23 @@ export interface UserSettings {
   vibrationEnabled: boolean;
   fullScreenAlarmEnabled: boolean;
   language: 'tr' | 'en';
+
+  /**
+   * Ayarların en son YEREL olarak değiştirildiği an (ISO).
+   *
+   * v1.7.1: bulut birleştirmesinde son-yazan-kazanır için eklendi. Eskiden
+   * bulut KOŞULSUZ kazanıyordu ve `getSettingsFromCloud` her alanı
+   * `?? varsayılan` ile döndürdüğü için hiçbir alan `undefined` gelmiyordu;
+   * yükleme fire-and-forget olduğundan bir cihazda yapılan ayar değişikliği
+   * indirme yarışını kaybettiğinde SESSİZCE geri alınıyordu (cihazda
+   * kanıtlandı: tam ekran alarm anahtarı yeniden başlatmada eski değere
+   * dönüyordu). Bu damga yalnızca `updateSettings` tarafından yazılır.
+   *
+   * Tanımsız olması "yaşı bilinmiyor" demektir; o durumda eski davranış
+   * (bulut kazanır) korunur — yeni kurulumda yerel varsayılanların bulut
+   * verisini ezmemesi için bu DOĞRU davranıştır.
+   */
+  settingsUpdatedAt?: string;
 
   // Alarm sesi ayarı
   alarmSound: AlarmSoundType; // Varsayılan 'alarm'
@@ -211,6 +278,8 @@ export interface CaregiverRelationship {
   caregiverEmail?: string; // Bakıcı e-postası (opsiyonel)
   caregiverName?: string; // Bakıcı adı
   patientName?: string; // Hasta adı
+  patientPhone?: string; // Hasta telefon numarası (opsiyonel)
+  caregiverPhone?: string; // Bakıcı telefon numarası (opsiyonel)
   status: CaregiverStatus;
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
@@ -220,6 +289,17 @@ export interface CaregiverRelationship {
   canReceiveAlerts: boolean; // Bildirim alabilir
   // FCM token for push notifications
   caregiverFcmToken?: string;
+
+  /**
+   * İlişkinin hangi davet koduyla kurulduğu.
+   *
+   * v1.7.4: Firestore kuralları bakıcının ilişki oluşturmasına YALNIZCA bu
+   * kodu bilmesi hâlinde izin veriyor (kod hastanın ürettiği bir sırdır;
+   * kural, invite dokümanının `patientId`si ile eşleşme arıyor). Bu alan
+   * olmadan `create` reddedilir. Hastanın kendi yazdığı (migration) ilişkiler
+   * için gerekmez.
+   */
+  inviteCode?: string;
 }
 
 // Bakıcı daveti
@@ -228,6 +308,7 @@ export interface CaregiverInvite {
   patientId: string; // Hasta ID'si
   patientName: string; // Hasta adı
   patientEmail?: string; // Hasta e-postası
+  patientPhone?: string; // Hasta telefon numarası (opsiyonel)
   caregiverEmail: string; // Davet edilen e-posta
   status: InviteStatus;
   expiresAt: string; // ISO date string
@@ -245,6 +326,7 @@ export interface PatientInfo {
   id: string; // Hasta ID'si
   name: string; // Hasta adı
   email?: string; // Hasta e-postası
+  phoneNumber?: string; // Hasta telefon numarası (opsiyonel)
   relationshipId: string; // CaregiverRelationship ID'si
   status: CaregiverStatus;
   canViewSchedule?: boolean;
@@ -291,6 +373,12 @@ export type RootStackParamList = {
     scheduledTime: string;
     snoozeCount?: number; // Kaçıncı erteleme (background'dan gelen)
     originalScheduledTime?: string; // Orijinal alarm zamanı (snooze'larda kullanılır)
+    // v1.7.1: Ekranı AÇAN alarmın türü. Erteleme alarmı native tarafta AYRI bir
+    // requestCode/bildirim uzayında yaşıyor (bkz. notifications/nativeAlarm.ts);
+    // ekran hangi türü iptal edeceğini bilmek zorunda — aksi halde "Şimdi Al"
+    // ana alarmın requestCode'unu iptal edip erteleme alarmını armed bırakıyor.
+    isSnooze?: boolean;
+    snoozeId?: string; // Erteleme bildiriminin kimliğini kurmak için gerekli
   };
   Settings: undefined;
   History: undefined;
@@ -322,6 +410,8 @@ export interface GlobalMedicine {
   barcode: string; // EAN-13 veya benzeri
   name: string; // İlaç adı
   genericName?: string; // Etken madde adı
+  atcCode?: string; // ATC Kodu
+  prescriptionType?: string; // Reçete Türü (Normal, Kırmızı vb.)
   dosage: string; // Doz bilgisi (500mg, 10ml, vb.)
   form: MedicineForm; // Tablet, şurup, vb.
   manufacturer: string; // Üretici firma
@@ -353,6 +443,12 @@ export type MedicineForm =
   | 'cream'
   | 'drops'
   | 'spray'
+  // v1.7.1: `inhaler` eklendi. AI toplu tarama (`aiMedicineService`) ve
+  // `prescriptionSafetyMatcher` bu degeri zaten uretiyordu (ornek: VENTOLIN
+  // INHALER) ama tipte yoktu; `BatchMedicineImportModal` bu yuzden tsc'de
+  // hata veriyordu. Inhaler klinik olarak ayri bir form — 'spray'e
+  // yuvarlamak yanlis olur.
+  | 'inhaler'
   | 'patch'
   | 'suppository'
   | 'powder'
@@ -446,6 +542,7 @@ export interface SubscriptionPlan {
   price: {
     monthly: number;
     yearly: number;
+    lifetime?: number;
   };
   features: string[];
   limits: {
@@ -482,4 +579,12 @@ export interface MedicineAutocompleteResult {
   dosage: string;
   manufacturer: string;
   matchScore: number;
+  barcode?: string;
+  form?: MedicineForm;
+  genericName?: string;
+  atcCode?: string;
+  prescriptionType?: string;
 }
+
+// Reçete Modülü
+export * from './prescription';
