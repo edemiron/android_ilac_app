@@ -1,7 +1,7 @@
 // Polyfill for crypto.getRandomValues (required for uuid package)
 import 'react-native-get-random-values';
 
-import React, { useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useCallback, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   StatusBar,
   View,
@@ -98,6 +98,13 @@ import { reRegisterAllAlarms } from './src/utils/bootHandler';
 // Bu dosyada iki kopya predicate ve UTC gun oneki vardi; ayrintili gerekce
 // src/domain/doseLog.ts dosya basinda.
 import { isDoseLogged, getLocalDateKey } from './src/domain/doseLog';
+// Alarm deep link TUKETIMI: `Linking.getInitialURL()` Activity intent'ini
+// okur ve o intent hic temizlenmedigi icin ayni alarmi surekli dondurur.
+// Gerekce ve cihaz olcumleri: src/utils/notifications/alarmDedup.ts.
+import {
+  hasAlarmUrlBeenConsumed,
+  markAlarmUrlConsumed,
+} from './src/utils/notifications/alarmDedup';
 import { isAlarmHandled } from './index';
 import { createScopedLogger } from './src/utils/logger';
 import { STORAGE_KEYS } from './src/constants';
@@ -723,127 +730,137 @@ function AppContent() {
   // Inline 115 satirlik callback buradan cikarildi — bkz: src/hooks/useAlarmNavigation.ts.
 
   // Aksiyon işle (bildirim butonlarından)
-  const handleAction = async (actionId: string, data: any) => {
-    console.log('Aksiyon:', actionId, data);
+  //
+  // ⚠️ v1.7.6 — `useCallback` ZORUNLU. Eskiden bileşen gövdesinde düz bir
+  // arrow function'di, yani HER RENDER'da yeni referans aliyordu. Bu fonksiyon
+  // asagidaki notifee listener effect'inin bagimliligi oldugu icin o effect de
+  // her render'da yeniden kuruluyor ve icindeki `checkInitialNotification()`
+  // tekrar tekrar calisiyordu (bkz. notifications/alarmDedup.ts — sonsuz
+  // dongu). Artik yalnizca gercekten degisen degerlerle yeniden kurulur.
+  const handleAction = useCallback(
+    async (actionId: string, data: any) => {
+      console.log('Aksiyon:', actionId, data);
 
-    if (!data?.medicineId || !data?.reminderTimeId) return;
+      if (!data?.medicineId || !data?.reminderTimeId) return;
 
-    const notificationId = `alarm-${data.medicineId}-${data.reminderTimeId}`;
+      const notificationId = `alarm-${data.medicineId}-${data.reminderTimeId}`;
 
-    // Bildirimi hemen kaldır (Görünür bildirim barından sil)
-    const clearAllRelatedNotifications = async () => {
-      await dismissNotification(notificationId).catch(() => undefined);
-      if (data.notificationId) {
-        await dismissNotification(data.notificationId).catch(() => undefined);
-      }
-      try {
-        await notifee.cancelDisplayedNotification(notificationId).catch(() => undefined);
+      // Bildirimi hemen kaldır (Görünür bildirim barından sil)
+      const clearAllRelatedNotifications = async () => {
+        await dismissNotification(notificationId).catch(() => undefined);
         if (data.notificationId) {
-          await notifee.cancelDisplayedNotification(data.notificationId).catch(() => undefined);
+          await dismissNotification(data.notificationId).catch(() => undefined);
         }
-        const displayed = await notifee.getDisplayedNotifications();
-        for (const d of displayed) {
-          if (
-            d.id === notificationId ||
-            d.id === data.notificationId ||
-            (data.medicineId && d.notification?.data?.medicineId === data.medicineId)
-          ) {
-            if (d.id) await notifee.cancelDisplayedNotification(d.id).catch(() => undefined);
+        try {
+          await notifee.cancelDisplayedNotification(notificationId).catch(() => undefined);
+          if (data.notificationId) {
+            await notifee.cancelDisplayedNotification(data.notificationId).catch(() => undefined);
           }
+          const displayed = await notifee.getDisplayedNotifications();
+          for (const d of displayed) {
+            if (
+              d.id === notificationId ||
+              d.id === data.notificationId ||
+              (data.medicineId && d.notification?.data?.medicineId === data.medicineId)
+            ) {
+              if (d.id) await notifee.cancelDisplayedNotification(d.id).catch(() => undefined);
+            }
+          }
+        } catch (_e) {
+          /* ignore */
         }
-      } catch (_e) {
-        /* ignore */
-      }
-    };
+      };
 
-    if (actionId === 'take' || actionId === 'taken') {
-      // İlaç alındı olarak işaretle (medicineId fallback ile)
-      logMedicineTaken(
-        data.reminderTimeId,
-        data.scheduledTime || new Date().toISOString(),
-        data.medicineId
-      );
-      await clearAllRelatedNotifications();
-      // Kalıcı bildirim varsa onu da kaldır
-      if (data.isPersistent === 'true') {
-        await dismissNotification(`persistent-${data.medicineId}-${data.reminderTimeId}`).catch(
-          () => undefined
+      if (actionId === 'take' || actionId === 'taken') {
+        // İlaç alındı olarak işaretle (medicineId fallback ile)
+        logMedicineTaken(
+          data.reminderTimeId,
+          data.scheduledTime || new Date().toISOString(),
+          data.medicineId
         );
-      }
-      console.log('İlaç alındı işaretlendi:', data.medicineId);
-    } else if (actionId === 'skip') {
-      // İlaç atlandı olarak işaretle (medicineId fallback ile)
-      logMedicineSkipped(
-        data.reminderTimeId,
-        data.scheduledTime || new Date().toISOString(),
-        data.medicineId
-      );
-      await clearAllRelatedNotifications();
-      console.log('İlaç atlandı işaretlendi:', data.medicineId);
-    } else if (actionId === 'snooze') {
-      if (processedSnoozesRef.current.has(notificationId)) {
-        console.log('Bu bildirim için snooze zaten yapıldı, atlanıyor:', notificationId);
-        return;
-      }
-      processedSnoozesRef.current.add(notificationId);
-
-      setTimeout(() => {
-        processedSnoozesRef.current.delete(notificationId);
-      }, 30000);
-
-      await dismissNotification(notificationId);
-
-      const storeState = useMedicineStore.getState();
-      const medicine = storeState.getMedicineById(data.medicineId);
-      if (medicine) {
-        const reminderTimes = storeState.getReminderTimesForMedicine(data.medicineId);
-        const reminderTime = reminderTimes.find(
-          (rt: { id: string }) => rt.id === data.reminderTimeId
+        await clearAllRelatedNotifications();
+        // Kalıcı bildirim varsa onu da kaldır
+        if (data.isPersistent === 'true') {
+          await dismissNotification(`persistent-${data.medicineId}-${data.reminderTimeId}`).catch(
+            () => undefined
+          );
+        }
+        console.log('İlaç alındı işaretlendi:', data.medicineId);
+      } else if (actionId === 'skip') {
+        // İlaç atlandı olarak işaretle (medicineId fallback ile)
+        logMedicineSkipped(
+          data.reminderTimeId,
+          data.scheduledTime || new Date().toISOString(),
+          data.medicineId
         );
-        if (reminderTime) {
-          const snoozeDuration = settings.snoozeDuration || 5;
-          const snoozeId = generateId();
-          const originalScheduledTime = data.scheduledTime || new Date().toISOString();
+        await clearAllRelatedNotifications();
+        console.log('İlaç atlandı işaretlendi:', data.medicineId);
+      } else if (actionId === 'snooze') {
+        if (processedSnoozesRef.current.has(notificationId)) {
+          console.log('Bu bildirim için snooze zaten yapıldı, atlanıyor:', notificationId);
+          return;
+        }
+        processedSnoozesRef.current.add(notificationId);
 
-          const existingSnoozeCount = storeState.snoozes.filter(
-            s =>
-              s.medicineId === data.medicineId &&
-              s.reminderTimeId === data.reminderTimeId &&
-              s.originalScheduledTime === originalScheduledTime
-          ).length;
+        setTimeout(() => {
+          processedSnoozesRef.current.delete(notificationId);
+        }, 30000);
 
-          const result = await scheduleSnoozeNotification({
-            medicine,
-            reminderTime,
-            snoozeDuration,
-            snoozeId,
-            originalScheduledTime,
-            snoozeCount: existingSnoozeCount + 1,
-          });
+        await dismissNotification(notificationId);
 
-          if (result) {
-            storeState.createSnooze(
-              data.medicineId,
-              data.reminderTimeId,
+        const storeState = useMedicineStore.getState();
+        const medicine = storeState.getMedicineById(data.medicineId);
+        if (medicine) {
+          const reminderTimes = storeState.getReminderTimesForMedicine(data.medicineId);
+          const reminderTime = reminderTimes.find(
+            (rt: { id: string }) => rt.id === data.reminderTimeId
+          );
+          if (reminderTime) {
+            const snoozeDuration = settings.snoozeDuration || 5;
+            const snoozeId = generateId();
+            const originalScheduledTime = data.scheduledTime || new Date().toISOString();
+
+            const existingSnoozeCount = storeState.snoozes.filter(
+              s =>
+                s.medicineId === data.medicineId &&
+                s.reminderTimeId === data.reminderTimeId &&
+                s.originalScheduledTime === originalScheduledTime
+            ).length;
+
+            const result = await scheduleSnoozeNotification({
+              medicine,
+              reminderTime,
+              snoozeDuration,
+              snoozeId,
               originalScheduledTime,
-              result.triggerTime,
-              result.notificationId
-            );
-            console.log("Snooze oluşturuldu ve DB'ye kaydedildi:", result.notificationId);
+              snoozeCount: existingSnoozeCount + 1,
+            });
+
+            if (result) {
+              storeState.createSnooze(
+                data.medicineId,
+                data.reminderTimeId,
+                originalScheduledTime,
+                result.triggerTime,
+                result.notificationId
+              );
+              console.log("Snooze oluşturuldu ve DB'ye kaydedildi:", result.notificationId);
+            }
           }
         }
+      } else if (actionId === 'stop') {
+        // Bildirimi kapat
+        await dismissNotification(notificationId);
+        try {
+          await notifee.cancelNotification(notificationId);
+        } catch (_e) {
+          /* ignore */
+        }
+        console.log('Alarm kapatıldı:', data.medicineId);
       }
-    } else if (actionId === 'stop') {
-      // Bildirimi kapat
-      await dismissNotification(notificationId);
-      try {
-        await notifee.cancelNotification(notificationId);
-      } catch (_e) {
-        /* ignore */
-      }
-      console.log('Alarm kapatıldı:', data.medicineId);
-    }
-  };
+    },
+    [logMedicineTaken, logMedicineSkipped, settings.snoozeDuration]
+  );
 
   // Notifee event listener'larını kur
   useEffect(() => {
@@ -919,12 +936,42 @@ function AppContent() {
     performStartupCleanup();
   }, []);
 
-  // Notifee event listener'larını kur
+  // Notifee foreground listener aboneligi.
+  // Bu effect handler'lar degistikce yeniden kurulmali — dogru olan bu.
+  // BASLANGIC alarmi kontrolu ise buradan CIKARILDI (asagidaki tek-seferlik
+  // effect'e tasindi): her yeniden kurulumda tekrar calisip ayni alarmi
+  // yeniden aciyordu (bkz. notifications/alarmDedup.ts — sonsuz dongu).
   useEffect(() => {
-    // Foreground event listener
     const unsubscribe = setupNotificationListeners(handleIncomingAlarm, handleAction);
+    return () => {
+      unsubscribe();
+    };
+  }, [handleIncomingAlarm, handleAction]);
 
-    // Background event handler artık index.ts'te register ediliyor
+  // Handler'in EN GUNCEL hali. Asagidaki tek-seferlik effect bunu bagimlilik
+  // olarak alsaydi yine her render'da yeniden calisirdi.
+  const handleIncomingAlarmRef = useRef(handleIncomingAlarm);
+  useEffect(() => {
+    handleIncomingAlarmRef.current = handleIncomingAlarm;
+  }, [handleIncomingAlarm]);
+
+  // ⚠️ v1.7.6 — "BASLANGICTA bekleyen alarm var mi?" kontrolu YALNIZCA MOUNT'ta.
+  //
+  // Adi zaten bunu soyluyor: bu kontrol uygulamanin ACILISINA aittir. Alarm
+  // uygulama zaten calisirken gelirse teslim yolu bu degil, `OnAlarmTriggered`
+  // event'i ve `Linking` 'url' dinleyicisidir.
+  //
+  // Eskiden bu govde `[handleIncomingAlarm, handleAction]` bagimliliklariyla
+  // ayni effect'in icindeydi ve IKISI DE her render'da yeni referans aliyordu:
+  // her render -> effect yeniden kurulur -> `Linking.getInitialURL()` ayni alarm
+  // deep link'ini yine dondurur (Activity intent'i hic temizlenmiyor) -> tam
+  // ekran alarm yeniden acilir -> render -> ... Kullanici "Simdi Al"a bassa da
+  // dongu bitmiyordu. Cihaz olcumu: TEK `AlarmReceiver.onReceive`, 13 saniyede
+  // 18 tur, 01:26:19'dan sonra yeni isletim sistemi tetigi YOK.
+  const didCheckInitialAlarmRef = useRef(false);
+  useEffect(() => {
+    if (didCheckInitialAlarmRef.current) return;
+    didCheckInitialAlarmRef.current = true;
 
     const checkInitialNotification = async () => {
       // 1. Native AlarmModule'da bekleyen alarm var mı? (Cold start & intent cache)
@@ -935,7 +982,7 @@ function AppContent() {
           if (initAlarm?.medicineId) {
             await NativeModules.AlarmModule.clearInitialAlarm().catch(() => undefined);
             appLog.debug('Native getInitialAlarm found', initAlarm);
-            handleIncomingAlarm({
+            handleIncomingAlarmRef.current({
               medicineId: initAlarm.medicineId,
               reminderTimeId: initAlarm.reminderTimeId || 'test-reminder',
               scheduledTime: initAlarm.scheduledTime || new Date().toISOString(),
@@ -964,7 +1011,7 @@ function AppContent() {
             const key = `${pending.medicineId}-${pending.reminderTimeId}-${today}`;
             const handled = await isAlarmHandled(key);
             if (!handled) {
-              handleIncomingAlarm({
+              handleIncomingAlarmRef.current({
                 medicineId: pending.medicineId,
                 reminderTimeId: pending.reminderTimeId,
                 scheduledTime: pending.scheduledTime,
@@ -982,15 +1029,28 @@ function AppContent() {
       }
 
       // 3. Initial URL (Deep link ile başlatıldıysa)
+      //
+      // ⚠️ Bu yol TÜKETİLEBİLİR OLMAK ZORUNDA. `Linking.getInitialURL()`
+      // Activity'nin intent'ini okur; `MainActivity.onNewIntent` içinde
+      // `setIntent(intent)` çağrıldıktan sonra o intent'in `data`'sını
+      // temizleyen HİÇBİR YER YOK. Yani bu çağrı Activity yaşadığı sürece
+      // aynı alarmı döndürmeye devam eder. Diğer üç yol (getInitialAlarm,
+      // PENDING_ALARM, notifee.getInitialNotification) kendini tüketiyor;
+      // yalnızca bu tüketmiyordu ve sonsuz döngünün kaynağı buydu.
       try {
         const initialUrl = await Linking.getInitialURL();
         if (initialUrl && initialUrl.includes('alarm')) {
+          if (hasAlarmUrlBeenConsumed(initialUrl)) {
+            appLog.debug('Initial URL alarm deep link ZATEN islenmis, atlandi', { initialUrl });
+            return;
+          }
           const medMatch = initialUrl.match(/[?&]medicineId=([^&]+)/);
           const remMatch = initialUrl.match(/[?&]reminderTimeId=([^&]+)/);
           const schedMatch = initialUrl.match(/[?&]scheduledTime=([^&]+)/);
           if (medMatch && medMatch[1]) {
             appLog.debug('Initial URL alarm deep link found', { initialUrl });
-            handleIncomingAlarm({
+            markAlarmUrlConsumed(initialUrl);
+            handleIncomingAlarmRef.current({
               medicineId: decodeURIComponent(medMatch[1]),
               reminderTimeId: remMatch ? decodeURIComponent(remMatch[1]) : 'test-reminder',
               scheduledTime: schedMatch
@@ -1027,7 +1087,7 @@ function AppContent() {
             return;
           }
 
-          handleIncomingAlarm({
+          handleIncomingAlarmRef.current({
             medicineId: data.medicineId as string,
             reminderTimeId: data.reminderTimeId as string,
             scheduledTime: (data.scheduledTime as string) || new Date().toISOString(),
@@ -1040,11 +1100,7 @@ function AppContent() {
       }
     };
     checkInitialNotification();
-
-    return () => {
-      unsubscribe();
-    };
-  }, [handleIncomingAlarm, handleAction]);
+  }, []);
 
   // KRİTİK: Native modülden gelen anlık alarm tetikleme event'i
   useEffect(() => {
@@ -1071,6 +1127,14 @@ function AppContent() {
     const handleUrl = ({ url }: { url: string }) => {
       appLog.debug('Linking URL received', { url });
       if (url.includes('alarm')) {
+        // Isletim sistemi ayni intent'i tekrar teslim ederse (veya bu dinleyici
+        // yeniden kurulursa) ayni calma ikinci kez ekran ACMAMALI. Yeni bir
+        // calma farkli `scheduledTime` tasir, dolayisiyla etkilenmez.
+        if (hasAlarmUrlBeenConsumed(url)) {
+          appLog.debug('Alarm deep link ZATEN islenmis, atlandi', { url });
+          return;
+        }
+        markAlarmUrlConsumed(url);
         const medMatch = url.match(/[?&]medicineId=([^&]+)/);
         const remMatch = url.match(/[?&]reminderTimeId=([^&]+)/);
         const schedMatch = url.match(/[?&]scheduledTime=([^&]+)/);

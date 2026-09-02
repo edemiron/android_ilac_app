@@ -140,9 +140,77 @@ function pruneExpired(now: number): void {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ALARM DEEP LINK TÜKETİMİ (v1.7.6)
+//
+// ⚠️ SONSUZ DÖNGÜ HATASININ KÖK NEDENİ
+// `App.tsx` içindeki "başlangıçta bekleyen alarm var mı?" kontrolü DÖRT yolu
+// sırayla dener. Üçü tüketilir, biri TÜKETİLMEZ:
+//
+//   1. AlarmModule.getInitialAlarm()      → clearInitialAlarm() çağrılır  ✔
+//   2. AsyncStorage PENDING_ALARM         → removeItem                    ✔
+//   3. Linking.getInitialURL()            → HİÇBİR ŞEY TEMİZLEMEZ         ✘
+//   4. notifee.getInitialNotification()   → notifee tek okumada tüketir   ✔
+//
+// (3) `getIntent().getData()` okur. `MainActivity.onNewIntent` içinde
+// `setIntent(intent)` çağrılıyor ve o intent'in `data`'sı
+// `ilachatirlatici://alarm?medicineId=...`. Bunu temizleyen hiçbir yer yok,
+// dolayısıyla `getInitialURL()` Activity yaşadığı SÜRECE aynı alarmı döndürür.
+//
+// Bu kontrolü içeren `useEffect`in bağımlılıkları `[handleIncomingAlarm,
+// handleAction]` idi ve İKİSİ DE her render'da yeni referans alıyordu
+// (`handleAction` `useCallback` değildi; `handleIncomingAlarm`ın
+// `useCallback`i her render'da yeniden kurulan bir options nesnesine
+// bağlıydı). Sonuç: her render'da effect yeniden kurulur → `getInitialURL()`
+// yine aynı alarmı verir → ekran yeniden açılır → render → ... 20+ tur.
+//
+// Cihazda ölçüldü (01:26): TEK `AlarmReceiver.onReceive`, buna karşılık 13
+// saniyede 18 "Şimdi Al"/kapatma turu ve 01:26:19'dan sonra HİÇ yeni işletim
+// sistemi tetiği yok. Yani alarm yeniden tetiklenmiyordu — aynı çalma tekrar
+// tekrar oynatılıyordu.
+//
+// v1.7.5'e kadar bu gizliydi: dedup anahtarı duvar saati dakikası içerdiği ve
+// hiçbir yer kaydı silmediği için replay 60 saniye boyunca kazara
+// bastırılıyordu. v1.7.5'te `closeAlarmScreen` kaydı açıkça bırakmaya başladı
+// (doğru davranış — yoksa yeni bir çalma susturulur) ve maske kalktı.
+//
+// Doğru çözüm: (3) yolunu da TÜKETİLEBİLİR yapmak. Aynı URL ikinci kez
+// işlenmez. Yeni bir çalma farklı `scheduledTime` taşır (AlarmReceiver her
+// kurulumda tetik zamanını epoch-ms olarak koyar), dolayısıyla gerçek alarmlar
+// etkilenmez.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Bir URL kaydı ne kadar sonra kendiliğinden eskir. */
+const CONSUMED_URL_TTL_MS = 5 * 60_000;
+
+/** tüketilen alarm URL'i → tüketilme anı (ms) */
+const consumedAlarmUrls = new Map<string, number>();
+
+/** Bu alarm deep link'i daha önce işlendi mi? */
+export function hasAlarmUrlBeenConsumed(url: string, now: number = Date.now()): boolean {
+  if (!url) return false;
+  const at = consumedAlarmUrls.get(url);
+  if (at === undefined) return false;
+  if (now - at >= CONSUMED_URL_TTL_MS) {
+    consumedAlarmUrls.delete(url);
+    return false;
+  }
+  return true;
+}
+
+/** Bu alarm deep link'i işlendi: bir daha işlenmesin. */
+export function markAlarmUrlConsumed(url: string, now: number = Date.now()): void {
+  if (!url) return;
+  consumedAlarmUrls.set(url, now);
+  for (const [key, at] of consumedAlarmUrls) {
+    if (now - at >= CONSUMED_URL_TTL_MS) consumedAlarmUrls.delete(key);
+  }
+}
+
 /** Yalnızca testler için. */
 export function __resetAlarmDedupForTests(): void {
   navigatedAt.clear();
+  consumedAlarmUrls.clear();
 }
 
 /** Yalnızca testler/teşhis için: o an tutulan anahtarlar. */

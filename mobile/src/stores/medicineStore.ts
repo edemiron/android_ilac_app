@@ -1028,6 +1028,38 @@ export const useMedicineStore = create<MedicineState>()(
 
         const { userId, medicines, reminderTimes, medicineLogs } = get();
 
+        // ⚠️ v1.7.6 — AYNI DOZ İÇİN İKİNCİ ÇAĞRI YAN ETKİ ÜRETMEZ.
+        //
+        // `medicineLogs` aşağıda `normalizeMedicineLogsBySlot` ile slot bazında
+        // teklileştiriliyor, dolayısıyla doz TABLOSU zaten çift kayıt almıyordu.
+        // Ama bu fonksiyonun DİĞER yan etkileri koşulsuz çalışıyordu:
+        //   - `decrementStock` → her çağrıda stoktan bir hap daha düşüyordu
+        //   - `saveMedicineLogToCloud` → her çağrıda bir Firestore yazması
+        //   - `notifyCaregiversAboutMedicineStatus` → her çağrıda bakıcıya push
+        //
+        // v1.7.6'da onarılan sonsuz döngü hatasında (bkz.
+        // utils/notifications/alarmDedup.ts) tam ekran alarm 20+ kez açıldı ve
+        // kullanıcı her seferinde "Şimdi Al"a bastı. Gerçek bir ilaçta bu,
+        // stoktan 20 hap düşmesi ve bakıcıya 20 bildirim gitmesi demekti.
+        //
+        // Bir daha böyle bir döngü olsa bile VERİ bozulmasın: aynı doz zaten
+        // çözümlenmişse burada dururuz. (`skipped` → `taken` geçişi hâlâ
+        // çalışır; yalnızca AYNI duruma ikinci geçiş engellenir.)
+        const takenSlotKey = buildMedicineLogSlotKey(reminderTimeId, scheduledTime);
+        if (
+          medicineLogs.some(
+            entry =>
+              entry.status === 'taken' &&
+              buildMedicineLogSlotKey(entry.reminderTimeId, entry.scheduledTime) === takenSlotKey
+          )
+        ) {
+          log.warn('Bu doz zaten alindi olarak kayitli, yan etkiler tekrarlanmadi', {
+            reminderTimeId,
+            scheduledTime,
+          });
+          return;
+        }
+
         // 1. Future guard (Günün tüm dozları erkenden alınabilir, sadece sonraki günlerin dozları engellenir)
         if (isScheduledTimeInFuture(scheduledTime, new Date(), 24 * 60 * 60 * 1000)) {
           log.warn('Gelecekteki günün dozu erkenden alindi olarak isaretlenemedi', {
@@ -1130,6 +1162,24 @@ export const useMedicineStore = create<MedicineState>()(
         log.debug('logMedicineSkipped called', { reminderTimeId, scheduledTime, skipReason });
 
         const { userId, medicines, reminderTimes, medicineLogs } = get();
+
+        // ⚠️ v1.7.6 — `logMedicineTaken` ile ayni gerekce: ayni dozu ikinci kez
+        // atlamak bulut yazmasi ve bakici bildirimi tekrarlamamali.
+        const skippedSlotKey = buildMedicineLogSlotKey(reminderTimeId, scheduledTime);
+        if (
+          medicineLogs.some(
+            entry =>
+              entry.status === 'skipped' &&
+              buildMedicineLogSlotKey(entry.reminderTimeId, entry.scheduledTime) === skippedSlotKey
+          )
+        ) {
+          log.warn('Bu doz zaten atlandi olarak kayitli, yan etkiler tekrarlanmadi', {
+            reminderTimeId,
+            scheduledTime,
+          });
+          return;
+        }
+
         const resolvedArgs = resolveMedicineLogArgs(
           reminderTimeId,
           medicines,

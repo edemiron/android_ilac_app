@@ -571,7 +571,12 @@ export function useAlarmController() {
 
       if (medicine && currentReminderTime && !isTestMode) {
         try {
-          await scheduleMedicineNotification(medicine, currentReminderTime, true);
+          // ⚠️ v1.7.6 — son parametre `forceNextDay = true`. Bu doz AZ ONCE
+          // cozumlendi; ANA hatirlatmanin sonraki calmasi tanim geregi YARIN.
+          // Eskiden bayrak yoktu: dozu saatinden once alan kullanici ("Erken
+          // Al" ile 18:00'de alinan 20:00 dozu) bugunun saati henuz gecmedigi
+          // icin AYNI DOZUN alarmini AYNI AKSAM tekrar aliyordu.
+          await scheduleMedicineNotification(medicine, currentReminderTime, true, false, true);
           log.debug('Yarin icin alarm yeniden planlandi', { time: currentReminderTime.time });
         } catch (e) {
           log.debug('Alarm yeniden planlama hatasi', { error: e });
@@ -643,7 +648,12 @@ export function useAlarmController() {
 
       if (medicine && currentReminderTime && !isTestMode) {
         try {
-          await scheduleMedicineNotification(medicine, currentReminderTime, true);
+          // ⚠️ v1.7.6 — son parametre `forceNextDay = true`. Bu doz AZ ONCE
+          // cozumlendi; ANA hatirlatmanin sonraki calmasi tanim geregi YARIN.
+          // Eskiden bayrak yoktu: dozu saatinden once alan kullanici ("Erken
+          // Al" ile 18:00'de alinan 20:00 dozu) bugunun saati henuz gecmedigi
+          // icin AYNI DOZUN alarmini AYNI AKSAM tekrar aliyordu.
+          await scheduleMedicineNotification(medicine, currentReminderTime, true, false, true);
           log.debug('Yarin icin alarm yeniden planlandi', { time: currentReminderTime.time });
         } catch (e) {
           log.debug('Alarm yeniden planlama hatasi', { error: e });
@@ -732,7 +742,12 @@ export function useAlarmController() {
 
       if (currentReminderTime && !isTestMode) {
         try {
-          await scheduleMedicineNotification(medicine, currentReminderTime, true);
+          // ⚠️ v1.7.6 — son parametre `forceNextDay = true`. Bu doz AZ ONCE
+          // cozumlendi; ANA hatirlatmanin sonraki calmasi tanim geregi YARIN.
+          // Eskiden bayrak yoktu: dozu saatinden once alan kullanici ("Erken
+          // Al" ile 18:00'de alinan 20:00 dozu) bugunun saati henuz gecmedigi
+          // icin AYNI DOZUN alarmini AYNI AKSAM tekrar aliyordu.
+          await scheduleMedicineNotification(medicine, currentReminderTime, true, false, true);
         } catch (e) {
           log.debug('Alarm yeniden planlama hatasi', { error: e });
         }

@@ -523,6 +523,31 @@ describe('resolveReminderTriggerDate (Sprint 95 — kök neden fix)', () => {
     expect(result.getTime()).toBe(new Date('2026-08-01T08:00:00').getTime());
   });
 
+  // ⚠️ v1.7.6 — DOZ COZUMLENDIKTEN SONRAKI YENIDEN PLANLAMA
+  // `processTake` / `processSkip` / erteleme yolu dozu isaretledikten sonra ANA
+  // hatirlatmayi yeniden kuruyor. Kullanici dozu SAATINDEN ONCE aldiysa
+  // ("Erken Al") bugunun saati henuz gecmemis oluyordu ve alarm AYNI GUN AYNI
+  // DOZ icin yeniden kuruluyordu — alinmis doz aksam tekrar caliyordu.
+  it('forceNextDay=true: bugunun saati GECMEMIS olsa bile yarina kurar (erken alim)', () => {
+    // 06:00'da, 20:00 dozu "Erken Al" ile alindi.
+    const ref = new Date('2026-07-31T06:00:00');
+    const result = resolveReminderTriggerDate(stubReminder('20:00'), false, ref, true);
+    expect(result.getTime()).toBe(new Date('2026-08-01T20:00:00').getTime());
+  });
+
+  it('forceNextDay=false: varsayilan davranis korunur (bugun 20:00)', () => {
+    const ref = new Date('2026-07-31T06:00:00');
+    const result = resolveReminderTriggerDate(stubReminder('20:00'), false, ref);
+    expect(result.getTime()).toBe(new Date('2026-07-31T20:00:00').getTime());
+  });
+
+  it('forceNextDay=true: saat zaten gecmisse gunu IKI kez atlamaz', () => {
+    // 22:00'da 20:00 dozu alindi -> yarin 20:00 (obur gun DEGIL).
+    const ref = new Date('2026-07-31T22:00:00');
+    const result = resolveReminderTriggerDate(stubReminder('20:00'), false, ref, true);
+    expect(result.getTime()).toBe(new Date('2026-08-01T20:00:00').getTime());
+  });
+
   it('reminderTime.time "23:30" gece 00:30’dan → bugün 23:30 (gelecek)', () => {
     const ref = new Date('2026-07-31T00:30:00');
     const result = resolveReminderTriggerDate(stubReminder('23:30'), false, ref);
@@ -531,21 +556,13 @@ describe('resolveReminderTriggerDate (Sprint 95 — kök neden fix)', () => {
 
   it('smokeTriggerTime gelecekte + bypassBuffer=false → smoke kullanılır', () => {
     const future = new Date('2026-08-01T12:00:00').toISOString();
-    const result = resolveReminderTriggerDate(
-      stubReminder('08:00', future),
-      false,
-      refNow
-    );
+    const result = resolveReminderTriggerDate(stubReminder('08:00', future), false, refNow);
     expect(result.getTime()).toBe(new Date(future).getTime());
   });
 
   it('smokeTriggerTime gelecekte + bypassBuffer=true → smoke atlanır, reminderTime.time kullanılır', () => {
     const future = new Date('2026-08-01T12:00:00').toISOString();
-    const result = resolveReminderTriggerDate(
-      stubReminder('08:00', future),
-      true,
-      refNow
-    );
+    const result = resolveReminderTriggerDate(stubReminder('08:00', future), true, refNow);
     expect(result.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
   });
 

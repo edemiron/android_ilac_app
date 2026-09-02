@@ -110,13 +110,22 @@ function resolveSmokeTriggerDate(
  */
 function resolveReminderTimeOfDay(
   time: string,
-  referenceNow: Date
+  referenceNow: Date,
+  forceNextDay: boolean = false
 ): Date {
   const [hh, mm] = time.split(':').map(Number);
   const target = new Date(referenceNow);
   target.setHours(hh, mm, 0, 0);
   // Bugunku saat gectiyse yarin ayni saate kur
   if (target.getTime() <= referenceNow.getTime()) {
+    target.setDate(target.getDate() + 1);
+  } else if (forceNextDay) {
+    // ⚠️ v1.7.6 — DOZ ALINDIKTAN SONRAKI YENIDEN PLANLAMA.
+    // `processTake` dozu isaretledikten sonra bu hatirlatmayi yeniden kuruyor.
+    // Kullanici dozu SAATINDEN ONCE aldiysa ("Erken Al", 18:00'de alinan 20:00
+    // dozu) bugunun saati henuz gecmemis oluyor ve alarm AYNI GUN, AYNI DOZ
+    // icin yeniden kuruluyordu — yani alinmis doz aksam tekrar caliyordu.
+    // Alinmis bir dozun sonraki calmasi tanim geregi YARINDIR.
     target.setDate(target.getDate() + 1);
   }
   return target;
@@ -138,14 +147,20 @@ const MIN_FUTURE_BUFFER_MS = 5_000;
 export function resolveReminderTriggerDate(
   reminderTime: ReminderTime & { smokeTriggerTime?: string },
   bypassBuffer: boolean = false,
-  referenceNow: Date = new Date()
+  referenceNow: Date = new Date(),
+  /**
+   * Bugunun saati henuz gecmemis olsa bile YARINA kur.
+   * Doz alindiktan/atlandiktan sonraki yeniden planlama icin — bkz.
+   * `resolveReminderTimeOfDay` icindeki gerekce.
+   */
+  forceNextDay: boolean = false
 ): Date {
   if (!bypassBuffer) {
     const smoke = resolveSmokeTriggerDate(reminderTime, referenceNow);
     if (smoke) return smoke;
   }
 
-  const target = resolveReminderTimeOfDay(reminderTime.time, referenceNow);
+  const target = resolveReminderTimeOfDay(reminderTime.time, referenceNow, forceNextDay);
 
   const minTime = referenceNow.getTime() + MIN_FUTURE_BUFFER_MS;
   if (target.getTime() < minTime) {

@@ -13,6 +13,8 @@ import {
   isAlarmIngressDuplicate,
   markAlarmIngressNavigated,
   releaseAlarmDedupFor,
+  hasAlarmUrlBeenConsumed,
+  markAlarmUrlConsumed,
   INGRESS_WINDOW_MS,
   __resetAlarmDedupForTests,
   __getAlarmDedupKeysForTests,
@@ -160,5 +162,56 @@ describe('releaseAlarmDedupFor — alarm cozumlendiginde kayit birakilir', () =>
 
   it('kaydi olmayan doz icin birakma sessizce gecer', () => {
     expect(() => releaseAlarmDedupFor({ medicineId: 'yok', reminderTimeId: 'yok' })).not.toThrow();
+  });
+});
+
+/**
+ * ⚠️ v1.7.6 — SONSUZ DONGU REGRESYONU
+ *
+ * `Linking.getInitialURL()` Activity'nin intent'ini okur.
+ * `MainActivity.onNewIntent` icinde `setIntent(intent)` cagriliyor ve o
+ * intent'in `data`'si alarm deep link'i; bunu temizleyen hicbir yer YOK.
+ * Yani `getInitialURL()` Activity yasadigi SURECE ayni alarmi dondurur.
+ *
+ * Bu cagriyi iceren effect'in bagimliliklari her render'da yeni referans
+ * aldigi icin effect her render'da yeniden kuruluyor, alarm ekrani tekrar
+ * tekrar aciliyordu. Cihaz olcumu: TEK `AlarmReceiver.onReceive`, buna karsilik
+ * 13 saniyede 18 "Simdi Al"/kapatma turu ve yeni isletim sistemi tetigi YOK.
+ */
+describe('alarm deep link tuketimi', () => {
+  const url =
+    'ilachatirlatici://alarm?medicineId=test-medicine&reminderTimeId=test-reminder&scheduledTime=1788387979000&isSnooze=false';
+
+  it('hic islenmemis URL tuketilmis sayilmaz', () => {
+    expect(hasAlarmUrlBeenConsumed(url)).toBe(false);
+  });
+
+  it('ISLENEN URL ikinci kez islenmez (dongunun kapandigi yer)', () => {
+    markAlarmUrlConsumed(url, 1_000);
+    expect(hasAlarmUrlBeenConsumed(url, 1_001)).toBe(true);
+    expect(hasAlarmUrlBeenConsumed(url, 30_000)).toBe(true);
+  });
+
+  it('YENI bir calma farkli scheduledTime tasir ve engellenmez', () => {
+    markAlarmUrlConsumed(url, 1_000);
+    const nextFiring = url.replace('1788387979000', '1788388279000');
+    expect(hasAlarmUrlBeenConsumed(nextFiring, 1_001)).toBe(false);
+  });
+
+  it('kayit belirli bir sure sonra eskir (Activity yeniden yaratilirsa tikanmasin)', () => {
+    markAlarmUrlConsumed(url, 1_000);
+    expect(hasAlarmUrlBeenConsumed(url, 1_000 + 5 * 60_000)).toBe(false);
+  });
+
+  it('bos URL sessizce yoksayilir', () => {
+    expect(hasAlarmUrlBeenConsumed('')).toBe(false);
+    expect(() => markAlarmUrlConsumed('')).not.toThrow();
+    expect(hasAlarmUrlBeenConsumed('')).toBe(false);
+  });
+
+  it('__resetAlarmDedupForTests URL kayitlarini da temizler', () => {
+    markAlarmUrlConsumed(url, 1_000);
+    __resetAlarmDedupForTests();
+    expect(hasAlarmUrlBeenConsumed(url, 1_001)).toBe(false);
   });
 });

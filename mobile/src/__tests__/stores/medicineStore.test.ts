@@ -431,6 +431,109 @@ describe('MedicineStore', () => {
       const { medicineLogs } = useMedicineStore.getState();
       expect(medicineLogs.length).toBe(0);
     });
+
+    /**
+     * ⚠️ v1.7.6 — IDEMPOTENCY.
+     *
+     * Doz TABLOSU zaten `normalizeMedicineLogsBySlot` ile teklilestiriliyordu,
+     * ama fonksiyonun DIGER yan etkileri kosulsuz calisiyordu: `decrementStock`,
+     * `saveMedicineLogToCloud` ve bakici bildirimi. Onarilan sonsuz dongu
+     * hatasinda tam ekran alarm 20+ kez acildi ve kullanici her seferinde
+     * "Simdi Al"a basti — gercek bir ilacta bu, STOKTAN 20 HAP dusmesi ve
+     * bakiciya 20 bildirim gitmesi demekti. Bir daha boyle bir dongu olsa bile
+     * VERI bozulmamali.
+     */
+    // NOT: bu blokta `setUserId` BILEREK cagrilmaz. userId doluyken
+    // `logMedicineTaken` bakici bildirimi icin DINAMIK `import()` yapiyor ve
+    // Jest'in CJS ortami bunu ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG ile
+    // patlatiyor (jest.mock bunu cozmuyor; babel `import()`i oldugu gibi
+    // biraliyor). Idempotency'nin en yikici sonucu olan STOK dususu userId'den
+    // bagimsiz oldugu icin buradan dogrulanabiliyor.
+    describe('ayni doz icin ikinci cagri (idempotency)', () => {
+      it('doz tablosuna tek satir yazar', () => {
+        const scheduledTime = '2024-01-15T08:00:00';
+
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+
+        const { medicineLogs } = useMedicineStore.getState();
+        expect(medicineLogs.filter(l => l.status === 'taken').length).toBe(1);
+      });
+
+      it('STOKTAN yalnizca bir kez duser', () => {
+        // `decrementStock` yalnizca `stockEnabled` ilaclarda calisir; bu yuzden
+        // stok takibi acik AYRI bir ilac kurulur. `stockThreshold` dusuk
+        // tutulur: "az kaldi" dali dinamik `import('@notifee/react-native')`
+        // yapiyor ve Jest'in CJS ortami dinamik import'u kaldirmiyor.
+        const stockMedicineId = useMedicineStore.getState().addMedicine({
+          name: 'Stok Test',
+          dosage: '100mg',
+          frequency: 1,
+          color: MEDICINE_COLORS[0],
+          startDate: '2024-01-01',
+          stockEnabled: true,
+          stockCount: 10,
+          stockThreshold: 1,
+        });
+        const stockReminderTimeId = useMedicineStore
+          .getState()
+          .reminderTimes.find(rt => rt.medicineId === stockMedicineId)!.id;
+        const scheduledTime = '2024-01-15T08:00:00';
+
+        const stockOf = () =>
+          useMedicineStore.getState().medicines.find(m => m.id === stockMedicineId)!.stockCount;
+
+        expect(stockOf()).toBe(10);
+
+        useMedicineStore.getState().logMedicineTaken(stockReminderTimeId, scheduledTime);
+        const afterFirst = stockOf();
+
+        useMedicineStore.getState().logMedicineTaken(stockReminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineTaken(stockReminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineTaken(stockReminderTimeId, scheduledTime);
+        const afterMany = stockOf();
+
+        expect(afterFirst).toBe(9);
+        // ⚠️ ASIL IDDIA: 4 basis = 1 hap. Eskiden 4 hap dusuyordu.
+        expect(afterMany).toBe(9);
+      });
+
+      it('atlandi -> alindi GECISI hala calisir (ayni duruma ikinci gecis engellenir)', () => {
+        const scheduledTime = '2024-01-15T08:00:00';
+
+        useMedicineStore.getState().logMedicineSkipped(reminderTimeId, scheduledTime);
+        expect(
+          useMedicineStore.getState().medicineLogs.find(l => l.reminderTimeId === reminderTimeId)!
+            .status
+        ).toBe('skipped');
+
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+        const logs = useMedicineStore.getState().medicineLogs;
+        expect(logs.length).toBe(1);
+        expect(logs[0].status).toBe('taken');
+      });
+
+      it('ayni doz iki kez ATLANIRSA da tek satir kalir', () => {
+        const scheduledTime = '2024-01-15T08:00:00';
+
+        useMedicineStore.getState().logMedicineSkipped(reminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineSkipped(reminderTimeId, scheduledTime);
+
+        expect(
+          useMedicineStore.getState().medicineLogs.filter(l => l.status === 'skipped').length
+        ).toBe(1);
+      });
+
+      it('FARKLI dozlar birbirini engellemez', () => {
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, '2024-01-15T08:00:00');
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, '2024-01-16T08:00:00');
+
+        expect(
+          useMedicineStore.getState().medicineLogs.filter(l => l.status === 'taken').length
+        ).toBe(2);
+      });
+    });
   });
 
   describe('logMedicineSkipped', () => {

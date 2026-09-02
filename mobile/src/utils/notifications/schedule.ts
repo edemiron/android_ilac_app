@@ -432,7 +432,13 @@ export async function scheduleMedicineNotification(
   medicine: Medicine,
   reminderTime: ReminderTime,
   settingsOrFullScreen: UserSettings | boolean = true,
-  bypassBuffer: boolean = false
+  bypassBuffer: boolean = false,
+  /**
+   * v1.7.6 — Bu doz ZATEN cozumlendi; sonraki calma YARIN olmali.
+   * Doz saatinden once alindiginda ("Erken Al") bugunun saati henuz
+   * gecmemis oluyor ve alinmis doz ayni gun tekrar caliyordu.
+   */
+  forceNextDay: boolean = false
 ): Promise<string | null> {
   if (!medicine?.id || !reminderTime?.id || !reminderTime?.time) {
     log.warn('scheduleMedicineNotification: Gecersiz parametre, bildirim planlanmadi', {
@@ -451,7 +457,7 @@ export async function scheduleMedicineNotification(
     });
 
     const now = new Date();
-    const triggerDate = resolveReminderTriggerDate(reminderTime, bypassBuffer, now);
+    const triggerDate = resolveReminderTriggerDate(reminderTime, bypassBuffer, now, forceNextDay);
 
     const behavior = resolveNotificationBehavior(medicine, settingsOrFullScreen, triggerDate);
 
