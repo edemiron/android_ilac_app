@@ -11,11 +11,11 @@
  * 4. PATCH: Bug fix'ler
  */
 
-export const APP_VERSION = '1.8.2';
+export const APP_VERSION = '1.8.3';
 
-export const ANDROID_VERSION_CODE = 61;
+export const ANDROID_VERSION_CODE = 62;
 
-export const IOS_BUILD_NUMBER = '61';
+export const IOS_BUILD_NUMBER = '62';
 
 /**
  * Versiyon tarih damgası (Build zamanı)

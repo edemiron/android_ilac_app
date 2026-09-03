@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   subtitleText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#94A3B8',
     textAlign: 'center',
     marginBottom: 18,
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
   },
   caregiverRoleText: {
-    fontSize: 10,
+    fontSize: 14,
     fontWeight: '700',
     color: '#14B8A6',
     marginTop: 2,
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   timeText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   messageBubble: {
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   },
   messageText: {
     flex: 1,
-    fontSize: 13.5,
+    fontSize: 14,
     fontStyle: 'italic',
     color: '#E2E8F0',
     lineHeight: 19,
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     borderColor: '#334155',
   },
   snoozeButtonText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     color: '#94A3B8',
   },
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   closeButtonText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
     color: '#64748B',
   },

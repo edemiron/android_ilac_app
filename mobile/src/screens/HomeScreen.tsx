@@ -430,11 +430,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   batchImportTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   batchImportSubtitle: {
-    fontSize: 11.5,
+    fontSize: 14,
     marginTop: 1,
   },
   slimLowStockBanner: {
@@ -456,14 +456,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   slimLowStockText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   slimLowStockAction: {
     paddingLeft: 6,
   },
   slimLowStockActionText: {
-    fontSize: 11.5,
+    fontSize: 14,
     fontWeight: '700',
   },
   sectionHeaderRow: {
@@ -492,11 +492,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   todayBadgeBtnText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '700',
   },
   doseSummaryText: {
-    fontSize: 12.5,
+    fontSize: 14,
     fontWeight: '600',
   },
   expiryMedicineList: {
@@ -521,11 +521,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   expiryMedicineName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   expiryMedicineDate: {
-    fontSize: 11,
+    fontSize: 14,
     marginTop: 2,
   },
 });

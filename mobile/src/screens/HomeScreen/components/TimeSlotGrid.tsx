@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   sectionHint: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
   },
   grid: {
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   activeBadgeText: {
-    fontSize: 10,
+    fontSize: 14,
     fontWeight: '700',
   },
   cardBottomRow: {
@@ -223,11 +223,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   slotCount: {
-    fontSize: 12.5,
+    fontSize: 14,
     fontWeight: '600',
   },
   progressText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '600',
     marginTop: 1,
   },

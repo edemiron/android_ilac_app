@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   heroLabel: {
-    fontSize: 13,
+    fontSize: 14,
     marginLeft: 8,
     fontWeight: '500',
   },
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   heroStatText: {
-    fontSize: 13,
+    fontSize: 14,
     marginLeft: 4,
     fontWeight: '600',
   },
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   summaryText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
   },
   noCurrentContainer: {
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   noCurrentSubtext: {
-    fontSize: 13,
+    fontSize: 14,
     marginTop: 4,
   },
   planHeader: {

@@ -259,11 +259,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 14,
     marginTop: 2,
   },
   promptText: {
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
     marginBottom: 14,
   },

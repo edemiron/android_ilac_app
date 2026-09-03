@@ -115,6 +115,63 @@ export default [
       },
     },
   },
+  /**
+   * ═══════════════════════════════════════════════════════════════════════
+   * ALARM ve DOZ YOLU — asgari yazı boyutu kapısı (v1.8.3)
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Kod tabanını ölçtüm: 398 dosyada 14 puntodan küçük **415** `fontSize`
+   * var (9pt→3, 10pt→18, 11pt→103, 12pt→162, 13pt→129). Bunların tamamını
+   * bir seferde büyütmek görsel doğrulama gerektiriyor — denetimin kendi
+   * bulgusu "41 `numberOfLines={1}` + 205 sabit `height` yüzünden sistem
+   * yazı ölçeği %130'da kırpma var" diyor, yani yazıyı büyütmek sabit
+   * yükseklikli kutularda metni KESER.
+   *
+   * Bu yüzden kapı yalnızca kullanıcının bir dozu alıp almadığına karar
+   * verdiği ekranları kapsıyor; oradaki 39 nokta elle düzeltildi ve
+   * aynı stil nesnelerinde `fontSize` + sabit `height` birlikteliği
+   * olmadığı programatik olarak doğrulandı (kırpma riski 0).
+   *
+   * Kalan ~376 nokta ölçülmüş bir birikim (bkz. arşiv v1.8.3) ve kilidi
+   * açık bir cihazda görsel doğrulama bekliyor. Kapsamı buradan
+   * genişletmek serbest; daraltmak gerileme.
+   */
+  {
+    files: [
+      'src/screens/AlarmScreen/**/*.{ts,tsx}',
+      'src/screens/HomeScreen/**/*.{ts,tsx}',
+      'src/screens/HomeScreen.tsx',
+      'src/components/PatientFullScreenReminderModal.tsx',
+      'src/components/common/SkipReasonModal.tsx',
+      'src/components/common/MissedDoseTriageModal.tsx',
+      'src/components/common/CustomAlert.tsx',
+      'src/components/layouts/HomeScreenLayoutA.tsx',
+    ],
+    rules: {
+      /**
+       * DIKKAT — flat config'de ayni kural adi MERGE EDILMEZ, EZILIR.
+       * Bu blok yalnizca yazi boyutu seciciyi yazsaydi, listelenen
+       * dosyalarda yukaridaki UTC GUN TUZAGI kapisi SESSIZCE DEVRE DISI
+       * kalirdi — hem de HomeScreen ve AlarmScreen'de, yani o tuzagin en
+       * cok zarar verdigi yerde. Bu yuzden iki secici de burada.
+       * Yukaridaki listeye yeni bir secici eklendiginde buraya da eklenmeli.
+       */
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.property.name='split'][callee.object.callee.property.name='toISOString']",
+          message:
+            "UTC gun tuzagi: toISOString().split('T')[0] UTC gununu verir (TR'de 00:00-03:00 arasi bir onceki gun). getLocalDateKey() kullan — src/domain/doseLog.ts",
+        },
+        {
+          selector: "Property[key.name='fontSize'] > Literal[value<14]",
+          message:
+            'Alarm/doz yolunda 14 puntodan kucuk yazi kullanilamaz (a11y tabani). Bkz. src/theme/a11y.ts — MIN_FONT_SIZE. Kutu kirpiyorsa yuksekligi minHeight yap, yaziyi kucultme.',
+        },
+      ],
+    },
+  },
   // Jest test dosyaları için config
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', '**/tests/**/*.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],

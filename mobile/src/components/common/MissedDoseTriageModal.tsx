@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   tipText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: 18,

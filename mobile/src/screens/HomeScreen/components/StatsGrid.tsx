@@ -83,11 +83,15 @@ export function StatsGrid({
     },
     {
       iconName: 'alert-circle-outline',
-      iconColor: lowStockCount === 0 ? colors.textMuted : (isDark ? '#FB7185' : '#B91C1C'),
+      iconColor: lowStockCount === 0 ? colors.textMuted : isDark ? '#FB7185' : '#B91C1C',
       iconBg:
         lowStockCount === 0
-          ? (isDark ? 'rgba(107, 138, 170, 0.12)' : '#F1F5F9')
-          : (isDark ? 'rgba(251, 113, 133, 0.18)' : '#FEE2E2'),
+          ? isDark
+            ? 'rgba(107, 138, 170, 0.12)'
+            : '#F1F5F9'
+          : isDark
+            ? 'rgba(251, 113, 133, 0.18)'
+            : '#FEE2E2',
       value: lowStockCount === 0 ? '—' : String(lowStockCount),
       label: language === 'tr' ? 'Stok Uyarısı' : 'Low Stock',
       disabled: lowStockCount === 0,
@@ -148,10 +152,7 @@ export function StatsGrid({
   );
 }
 
-function renderCellContent(
-  cell: CellDef,
-  colors: { text: string; textMuted: string }
-) {
+function renderCellContent(cell: CellDef, colors: { text: string; textMuted: string }) {
   return (
     <>
       <IconBadge
@@ -193,7 +194,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   label: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
   },
 });

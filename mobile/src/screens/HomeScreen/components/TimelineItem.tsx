@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   instructionText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '600',
   },
   rightContainer: {
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   takenText: {
-    fontSize: 11.5,
+    fontSize: 14,
     fontWeight: '600',
     color: '#10B981',
   },
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   takeButtonText: {
-    fontSize: 11.5,
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },

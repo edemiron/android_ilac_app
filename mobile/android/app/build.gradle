@@ -188,8 +188,8 @@ android {
         applicationId = 'com.ilachatirlatici'
         minSdk = rootProject.ext.minSdkVersion
         targetSdk = rootProject.ext.targetSdkVersion
-        versionCode = 61
-        versionName = "1.8.2"
+        versionCode = 62
+        versionName = "1.8.3"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

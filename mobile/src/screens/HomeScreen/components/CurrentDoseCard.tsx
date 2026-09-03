@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   statusPillText: {
-    fontSize: 11.5,
+    fontSize: 14,
     fontWeight: '700',
   },
   currentDoseTime: {
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   currentDoseDosage: {
-    fontSize: 12.5,
+    fontSize: 14,
     fontWeight: '500',
   },
   instructionPill: {
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   instructionPillText: {
-    fontSize: 10.5,
+    fontSize: 14,
     fontWeight: '600',
   },
   currentDoseActions: {
@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
   },
   takeBtnText: {
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 14,
     color: '#FFFFFF',
     marginLeft: 4,
   },
@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
   },
   snoozeBtnText: {
     fontWeight: '600',
-    fontSize: 12,
+    fontSize: 14,
     marginLeft: 4,
   },
   skipBtn: {
@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
   },
   skipBtnText: {
     fontWeight: '600',
-    fontSize: 12,
+    fontSize: 14,
     marginLeft: 4,
   },
   celebrateCard: {
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   celebrateSubtitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
   },
   snoozeOptionsGrid: {

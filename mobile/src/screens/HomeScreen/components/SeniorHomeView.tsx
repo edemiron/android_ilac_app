@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   modeToggleText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   heroDoseCard: {

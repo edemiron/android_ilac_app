@@ -274,12 +274,12 @@ const makeStyles = (colors: ThemeColors, isDark: boolean) =>
       borderRadius: 6,
     },
     streakText: {
-      fontSize: 11,
+      fontSize: 14,
       fontWeight: '700',
       color: '#D97706',
     },
     progressSubtitle: {
-      fontSize: 12.5,
+      fontSize: 14,
       fontWeight: '500',
       color: isDark ? '#94A3B8' : '#64748B',
     },

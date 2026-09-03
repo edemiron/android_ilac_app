@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dayName: {
-    fontSize: 11.5,
+    fontSize: 14,
     marginBottom: 3,
   },
   dayNumberCircle: {

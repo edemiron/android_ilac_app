@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   },
   foodBadgeText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   missedDoseButton: {
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   },
   missedDoseButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   criticalBadge: {
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   },
   criticalBadgeText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
   },
 });

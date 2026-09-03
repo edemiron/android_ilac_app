@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   headerSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
     marginTop: 2,
   },

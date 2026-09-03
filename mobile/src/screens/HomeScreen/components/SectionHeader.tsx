@@ -28,12 +28,7 @@ export interface SectionHeaderProps {
   seeAllLabel?: string;
 }
 
-export function SectionHeader({
-  title,
-  icon,
-  onSeeAll,
-  seeAllLabel,
-}: SectionHeaderProps) {
+export function SectionHeader({ title, icon, onSeeAll, seeAllLabel }: SectionHeaderProps) {
   const { language } = useLanguage();
   const { colors } = useTheme();
   const linkText = seeAllLabel ?? (language === 'tr' ? 'Tümü' : 'See all');
@@ -67,7 +62,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   seeAll: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
 });
