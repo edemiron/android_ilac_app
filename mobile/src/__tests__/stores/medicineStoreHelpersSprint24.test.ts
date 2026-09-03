@@ -12,11 +12,29 @@ import {
 } from '../../stores/medicineStoreHelpers';
 
 describe('MEDICINE_STORE_STORAGE_KEYS', () => {
-  it('contains 3 expected keys', () => {
-    expect(MEDICINE_STORE_STORAGE_KEYS).toHaveLength(3);
+  it('ana store anahtarlarini icerir', () => {
+    // ⚠️ v1.8.0 — SAYI DEGIL ANLAM dogrulanir.
+    // Bu iddia `toHaveLength(3)` idi ve v1.8.0'da slice store'lar
+    // silinip yetim AsyncStorage anahtarlari temizlik listesine
+    // eklenince kirildi. Sabit sayi, listeye mesru bir anahtar
+    // eklenmesini 'hata' gibi gosteriyor; onemli olan ANA store
+    // anahtarlarinin ve yetim slice anahtarlarinin listede OLMASI.
     expect(MEDICINE_STORE_STORAGE_KEYS).toContain('medicine-store');
     expect(MEDICINE_STORE_STORAGE_KEYS).toContain('medicine-store-sync-queue');
     expect(MEDICINE_STORE_STORAGE_KEYS).toContain('@medicine_storage');
+  });
+
+  it('v1.8.0da kaldirilan slice store anahtarlarini da icerir', () => {
+    // Slice store'lar silindi ama yukseltilen kurulumlarda anahtarlari
+    // AsyncStorage'da DURUYOR; "tum verileri temizle" onlari da silmeli.
+    for (const key of [
+      'ilac-app-medicines-storage',
+      'ilac-app-logs-storage',
+      'ilac-app-snoozes-storage',
+      'ilac-app-settings-storage',
+    ]) {
+      expect(MEDICINE_STORE_STORAGE_KEYS).toContain(key);
+    }
   });
 
   it('is readonly tuple', () => {
@@ -31,8 +49,8 @@ describe('getMedicineStoreStorageKeysForRemoval', () => {
     expect(result).toEqual(MEDICINE_STORE_STORAGE_KEYS);
   });
 
-  it('returns 3 items', () => {
-    expect(getMedicineStoreStorageKeysForRemoval()).toHaveLength(3);
+  it('bos olmayan bir liste doner', () => {
+    expect(getMedicineStoreStorageKeysForRemoval().length).toBeGreaterThan(0);
   });
 });
 

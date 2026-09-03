@@ -197,12 +197,24 @@ export function countWhere<T>(items: T[], predicate: (item: T) => boolean): numb
 }
 
 /**
- * AsyncStorage key listesi — clearAllData icin gerekli 3 storage key.
+ * `clearAllData`'nin silmesi gereken AsyncStorage anahtarlari.
+ *
+ * ⚠️ v1.8.0 — SLICE STORE ANAHTARLARI DA BURADA.
+ * v1'de ayni veri BES ayri `persist` altinda tutuluyordu; slice store'lar
+ * uretimde HIC OKUNMUYOR ama yaziliyordu (ilac listesi ve doz kayitlari
+ * diskte iki kopya). Slice'lar v1.8.0'da silindi, ancak yukseltilen
+ * kurulumlarda o anahtarlar AsyncStorage'da DURUYOR ve yer kapliyor.
+ * Buraya eklendiler ki "tum verileri temizle" gercekten temizlesin.
  */
 export const MEDICINE_STORE_STORAGE_KEYS = [
   'medicine-store',
   'medicine-store-sync-queue',
   '@medicine_storage',
+  // v1.8.0'da kaldirilan slice store'larin yetim anahtarlari:
+  'ilac-app-medicines-storage',
+  'ilac-app-logs-storage',
+  'ilac-app-snoozes-storage',
+  'ilac-app-settings-storage',
 ] as const;
 
 /**

@@ -202,32 +202,31 @@ export { MEDICINE_COLORS } from '../constants';
 // export const MEDICINE_COLORS = [...];
 
 /**
- * medicineStore — Sprint 4 (slice mimarisi) temelleri
+ * medicineStore — uygulamanın TEK kalıcı store'u.
  *
- * Mevcut tek Zustand store'u, sorumluluklarına göre 4 mantıksal slice'a
- * ayrılmış mimari ile uyumlu hale getirildi:
+ * ⚠️ v1.8.0 — SLICE STORE MİMARİSİ TAMAMEN KALDIRILDI
+ * ══════════════════════════════════════════════════════════════════════════
+ * Burada "4 mantıksal slice'a ayrılmış mimari" vardı ve `stores/slices/`
+ * altında dört ayrı zustand store yaşıyordu (medicines, logs, snoozes,
+ * settings). Yarım kalmış bir geçişti ve şu hale gelmişti:
  *
- *   - MedicinesSlice  → ilaç CRUD (addMedicine, updateMedicine, ...)
- *   - LogsSlice       → medicineLogs (alındı/atlandı/kaçırıldı)
- *   - SnoozesSlice    → erteleme (snooze, deactivate, ...)
- *   - SettingsSlice   → UserSettings + sync
+ *   - Slice store'ları ÜRETİMDE hiçbir yer OKUMUYORDU. Yalnızca testler
+ *     okuyordu.
+ *   - Bu store yine de onlara YAZIYORDU (`_useMedicinesStore.setState` üç
+ *     yerde, `replaceMedicineLogs` iki yerde, `clearAll*` bir yerde).
+ *   - Dördünün de KENDİ `persist`i vardı. Yani her ilaç eklemesi/silmesi ve
+ *     her doz kaydı AsyncStorage'a İKİ KEZ yazılıyordu; açılışta beş store
+ *     hidrate oluyordu; ilaç listesi ve doz geçmişi diskte İKİ KOPYA halinde
+ *     duruyordu — birbirinden sapabilecek iki kopya.
  *
- * Bu temel interface, slice composability ile uyumlu hale getirildi.
- * Davranış: 1:1 aynı — sadece tip tanımı parçalı olarak dokümante edildi.
+ * Yani mimari bir fayda üretmiyor, yalnızca yazma maliyeti ve bir tutarsızlık
+ * riski taşıyordu. Uygulama yayında olmadığı için kademeli geçiş yerine
+ * doğrudan silindi: dört slice, `slices/index.ts`, `medicineStore.combined.ts`
+ * facade'ı ve bunların testleri kaldırıldı.
  *
- * NOT: Incremental migration stratejisi — bu sprint'te slice composability
- * için altyapı kuruldu. Her action, kendi slice dosyasına bağlanacak.
- * Sprint 4 devamı + Sprint 5'te (useAlarmNavigation) tamamlanacak.
+ * Persist şeması değiştiği için sürüm 2'ye çıkıldı; göç eski state'i
+ * bilinçli olarak ATIYOR (gerekçe: `utils/settingsStorage.ts` dosya başı).
  */
-
-export { useMedicinesStore } from './slices/medicines';
-export { useLogsStore } from './slices/logs';
-export { useSnoozesStore } from './slices/snoozes';
-export { useSettingsStore } from './slices/settings';
-// Internal: Wrapper action'lar slice store'larina delege eder
-import { useMedicinesStore as _useMedicinesStore } from './slices/medicines';
-import { useLogsStore as _useLogsStore } from './slices/logs';
-export type { MedicinesSlice, LogsSlice, SnoozesSlice, SettingsSlice } from './slices';
 
 interface MedicineState {
   medicines: Medicine[];
@@ -690,16 +689,6 @@ export const useMedicineStore = create<MedicineState>()(
           reminderTimes: [...(state.reminderTimes || []), ...newReminders],
         }));
 
-        // Geriye dönük uyumluluk için slice'ı da senkronize et
-        try {
-          _useMedicinesStore.setState({
-            medicines: get().medicines,
-            reminderTimes: get().reminderTimes,
-          });
-        } catch (_) {
-          /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
-        }
-
         // 4. Cloud sync — mevcut kod (768-800 bloğu, satır kayması olabilir)
         if (userId) {
           void getSyncQueue()
@@ -766,15 +755,6 @@ export const useMedicineStore = create<MedicineState>()(
         set(state => ({
           medicines: updateMedicineInList(state.medicines, id, sanitizedUpdates),
         }));
-
-        try {
-          _useMedicinesStore.setState({
-            medicines: get().medicines,
-            reminderTimes: get().reminderTimes,
-          });
-        } catch (_) {
-          /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
-        }
 
         // Frekans, talimat veya özel saatler değiştiyse zamanları yeniden hesapla
         if (
@@ -882,15 +862,6 @@ export const useMedicineStore = create<MedicineState>()(
             ),
           },
         }));
-
-        try {
-          _useMedicinesStore.setState({
-            medicines: get().medicines,
-            reminderTimes: get().reminderTimes,
-          });
-        } catch (_) {
-          /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
-        }
 
         if (userId) {
           void getSyncQueue()
@@ -1261,11 +1232,8 @@ export const useMedicineStore = create<MedicineState>()(
           reminderTimeId
         );
 
-        // 6. medicineLogs — slice bulk replace (normalize wrapper'da)
+        // 6. medicineLogs normalize edilir ve TEK store'a yazilir.
         const normalizedLogs = normalizeMedicineLogsBySlot([...medicineLogs, medicineLog]);
-        _useLogsStore.getState().replaceMedicineLogs(normalizedLogs);
-
-        // 7. medicineStore.ts'in legacy state'i + snoozes — wrapper'da kalır
         set(state => ({
           medicineLogs: normalizedLogs,
           // Sprint 30.1: pure helper'a delege edildi
@@ -1376,9 +1344,7 @@ export const useMedicineStore = create<MedicineState>()(
           reminderTimeId
         );
 
-        // medicineLogs — slice bulk replace + legacy state sync
         const normalizedLogs = normalizeMedicineLogsBySlot([...medicineLogs, medicineLog]);
-        _useLogsStore.getState().replaceMedicineLogs(normalizedLogs);
         // Sprint 30.1: pure helper'a delege edildi
         set(state => ({
           medicineLogs: normalizedLogs,
@@ -1969,10 +1935,6 @@ export const useMedicineStore = create<MedicineState>()(
             deletions: EMPTY_DELETIONS,
           });
 
-          // 6. Slice state'lerini de temizle (Sprint 4 devami)
-          _useMedicinesStore.getState().clearAllMedicines();
-          _useLogsStore.getState().clearAllLogs();
-
           log.info('Tum veriler basariyla temizlendi');
         } catch (error) {
           log.error('clearAllData hatasi', error);
@@ -2061,16 +2023,6 @@ export const useMedicineStore = create<MedicineState>()(
               reminderCount: state?.reminderTimes?.length ?? 0,
               logCount: state?.medicineLogs?.length ?? 0,
             });
-            if (state) {
-              try {
-                _useMedicinesStore.setState({
-                  medicines: state.medicines || [],
-                  reminderTimes: state.reminderTimes || [],
-                });
-              } catch (_) {
-                /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
-              }
-            }
           }
         };
       },

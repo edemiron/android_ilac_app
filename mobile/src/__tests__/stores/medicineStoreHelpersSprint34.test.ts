@@ -61,6 +61,7 @@ describe('Sprint 34: Alt modul re-export compat', () => {
     expect(patch.isSyncing).toBe(false);
 
     expect(uniqueNotificationIds(['a', 'b', 'a'])).toEqual(['a', 'b']);
-    expect(getMedicineStoreStorageKeysForRemoval()).toHaveLength(3);
+    // ⚠️ v1.8.0 — sabit sayi yerine ANLAM (bkz. Sprint24 testi).
+    expect(getMedicineStoreStorageKeysForRemoval()).toContain('medicine-store');
   });
 });

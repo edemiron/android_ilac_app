@@ -149,7 +149,15 @@ describe('Sprint 35.2: helpers/builders.ts alt modulu', () => {
     expect(patch.isSyncing).toBe(false);
     expect(countWhere([1, 2, 3, 4], n => n > 2)).toBe(2);
     expect(uniqueNotificationIds(['a', 'b', 'a'])).toEqual(['a', 'b']);
-    expect(getMedicineStoreStorageKeysForRemoval()).toHaveLength(3);
+    // ⚠️ v1.8.0 — SAYI DEGIL ANLAM dogrulanir.
+    // Bu iddia `toHaveLength(3)` idi ve v1.8.0'da slice store'lar
+    // silinip yetim AsyncStorage anahtarlari temizlik listesine
+    // eklenince kirildi. Sabit sayi, listeye mesru bir anahtar
+    // eklenmesini 'hata' gibi gosteriyor; onemli olan ANA store
+    // anahtarlarinin ve yetim slice anahtarlarinin listede OLMASI.
+    const keys = getMedicineStoreStorageKeysForRemoval();
+    expect(keys).toContain('medicine-store');
+    expect(keys).toContain('ilac-app-medicines-storage');
     expect(MEDICINE_STORE_STORAGE_KEYS).toContain('medicine-store');
   });
 
