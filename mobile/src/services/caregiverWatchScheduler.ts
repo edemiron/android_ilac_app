@@ -124,7 +124,8 @@ export async function schedulePatientDoseWatches(
         },
       };
 
-      const title = `💊 ${patientName} • ${dose.medicineName} (${timeStr})`;
+      // v1.8.2: Emoji kaldirildi (bkz. notifications/content.ts).
+      const title = `${patientName} • ${dose.medicineName} (${timeStr})`;
       const body = `${dose.dosage ? `${dose.dosage} - ` : ''}İlaç saati geldi. Durumu kontrol etmek veya hatırlatmak için dokunun.`;
 
       await notifee.createTriggerNotification(

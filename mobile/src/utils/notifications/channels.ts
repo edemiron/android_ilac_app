@@ -203,7 +203,10 @@ export async function createNotificationChannels(): Promise<void> {
   // 0. ACIL DURUM & SOS
   await createChannelSafely({
     id: EMERGENCY_SOS_CHANNEL_ID,
-    name: '🚨 Acil Durum (SOS) Alarmları',
+    // v1.8.2: Kanal adindan emoji kaldirildi. Kanal adi Android'in SISTEM
+    // ayarlarinda ("Bildirimler" listesinde) gorunuyor; orada emoji hem
+    // TalkBack tarafindan okunuyor hem de arama/siralamayi bozuyor.
+    name: 'Acil Durum (SOS) Alarmları',
     description: 'Hastanızdan gelen acil durum ve yardım çağrıları - kilit ekranında sesli çalar',
     importance: AndroidImportance.HIGH,
     visibility: AndroidVisibility.PUBLIC,

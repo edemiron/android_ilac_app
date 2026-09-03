@@ -47,7 +47,8 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
       try {
         await notifee.createChannel({
           id: 'emergency-sos-v6',
-          name: '🚨 Acil Durum (SOS) Alarmları',
+          // v1.8.2: Kanal adindan emoji kaldirildi (bkz. notifications/channels.ts).
+          name: 'Acil Durum (SOS) Alarmları',
           importance: AndroidImportance.HIGH,
           sound: 'sound_urgent_alert',
           vibration: true,
@@ -252,30 +253,37 @@ export function formatCaregiverNotification(data: CaregiverNotificationData): {
     return trimmed;
   })();
 
+  // v1.8.2: Basliklardaki emoji ve "!" kaldirildi.
+  // - Emoji: TalkBack basligi emojiyle birlikte okuyor ve bazi OEM bildirim
+  //   golgelerinde emoji bos kutuya donuyor.
+  // - `🎉 ... Aldı!` ozellikle yanlisti: bir dozun alinmasi kutlanacak bir
+  //   basari degil, bildirilecek bir olgu. Bakiciya gunde 3-4 kez konfeti
+  //   atmak hem bilgiyi hem de "atlandi" bildirimlerinin agirligini
+  //   degersizlestiriyor (denetim maddesi 22 — klinik dil disiplini).
   switch (type) {
     case 'missed':
       return {
-        title: `⚠️ ${patient} İlacını Kaçırdı`,
+        title: `${patient} ilacını kaçırdı`,
         body: `${medicineName} (${time}) saatinde ilaç alınmadı.`,
       };
     case 'skipped':
       return {
-        title: `⚠️ ${patient} İlacını Atladı`,
+        title: `${patient} ilacını atladı`,
         body: `${medicineName} (${time}) saatindeki doz atlandı.`,
       };
     case 'taken':
       return {
-        title: `🎉 ${patient} İlacını Aldı!`,
-        body: `${medicineName} (${time}) dozunu başarıyla tamamladı.`,
+        title: `${patient} ilacını aldı`,
+        body: `${medicineName} (${time}) dozu alındı olarak kaydedildi.`,
       };
     case 'snoozed':
       return {
-        title: `⏰ ${patient} İlacını Erteliyor`,
+        title: `${patient} ilacını erteledi`,
         body: `${medicineName} (${time}) saatindeki ilaç ertelendi.`,
       };
     case 'schedule_updated':
       return {
-        title: `📋 ${patient} İlaç Programı Güncellendi`,
+        title: `${patient} ilaç programı güncellendi`,
         body: 'İlaç programında değişiklik yapıldı.',
       };
     default:

@@ -246,8 +246,13 @@ class AlarmReceiver : BroadcastReceiver() {
 
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("💊 İlaç Vakti!")
-            .setContentText("İlacınızı almanın zamanı geldi.")
+            // v1.8.2: Emoji ve emir kipi kaldirildi. Emoji TalkBack tarafindan
+            // okunuyor; "almanin zamani geldi" ise bir TALIMAT ve bu native
+            // bildirim hangi ilaci/dozu gosterdigini bile bilmiyor (yalnizca
+            // tam ekran alarmi acan bir tasiyici). Bkz. JS tarafi:
+            // src/utils/notifications/content.ts
+            .setContentTitle("İlaç zamanı")
+            .setContentText("Hatırlatma ekranını açmak için dokunun.")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

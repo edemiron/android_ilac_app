@@ -67,18 +67,23 @@ export interface CaregiverNotificationContent {
   type: 'missed' | 'skipped' | 'taken' | 'snoozed';
 }
 
+// v1.8.2: Basliklardaki emoji kaldirildi. Bakici bildirimleri de bir saglik
+// olayini haber veriyor ve TalkBack emojiyi ("alarm saati", "ileri atlama
+// dugmesi") baslikla birlikte okuyor. Ayrica dort durumun ikisi (atlandi /
+// zamani gecti) kotu haber; emoji bu tonu tasiyamiyor, yalnizca gurultu
+// ekliyor. Ayirt edicilik artik metnin kendisinde.
 const NOTIFICATION_TEMPLATES = {
   tr: {
-    missed: { title: '⏰ İlaç zamanı geçti', bodySuffix: 'ilacını zamanında almadı.' },
-    skipped: { title: '⏭️ İlaç atlandı', bodySuffix: 'ilacını atladı.' },
-    taken: { title: '✅ İlaç alındı', bodySuffix: 'ilacını aldı.' },
-    snoozed: { title: '⏸️ İlaç ertelendi', bodySuffix: 'ilacını erteledi.' },
+    missed: { title: 'İlaç zamanı geçti', bodySuffix: 'ilacını zamanında almadı.' },
+    skipped: { title: 'İlaç atlandı', bodySuffix: 'ilacını atladı.' },
+    taken: { title: 'İlaç alındı', bodySuffix: 'ilacını aldı.' },
+    snoozed: { title: 'İlaç ertelendi', bodySuffix: 'ilacını erteledi.' },
   },
   en: {
-    missed: { title: '⏰ Medication missed', bodySuffix: 'did not take their medication on time.' },
-    skipped: { title: '⏭️ Medication skipped', bodySuffix: 'skipped their medication.' },
-    taken: { title: '✅ Medication taken', bodySuffix: 'took their medication.' },
-    snoozed: { title: '⏸️ Medication snoozed', bodySuffix: 'snoozed their medication.' },
+    missed: { title: 'Medication missed', bodySuffix: 'did not take their medication on time.' },
+    skipped: { title: 'Medication skipped', bodySuffix: 'skipped their medication.' },
+    taken: { title: 'Medication taken', bodySuffix: 'took their medication.' },
+    snoozed: { title: 'Medication snoozed', bodySuffix: 'snoozed their medication.' },
   },
 } as const;
 

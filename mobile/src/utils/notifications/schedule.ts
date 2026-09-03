@@ -18,6 +18,13 @@ import { addMinutes } from 'date-fns';
 import { createScopedLogger } from '../logger';
 import { REMINDER_CHANNEL_ID } from './channels';
 import { ALARM_ACTIONS, FULL_SCREEN_ACTION, PRESS_ACTION } from './config';
+import {
+  buildAlarmTitle,
+  buildAlarmSubtitle,
+  buildAlarmBody,
+  buildSnoozeTitle,
+  buildSnoozeBody,
+} from './content';
 import { cancelNotification } from './cancel';
 import { createNotificationChannels } from './channels';
 import { buildSnoozeNotificationId, TEST_ALARM_TARGET } from './ids';
@@ -71,10 +78,11 @@ export async function scheduleExpiryReminder(
       },
     };
 
+    // v1.8.2: Emoji kaldirildi (bkz. content.ts).
     const title =
       language === 'tr'
-        ? `⚠️ ${medicine.name} - Son Kullanma Tarihi Yaklaşıyor`
-        : `⚠️ ${medicine.name} - Expiry Date Approaching`;
+        ? `${medicine.name} - Son Kullanma Tarihi Yaklaşıyor`
+        : `${medicine.name} - Expiry Date Approaching`;
 
     const body =
       language === 'tr'
@@ -180,9 +188,12 @@ export async function scheduleSnoozeNotification(
       minute: '2-digit',
     });
 
-    const snoozeTitle = `💊 ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`;
+    const snoozeTitle = buildSnoozeTitle(medicine.name, snoozeCount);
     const snoozeSubtitle = `${timeStr} • Erteleme`;
-    const snoozeBody = `${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.\n⏰ Yeni Hatırlatma: ${timeStr}`;
+    const snoozeBody = buildSnoozeBody(
+      medicine.dosage ? `${medicine.dosage} dozu` : 'İlaç hatırlatması',
+      timeStr
+    );
 
     await notifee.createTriggerNotification(
       {
@@ -217,6 +228,9 @@ export async function scheduleSnoozeNotification(
         },
         data: {
           medicineId: medicine.id,
+          // v1.8.2: Ad artik `data` ile tasiniyor. Arka plan erteleme
+          // isleyicisi bunu BASLIKTAN ayristiriyordu; bkz. content.ts.
+          medicineName: medicine.name,
           reminderTimeId: reminderTime.id,
           scheduledTime: triggerTime.toISOString(),
           originalScheduledTime,
@@ -525,17 +539,25 @@ export async function scheduleMedicineNotification(
       }
     };
 
-    const dosageStr = medicine.dosage ? ` (${medicine.dosage})` : '';
     const instructionStr = getInstructionLabel(medicine.instructions);
-    const stockStr =
+    // v1.8.2: Metin artik `content.ts` icinde kuruluyor (emoji yok, klinik
+    // dil, ve baslik bicimi arka plan isleyicisiyle yazili olmayan bir
+    // sozlesme olmaktan cikti). Bkz. o dosyanin bas yorumu.
+    const resolvedStock =
       typeof medicine.stockCount === 'number'
-        ? `\n📦 Kalan Stok: ${medicine.stockCount} adet`
+        ? medicine.stockCount
         : typeof (medicine as any).stock === 'number'
-          ? `\n📦 Kalan Stok: ${(medicine as any).stock} adet`
-          : '';
-    const titleText = `💊 ${medicine.name}${dosageStr}`;
-    const subtitleText = `${timeStr} • İlaç Vakti`;
-    const bodyText = `${instructionStr}${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.${stockStr}\n⏰ Saat: ${timeStr}`;
+          ? ((medicine as any).stock as number)
+          : undefined;
+    const titleText = buildAlarmTitle(medicine.name, medicine.dosage);
+    const subtitleText = buildAlarmSubtitle(timeStr);
+    const bodyText = buildAlarmBody({
+      medicineName: medicine.name,
+      dosage: medicine.dosage,
+      instructionLabel: instructionStr,
+      stockCount: resolvedStock,
+      timeLabel: timeStr,
+    });
 
     const notificationId = await notifee.createTriggerNotification(
       {
@@ -571,6 +593,8 @@ export async function scheduleMedicineNotification(
         },
         data: {
           medicineId: medicine.id,
+          // v1.8.2: Ad artik `data` ile tasiniyor (bkz. content.ts).
+          medicineName: medicine.name,
           reminderTimeId: reminderTime.id,
           scheduledTime: triggerDate.toISOString(),
           fullScreenAlarm: behavior.fullScreenAlarm ? 'true' : 'false',

@@ -687,7 +687,8 @@ export async function sendEmergencySosToCaregivers(
                 },
                 body: JSON.stringify({
                   to: pushToken,
-                  title: `🚨 ACİL DURUM: ${resolvedPatientName} Yardım İstiyor!`,
+                  // v1.8.2: Emoji kaldirildi (bkz. caregiverNotificationService.ts).
+                  title: `ACİL DURUM: ${resolvedPatientName} yardım istiyor`,
                   body:
                     customNote ||
                     `${resolvedPatientName} acil durum butonuna bastı. Lütfen hemen kontrol edin veya arayın!`,
@@ -1421,10 +1422,15 @@ export async function sendRemoteReminderToPatient(params: {
           },
           body: JSON.stringify({
             to: patientPushToken,
-            title: `🔔 ${params.caregiverName || 'Bakıcınız'} İlaç Hatırlatması Gönderdi!`,
+            // v1.8.2: Emoji kaldirildi. Govde de degisti: "almayı unutmayın"
+            // bir TALIMAT ve bu mesaji uygulama degil bir BAKICI gonderiyor —
+            // uygulamanin agzindan doz emri vermesi klinik dil disiplinine
+            // aykiri (denetim maddesi 22). Artik yalnizca hatirlatmanin
+            // KIMDEN geldigini ve HANGI dozu ilgilendirdigini soyluyor.
+            title: `${params.caregiverName || 'Bakıcınız'} ilaç hatırlatması gönderdi`,
             body:
               params.customMessage ||
-              `${params.medicineName} (${params.scheduledTime}) ilacınızı almayı unutmayın.`,
+              `${params.medicineName} (${params.scheduledTime}) dozu için hatırlatma.`,
             sound: 'default',
             priority: 'high',
             channelId: 'patient-remote-reminders-v1',

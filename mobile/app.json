@@ -7,7 +7,7 @@
   "expo": {
     "name": "İlaç Hatırlatıcı",
     "slug": "ilac-hatirlatici",
-    "version": "1.8.1",
+    "version": "1.8.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -25,11 +25,11 @@
         "NSCameraUsageDescription": "Barkod taramak için kamera erişimi gereklidir.",
         "NSSpeechRecognitionUsageDescription": "Sesli hatırlatmalar için konuşma tanıma gereklidir."
       },
-      "buildNumber": "60"
+      "buildNumber": "61"
     },
     "scheme": "ilachatirlatici",
     "android": {
-      "versionCode": 60,
+      "versionCode": 61,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4ECDC4"
@@ -104,11 +104,11 @@
       }
     }
   },
-  "version": "1.8.1",
+  "version": "1.8.2",
   "android": {
-    "versionCode": 60
+    "versionCode": 61
   },
   "ios": {
-    "buildNumber": "60"
+    "buildNumber": "61"
   }
 }

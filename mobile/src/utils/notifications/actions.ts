@@ -10,6 +10,7 @@ import { createScopedLogger } from '../logger';
 import { createNotificationChannels } from './channels';
 import { REMINDER_CHANNEL_ID } from './channels';
 import { ALARM_ACTIONS, PRESS_ACTION } from './config';
+import { buildAlarmTitle, buildAlarmBody } from './content';
 
 const log = createScopedLogger('NotificationActions');
 
@@ -35,9 +36,19 @@ export async function sendTestNotification(): Promise<void> {
     // 2. Kanal oluşturulduğundan emin ol
     await createNotificationChannels();
 
-    const title = '💊 TEST-Ibuprofen (100mg)';
+    // v1.8.2: Test bildirimi artik GERCEK alarm metniyle ayni ureticiden
+    // geliyor (content.ts). Onceden elle yazilmis bir kopyaydi ve gercek
+    // bildirimden sapmisti — "test bildirimi gonder" dugmesi bu yuzden
+    // gercekte gorulecek metni gostermiyordu.
+    const title = `TEST-${buildAlarmTitle('Ibuprofen', '100mg')}`;
     const subtitle = 'İlaç Vakti';
-    const body = 'Yemekle Birlikte • 100mg almanın zamanı geldi.\n📦 Kalan Stok: 18 adet';
+    const body = buildAlarmBody({
+      medicineName: 'Ibuprofen',
+      dosage: '100mg',
+      instructionLabel: 'Yemekle Birlikte • ',
+      stockCount: 18,
+      timeLabel: '09:00',
+    });
 
     await notifee.displayNotification({
       id: 'alarm-test-medicine-test-reminder',

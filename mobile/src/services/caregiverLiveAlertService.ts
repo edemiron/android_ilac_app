@@ -134,13 +134,17 @@ export async function triggerCaregiverLiveAlert(data: LiveCaregiverAlertData): P
   ensureCaregiverAlertChannel()
     .then(async () => {
       try {
+        // v1.8.2: Emoji kaldirildi (bkz. caregiverNotificationService.ts).
+        // "ACİL DURUM" BILEREK buyuk harfte kaldi — dort durumdan yalnizca
+        // biri gercekten acil ve bildirim golgesinde ondan ayirt edilmesi
+        // gerekiyor; artik bu ayrimi emoji degil metnin kendisi tasiyor.
         const title = isSos
-          ? `🚨 ACİL DURUM: ${data.patientName} Yardım İstiyor!`
+          ? `ACİL DURUM: ${data.patientName} yardım istiyor`
           : isTaken
-            ? `🎉 ${data.patientName} İlacını Aldı!`
+            ? `${data.patientName} ilacını aldı`
             : isSkipped
-              ? `⚠️ ${data.patientName} İlacını Atladı`
-              : `⏰ ${data.patientName} - İlaç Bildirimi`;
+              ? `${data.patientName} ilacını atladı`
+              : `${data.patientName} — ilaç bildirimi`;
 
         const timeFormatted = (() => {
           if (!data.scheduledTime) return '';

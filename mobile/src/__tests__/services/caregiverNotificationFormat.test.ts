@@ -34,30 +34,54 @@ const base: CaregiverNotificationData = {
   timestamp: '2026-09-02T09:05:00Z',
 };
 
+const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]|\u{FE0F}/u;
+
 describe('formatCaregiverNotification', () => {
+  // v1.8.2: Bu tablo eskiden basliklari EMOJILERIYLE birlikte tam eslesme
+  // olarak sabitliyordu ('🎉 Ayşe İlacını Aldı!'). Emojiyi kaldirmak ve
+  // kutlama tonunu duzeltmek davranissal bir gerileme olmadigi halde bes
+  // testi kirdi — testin kilitledigi sey susleme, testin ODAGI ise hasta
+  // adinin basliga girmesiydi (v1.7.1'de `${patient}` tanimsizdi ve her
+  // baslik ReferenceError firlatiyordu). Artik ODAK dogrulaniyor.
   it.each([
-    ['missed', '⚠️ Ayşe İlacını Kaçırdı'],
-    ['skipped', '⚠️ Ayşe İlacını Atladı'],
-    ['taken', '🎉 Ayşe İlacını Aldı!'],
-    ['snoozed', '⏰ Ayşe İlacını Erteliyor'],
-    ['schedule_updated', '📋 Ayşe İlaç Programı Güncellendi'],
-  ] as const)('%s tipinde hasta adini basliga koyar', (type, expectedTitle) => {
+    ['missed', 'kaçırdı'],
+    ['skipped', 'atladı'],
+    ['taken', 'aldı'],
+    ['snoozed', 'erteledi'],
+    ['schedule_updated', 'programı güncellendi'],
+  ] as const)('%s tipinde hasta adini basliga koyar', (type, expectedPhrase) => {
     const result = formatCaregiverNotification({ ...base, type });
 
-    expect(result.title).toBe(expectedTitle);
+    expect(result.title).toContain('Ayşe');
+    expect(result.title).toContain(expectedPhrase);
     expect(result.title).not.toContain('undefined');
+  });
+
+  // Denetim maddesi 20/22: bakici bildirimlerinde emoji yok, kutlama yok.
+  // `🎉 ... Aldı!` bir dozun alinmasini basari gibi sunuyordu; gunde 3-4 kez
+  // konfeti atmak "atlandi" bildirimlerinin agirligini da degersizlestiriyor.
+  it('hicbir baslik emoji veya unlem icermiyor', () => {
+    const types = ['missed', 'skipped', 'taken', 'snoozed', 'schedule_updated'] as const;
+
+    const offenders = types
+      .map(type => formatCaregiverNotification({ ...base, type }).title)
+      .filter(title => EMOJI.test(title) || title.includes('!'));
+
+    expect(offenders).toEqual([]);
   });
 
   it('hasta adi yoksa notr bir ifadeye duser', () => {
     const result = formatCaregiverNotification({ ...base, patientName: undefined });
 
-    expect(result.title).toBe('⚠️ Hastanız İlacını Kaçırdı');
+    expect(result.title).toContain('Hastanız');
+    expect(result.title).toContain('kaçırdı');
   });
 
   it('bosluktan olusan hasta adini bos kabul eder', () => {
     const result = formatCaregiverNotification({ ...base, patientName: '   ' });
 
-    expect(result.title).toBe('⚠️ Hastanız İlacını Kaçırdı');
+    expect(result.title).toContain('Hastanız');
+    expect(result.title).toContain('kaçırdı');
   });
 
   it('ilac adi ve saati govdeye koyar', () => {

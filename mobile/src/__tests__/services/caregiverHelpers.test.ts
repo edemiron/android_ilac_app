@@ -213,7 +213,11 @@ describe('hasCaregiverPermission', () => {
 describe('Sprint 12.4: formatCaregiverNotification', () => {
   it('formats missed notification in TR', () => {
     const result = formatCaregiverNotification('missed', 'Aspirin', 'tr');
-    expect(result.title).toBe('⏰ İlaç zamanı geçti');
+    // v1.8.2: Bu iddia eskiden basligi emojisiyle birlikte SABITLIYORDU
+    // ('⏰ İlaç zamanı geçti'). Emojiyi kaldirmak davranissal bir gerileme
+    // olmadigi halde testi kirdi — yani test yanlis seyi kilitlemisti.
+    // Artik dogrulanan sey basligin ANLAMI; suslemesi degil.
+    expect(result.title).toContain('zamanı geçti');
     expect(result.body).toContain('Aspirin');
     expect(result.body).toContain('zamanında almadı');
     expect(result.type).toBe('missed');
@@ -221,9 +225,31 @@ describe('Sprint 12.4: formatCaregiverNotification', () => {
 
   it('formats missed notification in EN', () => {
     const result = formatCaregiverNotification('missed', 'Aspirin', 'en');
-    expect(result.title).toBe('⏰ Medication missed');
+    expect(result.title).toContain('Medication missed');
     expect(result.body).toContain('Aspirin');
     expect(result.body).toContain('did not take');
+  });
+
+  // v1.8.2 — Emoji kapisi. Bakici bildirimleri bir saglik olayini haber
+  // veriyor; TalkBack emojiyi baslikla birlikte okuyor ve bazi OEM bildirim
+  // golgelerinde emoji kirpilip bos kutuya donuyor. Bu test emojinin geri
+  // sizmasini engelliyor.
+  it('hicbir bakici bildirim basligi emoji icermiyor', () => {
+    const types = ['missed', 'skipped', 'taken', 'snoozed'] as const;
+    const languages = ['tr', 'en'] as const;
+    // Emoji + dingbat + variation selector araliklari.
+    const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]|\u{FE0F}/u;
+
+    const offenders: string[] = [];
+    for (const language of languages) {
+      for (const type of types) {
+        const { title, body } = formatCaregiverNotification(type, 'Aspirin', language);
+        if (EMOJI.test(title)) offenders.push(`${language}/${type}/title: ${title}`);
+        if (EMOJI.test(body)) offenders.push(`${language}/${type}/body: ${body}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 
   it('formats taken notification', () => {

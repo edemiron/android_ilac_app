@@ -22,6 +22,13 @@ import { STORAGE_KEYS } from './src/constants';
 // bildirim gonderiyordu (uygulama kapaliyken calan alarm yolu).
 import { ALARM_CHANNEL_ID, EMERGENCY_SOS_CHANNEL_ID } from './src/utils/notifications/channels';
 import { wakeAndOpenApp } from './src/utils/notifications/wake';
+// Bildirim metninin TEK KAYNAGI. Bu dosya eskiden ilac adini BASLIKTAN
+// ayristiriyordu; bkz. content.ts dosya basi.
+import {
+  buildSnoozeTitle,
+  buildSnoozeBody,
+  parseMedicineNameFromLegacyTitle,
+} from './src/utils/notifications/content';
 // "Bu doz bugun zaten alindi mi?" kararinin TEK KAYNAGI. Eskiden bu dosyada
 // kendi kopyasi vardi ve `reminderTimeId || medicineId` OR'u yuzunden ilacin
 // herhangi bir dozu kaydedilince o gunun DIGER dozlarinin alarmi da
@@ -50,7 +57,8 @@ messaging().setBackgroundMessageHandler(async remoteMessage => {
     const title =
       remoteMessage.notification?.title ||
       (data?.title as string) ||
-      (isEmergency ? '🚨 ACİL DURUM ÇAĞRISI!' : 'İlaç Hatırlatıcı');
+      // v1.8.2: Emoji kaldirildi (bkz. utils/notifications/content.ts).
+      (isEmergency ? 'ACİL DURUM ÇAĞRISI' : 'İlaç Hatırlatıcı');
 
     const patientName = (data?.patientName as string) || 'Hastanız';
     const body =
@@ -68,7 +76,7 @@ messaging().setBackgroundMessageHandler(async remoteMessage => {
     try {
       await notifee.createChannel({
         id: channelId,
-        name: isEmergency ? '🚨 Acil Durum (SOS) Alarmları' : 'Bakıcı Canlı Bildirimleri',
+        name: isEmergency ? 'Acil Durum (SOS) Alarmları' : 'Bakıcı Canlı Bildirimleri',
         importance: AndroidImportance.HIGH,
         sound,
         vibration: true,
@@ -122,14 +130,16 @@ messaging().setBackgroundMessageHandler(async remoteMessage => {
         actions: isEmergency
           ? [
               {
-                title: '📞 Hastayı Ara',
+                // v1.8.2: Bildirim eylemlerinden emoji kaldirildi (bkz.
+                // utils/notifications/config.ts icindeki gerekce).
+                title: 'Hastayı Ara',
                 pressAction: {
                   id: 'call_patient',
                   launchActivity: 'default',
                 },
               },
               {
-                title: '❌ Bildirimi Kapat',
+                title: 'Bildirimi Kapat',
                 pressAction: {
                   id: 'dismiss_alert',
                 },
@@ -534,18 +544,24 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
           hour: '2-digit',
           minute: '2-digit',
         });
+        // v1.8.2: Ad artik bildirimin `data`sindan geliyor. Eskiden BASLIKTAN
+        // ayristiriliyordu (`title.replace('💊 ', '')...`) — yani baslik
+        // bicimi, planlayici ile bu arka plan isleyicisi arasinda yazili
+        // olmayan bir sozlesmeydi. Ustelik regex yalnizca "(Ertelendi...)"
+        // ekini siliyordu; "(500mg)" dozu ADIN ICINDE kaliyordu, ertelenen
+        // bildirimde "Parol (500mg) (Ertelendi)" gorunuyordu.
+        // Baslik ayristirma yalnizca GUNCELLEME ONCESINDEN kalan, hala
+        // ekranda duran bildirimler icin yedek olarak duruyor.
         const medicineName =
-          notification.title
-            ?.replace('💊 ', '')
-            .replace(/\(Ertelendi.*\)/, '')
-            .trim() || 'İlaç';
+          (typeof data?.medicineName === 'string' && data.medicineName.trim()) ||
+          parseMedicineNameFromLegacyTitle(notification.title);
 
         await notifee.createTriggerNotification(
           {
             id: notifId,
-            title: `🔔 ${medicineName} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
+            title: buildSnoozeTitle(medicineName, snoozeCount),
             subtitle: timeStr,
-            body: `${notification.body?.split('\n')[0] || 'İlacınızı almayı unutmayın!'}\n⏰ ${timeStr}`,
+            body: buildSnoozeBody(notification.body, timeStr),
             android: {
               ...(notification.android || {}),
               channelId: ALARM_CHANNEL_ID,
