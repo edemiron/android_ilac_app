@@ -11,6 +11,8 @@ import {
 import { db } from '../config/firebase';
 import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../types';
 import { createScopedLogger } from '../utils/logger';
+// Silme kayitlarinin (tombstone) tek kaynagi — bkz. domain/deletions.ts.
+import { normalizeDeletions, type DeletionRegistries } from '../domain/deletions';
 // Sprint 7.2: DRY — stores/helpers/sanitize.ts'ten sanitizeString + sanitizeForFirestore
 // import ediliyor. firestoreSync.ts icindeki duplicate inline tanimlar silindi.
 import { sanitizeString, sanitizeForFirestore } from '../stores/helpers/sanitize';
@@ -31,6 +33,7 @@ import {
   buildReminderTimesCollectionRef,
   buildMedicineLogsCollectionRef,
   buildSettingsDocRef,
+  buildDeletionsDocRef,
 } from './firestoreSyncHelpers';
 import { db as firestoreDb } from '../config/firebase';
 
@@ -429,6 +432,12 @@ export interface SyncData {
   reminderTimes: ReminderTime[];
   medicineLogs: MedicineLog[];
   settings: UserSettings;
+  /**
+   * Silme kayitlari (tombstone). v1.7.8'de eklendi — bkz.
+   * `src/domain/deletions.ts`: bu olmadan bir cihazda silinen ilac digerinde
+   * hayatta kaliyor ve alarmlariyla geri geliyordu.
+   */
+  deletions?: DeletionRegistries;
 }
 
 /**
@@ -508,6 +517,9 @@ export async function uploadAllDataToCloud(userId: string, data: SyncData): Prom
         syncReminderTimesToCloud(userId, data.reminderTimes),
         syncMedicineLogsToCloud(userId, data.medicineLogs),
         syncSettingsToCloud(userId, data.settings),
+        // v1.7.8: silme kayitlari da yuklenir; yoksa diger cihaz silinen
+        // ilaci geri diriltir (bkz. domain/deletions.ts).
+        syncDeletionsToCloud(userId, data.deletions ?? { medicines: {}, reminderTimes: {} }),
       ]),
       30000, // 30 saniye timeout
       'Senkronizasyon zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
@@ -525,17 +537,54 @@ export async function uploadAllDataToCloud(userId: string, data: SyncData): Prom
   }
 }
 
+// ============ SILME KAYITLARI (TOMBSTONE) ============
+
+/**
+ * Silme kayitlarini buluta yaz.
+ *
+ * `{ merge: true }` ZORUNLU: iki cihaz farkli id'ler silmis olabilir ve tam
+ * dokuman yazimi digerinin kaydini siler (ayni hata `syncSettingsToCloud`
+ * icin v1.7.3'te duzeltildi).
+ */
+export async function syncDeletionsToCloud(
+  userId: string,
+  deletions: DeletionRegistries
+): Promise<void> {
+  const docRef = buildDeletionsDocRef(firestoreDb, userId);
+  await setDoc(
+    docRef,
+    {
+      medicines: deletions.medicines || {},
+      reminderTimes: deletions.reminderTimes || {},
+      updatedAt: Timestamp.now(),
+    },
+    { merge: true }
+  );
+}
+
+/** Silme kayitlarini buluttan oku. Dokuman yoksa BOS kayit doner. */
+export async function getDeletionsFromCloud(userId: string): Promise<DeletionRegistries> {
+  const docRef = buildDeletionsDocRef(firestoreDb, userId);
+  const snapshot = await getDoc(docRef);
+  if (!snapshot.exists()) return { medicines: {}, reminderTimes: {} };
+  return normalizeDeletions(snapshot.data());
+}
+
 // Tüm verileri buluttan indir
 export async function downloadAllDataFromCloud(userId: string): Promise<CloudSyncData | null> {
   log.debug('Veriler buluttan indiriliyor');
 
   try {
-    const [medicines, reminderTimes, medicineLogs, settings] = await withTimeout(
+    const [medicines, reminderTimes, medicineLogs, settings, deletions] = await withTimeout(
       Promise.all([
         getMedicinesFromCloud(userId),
         getReminderTimesFromCloud(userId),
         getMedicineLogsFromCloud(userId),
         getSettingsFromCloud(userId),
+        // v1.7.8: silme kayitlari. Okunamazsa BOS kabul edilir — silme
+        // bilgisini kaybetmek dirilme demektir, ama patlamak senkronu
+        // tamamen durdurur; bos kayit eski (hatali) davranisa dener.
+        getDeletionsFromCloud(userId).catch(() => ({ medicines: {}, reminderTimes: {} })),
       ]),
       30000, // 30 saniye timeout
       'Veri indirme zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
@@ -557,6 +606,7 @@ export async function downloadAllDataFromCloud(userId: string): Promise<CloudSyn
       // ayarlar aynen korunur. Eskiden `DEFAULT_SETTINGS` donuyordu ve
       // kullanicinin yerel ayarlarini varsayilanlarla eziyordu.
       settings: settings ?? {},
+      deletions,
     };
   } catch (error: unknown) {
     log.error('Buluttan veri indirme hatası', error);

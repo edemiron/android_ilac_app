@@ -45,6 +45,17 @@ import {
 import { calculateMedicineTimes, isMedicineScheduledForDate } from '../utils/timeCalculator';
 // Yeniden planlama firtinalarini tek kosuya indirir (bkz. dosya basi aciklamasi).
 import { requestFullReschedule } from '../utils/notifications/rescheduleCoalescer';
+// Silme kayitlarinin (tombstone) tek kaynagi — bkz. domain/deletions.ts.
+import {
+  EMPTY_DELETIONS,
+  normalizeDeletions,
+  recordDeletion,
+  recordDeletions,
+  mergeDeletionRegistries,
+  pruneDeletions,
+  partitionByDeletions,
+  type DeletionRegistries,
+} from '../domain/deletions';
 import { generateId } from '../utils/idGenerator';
 import { getSyncQueue } from '../utils/syncQueue';
 import { markMissedReminders as calculateMissedReminders } from '../utils/missedReminders';
@@ -92,6 +103,8 @@ import {
   scheduleMedicineNotification,
   stopAlarmVibration,
 } from '../utils/notifications';
+// Bildirim kimliklerinin tek kaynagi — 'alarm-' literal'i burada uretilmez.
+import { getAlarmNotificationId } from '../utils/notifications/ids';
 import { createScopedLogger } from '../utils/logger';
 import { updateWidgetData } from '../services/widgetService';
 import {
@@ -105,6 +118,7 @@ import {
   downloadAllDataFromCloud,
   saveMedicineToCloud,
   deleteMedicineFromCloud,
+  syncDeletionsToCloud,
   saveMedicineLogToCloud,
   syncSettingsToCloud,
   deleteAllUserData,
@@ -305,6 +319,9 @@ interface MedicineState {
   // Renk yönetimi
   getNextAvailableColor: () => string;
 
+  /** Silme kayitlari (tombstone) — bkz. domain/deletions.ts. */
+  deletions: DeletionRegistries;
+
   clearAllData: (options?: { deleteFromCloud?: boolean }) => Promise<void>;
   importData: (data: SyncData) => void;
 }
@@ -325,6 +342,14 @@ export const useMedicineStore = create<MedicineState>()(
       snoozes: [],
       settings: DEFAULT_USER_SETTINGS,
       alarmState: DEFAULT_ALARM_STATE,
+      /**
+       * ⚠️ v1.7.8 — SILME KAYITLARI (tombstone).
+       * `medicines`/`reminderTimes` tombstone TASIMAZ (silinen kayit listeden
+       * cikar, mevcut selector'lar degismez); silme bilgisi burada yasar ve
+       * YALNIZCA birlestirme (merge) buna bakar. Gerekce ve dirilme zinciri:
+       * src/domain/deletions.ts dosya basi.
+       */
+      deletions: EMPTY_DELETIONS,
 
       // Sync durumu
       isSyncing: false,
@@ -358,6 +383,9 @@ export const useMedicineStore = create<MedicineState>()(
               reminderTimes,
               medicineLogs,
               settings,
+              // v1.7.8: silme kayitlari da yuklenir; yoksa diger cihaz
+              // silinen ilaci geri diriltir (bkz. domain/deletions.ts).
+              deletions: get().deletions,
             });
 
             set({
@@ -407,16 +435,67 @@ export const useMedicineStore = create<MedicineState>()(
                 cloudData.medicineLogs
               );
 
+              // ⚠️ v1.7.8 — SILME KAYITLARI BIRLESTIRMEDEN ONCE UYGULANIR.
+              // ══════════════════════════════════════════════════════════
+              // `mergeMedicinesByUpdatedAt` / `mergeReminderTimesById` bir
+              // BIRLESIM (union): bulutta olmayan ama yerelde olan kayit
+              // korunur. Silme icin hicbir temsil YOKTU, dolayisiyla:
+              //   telefonda sil -> tablette hayatta kalir -> tablet buluta
+              //   yazar -> telefona ALARMLARIYLA geri gelir.
+              // Iki tarafin tombstone'lari birlestirilir, sonra hem BULUTTAN
+              // gelen hem YERELDE duran silinmis kayitlar ayiklanir.
+              // Ayrintili zincir: src/domain/deletions.ts dosya basi.
+              const mergedDeletions: DeletionRegistries = {
+                medicines: pruneDeletions(
+                  mergeDeletionRegistries(
+                    localState.deletions.medicines,
+                    cloudData.deletions?.medicines
+                  )
+                ),
+                reminderTimes: pruneDeletions(
+                  mergeDeletionRegistries(
+                    localState.deletions.reminderTimes,
+                    cloudData.deletions?.reminderTimes
+                  )
+                ),
+              };
+
+              const cloudMedicinesAlive = partitionByDeletions(
+                cloudData.medicines || [],
+                mergedDeletions.medicines
+              ).kept;
+              const localMedicinesAlive = partitionByDeletions(
+                localState.medicines,
+                mergedDeletions.medicines
+              );
+              const cloudRemindersAlive = partitionByDeletions(
+                cloudData.reminderTimes || [],
+                mergedDeletions.reminderTimes
+              ).kept;
+              const localRemindersAlive = partitionByDeletions(
+                localState.reminderTimes,
+                mergedDeletions.reminderTimes
+              );
+
+              // YERELDE duran ama artik silinmis sayilan ilaclarin alarmlari
+              // iptal edilir; aksi halde kayit gitmis ama alarm calmaya
+              // devam eder (hayalet alarm).
+              for (const removedId of localMedicinesAlive.removedIds) {
+                cancelMedicineNotifications(removedId).catch(err =>
+                  log.error('Silinmis ilacin alarmlari iptal edilemedi', err)
+                );
+              }
+
               // Medicines için merge - updatedAt karşılaştırması ile
               const mergedMedicines = mergeMedicinesByUpdatedAt(
-                localState.medicines,
-                cloudData.medicines
+                localMedicinesAlive.kept,
+                cloudMedicinesAlive
               );
 
               // ReminderTimes için merge
               const mergedReminders = mergeReminderTimesById(
-                localState.reminderTimes,
-                cloudData.reminderTimes
+                localRemindersAlive.kept,
+                cloudRemindersAlive
               );
 
               const mergedSettings = mergeSettingsWithUndefined(
@@ -437,6 +516,7 @@ export const useMedicineStore = create<MedicineState>()(
                 reminderTimes: mergedReminders,
                 medicineLogs: mergedLogs,
                 settings: mergedSettings,
+                deletions: mergedDeletions,
                 isSyncing: false,
                 lastSyncAt: new Date().toISOString(),
               });
@@ -531,6 +611,8 @@ export const useMedicineStore = create<MedicineState>()(
                 reminderTimes: stateToUpload.reminderTimes,
                 medicineLogs: stateToUpload.medicineLogs,
                 settings: stateToUpload.settings,
+                // v1.7.8: bkz. yukaridaki gerekce.
+                deletions: stateToUpload.deletions,
               });
               set({ lastSyncAt: new Date().toISOString() });
             }
@@ -773,12 +855,30 @@ export const useMedicineStore = create<MedicineState>()(
 
         get().deactivateSnoozesForMedicine(id);
 
+        // ⚠️ v1.7.8 — SILME KAYDI (tombstone) YAZILIR.
+        // Bu olmadan: diger cihaz bu ilaci yerelinde tuttugu ve merge bir
+        // BIRLESIM oldugu icin ilac hayatta kaliyor, buluta geri yaziliyor ve
+        // BU cihaza alarmlariyla geri geliyordu. Ilacin hatirlatma saatleri de
+        // ayni sekilde diriliyordu, o yuzden onlar da isaretlenir.
+        const deletedAt = new Date().toISOString();
+        const deletedReminderTimeIds = get()
+          .reminderTimes.filter(rt => rt.medicineId === id)
+          .map(rt => rt.id);
+
         // Sprint 26.3 + 37.1: pure helper'a delege edildi
         set(state => ({
           medicines: removeMedicineById(state.medicines, id),
           reminderTimes: filterReminderTimesByMedicine(state.reminderTimes, id, true),
           medicineLogs: filterMedicineLogsByMedicineId(state.medicineLogs, id, true),
           snoozes: filterSnoozesByMedicineId(state.snoozes, id, true),
+          deletions: {
+            medicines: recordDeletion(state.deletions.medicines, id, deletedAt),
+            reminderTimes: recordDeletions(
+              state.deletions.reminderTimes,
+              deletedReminderTimeIds,
+              deletedAt
+            ),
+          },
         }));
 
         try {
@@ -797,6 +897,9 @@ export const useMedicineStore = create<MedicineState>()(
 
               try {
                 await deleteMedicineFromCloud(userId, id);
+                // Tombstone'u da buluta yaz: dokumani silmek yeterli DEGIL,
+                // cunku diger cihaz kaydi yerelinden geri yukler.
+                await syncDeletionsToCloud(userId, get().deletions);
                 set({
                   isSyncing: false,
                   lastSyncAt: new Date().toISOString(),
@@ -921,6 +1024,50 @@ export const useMedicineStore = create<MedicineState>()(
 
         if (!medicine) return;
 
+        /**
+         * ⚠️ v1.7.8 — KALDIRILAN DOZ SAATLERI ICIN SILME KAYDI.
+         *
+         * Bu fonksiyon ilacin hatirlatma saatlerini DEGISTIRIR ve id'ler
+         * deterministik (`${medicineId}_${index}`). Gunde 3 dozdan 2 doza
+         * inildiginde `<med>_2` yerelden kalkiyor — ama `mergeReminderTimesById`
+         * bir BIRLESIM oldugu icin bulut kopyasi hayatta kaliyor ve bir sonraki
+         * senkronda GERI DONUYORDU: doktorun azalttigi doz, eski saatinde
+         * calan fazladan bir alarm olarak geri geliyordu.
+         * Ayrintili zincir: src/domain/deletions.ts dosya basi.
+         */
+        const applyReminderTimes = (otherTimes: ReminderTime[], newTimes: ReminderTime[]): void => {
+          const previousIds = reminderTimes
+            .filter(rt => rt.medicineId === medicineId)
+            .map(rt => rt.id);
+          const nextIds = new Set(newTimes.map(rt => rt.id));
+          const removedIds = previousIds.filter(id => !nextIds.has(id));
+          const deletedAt = new Date().toISOString();
+
+          for (const removedId of removedIds) {
+            // Kaldirilan saatin alarmi da iptal edilmeli; aksi halde kayit
+            // gitmis ama alarm calmaya devam eder (hayalet alarm).
+            cancelNotification(getAlarmNotificationId(medicineId, removedId), {
+              medicineId,
+              reminderTimeId: removedId,
+            }).catch(err => log.error('Kaldirilan doz saatinin alarmi iptal edilemedi', err));
+          }
+
+          set(state => ({
+            reminderTimes: [...otherTimes, ...newTimes],
+            deletions:
+              removedIds.length > 0
+                ? {
+                    ...state.deletions,
+                    reminderTimes: recordDeletions(
+                      state.deletions.reminderTimes,
+                      removedIds,
+                      deletedAt
+                    ),
+                  }
+                : state.deletions,
+          }));
+        };
+
         // CustomTimes varsa yeniden hesaplama yapma
         if (medicine.customTimes && medicine.customTimes.length > 0) {
           // Sadece customTimes'ı kullanarak zamanları güncelle — Sprint 29.1: helper'a delege
@@ -931,7 +1078,7 @@ export const useMedicineStore = create<MedicineState>()(
             time,
             isEnabled: true,
           }));
-          set({ reminderTimes: [...otherTimes, ...newTimes] });
+          applyReminderTimes(otherTimes, newTimes);
           return;
         }
 
@@ -946,7 +1093,7 @@ export const useMedicineStore = create<MedicineState>()(
           instruction: medicine.instructions,
         });
 
-        set({ reminderTimes: [...otherTimes, ...newTimes] });
+        applyReminderTimes(otherTimes, newTimes);
       },
 
       // Ortak log oluşturma fonksiyonu - DRY prensibi
@@ -1803,7 +1950,14 @@ export const useMedicineStore = create<MedicineState>()(
           log.debug('AsyncStorage temizlendi');
 
           // 5. Local state'i temizle — Sprint 26.1: pure helper'a delege edildi
-          set(buildEmptyMedicineStoreState(DEFAULT_ALARM_STATE, DEFAULT_USER_SETTINGS));
+          set({
+            ...buildEmptyMedicineStoreState(DEFAULT_ALARM_STATE, DEFAULT_USER_SETTINGS),
+            // v1.7.8: silme kayitlari da sifirlanir. Tum veri silindiginde
+            // eski tombstone'lari tutmanin anlami yok; yeni eklenen kayitlar
+            // yeni id ve yeni `updatedAt` tasidigi icin zaten etkilenmezdi,
+            // ama bos baslamak daha temiz.
+            deletions: EMPTY_DELETIONS,
+          });
 
           // 6. Slice state'lerini de temizle (Sprint 4 devami)
           _useMedicinesStore.getState().clearAllMedicines();
@@ -1839,6 +1993,26 @@ export const useMedicineStore = create<MedicineState>()(
           }),
         });
 
+        // v1.7.8: import edilen veri silme kaydi tasiyorsa uygulanir; aksi
+        // halde disari aktarilmis eski bir yedegi geri yuklemek silinmis
+        // ilaclari diriltir.
+        set(state => ({
+          deletions: {
+            medicines: pruneDeletions(
+              mergeDeletionRegistries(
+                state.deletions.medicines,
+                normalizeDeletions((data as { deletions?: unknown }).deletions).medicines
+              )
+            ),
+            reminderTimes: pruneDeletions(
+              mergeDeletionRegistries(
+                state.deletions.reminderTimes,
+                normalizeDeletions((data as { deletions?: unknown }).deletions).reminderTimes
+              )
+            ),
+          },
+        }));
+
         // v1.7.7 — firtina birlestirildi (bkz. rescheduleCoalescer.ts).
         requestFullReschedule(async () => {
           await rescheduleActiveNotificationsFromState(get(), updates => {
@@ -1862,6 +2036,9 @@ export const useMedicineStore = create<MedicineState>()(
         settings: state.settings,
         lastSyncAt: state.lastSyncAt,
         userId: state.userId,
+        // v1.7.8: silme kayitlari KALICI olmali; aksi halde uygulama yeniden
+        // baslayinca silinen kayit buluttan geri gelir.
+        deletions: state.deletions,
       }),
       onRehydrateStorage: () => {
         log.debug('Hydration başlıyor...');

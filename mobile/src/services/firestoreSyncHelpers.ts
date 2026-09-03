@@ -191,6 +191,21 @@ export function buildMedicineLogsCollectionRef(dbInstance: Firestore, userId: st
 /**
  * Settings document reference (Sprint 12.3).
  */
+/**
+ * Silme kayitlari (tombstone) dokumani: `users/{uid}/meta/deletions`.
+ *
+ * ⚠️ v1.7.8 — Bunun NIYE gerektigi: merge BIRLESIM oldugu ve silme icin
+ * hicbir temsil olmadigi icin bir cihazda silinen ilac diger cihazda hayatta
+ * kaliyor, buluta geri yaziliyor ve ilk cihaza ALARMLARIYLA geri geliyordu.
+ * Ayrintili zincir: src/domain/deletions.ts dosya basi.
+ *
+ * Guvenlik kurallari: `users/{userId}/{allSubcollections=**}` zaten yalnizca
+ * sahibine acik, ek kural gerekmez.
+ */
+export function buildDeletionsDocRef(dbInstance: Firestore, userId: string) {
+  return firestoreDoc(dbInstance, COLLECTIONS.USERS, userId, 'meta', 'deletions');
+}
+
 export function buildSettingsDocRef(dbInstance: Firestore, userId: string) {
   return firestoreDoc(
     dbInstance,

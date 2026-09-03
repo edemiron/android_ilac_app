@@ -36,6 +36,7 @@ const mockSaveMedicineToCloud = jest.fn();
 const mockDeleteMedicineFromCloud = jest.fn();
 const mockSaveMedicineLogToCloud = jest.fn();
 const mockSyncSettingsToCloud = jest.fn();
+const mockSyncDeletionsToCloud = jest.fn();
 
 jest.mock('../../services/firestoreSync', () => ({
   uploadAllDataToCloud: (...args: unknown[]) => mockUploadAllDataToCloud(...args),
@@ -44,6 +45,7 @@ jest.mock('../../services/firestoreSync', () => ({
   deleteMedicineFromCloud: (...args: unknown[]) => mockDeleteMedicineFromCloud(...args),
   saveMedicineLogToCloud: (...args: unknown[]) => mockSaveMedicineLogToCloud(...args),
   syncSettingsToCloud: (...args: unknown[]) => mockSyncSettingsToCloud(...args),
+  syncDeletionsToCloud: (...args: unknown[]) => mockSyncDeletionsToCloud(...args),
 }));
 
 // Mock date-fns format
@@ -68,6 +70,7 @@ describe('MedicineStore', () => {
     mockDownloadAllDataFromCloud.mockResolvedValue(null);
     mockSaveMedicineLogToCloud.mockResolvedValue(undefined);
     mockSyncSettingsToCloud.mockResolvedValue(undefined);
+    mockSyncDeletionsToCloud.mockResolvedValue(undefined);
 
     // Reset store to initial state
     const store = useMedicineStore.getState();
@@ -1159,5 +1162,179 @@ describe('MedicineStore', () => {
         expect(color).toMatch(hexColorRegex);
       });
     });
+  });
+});
+
+/**
+ * ⚠️ v1.7.8 — "SILINEN ILAC GERI GELIYOR" REGRESYONU
+ *
+ * `mergeMedicinesByUpdatedAt` / `mergeReminderTimesById` bir BIRLESIM (union)
+ * ve silme icin hicbir temsil YOKTU. Zincir:
+ *   telefonda sil -> tablette yerelde kalir -> tablet buluta yazar ->
+ *   telefona ALARMLARIYLA geri gelir.
+ * Yani doktorun biraktirdigi ilaci silen hasta onu geri aliyordu.
+ */
+describe('silme senkronu (tombstone)', () => {
+  const CLOUD_MED = {
+    id: 'med-cloud',
+    name: 'Buluttan Gelen',
+    dosage: '1',
+    isActive: true,
+    color: MEDICINE_COLORS[0],
+    startDate: '2024-01-01',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+  } as unknown as Medicine;
+
+  // ⚠️ Tarihler GORELI olmali: `pruneDeletions` 90 gunden eski tombstone'lari
+  // atiyor (uzun sure kapali kalan cihazin dirilmesini onlemek icin tutulan
+  // makul bir saklama suresi). Sabit 2024 tarihi kullanmak testi sessizce
+  // yanlis yapardi.
+  const gunOnce = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+
+  beforeEach(async () => {
+    const store = useMedicineStore.getState();
+    await store.clearAllData();
+    jest.clearAllMocks();
+    mockUploadAllDataToCloud.mockResolvedValue(undefined);
+    mockSyncDeletionsToCloud.mockResolvedValue(undefined);
+    mockDeleteMedicineFromCloud.mockResolvedValue(undefined);
+  });
+
+  it('deleteMedicine SILME KAYDI yazar (ilac + hatirlatma saatleri)', () => {
+    const store = useMedicineStore.getState();
+    const medicineId = store.addMedicine({
+      name: 'Silinecek',
+      dosage: '1',
+      frequency: 1,
+      color: MEDICINE_COLORS[0],
+      startDate: '2024-01-01',
+    });
+    const reminderIds = useMedicineStore
+      .getState()
+      .reminderTimes.filter(rt => rt.medicineId === medicineId)
+      .map(rt => rt.id);
+    expect(reminderIds.length).toBeGreaterThan(0);
+
+    useMedicineStore.getState().deleteMedicine(medicineId);
+
+    const { deletions, medicines } = useMedicineStore.getState();
+    expect(medicines.find(m => m.id === medicineId)).toBeUndefined();
+    expect(deletions.medicines[medicineId]).toBeDefined();
+    for (const rtId of reminderIds) {
+      expect(deletions.reminderTimes[rtId]).toBeDefined();
+    }
+  });
+
+  it('ASIL REGRESYON: silinen ilac buluttan GERI GELMEZ', async () => {
+    const store = useMedicineStore.getState();
+    store.setUserId('user-1');
+
+    const medicineId = store.addMedicine({
+      name: 'Biraktirilan Ilac',
+      dosage: '1',
+      frequency: 1,
+      color: MEDICINE_COLORS[0],
+      startDate: '2024-01-01',
+    });
+    const silinen = useMedicineStore.getState().medicines.find(m => m.id === medicineId)!;
+
+    useMedicineStore.getState().deleteMedicine(medicineId);
+    expect(useMedicineStore.getState().medicines).toHaveLength(0);
+
+    // Diger cihaz bu ilaci HALA yerelinde tutuyordu ve buluta geri yazdi.
+    mockDownloadAllDataFromCloud.mockResolvedValue({
+      medicines: [silinen],
+      reminderTimes: [],
+      medicineLogs: [],
+      settings: {},
+      deletions: { medicines: {}, reminderTimes: {} },
+    });
+
+    await useMedicineStore.getState().syncFromCloud();
+
+    // ⚠️ Eskiden burada ilac GERI GELIYORDU (union merge).
+    expect(useMedicineStore.getState().medicines.find(m => m.id === medicineId)).toBeUndefined();
+  });
+
+  it('BULUTTAN gelen silme kaydi YEREL ilaci kaldirir', async () => {
+    const store = useMedicineStore.getState();
+    store.setUserId('user-1');
+
+    // Yerelde bulut ilaci var (onceki senkrondan).
+    useMedicineStore.setState({ medicines: [CLOUD_MED] });
+
+    // Diger cihaz sildi: bulut dokumani yok, ama SILME KAYDI var.
+    const silmeZamani = gunOnce(2);
+    mockDownloadAllDataFromCloud.mockResolvedValue({
+      medicines: [],
+      reminderTimes: [],
+      medicineLogs: [],
+      settings: {},
+      deletions: {
+        medicines: { 'med-cloud': silmeZamani },
+        reminderTimes: {},
+      },
+    });
+
+    await useMedicineStore.getState().syncFromCloud();
+
+    const state = useMedicineStore.getState();
+    expect(state.medicines.find(m => m.id === 'med-cloud')).toBeUndefined();
+    expect(state.deletions.medicines['med-cloud']).toBe(silmeZamani);
+  });
+
+  it('SILMEDEN SONRA duzenlenen kayit DIRILIR (son yazan kazanir)', async () => {
+    const store = useMedicineStore.getState();
+    store.setUserId('user-1');
+
+    useMedicineStore.setState({
+      medicines: [],
+      deletions: {
+        medicines: { 'med-cloud': gunOnce(5) },
+        reminderTimes: {},
+      },
+    });
+
+    // Kullanici baska cihazda ilaci silmeden SONRA duzenledi.
+    mockDownloadAllDataFromCloud.mockResolvedValue({
+      medicines: [{ ...CLOUD_MED, updatedAt: gunOnce(1) }],
+      reminderTimes: [],
+      medicineLogs: [],
+      settings: {},
+      deletions: { medicines: {}, reminderTimes: {} },
+    });
+
+    await useMedicineStore.getState().syncFromCloud();
+
+    expect(useMedicineStore.getState().medicines.find(m => m.id === 'med-cloud')).toBeDefined();
+  });
+
+  it('silme kaydi buluta da YAZILIR', async () => {
+    const store = useMedicineStore.getState();
+    store.setUserId('user-1');
+
+    const medicineId = store.addMedicine({
+      name: 'Silinecek',
+      dosage: '1',
+      frequency: 1,
+      color: MEDICINE_COLORS[0],
+      startDate: '2024-01-01',
+    });
+
+    useMedicineStore.getState().deleteMedicine(medicineId);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(mockSyncDeletionsToCloud).toHaveBeenCalled();
+  });
+
+  it('clearAllData silme kayitlarini sifirlar', async () => {
+    useMedicineStore.setState({
+      deletions: { medicines: { a: new Date().toISOString() }, reminderTimes: {} },
+    });
+
+    await useMedicineStore.getState().clearAllData();
+
+    expect(useMedicineStore.getState().deletions).toEqual({ medicines: {}, reminderTimes: {} });
   });
 });
