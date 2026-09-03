@@ -486,19 +486,43 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
         const { snoozeDuration, maxSnoozeCount } = await getSnoozeSettings();
         const snoozeCount = parseInt((data?.snoozeCount as string) || '0', 10) + 1;
 
-        // Erteleme limiti kontrolü — son hakta ilaç atlanmış sayılır
-        if (snoozeCount >= maxSnoozeCount) {
-          console.log('[BG] Erteleme limiti doldu, ilaç atlanıyor:', medicineId);
+        // ⚠️ v1.7.7 — SESSIZ ATLAMA KALDIRILDI. N HAK = N ERTELEME.
+        // ════════════════════════════════════════════════════════════════
+        // Eskiden burada `snoozeCount >= maxSnoozeCount` vardi ve limit
+        // dolunca ARKA PLANDA sessizce `logMedicineSkipped` yaziyordu. Iki
+        // ayri hata:
+        //
+        //   1. Sinir yanlisti. `snoozeCount` yukarida ZATEN +1 edilmis; yani
+        //      `maxSnoozeCount = 3` iken UCUNCU erteleme (`snoozeCount = 3`)
+        //      `3 >= 3` ile atlamaya donusuyordu. Kullanici bildirimden
+        //      "Ertele"ye basiyor, uygulama dozu "atlandi" yaziyordu.
+        //   2. Sessizdi. Ekran yok, bildirim yok, geri bildirim yok —
+        //      kullanici erteledigini saniyor, doktora giden uyum raporunda
+        //      "atlandi" goruyor.
+        //
+        // "Atlandi" KLINIK bir karardir; yalnizca kullanici acikca secerse
+        // yazilir. Hak bitince yapilacak dogru is: alarmi GERI GOSTERMEK ve
+        // karari kullaniciya birakmak.
+        if (snoozeCount > maxSnoozeCount) {
+          console.log('[BG] Erteleme hakki bitti, alarm geri gosteriliyor:', medicineId);
           try {
-            useMedicineStore
-              .getState()
-              .logMedicineSkipped(
-                reminderTimeId,
-                (data?.scheduledTime as string) || new Date().toISOString(),
-                medicineId
-              );
-          } catch (_e) {
-            /* ignore */
+            await notifee.displayNotification({
+              id: notification.id,
+              title: notification.title,
+              subtitle: notification.subtitle,
+              body: notification.body,
+              android: {
+                ...(notification.android || {}),
+                channelId: ALARM_CHANNEL_ID,
+              },
+              data: {
+                ...(data || {}),
+                snoozeCount: String(maxSnoozeCount),
+                snoozeLimitReached: 'true',
+              },
+            });
+          } catch (e) {
+            console.error('[BG] Alarm geri gosterilemedi:', e);
           }
           return;
         }

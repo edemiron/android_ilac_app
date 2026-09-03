@@ -11,6 +11,10 @@ import { createScopedLogger } from '../logger';
 import { isMIUIDevice } from '../miuiHelper';
 import { resolveNotificationBehavior } from './behavior';
 import { getAlarmNotificationId, buildSnoozeNotificationId } from './ids';
+// Gun kurallarinin (scheduleType / specificDays / intervalDays / cycle / endDate)
+// TEK KAYNAGI. Bu dosya eskiden bu fonksiyonu HIC cagirmiyordu — bkz.
+// `resolveReminderTriggerDate` uzerindeki aciklama.
+import { isMedicineScheduledForDate } from '../timeCalculator';
 import type { Medicine, ReminderTime, Snooze, UserSettings } from '../../types';
 
 const log = createScopedLogger('NotificationDiagnostics');
@@ -144,6 +148,46 @@ const MIN_FUTURE_BUFFER_MS = 5_000;
  *  2. Yoksa reminderTime.time (HH:mm) parse et, bugun (veya gecmisse yarin) o saatine kur
  *  3. Notifee minimum gelecek zaman garantisi (5 sn)
  */
+/**
+ * Gun kurallari tarandiginda en fazla kac gun ileriye bakilir.
+ *
+ * En uzun mesru dongu 21+7 = 28 gun; `intervalDays` teorik olarak daha buyuk
+ * olabilir. 400 gun bir yillik dongu + emniyet payi demek. Bu sinir asilirsa
+ * "planlanacak gun yok" kabul edilir — sonsuz donguye girmek yerine.
+ */
+const MAX_SCHEDULE_LOOKAHEAD_DAYS = 400;
+
+/**
+ * Notification trigger time hesapla.
+ *
+ * ⚠️ v1.7.7 — GUN KURALLARI ARTIK BURADA UYGULANIYOR.
+ * ══════════════════════════════════════════════════════════════════════════
+ * Bu fonksiyon yalnizca `reminderTime.time` ("HH:mm") bakiyordu ve alarmi HER
+ * GUN o saate kuruyordu. `isMedicineScheduledForDate` (timeCalculator) —
+ * `scheduleType`, `specificDays`, `intervalDays`, `cycle` ve `endDate`
+ * kurallarinin dogru yazilmis TEK KAYNAGI — bu yoldan HIC cagrilmiyordu.
+ * Yalnizca ekranlar (HomeScreen, StatisticsScreen) ve kullanilmayan
+ * `rollingHorizonScheduler` onu cagiriyordu.
+ *
+ * Sonuc, bir ilac uygulamasi icin kabul edilemez bir klinik hataydi:
+ *   - `specific_days: [1,3,5]` (Pzt/Car/Cum) ilac HER GUN alarm veriyordu;
+ *     hasta almamasi gereken gunlerde "ilac vakti" uyarisi aliyordu.
+ *   - `endDate` gecmis (tedavi bitmis) ilac calmaya DEVAM ediyordu.
+ *   - `interval_days: 2` (gun asiri) her gun caliyordu.
+ *   - `cycle` (orn. 21 gun kullan / 7 gun ara) ARA HAFTASINDA da caliyordu.
+ *
+ * Alarmi kuran ana yol `scheduleMedicineNotification` ve o da
+ * `reRegisterAllAlarms` (her acilis, her yeniden baslatma) tarafindan her
+ * etkin hatirlatma icin kosulsuz cagriliyor. Yani hata her kullanicida her
+ * gun tekrar uretiliyordu.
+ *
+ * Artik: aday gun hesaplandiktan sonra ilacin O GUN planli olup olmadigi
+ * kontrol edilir; planli degilse bir sonraki planli gune atlanir. Hic planli
+ * gun yoksa (tedavi bitti) `null` doner ve cagiran alarm KURMAZ.
+ *
+ * `medicine` verilmezse gun kurallari uygulanmaz (geriye uyumluluk: tanilama
+ * yardimcilari yalnizca saat hesabi icin cagiriyor).
+ */
 export function resolveReminderTriggerDate(
   reminderTime: ReminderTime & { smokeTriggerTime?: string },
   bypassBuffer: boolean = false,
@@ -153,14 +197,38 @@ export function resolveReminderTriggerDate(
    * Doz alindiktan/atlandiktan sonraki yeniden planlama icin — bkz.
    * `resolveReminderTimeOfDay` icindeki gerekce.
    */
-  forceNextDay: boolean = false
-): Date {
+  forceNextDay: boolean = false,
+  /** Gun kurallari icin. Verilmezse yalnizca saat hesabi yapilir. */
+  medicine?: Medicine
+): Date | null {
   if (!bypassBuffer) {
     const smoke = resolveSmokeTriggerDate(reminderTime, referenceNow);
     if (smoke) return smoke;
   }
 
   const target = resolveReminderTimeOfDay(reminderTime.time, referenceNow, forceNextDay);
+
+  if (medicine) {
+    // Tedavi bitmisse 400 gun taramanin anlami yok.
+    if (medicine.endDate) {
+      const endDay = new Date(medicine.endDate);
+      endDay.setHours(23, 59, 59, 999);
+      if (target.getTime() > endDay.getTime()) return null;
+    }
+
+    let daysAdvanced = 0;
+    while (!isMedicineScheduledForDate(medicine, target)) {
+      target.setDate(target.getDate() + 1);
+      daysAdvanced += 1;
+
+      if (medicine.endDate) {
+        const endDay = new Date(medicine.endDate);
+        endDay.setHours(23, 59, 59, 999);
+        if (target.getTime() > endDay.getTime()) return null;
+      }
+      if (daysAdvanced > MAX_SCHEDULE_LOOKAHEAD_DAYS) return null;
+    }
+  }
 
   const minTime = referenceNow.getTime() + MIN_FUTURE_BUFFER_MS;
   if (target.getTime() < minTime) {
@@ -267,23 +335,36 @@ function buildExpectedNotifications(
 
   const expectedReminderNotifications = state.reminderTimes
     .filter(reminderTime => reminderTime.isEnabled && activeMedicines.has(reminderTime.medicineId))
-    .map(reminderTime => {
+    // ⚠️ v1.7.7 — `medicine` GECIRILIYOR ve `null` sonuc ATLANIYOR.
+    // Tanilama "beklenen bildirimler" kumesini uretiyor; gun kurallarini
+    // uygulamazsa bugun mesru olarak alarmi OLMAYAN ilaclar icin "sapma"
+    // (drift) bildirir ve kullaniciyi yanlis yere yonlendirir.
+    .flatMap(reminderTime => {
       const medicine = activeMedicines.get(reminderTime.medicineId)!;
-      const triggerDate = resolveReminderTriggerDate(reminderTime, false, referenceNow);
+      const triggerDate = resolveReminderTriggerDate(
+        reminderTime,
+        false,
+        referenceNow,
+        false,
+        medicine
+      );
+      if (!triggerDate) return [];
       const behavior = resolveNotificationBehavior(medicine, state.settings, triggerDate);
-      return {
-        id: getAlarmNotificationId(medicine.id, reminderTime.id),
-        type: 'alarm' as const,
-        medicineId: medicine.id,
-        medicineName: medicine.name,
-        reminderTimeId: reminderTime.id,
-        reminderTime: reminderTime.time,
-        triggerTimestamp: triggerDate.getTime(),
-        scheduledTime: triggerDate.toISOString(),
-        channelId: behavior.channelId,
-        fullScreenAlarm: behavior.fullScreenAlarm,
-        quietHoursActive: behavior.quietHoursActive,
-      };
+      return [
+        {
+          id: getAlarmNotificationId(medicine.id, reminderTime.id),
+          type: 'alarm' as const,
+          medicineId: medicine.id,
+          medicineName: medicine.name,
+          reminderTimeId: reminderTime.id,
+          reminderTime: reminderTime.time,
+          triggerTimestamp: triggerDate.getTime(),
+          scheduledTime: triggerDate.toISOString(),
+          channelId: behavior.channelId,
+          fullScreenAlarm: behavior.fullScreenAlarm,
+          quietHoursActive: behavior.quietHoursActive,
+        },
+      ];
     });
 
   const expectedSnoozeNotifications = state.snoozes

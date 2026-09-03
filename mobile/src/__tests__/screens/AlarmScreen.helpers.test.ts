@@ -7,6 +7,7 @@ import {
   formatCountdownText,
   formatSnoozeRemainingText,
   resolveSnoozeSettings,
+  resolveSnoozeRights,
   INSTRUCTION_DISPLAY_TEXTS,
   ALARM_TAKE_ACTION_LABELS,
   DEFAULT_SNOOZE_DURATION,
@@ -116,5 +117,67 @@ describe('ALARM_TAKE_ACTION_LABELS', () => {
     expect(ALARM_TAKE_ACTION_LABELS.takenTitle.tr).toBe('İlaç alındı');
     expect(ALARM_TAKE_ACTION_LABELS.takenTitle.en).toBe('Medicine taken');
     expect(ALARM_TAKE_ACTION_LABELS.skippedTitle.tr).toBe('İlaç atlandı');
+  });
+});
+
+/**
+ * ⚠️ v1.7.7 — ERTELEME HAKKI REGRESYONU (KLINIK)
+ *
+ * `useAlarmController` icinde bu karar iki satirlik bir ifadeydi ve uzerine
+ * dozu SESSIZCE `atlandi` yazan iki dal kurulmustu:
+ *
+ *   if (!canSnooze) handleSkip();              // "Erteleme hakkin bitti" yazan
+ *                                              // butona dokunmak dozu atliyordu
+ *   if (remainingSnoozes === 1) handleSkip();  // ilan edilen 3. hak hic
+ *                                              // kullanilamiyordu
+ *
+ * "Atlandi" doktora giden uyum raporuna yazilan klinik bir karardir ve
+ * yalnizca kullanici acikca secerse yazilmalidir.
+ */
+describe('resolveSnoozeRights (N hak = N erteleme)', () => {
+  it('hic erteleme yapilmamissa TAM hak verir', () => {
+    expect(resolveSnoozeRights(0, 3)).toEqual({
+      canSnooze: true,
+      remainingSnoozes: 3,
+      limitReached: false,
+    });
+  });
+
+  it('SON HAK hala kullanilabilir (eskiden burada doz atlaniyordu)', () => {
+    const rights = resolveSnoozeRights(2, 3);
+    expect(rights.canSnooze).toBe(true);
+    expect(rights.remainingSnoozes).toBe(1);
+    expect(rights.limitReached).toBe(false);
+  });
+
+  it('ilan edilen hak sayisi kadar erteleme yapilabilir — 3 hak, 3 erteleme', () => {
+    const kullanilabilir = [0, 1, 2].filter(used => resolveSnoozeRights(used, 3).canSnooze);
+    expect(kullanilabilir).toHaveLength(3);
+  });
+
+  it('hak bitince canSnooze false ve limitReached true olur', () => {
+    expect(resolveSnoozeRights(3, 3)).toEqual({
+      canSnooze: false,
+      remainingSnoozes: 0,
+      limitReached: true,
+    });
+  });
+
+  it('sayac limiti asmissa kalan hak negatife dusmez', () => {
+    expect(resolveSnoozeRights(9, 3)).toEqual({
+      canSnooze: false,
+      remainingSnoozes: 0,
+      limitReached: true,
+    });
+  });
+
+  it('maxSnoozeCount 0 ise hic erteleme hakki yoktur', () => {
+    expect(resolveSnoozeRights(0, 0).canSnooze).toBe(false);
+  });
+
+  it('bozuk degerler hakki yanlislikla acmaz/kapatmaz', () => {
+    expect(resolveSnoozeRights(NaN, 3).remainingSnoozes).toBe(3);
+    expect(resolveSnoozeRights(-5, 3).remainingSnoozes).toBe(3);
+    expect(resolveSnoozeRights(1, NaN).canSnooze).toBe(false);
   });
 });

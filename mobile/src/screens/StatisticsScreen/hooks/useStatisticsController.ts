@@ -22,6 +22,8 @@ import {
 } from '../../../services/pdfReportService';
 import { createScopedLogger } from '../../../utils/logger';
 import type { Period } from '../helpers';
+// Uyum hesabinin TEK KAYNAGI (payda = PLANLANAN doz; veri yoksa null).
+import { summarizeAdherence } from '../../../domain/adherence';
 import { findTopMissedTimes } from '../chartHelpers';
 
 const log = createScopedLogger('StatisticsController');
@@ -31,7 +33,13 @@ export interface DailyStatItem {
   taken: number;
   skipped: number;
   missed: number;
+  /** PLANLANAN doz sayisi (taken + skipped + missed) — mevcut log sayisi DEGIL. */
   total: number;
+  /**
+   * v1.7.7: veri olup olmadigi ARTIK ACIKCA tasiniyor. `adherenceRate`
+   * veri yokken 0 gelir ve GOSTERILMEMELIDIR — arayuz "—" gosterir.
+   */
+  hasData: boolean;
   adherenceRate: number;
 }
 
@@ -52,7 +60,10 @@ export interface OverallStats {
   taken: number;
   skipped: number;
   missed: number;
+  /** PLANLANAN doz sayisi — mevcut log sayisi DEGIL (bkz. domain/adherence.ts). */
   total: number;
+  /** Veri yoksa `adherenceRate` gosterilmemeli. */
+  hasData: boolean;
   adherenceRate: number;
   currentStreak: number;
   bestStreak: number;
@@ -89,16 +100,25 @@ export function useStatisticsController() {
       const dayStr = format(day, 'yyyy-MM-dd');
       const dayLogs = medicineLogs.filter(l => l.scheduledTime.startsWith(dayStr));
 
-      const taken = dayLogs.filter(l => l.status === 'taken').length;
-      const total = dayLogs.length;
+      // ⚠️ v1.7.7 — hesap `domain/adherence.ts`te (TEK KAYNAK).
+      // Eskiden burada `total = dayLogs.length` ve
+      // `total > 0 ? ... : 100` vardi. Iki hata: (1) payda MEVCUT LOG
+      // sayisiydi — islenmeyen doz hic log uretmedigi icin paydaya girmiyor,
+      // yani dozu gormezden gelmek skoru YUKSELTIYORDU; (2) veri yokken
+      // %100 uyduruluyordu (ayni ekranin baska karti ayni durumda %0
+      // gosteriyordu).
+      const summary = summarizeAdherence(dayLogs);
 
       return {
         date: day,
-        taken,
-        skipped: dayLogs.filter(l => l.status === 'skipped').length,
-        missed: dayLogs.filter(l => l.status === 'missed').length,
-        total,
-        adherenceRate: total > 0 ? Math.round((taken / total) * 100) : 100,
+        taken: summary.taken,
+        skipped: summary.skipped,
+        missed: summary.missed,
+        total: summary.planned,
+        hasData: summary.hasData,
+        // Arayuz `hasData` false iken "—" gosterir; buradaki 0 yalnizca
+        // tip uyumu icin — GOSTERILECEK bir deger degil.
+        adherenceRate: summary.rate ?? 0,
       };
     });
   }, [dateRange, medicineLogs]);
@@ -106,22 +126,25 @@ export function useStatisticsController() {
   const overallStats: OverallStats = useMemo(() => {
     const logs = medicineLogs.filter(l => isWithinInterval(new Date(l.scheduledTime), dateRange));
 
-    const taken = logs.filter(l => l.status === 'taken').length;
-    const skipped = logs.filter(l => l.status === 'skipped').length;
-    const missed = logs.filter(l => l.status === 'missed').length;
-    const total = logs.length;
+    // Hesap `domain/adherence.ts`te — bkz. yukaridaki gerekce.
+    const summary = summarizeAdherence(logs);
+    const { taken, skipped, missed } = summary;
+    const total = summary.planned;
 
     let currentStreak = 0;
     let bestStreak = 0;
     let tempStreak = 0;
 
     for (let i = dailyStats.length - 1; i >= 0; i--) {
-      if (dailyStats[i].adherenceRate === 100 && dailyStats[i].total > 0) {
+      // Seri (streak) yalnizca VERISI OLAN tam uyum gununde artar.
+      // `hasData` olmadan, kayit girilmemis gunler %100 sayilip seriyi
+      // uyduruyordu.
+      if (dailyStats[i].hasData && dailyStats[i].taken === dailyStats[i].total) {
         tempStreak++;
         if (i === dailyStats.length - 1) {
           currentStreak = tempStreak;
         }
-      } else if (dailyStats[i].total > 0) {
+      } else if (dailyStats[i].hasData) {
         bestStreak = Math.max(bestStreak, tempStreak);
         tempStreak = 0;
       }
@@ -133,7 +156,8 @@ export function useStatisticsController() {
       skipped,
       missed,
       total,
-      adherenceRate: total > 0 ? Math.round((taken / total) * 100) : 100,
+      hasData: summary.hasData,
+      adherenceRate: summary.rate ?? 0,
       currentStreak,
       bestStreak,
     };

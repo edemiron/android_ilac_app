@@ -20,6 +20,8 @@ import { STORAGE_KEYS, NOTIFICATION_IDS } from '../constants';
 import { ALARM_CHANNEL_ID, SYNC_STATUS_CHANNEL_ID } from './notifications/channels';
 // Native AlarmModule'e TEK KOPRU (bkz. notifications/nativeAlarm.ts).
 import { scheduleNativeAlarm, ALARM_KIND_SNOOZE } from './notifications/nativeAlarm';
+// Bildirim kimliklerinin tek kaynagi — 'alarm-' literal'i burada uretilmez.
+import { getAlarmNotificationId } from './notifications/ids';
 
 const log = createScopedLogger('BootHandler');
 const BOOT_RECOVERY_KEY = STORAGE_KEYS.BOOT_RECOVERY;
@@ -277,6 +279,28 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
     const activeMedicines = medicines.filter(m => m.isActive);
     const medicineMap = new Map(activeMedicines.map(m => [m.id, m]));
 
+    // ⚠️ v1.7.7 — O ANDA CALAN ALARMA DOKUNMA.
+    //
+    // `scheduleMedicineNotification` her cagrida ONCE `cancelNotification`
+    // yapiyor. Bu yeniden kayit turu calan bir alarma denk gelirse kullanicinin
+    // ekranindaki/bildirim cubugundaki alarmi DUSURUYORDU — doz hatirlatmasi
+    // sessizce kayboluyor. Cihazda olculdu: 15 alarm 8 saniyede uc kez iptal
+    // edilip yeniden kuruldu.
+    //
+    // Halihazirda GOSTERILEN bildirimler atlanir: onlar zaten gorevini
+    // yapiyor ve kullanici onlara yanit verdiginde kendi yollari temizliyor.
+    let displayedAlarmIds = new Set<string>();
+    try {
+      const displayed = await notifee.getDisplayedNotifications();
+      displayedAlarmIds = new Set(
+        displayed
+          .map(item => item.notification?.id || item.id)
+          .filter((id): id is string => typeof id === 'string')
+      );
+    } catch (error) {
+      log.debug('Gosterilen bildirimler okunamadi, hepsi yeniden kurulacak', { error });
+    }
+
     // Her alarm scheduleMedicineNotification içinde kendi eski bildirimini iptal eder
     // cancelAllNotifications çağırmıyoruz - race condition ve kayıp alarm riski var
     log.debug('Re-registering alarms for active medicines', { count: activeMedicines.length });
@@ -286,6 +310,14 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
 
       const medicine = medicineMap.get(reminderTime.medicineId);
       if (!medicine) continue;
+
+      // Bu doz SU AN caliyorsa yeniden kurma (yukaridaki gerekce).
+      const alarmId = getAlarmNotificationId(medicine.id, reminderTime.id);
+      if (displayedAlarmIds.has(alarmId)) {
+        log.debug('Alarm su an gosteriliyor, yeniden kurulmadi', { alarmId });
+        registeredReminders++;
+        continue;
+      }
 
       // notifications.ts'deki fonksiyonu kullan - bypassBuffer=false ile buffer uygula
       const notificationId = await scheduleMedicineNotification(

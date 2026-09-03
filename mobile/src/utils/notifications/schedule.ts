@@ -457,7 +457,32 @@ export async function scheduleMedicineNotification(
     });
 
     const now = new Date();
-    const triggerDate = resolveReminderTriggerDate(reminderTime, bypassBuffer, now, forceNextDay);
+    // ⚠️ v1.7.7 — `medicine` GECIRILIYOR. Bu olmadan gun kurallari
+    // (scheduleType / specificDays / intervalDays / cycle / endDate) hic
+    // uygulanmiyor ve alarm HER GUN kuruluyordu. Ayrintili gerekce:
+    // `resolveReminderTriggerDate` dosya ici aciklamasi.
+    const triggerDate = resolveReminderTriggerDate(
+      reminderTime,
+      bypassBuffer,
+      now,
+      forceNextDay,
+      medicine
+    );
+
+    // Planlanacak gun yok: tedavi bitti (`endDate` gecti) ya da ilac artik
+    // etkin degil. Yukarida bu doza ait bildirim ZATEN iptal edildi; burada
+    // yeni bir alarm KURULMAZ. Eskiden bu durum hic kontrol edilmiyor ve
+    // biten tedavinin alarmi calmaya devam ediyordu.
+    if (!triggerDate) {
+      log.warn('Bu ilac icin planlanacak gun yok, alarm kurulmadi', {
+        name: medicine.name,
+        time: reminderTime.time,
+        scheduleType: medicine.scheduleType || 'daily',
+        endDate: medicine.endDate,
+        isActive: medicine.isActive,
+      });
+      return null;
+    }
 
     const behavior = resolveNotificationBehavior(medicine, settingsOrFullScreen, triggerDate);
 

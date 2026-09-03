@@ -43,6 +43,8 @@ import {
   MedicineCategory,
 } from '../types';
 import { calculateMedicineTimes, isMedicineScheduledForDate } from '../utils/timeCalculator';
+// Yeniden planlama firtinalarini tek kosuya indirir (bkz. dosya basi aciklamasi).
+import { requestFullReschedule } from '../utils/notifications/rescheduleCoalescer';
 import { generateId } from '../utils/idGenerator';
 import { getSyncQueue } from '../utils/syncQueue';
 import { markMissedReminders as calculateMissedReminders } from '../utils/missedReminders';
@@ -459,23 +461,23 @@ export const useMedicineStore = create<MedicineState>()(
               // `updateSettings` yolunda self-heal vardi, sync yolunda YOKTU:
               // buluttan gelen ilac/saat degisiklikleri sonrasi eksik veya
               // konfigurasyonu kaymis bildirimler onarilmadan kaliyordu.
-              void rescheduleActiveNotificationsFromState(get(), updates => {
-                set(state => ({
-                  snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
-                }));
-              })
-                .then(async () => {
-                  const healResult = await get().runNotificationSelfHeal();
-                  if (healResult.repaired) {
-                    log.debug('Cloud senkronu sonrasi self-heal tamamlandi', {
-                      missingCount: healResult.missingNotificationIds.length,
-                      configDriftCount: healResult.configDriftIds.length,
-                    });
-                  }
-                })
-                .catch(error =>
-                  log.error('Cloud senkronundan sonra alarmlar yeniden planlanamadi', error)
-                );
+              // ⚠️ v1.7.7 — firtina birlestirildi; gerekce:
+              // utils/notifications/rescheduleCoalescer.ts
+              requestFullReschedule(async () => {
+                await rescheduleActiveNotificationsFromState(get(), updates => {
+                  set(state => ({
+                    snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
+                  }));
+                });
+
+                const healResult = await get().runNotificationSelfHeal();
+                if (healResult.repaired) {
+                  log.debug('Cloud senkronu sonrasi self-heal tamamlandi', {
+                    missingCount: healResult.missingNotificationIds.length,
+                    configDriftCount: healResult.configDriftIds.length,
+                  });
+                }
+              }, 'cloud-sync');
 
               if (pendingImageBackfillIds.length > 0) {
                 void getSyncQueue()
@@ -1530,27 +1532,30 @@ export const useMedicineStore = create<MedicineState>()(
         }
 
         if (shouldReschedule && !skipReschedule) {
-          void rescheduleActiveNotificationsFromState(get(), updates => {
-            set(state => ({
-              snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
-            }));
-          })
-            .then(async () => {
-              if (skipSelfHeal) {
-                return;
-              }
+          // ⚠️ v1.7.7 — YENIDEN PLANLAMA FIRTINALARI BIRLESTIRILDI.
+          // Acilista bu isi UC bagimsiz yol tetikliyor (app_startup,
+          // syncFromCloud, updateSettings/importData) ve her biri HER alarmi
+          // iptal edip yeniden kuruyordu. Cihazda olculdu: 15 hatirlatma icin
+          // TEK acilista 45 iptal + 45 kurulum. Iptal penceresi o anda CALAN
+          // bir alarma denk gelirse doz hatirlatmasi sessizce dusuyor.
+          // Ayrintili gerekce: utils/notifications/rescheduleCoalescer.ts.
+          requestFullReschedule(async () => {
+            await rescheduleActiveNotificationsFromState(get(), updates => {
+              set(state => ({
+                snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
+              }));
+            });
 
-              const healResult = await get().runNotificationSelfHeal();
-              if (healResult.repaired) {
-                log.debug('Ayar degisikligi sonrasi self-heal tamamlandi', {
-                  missingCount: healResult.missingNotificationIds.length,
-                  configDriftCount: healResult.configDriftIds.length,
-                });
-              }
-            })
-            .catch(error =>
-              log.error('Ayar de?i?ikli?inden sonra alarmlar yeniden planlanamad?', error)
-            );
+            if (skipSelfHeal) return;
+
+            const healResult = await get().runNotificationSelfHeal();
+            if (healResult.repaired) {
+              log.debug('Ayar degisikligi sonrasi self-heal tamamlandi', {
+                missingCount: healResult.missingNotificationIds.length,
+                configDriftCount: healResult.configDriftIds.length,
+              });
+            }
+          }, 'settings-change');
         }
 
         if (userId && !skipCloudSync) {
@@ -1834,11 +1839,14 @@ export const useMedicineStore = create<MedicineState>()(
           }),
         });
 
-        void rescheduleActiveNotificationsFromState(get(), updates => {
-          set(state => ({
-            snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
-          }));
-        }).catch(error => log.error('Import sonras?nda alarmlar yeniden planlanamad?', error));
+        // v1.7.7 — firtina birlestirildi (bkz. rescheduleCoalescer.ts).
+        requestFullReschedule(async () => {
+          await rescheduleActiveNotificationsFromState(get(), updates => {
+            set(state => ({
+              snoozes: mergeSnoozeNotificationRescheduleUpdates(state.snoozes, updates),
+            }));
+          });
+        }, 'import-data');
       },
     }),
     {

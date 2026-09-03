@@ -514,13 +514,13 @@ describe('resolveReminderTriggerDate (Sprint 95 — kök neden fix)', () => {
 
   it('reminderTime.time "08:00" sabah 06:00’dan → bugün 08:00 (gelecek)', () => {
     const result = resolveReminderTriggerDate(stubReminder('08:00'), false, refNow);
-    expect(result.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
   });
 
   it('reminderTime.time "08:00" sabah 10:00’dan → yarın 08:00 (bugün geçmiş)', () => {
     const ref = new Date('2026-07-31T10:00:00');
     const result = resolveReminderTriggerDate(stubReminder('08:00'), false, ref);
-    expect(result.getTime()).toBe(new Date('2026-08-01T08:00:00').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-08-01T08:00:00').getTime());
   });
 
   // ⚠️ v1.7.6 — DOZ COZUMLENDIKTEN SONRAKI YENIDEN PLANLAMA
@@ -532,56 +532,217 @@ describe('resolveReminderTriggerDate (Sprint 95 — kök neden fix)', () => {
     // 06:00'da, 20:00 dozu "Erken Al" ile alindi.
     const ref = new Date('2026-07-31T06:00:00');
     const result = resolveReminderTriggerDate(stubReminder('20:00'), false, ref, true);
-    expect(result.getTime()).toBe(new Date('2026-08-01T20:00:00').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-08-01T20:00:00').getTime());
   });
 
   it('forceNextDay=false: varsayilan davranis korunur (bugun 20:00)', () => {
     const ref = new Date('2026-07-31T06:00:00');
     const result = resolveReminderTriggerDate(stubReminder('20:00'), false, ref);
-    expect(result.getTime()).toBe(new Date('2026-07-31T20:00:00').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-07-31T20:00:00').getTime());
   });
 
   it('forceNextDay=true: saat zaten gecmisse gunu IKI kez atlamaz', () => {
     // 22:00'da 20:00 dozu alindi -> yarin 20:00 (obur gun DEGIL).
     const ref = new Date('2026-07-31T22:00:00');
     const result = resolveReminderTriggerDate(stubReminder('20:00'), false, ref, true);
-    expect(result.getTime()).toBe(new Date('2026-08-01T20:00:00').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-08-01T20:00:00').getTime());
   });
 
   it('reminderTime.time "23:30" gece 00:30’dan → bugün 23:30 (gelecek)', () => {
     const ref = new Date('2026-07-31T00:30:00');
     const result = resolveReminderTriggerDate(stubReminder('23:30'), false, ref);
-    expect(result.getTime()).toBe(new Date('2026-07-31T23:30:00').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-07-31T23:30:00').getTime());
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ⚠️ v1.7.7 — GUN KURALLARI (KLINIK REGRESYON)
+  //
+  // Bu fonksiyon `isMedicineScheduledForDate`i HIC cagirmiyordu. Sonuc:
+  //   - Pzt/Car/Cum ilaci HER GUN alarm veriyordu (hasta almamasi gereken
+  //     gunlerde "ilac vakti" uyarisi aliyordu),
+  //   - `endDate` gecmis (biten) tedavi calmaya devam ediyordu,
+  //   - gun asiri ilac her gun caliyordu,
+  //   - dongusel ilac (21 kullan / 7 ara) ARA HAFTASINDA da caliyordu.
+  // Alarmi kuran ana yol `reRegisterAllAlarms` her acilista bunu yeniden
+  // uretiyordu, yani hata her kullanicida her gun tekrarliyordu.
+  // ═══════════════════════════════════════════════════════════════════════
+  describe('gun kurallari (scheduleType / endDate)', () => {
+    const med = (over: Partial<Medicine>): Medicine =>
+      ({
+        id: 'med-1',
+        name: 'Test',
+        dosage: '1',
+        isActive: true,
+        color: '#fff',
+        startDate: '2026-07-01T00:00:00',
+        createdAt: '2026-07-01T00:00:00',
+        updatedAt: '2026-07-01T00:00:00',
+        ...over,
+      }) as unknown as Medicine;
+
+    // 2026-07-31 Cuma 06:00
+    const cuma0600 = new Date('2026-07-31T06:00:00');
+
+    it('specific_days: bugun PLANLI DEGILSE bir sonraki planli gune atlar', () => {
+      // Pzt(1) / Car(3) ilaci. 31 Tem 2026 CUMA(5) -> planli degil.
+      // Sonraki planli gun: 3 Agustos 2026 PAZARTESI.
+      const result = resolveReminderTriggerDate(
+        stubReminder('08:00'),
+        false,
+        cuma0600,
+        false,
+        med({ scheduleType: 'specific_days', specificDays: [1, 3] })
+      );
+      expect(result).not.toBeNull();
+      expect(result!.getTime()).toBe(new Date('2026-08-03T08:00:00').getTime());
+    });
+
+    it('specific_days: bugun PLANLIYSA bugune kurar', () => {
+      // Cuma(5) planli.
+      const result = resolveReminderTriggerDate(
+        stubReminder('08:00'),
+        false,
+        cuma0600,
+        false,
+        med({ scheduleType: 'specific_days', specificDays: [5] })
+      );
+      expect(result!.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+    });
+
+    it('endDate GECMISSE null doner (biten tedavi calmaz)', () => {
+      const result = resolveReminderTriggerDate(
+        stubReminder('08:00'),
+        false,
+        cuma0600,
+        false,
+        med({ endDate: '2026-07-20T00:00:00' })
+      );
+      expect(result).toBeNull();
+    });
+
+    it('endDate BUGUNSE bugune kurar (son gun dahil)', () => {
+      const result = resolveReminderTriggerDate(
+        stubReminder('08:00'),
+        false,
+        cuma0600,
+        false,
+        med({ endDate: '2026-07-31T00:00:00' })
+      );
+      expect(result!.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+    });
+
+    it('endDate, atlanacak gun onu gecirecekse null doner', () => {
+      // Pazartesi ilaci ama tedavi Cumartesi bitiyor -> sonraki Pazartesi yok.
+      const result = resolveReminderTriggerDate(
+        stubReminder('08:00'),
+        false,
+        cuma0600,
+        false,
+        med({
+          scheduleType: 'specific_days',
+          specificDays: [1],
+          endDate: '2026-08-01T00:00:00',
+        })
+      );
+      expect(result).toBeNull();
+    });
+
+    it('interval_days: gun asiri ilac ara gune KURULMAZ', () => {
+      // startDate 1 Tem, 2 gunde bir -> tek gunler (1,3,5...) planli.
+      // 31 Tem = start + 30 gun -> 30 % 2 === 0 -> planli.
+      const planli = resolveReminderTriggerDate(
+        stubReminder('08:00'),
+        false,
+        cuma0600,
+        false,
+        med({ scheduleType: 'interval_days', intervalDays: 2 })
+      );
+      expect(planli!.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+
+      // 30 Tem = start + 29 gun -> planli DEGIL -> 31 Tem'e atlar.
+      const persembe = new Date('2026-07-30T06:00:00');
+      const atlanan = resolveReminderTriggerDate(
+        stubReminder('08:00'),
+        false,
+        persembe,
+        false,
+        med({ scheduleType: 'interval_days', intervalDays: 2 })
+      );
+      expect(atlanan!.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+    });
+
+    it('cycle: ARA gunlerinde kurulmaz, kullanim gunune atlar', () => {
+      // 21 gun kullan / 7 gun ara, start 1 Tem.
+      // 22 Tem = start + 21 -> ara basi (planli DEGIL).
+      // Ara 22–28 Tem; sonraki kullanim gunu 29 Tem.
+      const araGunu = new Date('2026-07-22T06:00:00');
+      const result = resolveReminderTriggerDate(
+        stubReminder('08:00'),
+        false,
+        araGunu,
+        false,
+        med({ scheduleType: 'cycle', cycleDaysOn: 21, cycleDaysOff: 7 })
+      );
+      expect(result!.getTime()).toBe(new Date('2026-07-29T08:00:00').getTime());
+    });
+
+    it('isActive=false ilac icin null doner', () => {
+      const result = resolveReminderTriggerDate(
+        stubReminder('08:00'),
+        false,
+        cuma0600,
+        false,
+        med({ isActive: false })
+      );
+      expect(result).toBeNull();
+    });
+
+    it('medicine VERILMEZSE gun kurallari uygulanmaz (geriye uyumluluk)', () => {
+      const result = resolveReminderTriggerDate(stubReminder('08:00'), false, cuma0600);
+      expect(result!.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+    });
+
+    it('gun kurallari forceNextDay ile birlikte calisir', () => {
+      // Cuma(5) planli ama doz AZ ONCE alindi -> sonraki Cuma.
+      const result = resolveReminderTriggerDate(
+        stubReminder('20:00'),
+        false,
+        cuma0600,
+        true,
+        med({ scheduleType: 'specific_days', specificDays: [5] })
+      );
+      expect(result!.getTime()).toBe(new Date('2026-08-07T20:00:00').getTime());
+    });
   });
 
   it('smokeTriggerTime gelecekte + bypassBuffer=false → smoke kullanılır', () => {
     const future = new Date('2026-08-01T12:00:00').toISOString();
     const result = resolveReminderTriggerDate(stubReminder('08:00', future), false, refNow);
-    expect(result.getTime()).toBe(new Date(future).getTime());
+    expect(result!.getTime()).toBe(new Date(future).getTime());
   });
 
   it('smokeTriggerTime gelecekte + bypassBuffer=true → smoke atlanır, reminderTime.time kullanılır', () => {
     const future = new Date('2026-08-01T12:00:00').toISOString();
     const result = resolveReminderTriggerDate(stubReminder('08:00', future), true, refNow);
-    expect(result.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
   });
 
   it('notifee 5 sn minimum buffer — trigger <5 sn ise ayarlanır (07:59:58 → 08:00:03)', () => {
     const ref = new Date('2026-07-31T07:59:58'); // 2 sn sonrası
     const result = resolveReminderTriggerDate(stubReminder('08:00'), false, ref);
     // 07:59:58 + 5 sn = 08:00:03 (target 08:00:00 < minTime 08:00:03 → ayarlanır)
-    expect(result.getTime()).toBe(new Date('2026-07-31T08:00:03').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-07-31T08:00:03').getTime());
   });
 
   it('notifee 5 sn minimum buffer — trigger >5 sn ise dokunulmaz (07:55:00 → 08:00:00)', () => {
     const ref = new Date('2026-07-31T07:55:00');
     const result = resolveReminderTriggerDate(stubReminder('08:00'), false, ref);
-    expect(result.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-07-31T08:00:00').getTime());
   });
 
   it('bugün geçmiş + yarına kayar — gün sınırı doğru geçilir (23:55 → 00:05+1gün)', () => {
     const ref = new Date('2026-07-31T23:55:00');
     const result = resolveReminderTriggerDate(stubReminder('00:05'), false, ref);
-    expect(result.getTime()).toBe(new Date('2026-08-01T00:05:00').getTime());
+    expect(result!.getTime()).toBe(new Date('2026-08-01T00:05:00').getTime());
   });
 });

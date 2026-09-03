@@ -32,12 +32,19 @@ export function AlarmActionButtons({
       ? `${Math.round(snoozeDuration * 60)} ${language === 'tr' ? 'sn' : 'sec'}`
       : `${snoozeDuration} ${language === 'tr' ? 'dk' : 'min'}`;
 
+  // ⚠️ v1.7.7 — ETIKET ARTIK GERCEGI SOYLUYOR.
+  // Son hakta "Ertele — Son hak! (Ilac atlanir)" yaziyordu ve gercekten de
+  // dozu atliyordu; yani ilan edilen 3 hakkin ucuncusu hic kullanilamiyordu.
+  // Erteleme artik son hakta da NORMAL calisir; hak bitince buton gercekten
+  // devre disi kalir ve kullaniciyi iki gercek eyleme yonlendirir.
   const snoozeButtonLabel = (() => {
     if (!canSnooze) {
-      return `❌ ${language === 'tr' ? 'Erteleme hakkın bitti' : 'No snoozes left'}`;
+      return language === 'tr'
+        ? '⏰ Erteleme hakkın bitti — "Aldım" ya da "İlacı Atla" seç'
+        : '⏰ No snoozes left — choose "Take" or "Skip"';
     }
     if (remainingSnoozes === 1) {
-      return `⚠️ ${language === 'tr' ? 'Ertele — Son hak! (İlaç atlanır)' : 'Snooze — Last chance! (Medicine skipped)'}`;
+      return `⏰ ${durationLabel} ${language === 'tr' ? 'ertele — son hak' : 'snooze — last one'}`;
     }
     return `⏰ ${durationLabel} ${language === 'tr' ? 'ertele' : 'snooze'} — ${language === 'tr' ? `${remainingSnoozes} hak` : `${remainingSnoozes} left`}`;
   })();
@@ -54,6 +61,10 @@ export function AlarmActionButtons({
       <TouchableOpacity
         style={[styles.snoozeButton, !canSnooze && styles.snoozeButtonDisabled]}
         onPress={onSnooze}
+        // v1.7.7: "disabled" GORUNEN ama basilabilen buton kaldirildi.
+        // Eskiden bu butona dokunmak dozu atlandi olarak kaydediyordu.
+        disabled={!canSnooze}
+        accessibilityState={{ disabled: !canSnooze }}
         activeOpacity={0.8}
       >
         <Text style={[styles.snoozeButtonText, !canSnooze && styles.snoozeButtonTextDisabled]}>

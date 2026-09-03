@@ -948,6 +948,32 @@ function AppContent() {
     };
   }, [handleIncomingAlarm, handleAction]);
 
+  // ⚠️ v1.7.7 — KACIRILAN DOZLARI ISARETLE.
+  //
+  // `markMissedReminders` kod tabaninda TANIMLIYDI ama HICBIR YERDEN
+  // CAGRILMIYORDU. Sonucu uyum hesabinda goruluyordu: kullanici bir dozu hic
+  // islemezse o doz icin log olusmuyor, paydaya girmiyor ve dozu gormezden
+  // gelmek skoru YUKSELTIYORDU (gunde 3 doz, 1'i alindi, 2'si yoksayildi ->
+  // %100). Ayrintili gerekce: src/domain/adherence.ts.
+  //
+  // Acilista ve uygulama ON PLANA GELDIGINDE cagrilir: gecmis dozlar
+  // (varsayilan 60 dk tolerans sonrasi) `missed` olarak kaydedilir.
+  useEffect(() => {
+    const markMissed = () => {
+      try {
+        useMedicineStore.getState().markMissedReminders();
+      } catch (error) {
+        appLog.warn('markMissedReminders basarisiz', { error });
+      }
+    };
+
+    markMissed();
+    const sub = AppState.addEventListener('change', next => {
+      if (next === 'active') markMissed();
+    });
+    return () => sub.remove();
+  }, []);
+
   // Handler'in EN GUNCEL hali. Asagidaki tek-seferlik effect bunu bagimlilik
   // olarak alsaydi yine her render'da yeniden calisirdi.
   const handleIncomingAlarmRef = useRef(handleIncomingAlarm);

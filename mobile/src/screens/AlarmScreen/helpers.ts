@@ -76,6 +76,54 @@ export function resolveSnoozeSettings(
   };
 }
 
+export interface SnoozeRights {
+  /** Erteleme yapilabilir mi? */
+  canSnooze: boolean;
+  /** Kalan hak sayisi (0'in altina inmez). */
+  remainingSnoozes: number;
+  /**
+   * Hak bitti. Bu durumda doz ATLANMAZ — kullanici "Aldim" ya da "Atla"
+   * secmelidir. Bkz. asagidaki gerekce.
+   */
+  limitReached: boolean;
+}
+
+/**
+ * Erteleme hakki karari — TEK KAYNAK.
+ *
+ * ⚠️ v1.7.7 — "N HAK = N ERTELEME" NIYE AYRI BIR FONKSIYON OLDU
+ * ══════════════════════════════════════════════════════════════════════════
+ * Bu karar `useAlarmController` icinde iki satirlik ifadeydi ve uzerine iki
+ * ayri dal kurulmustu; ikisi de dozu `atlandi` yaziyordu:
+ *
+ *   if (!canSnooze) handleSkip();                 // "disabled" gorunen butona
+ *                                                 // dokunmak dozu atliyordu
+ *   if (remainingSnoozes === 1) handleSkip();     // ILAN EDILEN son hak hic
+ *                                                 // kullanilamiyordu
+ *
+ * `maxSnoozeCount = 3` iken buton "3 hak" yaziyor, kullanici iki kez
+ * erteleyebiliyor, ucuncu dokunusta doz ATLANIYORDU. Buton etiketi bunu
+ * "Ertele — Son hak! (Ilac atlanir)" diye itiraf ediyordu, ama "atlandi"
+ * doktora giden uyum raporuna yazilan KLINIK bir karar ve yalnizca kullanici
+ * acikca secerse (atlama nedeni diyalogu ile) yazilmalidir.
+ *
+ * Dogru semantik: ilan edilen hak sayisi kadar erteleme YAPILABILIR; hak
+ * bitince hicbir sey yazilmaz, alarm acik kalir, karar kullanicinin.
+ */
+export function resolveSnoozeRights(
+  currentSnoozeCount: number,
+  maxSnoozeCount: number
+): SnoozeRights {
+  // Bozuk/eksik degerlere karsi: negatif ya da NaN sayac hakki sifirlamamali.
+  const used = Number.isFinite(currentSnoozeCount) ? Math.max(0, currentSnoozeCount) : 0;
+  const max = Number.isFinite(maxSnoozeCount) ? Math.max(0, maxSnoozeCount) : 0;
+
+  const remainingSnoozes = Math.max(0, max - used);
+  const canSnooze = used < max;
+
+  return { canSnooze, remainingSnoozes, limitReached: !canSnooze };
+}
+
 /**
  * Alarm screen critical-level labels (TR + EN).
  */

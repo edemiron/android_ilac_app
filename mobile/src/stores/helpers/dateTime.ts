@@ -9,6 +9,11 @@
 
 import { format } from 'date-fns';
 import { normalizeMedicineLogsBySlot } from './medicineLogs';
+// Uyum paydasinin TEK KAYNAGI — bkz. domain/adherence.ts.
+import {
+  countDoseOutcomes,
+  adherenceRate as adherenceRateFromCounts,
+} from '../../domain/adherence';
 import type { Medicine, MedicineLog, ReminderTime } from '../../types';
 
 // =====================================================================
@@ -86,8 +91,32 @@ export function calculateAdherenceRate(
     return hasPastReminderToday ? 0 : 100;
   }
 
-  const takenCount = recentLogs.filter(log => log.status === 'taken').length;
-  return Math.round((takenCount / recentLogs.length) * 100);
+  // ⚠️ v1.7.7 — PAYDA ARTIK PLANLANAN DOZ.
+  // Eskiden payda `recentLogs.length`, yani MEVCUT log sayisiydi. Kullanici bir
+  // dozu hic islemezse o doz icin log olusmuyor (ve `markMissedReminders`
+  // hicbir yerden cagrilmiyordu), dolayisiyla paydaya girmiyordu: dozu
+  // gormezden gelmek uyum skorunu YUKSELTIYORDU. Ayrintili gerekce ve rakamli
+  // ornek: src/domain/adherence.ts dosya basi.
+  //
+  // `pending` loglar paydadan cikarilir: saati henuz gelmemis doz ne alinmis
+  // ne kacirilmis sayilir.
+  const outcomes = countDoseOutcomes(recentLogs);
+  const rate = adherenceRateFromCounts(outcomes.taken, outcomes.planned);
+
+  // `null` = bu araliktaki planlanmis doz yok. Bu fonksiyonun sozlesmesi
+  // `number` oldugu icin (ana ekran yuzdelik halkasi) mevcut "veri yok"
+  // davranisi korunur; dogru cozum arayuzde "—" gostermek ve bunu
+  // `domain/adherence.summarizeAdherence` ile okumaktir.
+  if (rate === null) {
+    const activeIds = getActiveMedicineIds(medicines);
+    const currentTime = getTimeString(now);
+    const hasPastReminderToday = reminderTimes.some(rt => {
+      if (!activeIds.has(rt.medicineId) || !rt.isEnabled) return false;
+      return rt.time < currentTime;
+    });
+    return hasPastReminderToday ? 0 : 100;
+  }
+  return rate;
 }
 
 /**

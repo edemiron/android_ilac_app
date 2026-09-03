@@ -50,7 +50,7 @@ import { isDoseLogged } from '../../../domain/doseLog';
 import { releaseAlarmDedupFor } from '../../../utils/notifications/alarmDedup';
 import { generateId } from '../../../utils/idGenerator';
 import { createScopedLogger } from '../../../utils/logger';
-import { getInstructionDisplay } from '../helpers';
+import { getInstructionDisplay, resolveSnoozeRights } from '../helpers';
 import { evaluateMissedDoseAction } from '../../../utils/clinicalSafetyEngine';
 import type { RootStackParamList, ReminderTime, Medicine } from '../../../types';
 import type { VoiceCommandIntent } from '../../../utils/voiceRecognition';
@@ -231,8 +231,9 @@ export function useAlarmController() {
     routeOriginalScheduledTime,
   ]);
 
-  const canSnooze = currentSnoozeCount < maxSnoozeCount;
-  const remainingSnoozes = maxSnoozeCount - currentSnoozeCount;
+  // Karar `helpers.resolveSnoozeRights` icinde — TEK KAYNAK.
+  // Eskiden bu iki satirin uzerine dozu sessizce atlayan iki dal kurulmustu.
+  const { canSnooze, remainingSnoozes } = resolveSnoozeRights(currentSnoozeCount, maxSnoozeCount);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -679,18 +680,28 @@ export function useAlarmController() {
       return;
     }
 
+    // ⚠️ v1.7.7 — SESSIZ ATLAMA KALDIRILDI. N HAK = N ERTELEME.
+    // ══════════════════════════════════════════════════════════════════════
+    // Burada iki dal vardi ve ikisi de `handleSkip()` cagiriyordu:
+    //
+    //   1. `!canSnooze` → atla.  Buton `!canSnooze` iken "disabled" GORUNUYOR
+    //      ama `onPress` hala bagliydi. Yani "Erteleme hakkin bitti" yazan bir
+    //      butona dokunmak dozu ATLANDI olarak kaydediyordu.
+    //   2. `remainingSnoozes === 1` → atla.  `maxSnoozeCount = 3` iken
+    //      kullanici UCUNCU erteleme hakkini hic kullanamiyordu: buton
+    //      "3 hak" diye baslayip son hakta dozu atliyordu. Yani ilan edilen
+    //      hak sayisi ile gercek hak sayisi UYUSMUYORDU (3 yazip 2 veriyordu).
+    //
+    // "Atlandi", doktora giden uyum raporuna yazilan KLINIK bir karardir ve
+    // yalnizca kullanici acikca secerse yazilmalidir (atlama nedeni diyalogu
+    // bunun icin var). Erteleme hakki bitince yapilacak dogru is: hicbir sey
+    // yazmamak, alarmi acik tutmak ve kullaniciyi "Aldim" / "Atla" arasinda
+    // secim yapmaya birakmak.
     if (!canSnooze) {
-      log.debug('Erteleme limiti doldu', { currentSnoozeCount, maxSnoozeCount });
-      handleSkip();
-      return;
-    }
-
-    if (remainingSnoozes === 1) {
-      log.debug('Son erteleme hakkı kullanıldı, ilaç atlanıyor', {
+      log.warn('Erteleme hakki bitti — doz ATLANMADI, kullanici secmeli', {
         currentSnoozeCount,
         maxSnoozeCount,
       });
-      handleSkip();
       return;
     }
 
