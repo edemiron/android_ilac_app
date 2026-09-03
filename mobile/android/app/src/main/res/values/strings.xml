@@ -1,0 +1,10 @@
+<resources>
+  <string name="app_name">İlaç Hatırlatıcı</string>
+  <!-- FCM varsayilan kanali. Kimliklerin tek kaynagi:
+       src/utils/notifications/channels.ts → REMINDER_CHANNEL_ID.
+       Ayrisirsa notifications.channelIds.test.ts kirilir. -->
+  <string name="default_notification_channel_id">medicine-reminders-r1</string>
+  <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
+  <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+  <string name="widget_description">Bugünkü ilaçlarınızı ana ekrandan görüntüleyin</string>
+</resources>

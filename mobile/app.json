@@ -7,11 +7,11 @@
   "expo": {
     "name": "İlaç Hatırlatıcı",
     "slug": "ilac-hatirlatici",
-    "version": "1.8.0",
+    "version": "1.8.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -25,11 +25,11 @@
         "NSCameraUsageDescription": "Barkod taramak için kamera erişimi gereklidir.",
         "NSSpeechRecognitionUsageDescription": "Sesli hatırlatmalar için konuşma tanıma gereklidir."
       },
-      "buildNumber": "59"
+      "buildNumber": "60"
     },
     "scheme": "ilachatirlatici",
     "android": {
-      "versionCode": 59,
+      "versionCode": 60,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4ECDC4"
@@ -57,7 +57,9 @@
         "USE_FULL_SCREEN_INTENT",
         "POST_NOTIFICATIONS",
         "CAMERA",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {
@@ -79,13 +81,6 @@
           "sounds": ["./assets/alarm.mp3"]
         }
       ],
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Barkod taramak için kamera erişimi gereklidir."
-        }
-      ],
-      "expo-localization",
       "@react-native-firebase/app",
       "@react-native-firebase/crashlytics",
       "./plugins/withAlarmActivity.js",
@@ -109,11 +104,11 @@
       }
     }
   },
-  "version": "1.8.0",
+  "version": "1.8.1",
   "android": {
-    "versionCode": 59
+    "versionCode": 60
   },
   "ios": {
-    "buildNumber": "59"
+    "buildNumber": "60"
   }
 }

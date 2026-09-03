@@ -1,0 +1,63 @@
+# OSX
+#
+.DS_Store
+
+# Android/IntelliJ
+#
+build/
+.idea
+.gradle
+local.properties
+*.iml
+*.hprof
+.cxx/
+release-keystore.properties
+app/keystores/
+
+# Bundle artifacts
+*.jsbundle
+
+# ---------------------------------------------------------------------------
+# v1.8.1 — android/ ARTIK DEPODA TAKIP EDILIYOR.
+#
+# Onceden mobile/.gitignore icinde "# generated native folders" basligi
+# altinda `/android` satiri vardi. O varsayim yanlisti: bu projede
+# `expo prebuild` HIC calismiyor, android/ elle bakilan KAYNAK. Sonuc olarak
+# depoda yalnizca 19 dosya (elle force-add edilmis) duruyordu ve
+# gradle.properties, AndroidManifest.xml, MainApplication.kt,
+# AlarmReceiver.kt, proguard-rules.pro gibi dosyalar VERSIYON KONTROLU
+# DISINDAYDI — yani temiz bir klon uygulamayi derleyemiyordu.
+# Ayrintisi arsiv kaydinda.
+#
+# Asagidakiler bilincli olarak DISARIDA:
+# ---------------------------------------------------------------------------
+
+# Gradle / AGP uretilen ciktilari ve onbellekleri
+.kotlin/
+.externalNativeBuild/
+captures/
+*.log
+
+# ---------------------------------------------------------------------------
+# IMZALAMA SIRLARI — bunlar ASLA depoya girmez.
+# Surum keystore'u kaybolursa Play Store'daki uygulama BIR DAHA
+# guncellenemez; yedegi depoda degil, ayri ve sifreli bir yerde tutulmali.
+# ---------------------------------------------------------------------------
+*.keystore
+*.jks
+*.p12
+*.pem
+keystore.properties
+keystores/
+
+# ---------------------------------------------------------------------------
+# Metro/bundler URETIR — depoda tutulmaz, `npm run bundle` yeniden yazar.
+# ---------------------------------------------------------------------------
+app/src/main/assets/index.android.bundle
+app/src/main/assets/index.android.bundle.map
+app/src/main/res/drawable-*/node_modules_*
+app/src/main/res/raw/node_modules_*
+
+# Kazara birakilmis calisma dosyalari
+build_log.txt
+* - Copy*

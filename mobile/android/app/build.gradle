@@ -47,6 +47,11 @@ def isReleaseTaskRequested = gradle.startParameter.taskNames.any { taskName ->
     def normalizedTaskName = taskName.toLowerCase()
     normalizedTaskName.contains('release') || normalizedTaskName.contains('bundle')
 }
+// v1.8.1: AAB uretimi cok-APK ile birlikte calismiyor; ABI bolmeyi bu bayrakla
+// bastiriyoruz (asagidaki `splits` blogu).
+def isBundleTaskRequested = gradle.startParameter.taskNames.any { taskName ->
+    taskName.toLowerCase().contains('bundle')
+}
 def hasReleaseSigningConfig = [
     releaseStorePassword,
     releaseKeyAlias,
@@ -55,9 +60,32 @@ def hasReleaseSigningConfig = [
 
 // React Native Vector Icons - Font configuration
 project.ext.vectoricons = [
-    iconFontNames: ['Ionicons.ttf', 'MaterialIcons.ttf', 'FontAwesome5_Solid.ttf', 'FontAwesome6_Brands.ttf', 'MaterialCommunityIcons.ttf']
+    // v1.8.1: Liste 5 fonttu ama kodda YALNIZCA iki font import ediliyor
+    // (Ionicons ve MaterialCommunityIcons — bkz. src/types/react-native-vector-icons.d.ts;
+    // baska hicbir 'react-native-vector-icons/*' import'u yok). MaterialIcons.ttf,
+    // FontAwesome5_Solid.ttf ve FontAwesome6_Brands.ttf hicbir yerden cizilmedigi
+    // halde APK'ya gomuluyordu (~0.39 MB). Buraya YENI bir font eklemeden once
+    // gercekten import edildiginden emin ol; aksi halde olu yuk geri gelir.
+    iconFontNames: ['Ionicons.ttf', 'MaterialCommunityIcons.ttf']
 ]
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
+
+// v1.8.1 — fonts.gradle'in tuzagi: `copyReactNativeVectorIconFonts` duz bir
+// `Copy` task'i ve hedef klasordeki FAZLA dosyalari silmez. Yukaridaki listeden
+// bir font cikarildiginda eski .ttf
+// build/intermediates/ReactNativeVectorIcons/fonts icinde kaliyor; o klasor de
+// assets kaynak dizini oldugu icin font APK'ya gomulmeye DEVAM ediyor.
+// (Bu tam olarak yasandi: liste 2 fonta indirildi, APK'da hala 5 font vardi.)
+// Kopyalamadan once klasoru bosaltiyoruz ki liste ile APK her zaman uyusun.
+afterEvaluate {
+    def fontCopy = tasks.findByName('copyReactNativeVectorIconFonts')
+    if (fontCopy != null) {
+        fontCopy.outputs.upToDateWhen { false }
+        fontCopy.doFirst {
+            delete file("$buildDir/intermediates/ReactNativeVectorIcons/fonts")
+        }
+    }
+}
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -160,8 +188,8 @@ android {
         applicationId = 'com.ilachatirlatici'
         minSdk = rootProject.ext.minSdkVersion
         targetSdk = rootProject.ext.targetSdkVersion
-        versionCode = 59
-        versionName = "1.8.0"
+        versionCode = 60
+        versionName = "1.8.1"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -206,6 +234,27 @@ android {
             crunchPngs = enablePngCrunchInRelease.toBoolean()
         }
     }
+    // v1.8.1 — APK diyeti: ABI bolme.
+    // Play'e AAB gidiyor (bkz. `npm run build:aab`) ve AAB zaten cihaz basina
+    // tek ABI indirir; bu yuzden bolme VARSAYILAN OLARAK KAPALI. Yalnizca
+    // "elden APK dagitimi"nda (test cihazi, harici tester) acilir:
+    //   gradlew assembleRelease -PenableAbiSplits=true
+    // Aciksa cikti app-release.apk degil app-<abi>-release.apk olur; kurulum
+    // script'leri bunu bilmez, o yuzden varsayilani degistirmeyin.
+    splits {
+        abi {
+            // AGP, ayni calistirmada hem cok-APK hem AAB uretilmesine izin
+            // vermiyor (buildReleasePreBundle "Multiple shrunk-resources files
+            // found" ile patliyor — issuetracker 402800800). Bayrak elle
+            // acilsa bile `bundle*` istendiginde bolmeyi kapatiyoruz; aksi
+            // halde `npm run build:aab` bayragi acik birakan birinde
+            // aciklamasi zor bir hatayla kiriliyor.
+            enable = (findProperty('android.enableAbiSplits') ?: 'false').toBoolean() && !isBundleTaskRequested
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a'
+            universalApk = false
+        }
+    }
     packagingOptions {
         jniLibs {
             def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
@@ -213,11 +262,38 @@ android {
             pickFirsts += ['**/libworklets.so', '**/libc++_shared.so', '**/libfbjni.so', '**/libjsi.so', '**/libreactnative.so']
         }
         resources {
-            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE', 'META-INF/NOTICE.txt']
+            excludes += [
+                'META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE', 'META-INF/NOTICE.txt',
+                // v1.8.1 — 71 MB'lik APK'nin 4.1 MB'i `org/` altindaki BouncyCastle
+                // POST-KUANTUM parametre tablolariydi (picnic/lowmc.properties 1.50 MB,
+                // sike/p751.properties 1.06 MB, ...). Bu algoritmalar bu uygulamada
+                // hicbir yerden cagrilmiyor: bcprov, Google Sign-In / PDF zincirinden
+                // transitif geliyor ve ProGuard `.properties` KAYNAK dosyalarini
+                // (kod degil) hicbir zaman silmez. Bu yuzden paketleme seviyesinde
+                // disariya alindi.
+                'org/bouncycastle/pqc/**',
+                // DIKKAT — buraya 'kotlin/**' ve 'META-INF/*.kotlin_module'
+                // EKLEMEYIN. v1.8.1'de denendi ve uygulama ACILISTA COKTU:
+                //   E/ReactNativeJS: Exception in HostObject::get for prop
+                //   'getRandomValues': java.lang.AssertionError:
+                //   Built-in class kotlin.Any is not found
+                // Sebep: expo-modules-core modul kayit defterini Kotlin
+                // REFLEKSIYONU ile kuruyor; refleksiyon da
+                // kotlin/kotlin.kotlin_builtins dosyasini okuyor. O dosya
+                // paketten cikinca tum Expo modul zinciri (expo-crypto,
+                // react-native-get-random-values, ...) olu dogdu. "Kotlin
+                // metadata'si sadece kotlin-reflect icin" varsayimi bu
+                // projede YANLIS. Kazanci da zaten yalnizca ~0.01 MB'ti.
+                'META-INF/*.version',
+                'DebugProbesKt.bin',
+            ]
         }
     }
     androidResources {
         ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+        // v1.8.1 — Uygulama yalnizca TR ve EN konusuyor (bkz. LanguageContext).
+        // AndroidX/Play Services ~80 dilin string'ini res/ altina tasiyordu.
+        localeFilters += ['tr', 'en']
     }
 }
 
