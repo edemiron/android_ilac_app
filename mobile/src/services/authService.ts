@@ -22,11 +22,70 @@ import {
   isErrorWithCode,
 } from '@react-native-google-signin/google-signin';
 import Config from 'react-native-config';
+// v1.8.6: Google web client ID'nin dogru degeri app.json'da; bkz. asagidaki
+// blok. Elle yazilmis varsayilan YANLIS PROJEYE isaret ediyordu.
+import Constants from 'expo-constants';
 // Hesap silmenin TEK kapisi (bkz. deleteAccount yorumu).
 import { requestServerAccountDeletion } from './accountDeletionService';
 
-const DEFAULT_GOOGLE_WEB_CLIENT_ID =
-  '708668760763-2ta9pf3rrtn8cg7ihf16tsct42e06mq6.apps.googleusercontent.com';
+/**
+ * Google Sign-In web client ID.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⚠️ v1.8.6 — GOOGLE ILE GIRIS ÇALIŞMIYORDU
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Buradaki varsayılan şu değerdi:
+ *
+ *     '708668760763-2ta9pf3rrtn8cg7ihf16tsct42e06mq6.apps.googleusercontent.com'
+ *
+ * Baştaki sayı GCP **proje numarasıdır** ve bu projenin Firebase projesi
+ * `506876057044` (bkz. `android/app/google-services.json` →
+ * `project_info.project_number`). Yani varsayılan, **başka bir Google Cloud
+ * projesine** ait bir client ID'ydi.
+ *
+ * Sonuç: `GoogleSignin` o client ID ile bir kimlik belirteci (ID token)
+ * alıyor, belirtecin `aud` alanı o YABANCI projeyi gösteriyor, ardından
+ * `signInWithCredential` bu belirteci `506876057044` projesine sunuyor ve
+ * Firebase audience uyuşmazlığı nedeniyle reddediyor. "Google ile devam et"
+ * düğmesi hiçbir zaman çalışmamış olmalı.
+ *
+ * Varsayılanın hiç kullanılmadığı da varsayılamaz: değer
+ * `Config.GOOGLE_WEB_CLIENT_ID || DEFAULT` şeklinde okunuyor ve
+ * `react-native-config`in okuduğu `mobile/.env` dosyası **BOŞ**
+ * (dosya var, içinde tek bir `KEY=value` satırı yok). Yani gerçekte
+ * her zaman bu yanlış varsayılan kullanılıyordu.
+ *
+ * ── DOĞRU DEĞER NEREDE ────────────────────────────────────────────────────
+ * `google-services.json` içindeki `oauth_client` listesinde
+ * `client_type: 3` (web) olan giriş:
+ *   506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com
+ * `app.json` → `extra.google.webClientId` de zaten bu değeri taşıyordu.
+ * Yani doğru değer depoda İKİ YERDE duruyordu; kod üçüncü, yanlış bir
+ * kopyayı kullanıyordu.
+ *
+ * Bu yüzden artık `app.json`daki değer okunuyor ve
+ * `src/__tests__/config/googleSignIn.test.ts` onun `google-services.json`
+ * ile eşleştiğini doğruluyor. Elle yazılmış varsayılan KALDIRILDI: yanlış
+ * bir varsayılan, hiç varsayılan olmamasından kötü — sessizce yanlış
+ * projeye gidiyor.
+ */
+const WEB_CLIENT_ID_FROM_APP_CONFIG = (
+  Constants.expoConfig?.extra as { google?: { webClientId?: string } } | undefined
+)?.google?.webClientId;
+
+function resolveWebClientId(): string {
+  const fromEnv = Config.GOOGLE_WEB_CLIENT_ID;
+  if (typeof fromEnv === 'string' && fromEnv.trim()) return fromEnv.trim();
+
+  if (WEB_CLIENT_ID_FROM_APP_CONFIG) return WEB_CLIENT_ID_FROM_APP_CONFIG;
+
+  // Buraya dusmek yapilandirma hatasidir. SESSIZ kalmiyoruz: eskiden yanlis
+  // bir sabit devreye girip girisi sessizce bozuyordu.
+  throw new Error(
+    'Google web client ID bulunamadi: ne GOOGLE_WEB_CLIENT_ID ne app.json extra.google.webClientId tanimli'
+  );
+}
 
 // Google Sign-In yapılandırması
 let isGoogleConfigured = false;
@@ -35,16 +94,31 @@ export function configureGoogleSignIn(): void {
   if (isGoogleConfigured) return;
 
   GoogleSignin.configure({
-    webClientId: Config.GOOGLE_WEB_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID,
+    webClientId: resolveWebClientId(),
     offlineAccess: true,
   });
   isGoogleConfigured = true;
 }
 
-// Google OAuth Client IDs - .env dosyasından okunur
+/**
+ * Google OAuth Client ID'leri.
+ *
+ * NOT: `androidClientId` eskiden `DEFAULT_GOOGLE_WEB_CLIENT_ID`e (yani bir
+ * WEB client ID'ye, hem de yanlis projenin) dusuyordu. Android client ID ile
+ * web client ID ayri seylerdir; Android olanini `google-services.json`
+ * `client_type: 1` girisi tasiyor. Android tarafinda `GoogleSignin` yalnizca
+ * `webClientId` istiyor, bu yuzden `androidClientId` yalnizca app.json'dan
+ * okunuyor ve yoksa bos kaliyor — uydurma bir deger vermek yerine.
+ */
 export const GOOGLE_CLIENT_ID = {
-  androidClientId: Config.GOOGLE_ANDROID_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID,
-  webClientId: Config.GOOGLE_WEB_CLIENT_ID || DEFAULT_GOOGLE_WEB_CLIENT_ID,
+  androidClientId:
+    Config.GOOGLE_ANDROID_CLIENT_ID ||
+    (Constants.expoConfig?.extra as { google?: { androidClientId?: string } } | undefined)?.google
+      ?.androidClientId ||
+    '',
+  get webClientId(): string {
+    return resolveWebClientId();
+  },
 };
 
 export interface AuthUser {
