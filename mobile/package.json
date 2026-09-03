@@ -1,6 +1,6 @@
 {
   "name": "ilachatirlatici",
-  "version": "1.7.8",
+  "version": "1.7.9",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",

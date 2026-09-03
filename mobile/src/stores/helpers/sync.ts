@@ -10,6 +10,8 @@ import { createScopedLogger } from '../../utils/logger';
 import { isLocalMedicineImageUri } from '../../services/localMedicineImage';
 import type { SavedMedicineCloudData } from '../../services/firestoreSync';
 import type { Medicine, MedicineLog, ReminderTime, UserSettings } from '../../types';
+// Hangi ayarin buluta gidip gitmedigi TEK KAYNAK: domain/settingsScope.ts
+import { stripDeviceLocalSettingsFromCloud } from '../../domain/settingsScope';
 
 const log = createScopedLogger('MedicineStoreSync');
 
@@ -182,6 +184,13 @@ export function mergeSettingsWithUndefined(
     return local;
   }
 
-  const definedEntries = Object.entries(cloud).filter(([, v]) => v !== undefined);
+  // ⚠️ v1.7.9 — CIHAZA OZEL ALANLAR BULUTTAN OKUNMAZ.
+  // PIN hash'i, biyometrik anahtari, kilit suresi ve son aktiflik zamani
+  // senkron yukune hic girmemeliydi; eski bulut dokumanlari onlari HALA
+  // iceriyor olabilir. Gerekce: src/domain/settingsScope.ts dosya basi.
+  const cloudWithoutDeviceLocal = stripDeviceLocalSettingsFromCloud(
+    cloud as Record<string, unknown>
+  );
+  const definedEntries = Object.entries(cloudWithoutDeviceLocal).filter(([, v]) => v !== undefined);
   return { ...local, ...Object.fromEntries(definedEntries) } as UserSettings;
 }

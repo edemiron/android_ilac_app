@@ -14,6 +14,7 @@ import {
   syncSettingsToCloud,
 } from '../../services/firestoreSync';
 import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../../types';
+import { DEVICE_LOCAL_SETTING_KEYS } from '../../domain/settingsScope';
 
 // Mock Firebase
 const mockBatch = {
@@ -30,6 +31,9 @@ const mockSetDoc = jest.fn().mockResolvedValue(undefined);
 const mockDeleteDoc = jest.fn().mockResolvedValue(undefined);
 const mockWriteBatch = jest.fn().mockReturnValue(mockBatch);
 
+/** `deleteField()` yerine kullanilan sentinel — bkz. mock icindeki aciklama. */
+const DELETE_FIELD_SENTINEL = { __deleteField: true } as const;
+
 jest.mock('firebase/firestore', () => ({
   collection: (...args: unknown[]) => mockCollection(...args),
   doc: (...args: unknown[]) => mockDoc(...args),
@@ -37,6 +41,10 @@ jest.mock('firebase/firestore', () => ({
   getDoc: (...args: unknown[]) => mockGetDoc(...args),
   getDocs: (...args: unknown[]) => mockGetDocs(...args),
   deleteDoc: (...args: unknown[]) => mockDeleteDoc(...args),
+  // v1.7.9: `syncSettingsToCloud` cihaza ozel alanlari (PIN hash'i vb.)
+  // ESKI dokumanlardan da temizliyor. Sentinel bir nesne donduruyoruz ki
+  // testler yukte hangi alanin silinmek uzere isaretlendigini gorebilsin.
+  deleteField: () => DELETE_FIELD_SENTINEL,
   writeBatch: () => mockWriteBatch(),
   Timestamp: { now: () => ({ seconds: Date.now() / 1000, nanoseconds: 0 }) },
 }));
@@ -438,13 +446,54 @@ describe('Firestore Sync Service', () => {
       await syncSettingsToCloud(userId, { quietHoursEnabled: true });
 
       const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
-      // Yalnizca degisen alan + iki damga. `alarmVolume` GONDERILMEMELI:
-      // gonderilse bayat deger diger cihazin yeni degerini ezerdi.
-      expect(Object.keys(written).sort()).toEqual(
-        ['quietHoursEnabled', 'settingsUpdatedAt', 'updatedAt'].sort()
-      );
+
+      // Yalnizca degisen alan + iki damga DEGER olarak yazilir. `alarmVolume`
+      // GONDERILMEMELI: gonderilse bayat deger diger cihazin yeni degerini
+      // ezerdi.
+      const valueKeys = Object.keys(written)
+        .filter(key => !DEVICE_LOCAL_SETTING_KEYS.includes(key as never))
+        .sort();
+      expect(valueKeys).toEqual(['quietHoursEnabled', 'settingsUpdatedAt', 'updatedAt'].sort());
       expect(written.alarmVolume).toBeUndefined();
       expect(written.wakeUpTime).toBeUndefined();
+    });
+
+    /**
+     * ⚠️ v1.7.9 — PIN HASH'I BULUTA GITMEZ, ESKI DOKUMANDAN DA SILINIR.
+     *
+     * `updateSettings` degisen alanlari kosulsuz buraya veriyordu; guvenlik
+     * alanlari da buluta ve oradan DIGER CIHAZA yaziliyordu (telefonda PIN
+     * kuran kullanicinin tableti de ayni PIN ile kilitleniyordu).
+     */
+    it('cihaza ozel alanlar DEGER olarak YAZILMAZ', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, {
+        wakeUpTime: '09:00',
+        securityPin: 'sha256-gizli',
+        securityType: 'pin',
+        biometricsEnabled: true,
+        lockTimeout: 5,
+      } as never);
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      expect(written.wakeUpTime).toBe('09:00');
+      // Deger olarak DEGIL, silme isaretcisi olarak bulunmalilar.
+      expect(written.securityPin).toEqual({ __deleteField: true });
+      expect(written.securityType).toEqual({ __deleteField: true });
+      expect(written.biometricsEnabled).toEqual({ __deleteField: true });
+      expect(written.lockTimeout).toEqual({ __deleteField: true });
+    });
+
+    it('ESKI dokumanlardaki cihaza ozel alanlar acikca SILINIR', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, { wakeUpTime: '09:00' });
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      for (const key of DEVICE_LOCAL_SETTING_KEYS) {
+        expect(written[key]).toEqual({ __deleteField: true });
+      }
     });
 
     it('tanimsiz alanlari atlar (Firestore undefined kabul etmez)', async () => {

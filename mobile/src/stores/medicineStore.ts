@@ -105,6 +105,8 @@ import {
 } from '../utils/notifications';
 // Bildirim kimliklerinin tek kaynagi — 'alarm-' literal'i burada uretilmez.
 import { getAlarmNotificationId } from '../utils/notifications/ids';
+// Hangi ayarin buluta gidip gitmedigi TEK KAYNAK: domain/settingsScope.ts
+import { stripDeviceLocalSettings } from '../domain/settingsScope';
 import { createScopedLogger } from '../utils/logger';
 import { updateWidgetData } from '../services/widgetService';
 import {
@@ -1711,10 +1713,18 @@ export const useMedicineStore = create<MedicineState>()(
           // `setDoc` dokumani komple eziyordu: bayat bir cihazda tek bir
           // ayar degistirmek, diger cihazin yeni degerlerini buluttan
           // SILIYORDU (bkz. syncSettingsToCloud uzerindeki senaryo).
-          syncSettingsToCloud(userId, {
-            ...updates,
-            settingsUpdatedAt: nextSettings.settingsUpdatedAt,
-          }).catch(err => log.error('Failed to sync settings to cloud', err));
+          // ⚠️ v1.7.9 — CIHAZA OZEL AYARLAR BULUTA GONDERILMEZ.
+          // Eskiden `updates` ne olursa olsun gidiyordu; PIN hash'i buluta
+          // ve oradan DIGER CIHAZA yaziliyordu (telefonda PIN kuran
+          // kullanicinin tableti de ayni PIN ile kilitleniyordu).
+          // Gerekce: src/domain/settingsScope.ts dosya basi.
+          const cloudSettingsPayload = stripDeviceLocalSettings(updates as Record<string, unknown>);
+          if (Object.keys(cloudSettingsPayload).length > 0) {
+            syncSettingsToCloud(userId, {
+              ...cloudSettingsPayload,
+              settingsUpdatedAt: nextSettings.settingsUpdatedAt,
+            }).catch(err => log.error('Failed to sync settings to cloud', err));
+          }
         }
       },
 

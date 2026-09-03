@@ -4,6 +4,7 @@ import {
   getDoc,
   getDocs,
   deleteDoc,
+  deleteField,
   writeBatch,
   Timestamp,
   QueryDocumentSnapshot,
@@ -13,6 +14,8 @@ import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../types';
 import { createScopedLogger } from '../utils/logger';
 // Silme kayitlarinin (tombstone) tek kaynagi — bkz. domain/deletions.ts.
 import { normalizeDeletions, type DeletionRegistries } from '../domain/deletions';
+// Hangi ayarin buluta gidip gitmedigi TEK KAYNAK: domain/settingsScope.ts
+import { DEVICE_LOCAL_SETTING_KEYS, isDeviceLocalSettingKey } from '../domain/settingsScope';
 // Sprint 7.2: DRY — stores/helpers/sanitize.ts'ten sanitizeString + sanitizeForFirestore
 // import ediliyor. firestoreSync.ts icindeki duplicate inline tanimlar silindi.
 import { sanitizeString, sanitizeForFirestore } from '../stores/helpers/sanitize';
@@ -353,13 +356,25 @@ export async function syncSettingsToCloud(
 ): Promise<void> {
   const docRef = buildSettingsDocRef(firestoreDb, userId);
 
-  // Firestore `undefined` kabul etmez; ayrica tanimsiz alan "degismedi"
-  // demektir, yazilmamali.
+  // ⚠️ v1.7.9 — CIHAZA OZEL ALANLAR SON KAPIDA DA SUZULUR.
+  // Cagiranlar (updateSettings, uploadAllDataToCloud) artik suzuyor; burada
+  // ikinci bir kapi var cunku bu fonksiyon TEK bulut yazma noktasi ve yeni
+  // bir cagiran eklendiginde PIN hash'inin sessizce buluta gitmesi kabul
+  // edilemez. Gerekce: src/domain/settingsScope.ts dosya basi.
+  //
+  // Ayrica ESKI dokumanlarda bu alanlar hala yazili olabilir: `deleteField()`
+  // ile acikca TEMIZLENIRLER. Bu, saklanmis bir kimlik dogrulama sirrini
+  // buluttan kaldirir.
   const payload: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(settings)) {
+    if (isDeviceLocalSettingKey(key)) continue;
     if (value !== undefined) {
       payload[key] = value;
     }
+  }
+
+  for (const key of DEVICE_LOCAL_SETTING_KEYS) {
+    payload[key] = deleteField();
   }
 
   payload.settingsUpdatedAt = settings.settingsUpdatedAt ?? new Date().toISOString();
