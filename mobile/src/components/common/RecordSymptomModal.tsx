@@ -101,7 +101,11 @@ export function RecordSymptomModal({
                 {language === 'tr' ? 'Vital & Semptom Kaydı' : 'Log Vital & Symptom'}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Kapat"
+            >
               <Ionicons name="close-circle" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>

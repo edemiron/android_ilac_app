@@ -81,7 +81,12 @@ export default function MedicinesScreen() {
             { backgroundColor: colors.card, borderBottomColor: colors.divider },
           ]}
         >
-          <TouchableOpacity onPress={exitSelectionMode} style={styles.selectionHeaderButton}>
+          <TouchableOpacity
+            onPress={exitSelectionMode}
+            style={styles.selectionHeaderButton}
+            accessibilityRole="button"
+            accessibilityLabel="Seçim modundan çık"
+          >
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.selectionHeaderText, { color: colors.text }]}>
@@ -109,6 +114,8 @@ export default function MedicinesScreen() {
               style={[styles.headerAddBtn, { backgroundColor: colors.primary }]}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="İlaç ekle"
             >
               <Ionicons name="add" size={22} color="#FFFFFF" />
             </TouchableOpacity>

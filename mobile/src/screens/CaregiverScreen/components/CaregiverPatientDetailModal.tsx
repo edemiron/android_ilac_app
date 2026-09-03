@@ -319,6 +319,8 @@ export function CaregiverPatientDetailModal({
                 ]}
                 onPress={handleCallPatient}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Hastayı ara"
               >
                 <Ionicons name="call" size={17} color="#16A34A" />
               </TouchableOpacity>
@@ -328,6 +330,8 @@ export function CaregiverPatientDetailModal({
                 style={[styles.closeBtn, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}
                 onPress={onClose}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Kapat"
               >
                 <Ionicons name="close" size={20} color={colors.text} />
               </TouchableOpacity>
@@ -842,6 +846,8 @@ export function CaregiverPatientDetailModal({
                 <TouchableOpacity
                   onPress={() => setNudgeModalVisible(false)}
                   style={styles.nudgeCloseBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Kapat"
                 >
                   <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>

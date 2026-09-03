@@ -74,6 +74,8 @@ export function ClinicalSearchBar({
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={styles.clearButton}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Aramayı temizle"
         >
           <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
         </TouchableOpacity>

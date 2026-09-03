@@ -76,6 +76,8 @@ export default function DutyPharmacyScreen() {
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Geri"
         >
           <Ionicons name="arrow-back" size={24} color={isDark ? '#F1F5F9' : '#0F766E'} />
         </TouchableOpacity>
@@ -95,6 +97,8 @@ export default function DutyPharmacyScreen() {
             style={styles.headerActionBtn}
             activeOpacity={0.7}
             disabled={locating}
+            accessibilityRole="button"
+            accessibilityLabel="Konumu yenile"
           >
             {locating ? (
               <ActivityIndicator size="small" color="#0F766E" />
@@ -114,6 +118,8 @@ export default function DutyPharmacyScreen() {
               { backgroundColor: isDark ? 'rgba(45, 212, 191, 0.2)' : '#CCFBF1' },
             ]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Yeni reçete ekle"
           >
             <Ionicons name="add" size={22} color={colors.primary} />
           </TouchableOpacity>

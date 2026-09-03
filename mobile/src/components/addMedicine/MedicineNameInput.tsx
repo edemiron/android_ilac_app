@@ -157,6 +157,8 @@ export function MedicineNameInput({
               style={[styles.iconBtn, { backgroundColor: colors.primary + '15' }]}
               onPress={onVoicePress}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Sesle ilaç adı gir"
             >
               {/* v1.7.4: mikrofon ikonu → kalem. Konuşma tanıma yok; bu buton
                   "cümleyle yazarak ekle" modalını açıyor. */}
@@ -169,6 +171,8 @@ export function MedicineNameInput({
               onPress={onPhotoScanPress}
               disabled={isAnalyzingPhoto}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="İlaç kutusunu fotoğrafla"
             >
               {isAnalyzingPhoto ? (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -185,6 +189,8 @@ export function MedicineNameInput({
               ]}
               onPress={onScanPress}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={barcodeScanned ? 'Barkod okundu, tekrar tara' : 'Barkod tara'}
             >
               <Ionicons
                 name={barcodeScanned ? 'checkmark-circle' : 'barcode-outline'}

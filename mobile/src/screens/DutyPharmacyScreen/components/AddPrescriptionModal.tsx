@@ -163,7 +163,12 @@ export function AddPrescriptionModal({
                   ? '🩺 Yeni Reçete Ekle'
                   : '🩺 Add Prescription'}
             </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Kapat"
+            >
               <Ionicons name="close" size={24} color={colors.textMuted} />
             </TouchableOpacity>
           </View>

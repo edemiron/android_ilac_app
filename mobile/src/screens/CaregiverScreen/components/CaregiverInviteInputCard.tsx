@@ -83,6 +83,8 @@ export function CaregiverInviteInputCard({
               <TouchableOpacity
                 onPress={() => onChangeEmail('')}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="E-postayı temizle"
               >
                 <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -102,6 +104,8 @@ export function CaregiverInviteInputCard({
             onPress={onInvite}
             disabled={!isEnabled}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Bakıcı davet et"
           >
             {isCreating ? (
               <ActivityIndicator size="small" color={colors.textOnPrimary} />

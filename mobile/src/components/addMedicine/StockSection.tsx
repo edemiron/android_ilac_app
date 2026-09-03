@@ -54,13 +54,16 @@ export function StockSection({
         <View style={styles.content}>
           {/* Satır 1: Birim Seçimi (Tablet / Kapsül) */}
           <View style={styles.unitRow}>
-            {STOCK_UNITS.map((u) => (
+            {STOCK_UNITS.map(u => (
               <TouchableOpacity
                 key={u.value}
                 style={[
                   styles.unitBtn,
                   { backgroundColor: colors.background, borderColor: colors.border },
-                  unit === u.value && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  unit === u.value && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => onUnitChange(u.value)}
                 activeOpacity={0.7}
@@ -92,6 +95,8 @@ export function StockSection({
               style={[styles.stepBtn, { backgroundColor: colors.primary + '12' }]}
               onPress={() => onCountChange(Math.max(0, count - 1))}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Stok adedini azalt"
             >
               <Ionicons name="remove" size={24} color={colors.primary} />
             </TouchableOpacity>
@@ -100,7 +105,7 @@ export function StockSection({
               <TextInput
                 style={[styles.countInput, { color: colors.text }]}
                 value={count.toString()}
-                onChangeText={(text) => {
+                onChangeText={text => {
                   const num = parseInt(text, 10);
                   if (!isNaN(num) && num >= 0) onCountChange(num);
                   else if (text === '') onCountChange(0);
@@ -115,6 +120,8 @@ export function StockSection({
               style={[styles.stepBtn, { backgroundColor: colors.primary + '12' }]}
               onPress={() => onCountChange(count + 1)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Stok adedini artır"
             >
               <Ionicons name="add" size={24} color={colors.primary} />
             </TouchableOpacity>
@@ -129,7 +136,12 @@ export function StockSection({
           </View>
 
           {/* Satır 3: Uyarı Eşiği */}
-          <View style={[styles.warningRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.warningRow,
+              { backgroundColor: colors.background, borderColor: colors.border },
+            ]}
+          >
             <Ionicons name="alert-circle-outline" size={22} color={colors.warning || '#F59E0B'} />
             <Text style={[styles.warningLabel, { color: colors.textSecondary }]}>
               {language === 'tr' ? 'Uyarı eşiği:' : 'Alert threshold:'}
@@ -138,6 +150,8 @@ export function StockSection({
               <TouchableOpacity
                 style={[styles.thresholdBtn, { borderColor: colors.border }]}
                 onPress={() => onThresholdChange(Math.max(1, threshold - 1))}
+                accessibilityRole="button"
+                accessibilityLabel="Uyarı eşiğini azalt"
               >
                 <Ionicons name="remove" size={18} color={colors.primary} />
               </TouchableOpacity>
@@ -145,6 +159,8 @@ export function StockSection({
               <TouchableOpacity
                 style={[styles.thresholdBtn, { borderColor: colors.border }]}
                 onPress={() => onThresholdChange(threshold + 1)}
+                accessibilityRole="button"
+                accessibilityLabel="Uyarı eşiğini artır"
               >
                 <Ionicons name="add" size={18} color={colors.primary} />
               </TouchableOpacity>

@@ -154,6 +154,8 @@ export function MonthCalendarView({
         <TouchableOpacity
           onPress={handlePrevMonth}
           style={[styles.navButton, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9' }]}
+          accessibilityRole="button"
+          accessibilityLabel="Önceki ay"
         >
           <Ionicons name="chevron-back" size={18} color={colors.text} />
         </TouchableOpacity>
@@ -165,6 +167,8 @@ export function MonthCalendarView({
         <TouchableOpacity
           onPress={handleNextMonth}
           style={[styles.navButton, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9' }]}
+          accessibilityRole="button"
+          accessibilityLabel="Sonraki ay"
         >
           <Ionicons name="chevron-forward" size={18} color={colors.text} />
         </TouchableOpacity>
@@ -403,6 +407,8 @@ export function MonthCalendarView({
               <TouchableOpacity
                 onPress={() => setDoseModalVisible(false)}
                 style={[styles.closeButton, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}
+                accessibilityRole="button"
+                accessibilityLabel="Kapat"
               >
                 <Ionicons name="close" size={20} color={colors.text} />
               </TouchableOpacity>

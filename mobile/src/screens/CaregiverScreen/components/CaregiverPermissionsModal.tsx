@@ -100,7 +100,12 @@ export function CaregiverPermissionsModal({
                 {caregiverName}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Kapat"
+            >
               <Ionicons name="close-circle" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>

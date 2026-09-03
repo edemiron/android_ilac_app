@@ -122,7 +122,12 @@ export function VoiceAddMedicineModal({
             <Text style={[styles.title, { color: colors.text }]}>
               {isTr ? 'Cümleyle İlaç Ekle' : 'Add Medicine by Sentence'}
             </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeIconBtn}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeIconBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Kapat"
+            >
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>

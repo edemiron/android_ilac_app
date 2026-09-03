@@ -119,6 +119,8 @@ export function CaregiverEnterCodeCard({
               onPress={() => onChangeCode('')}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={styles.clearBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Kodu temizle"
             >
               <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
             </TouchableOpacity>

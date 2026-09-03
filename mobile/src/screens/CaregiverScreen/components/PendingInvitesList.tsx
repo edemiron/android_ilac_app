@@ -124,6 +124,8 @@ export function PendingInvitesList({
                     ]}
                     onPress={() => onShareInvite(invite.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Daveti paylaş"
                   >
                     <Ionicons name="share-social" size={18} color={colors.primary} />
                   </TouchableOpacity>
@@ -137,6 +139,8 @@ export function PendingInvitesList({
                     ]}
                     onPress={() => onOpenQR(invite.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="QR kodu göster"
                   >
                     <Ionicons name="qr-code" size={18} color={colors.text} />
                   </TouchableOpacity>
@@ -146,6 +150,8 @@ export function PendingInvitesList({
                   style={[styles.actionButton, { backgroundColor: '#FEE2E2' }]}
                   onPress={() => onCancelInvite(invite.id)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Daveti iptal et"
                 >
                   <Ionicons name="close" size={18} color="#DC2626" />
                 </TouchableOpacity>

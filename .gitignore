@@ -99,3 +99,11 @@ desktop.ini
 apk/
 short-node-modules/
 
+# v1.8.7 — cihaz dogrulama artefaktlari (ekran goruntuleri, uiautomator
+# dokumleri, logcat ciktilari, gecici PowerShell yardimcilari). Kanit olarak
+# diskte tutulur, repoya girmez.
+_dogrulama/
+mobile/scripts/_tmp_*
+
+# Claude Code oturum dosyalari
+.claude/

@@ -88,7 +88,12 @@ export function BatteryOptimizationCard({
         </View>
 
         {onDismiss && (
-          <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn}>
+          <TouchableOpacity
+            onPress={handleDismiss}
+            style={styles.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Uyarıyı kapat"
+          >
             <Ionicons name="close" size={18} color={isDark ? '#94A3B8' : '#B45309'} />
           </TouchableOpacity>
         )}

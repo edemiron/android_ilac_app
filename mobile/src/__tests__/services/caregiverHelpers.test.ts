@@ -17,6 +17,7 @@ import {
   INVITE_CODE_CHARS,
   INVITE_CODE_LENGTH,
 } from '../../services/caregiverHelpers';
+import { hasEmoji } from '../helpers/emoji';
 
 describe('generateInviteCode', () => {
   it('returns 6-character code by default', () => {
@@ -238,14 +239,13 @@ describe('Sprint 12.4: formatCaregiverNotification', () => {
     const types = ['missed', 'skipped', 'taken', 'snoozed'] as const;
     const languages = ['tr', 'en'] as const;
     // Emoji + dingbat + variation selector araliklari.
-    const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]|\u{FE0F}/u;
 
     const offenders: string[] = [];
     for (const language of languages) {
       for (const type of types) {
         const { title, body } = formatCaregiverNotification(type, 'Aspirin', language);
-        if (EMOJI.test(title)) offenders.push(`${language}/${type}/title: ${title}`);
-        if (EMOJI.test(body)) offenders.push(`${language}/${type}/body: ${body}`);
+        if (hasEmoji(title)) offenders.push(`${language}/${type}/title: ${title}`);
+        if (hasEmoji(body)) offenders.push(`${language}/${type}/body: ${body}`);
       }
     }
 

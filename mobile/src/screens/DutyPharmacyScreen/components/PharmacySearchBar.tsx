@@ -41,7 +41,11 @@ export function PharmacySearchBar({
         onChangeText={onChangeSearchQuery}
       />
       {searchQuery.length > 0 && (
-        <TouchableOpacity onPress={() => onChangeSearchQuery('')}>
+        <TouchableOpacity
+          onPress={() => onChangeSearchQuery('')}
+          accessibilityRole="button"
+          accessibilityLabel="Aramayı temizle"
+        >
           <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       )}

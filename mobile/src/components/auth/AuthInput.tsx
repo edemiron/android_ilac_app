@@ -68,6 +68,8 @@ export function AuthInput({
             style={styles.eyeButton}
             onPress={onToggleShowPassword}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
           >
             <Ionicons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}

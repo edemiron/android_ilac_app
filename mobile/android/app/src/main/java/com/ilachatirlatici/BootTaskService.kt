@@ -93,6 +93,25 @@ class BootTaskService : HeadlessJsTaskService() {
         )
     }
 
+    /**
+     * Son guvenlik agi: onHeadlessJsTaskFinish hic cagrilmadan servis yok
+     * edilirse (JS bundle yuklenemedi, sistem servisi oldurdu, getTaskConfig
+     * yolunda erken stopSelf) foreground bildirimi gorunur kalirdi. Burada
+     * hem stopForeground hem de acik cancel cagrilir; ikisi de idempotent.
+     */
+    override fun onDestroy() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(NOTIFICATION_ID)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing foreground notification on destroy", e)
+        }
+        super.onDestroy()
+    }
+
     override fun onHeadlessJsTaskFinish(taskId: Int) {
         super.onHeadlessJsTaskFinish(taskId)
         Log.d(TAG, "HeadlessJS task finished: $taskId")

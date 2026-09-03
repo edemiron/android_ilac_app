@@ -271,7 +271,12 @@ export function AccountDetailsModal({
                 {isTr ? 'Hesap Bilgileri' : 'Account Details'}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeButton}
+              accessibilityRole="button"
+              accessibilityLabel="Kapat"
+            >
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -341,6 +346,8 @@ export function AccountDetailsModal({
                         onPress={() => setNameInput('')}
                         style={styles.clearInputButton}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Adı temizle"
                       >
                         <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
                       </TouchableOpacity>
@@ -576,7 +583,14 @@ export function AccountDetailsModal({
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity onPress={handleCopyUid} style={styles.copyButton}>
+                <TouchableOpacity
+                  onPress={handleCopyUid}
+                  style={styles.copyButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    copiedUid ? 'Kullanıcı kimliği kopyalandı' : 'Kullanıcı kimliğini kopyala'
+                  }
+                >
                   <Ionicons
                     name={copiedUid ? 'checkmark' : 'copy-outline'}
                     size={17}

@@ -94,22 +94,49 @@ duruyor:
       `REPLACE_WITH_ENV_PRIVACY_POLICY_URL` idi; o dosya v1.8.1'de silindi,
       **yeni bir yer belirlenmedi**
 
-### A6. Cihazda gözle doğrulanacak üç şey
+### A6. Cihazda gözle doğrulanacak üç şey — ✅ İKİSİ KAPANDI
 
-Test cihazı desen kilitli olduğu için yapamadığım kontroller:
+v1.8.7'de cihaz kilidi açıldı ve üçü de doğrulandı. Ayrıntı:
+[`docs/archive/v1.8.7_…`](./archive/v1.8.7_2026-09-03_20-45_cihazda-dogrulama-emoji-kapisinin-deligi-ve-erisilebilir-ad.md)
 
-- [ ] **Barkod tarayıcı** (v1.8.1): ML Kit modeli artık APK'da gömülü değil,
-      Play Services'ten iniyor. Bir ilaç kutusunun barkodunu okut. İlk
-      denemede birkaç saniye gecikme normal. Çalışmazsa geri dönüş tek satır:
+- [x] **Bildirim gölgesi** (v1.8.2) — **KAPANDI.** İki bağımsız yolla:
+      canlı OS kaydında `actions=2` → `[0] "Aldım"`, `[1] "Ertele"`; ve
+      erişilebilirlik ağacında iki `android.widget.Button`
+      (`[309,767][800,861]`, `[800,767][1291,861]` — 94 px ≈ 54 dp).
+      **Emoji yok, "Atla" yok.** Ayrıca gölgeden "Aldım"a basıldı:
+      bildirim kayboldu ve **uyum sayacı değişmedi** (`1 / 2`, `%50`) —
+      test alarmı doz kaydı yazmıyor.
+- [x] **Yazı boyutu** (v1.8.3) — **KAPANDI (tablet).** Ana ekran, Ayarlar,
+      Yeni İlaç Ekle, tam ekran alarm ve bildirim gölgesinde kırpılan metin
+      yok. Sürüm satırı `Sürüm 1.8.7` okuyor.
+      ⚠️ Yalnızca **tablet** geometrisinde (SM-T733, 1600×2560).
+      **Telefonda ayrıca bakılmalı** — makinede ikinci bir cihaz bağlı
+      (Xiaomi `24030PN60G`, kablosuz).
+- [ ] **Barkod tarayıcı** (v1.8.1) — **YARISI KAPANDI, kalan sende.**
+      Yazılım tarafı logcat'ten kanıtlandı: ML Kit modeli APK'da değil
+      (`Local module descriptor … not found` — beklenen), Play Services'ten
+      indi (`Selected remote version … >= 263234001`),
+      `libbarhopper_v3.so` yüklendi, kamera açıldı, kare işleyici kaydoldu.
+      **Sana kalan tek adım:** gerçek bir ilaç kutusunun barkodunu okut ve
+      TİTCK eşleşmesinin geldiğini gör. Çalışmazsa geri dönüş tek satır:
       `android/gradle.properties` → `VisionCamera_enableCodeScanner=true`
       (8.6 MB geri gelir).
-- [ ] **Bildirim gölgesi** (v1.8.2): bir test alarmı kur. Gölgede **yalnızca
-      "Aldım" ve "Ertele"** görünmeli; emoji olmamalı, **"Atla" olmamalı**.
-- [ ] **Yazı boyutu** (v1.8.3): ana ekran, zaman dilimi kartları, haftalık
-      şerit, alarm ekranı ve atlama gerekçesi modalında **kırpılan metin var
-      mı**. 47 punto 14'e çıkarıldı; kırpma riski programatik olarak
-      sıfırlandı ama gözle görülmedi.
 
+### A7. Uygulama içi emoji — ürün kararı sende
+
+v1.8.2 emojiyi **bildirim** metinlerinden kaldırdı (TalkBack başlığı okuyor,
+bazı OEM gölgelerinde emoji boş kutuya dönüyor). **Uygulama içinde** emoji
+hâlâ var ve bu bilinçli bırakıldı, çünkü ürünün görünümüne dair bir karar:
+
+- Ana ekran: `👋` (selamlama), `🔥` (seri), `📷` (reçete tara),
+  `🌅 ☀️ 🌃 🌙` (zaman dilimleri)
+- Tam ekran alarm: `🕐 Herhangi bir zaman`, `❓ Geç mi Kaldım?`,
+  `⏰ 5 dk ertele`, `✓ Şimdi Al`
+- İlaç formu seçicisi: her form için bir emoji
+- `drugInteraction.ts:468,474` — etkileşim şiddeti simgesi `'⚠️'` / `'❓'`
+
+- [ ] Karar: kalsın mı, yoksa bildirimlerde olduğu gibi ikon fontuna mı
+      geçilsin? (İkincisi TalkBack için daha iyi, ama görünüm değişir.)
 ---
 
 ## 📋 B — KODDA KALAN İŞLER (fazlara göre)
@@ -164,6 +191,7 @@ varsayılanın tabanını yükseltmek herkese yarıyor.
 | `numberOfLines={1}` + sabit `height` (sistem yazı ölçeği %130'da kırpma) | 41 + 205 |
 | `<ThemedText>` benimsenmesi | 1001 ham `<Text>` |
 | CI'da kontrast testi | yok |
+| İkon-only dokunulabilirde erişilebilir ad | ✅ **0 kaldı** (v1.8.7'de 50 düzeltildi, kapı kuruldu) |
 
 Hepsi **kilidi açık bir cihazda görsel doğrulama** gerektiriyor.
 
@@ -178,12 +206,13 @@ Hepsi **kilidi açık bir cihazda görsel doğrulama** gerektiriyor.
 
 ---
 
-## ✅ C — BU TURDA KAPANANLAR (v1.8.1 → v1.8.6)
+## ✅ C — BU TURDA KAPANANLAR (v1.8.1 → v1.8.7)
 
 Ayrıntı için ilgili arşiv kaydına bak.
 
 | Sürüm | Ne kapandı |
 | :--- | :--- |
+| v1.8.7 | **Cihazda doğrulama turu.** Emoji kapısının karakter sınıfı `⏰` (U+23F0) dahil tüm `\u{2300}-\u{23FF}` bloğunu görmüyordu — dört test dosyasındaki dört kopya da aynı deliği taşıyordu; kapı tek kaynağa indi ve `\p{Extended_Pictographic}`e geçti · kapı artık üreticiye değil **notifee'ye giden yüke** bakıyor (`schedule.ts` kendi metnini üretiyor ve eski kapının dışındaydı) · **ikon-only butonların erişilebilir adı yoktu**: 207 ikonlu dokunulabilirden 50'si TalkBack'e `U+F293` gibi ikon-font glifi okutuyordu → 50 → **0**, yeni kapı 0 tolerans · `BootTaskService.onDestroy()` temizlik ağı · A6'nın 2,5 maddesi kapandı |
 | v1.8.1 | APK 71 → 57 MB (arm64 43 MB), AAB 46 MB · depodaki **gizli ikinci Expo yapılandırması** (`npx expo config` aylardır 1.6.0 döndürüyordu) · **`android/` klasörünün tamamı `.gitignore`daydı** — temiz bir klon derlenemiyordu ve arşivlenen native düzeltmeler tek makinede yaşıyordu |
 | v1.8.2 | Bildirimden **tek dokunuşla, onaysız, gerekçesiz doz atlama** · emoji temizliği (TalkBack) · klinik dil (uygulama emir vermiyor) · bildirim metninin tek kaynağı (başlık iki modül arasında yazılı olmayan bir sözleşmeydi ve zaten bozuktu) |
 | v1.8.3 | Erişilebilirlik tabanı ölçüldü ve tek yerde tanımlandı · alarm/doz yolundaki 47 küçük yazı düzeltildi · ESLint + test kapısı · **madde 19 için ürün kararı** |

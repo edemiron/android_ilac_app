@@ -23,6 +23,7 @@ import {
   formatCaregiverNotification,
   type CaregiverNotificationData,
 } from '../../services/caregiverNotificationService';
+import { hasEmoji } from '../helpers/emoji';
 
 const base: CaregiverNotificationData = {
   type: 'missed',
@@ -33,8 +34,6 @@ const base: CaregiverNotificationData = {
   message: 'yedek mesaj',
   timestamp: '2026-09-02T09:05:00Z',
 };
-
-const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]|\u{FE0F}/u;
 
 describe('formatCaregiverNotification', () => {
   // v1.8.2: Bu tablo eskiden basliklari EMOJILERIYLE birlikte tam eslesme
@@ -65,7 +64,7 @@ describe('formatCaregiverNotification', () => {
 
     const offenders = types
       .map(type => formatCaregiverNotification({ ...base, type }).title)
-      .filter(title => EMOJI.test(title) || title.includes('!'));
+      .filter(title => hasEmoji(title) || title.includes('!'));
 
     expect(offenders).toEqual([]);
   });

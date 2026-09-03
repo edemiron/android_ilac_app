@@ -280,7 +280,12 @@ export const BatchMedicineImportModal: React.FC<BatchMedicineImportModalProps> =
                 </Text>
               </View>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Kapat"
+            >
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -402,6 +407,8 @@ export const BatchMedicineImportModal: React.FC<BatchMedicineImportModalProps> =
                     <TouchableOpacity
                       onPress={() => handleRemoveItem(item.id)}
                       style={styles.trashBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel="Listeden çıkar"
                     >
                       <Ionicons name="trash-outline" size={18} color="#EF4444" />
                     </TouchableOpacity>

@@ -113,6 +113,8 @@ export const BatteryOptimizationModal: React.FC<BatteryOptimizationModalProps> =
               onPress={onClose}
               style={[styles.closeBtn, { backgroundColor: colors.cardBg }]}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Kapat"
             >
               <Ionicons name="close" size={20} color={colors.textMuted} />
             </TouchableOpacity>

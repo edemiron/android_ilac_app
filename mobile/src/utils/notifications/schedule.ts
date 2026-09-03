@@ -340,8 +340,8 @@ export async function scheduleTestAlarmNotification(
   const subtitleText = `${timeStr} • ${language === 'tr' ? 'Kilit ekranı testi' : 'Lock screen test'}`;
   const bodyText =
     language === 'tr'
-      ? `Bu bir TEST'tir, ilaç almanız gerekmiyor.\nAlarmın kilit ekranında açıldığını doğrulamak için kuruldu.\n⏰ ${timeStr}`
-      : `This is a TEST, no medication is due.\nArmed to verify the alarm opens on the lock screen.\n⏰ ${timeStr}`;
+      ? `Bu bir TEST'tir, ilaç almanız gerekmiyor.\nAlarmın kilit ekranında açıldığını doğrulamak için kuruldu.`
+      : `This is a TEST, no medication is due.\nArmed to verify the alarm opens on the lock screen.`;
 
   const notificationConfig = {
     id: notifId,

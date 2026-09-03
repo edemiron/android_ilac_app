@@ -181,6 +181,8 @@ export function PrescriptionCard({
             ]}
             onPress={() => onEdit(item)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Reçeteyi düzenle"
           >
             <Ionicons name="pencil" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -192,6 +194,8 @@ export function PrescriptionCard({
             ]}
             onPress={confirmDelete}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Reçeteyi sil"
           >
             <Ionicons name="trash-outline" size={16} color="#EF4444" />
           </TouchableOpacity>

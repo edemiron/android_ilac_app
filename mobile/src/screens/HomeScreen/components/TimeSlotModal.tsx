@@ -90,6 +90,8 @@ export const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
                   style={[styles.closeButton, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}
                   onPress={onClose}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Kapat"
                 >
                   <Ionicons name="close" size={20} color={isDark ? '#F8FAFC' : '#0F172A'} />
                 </TouchableOpacity>

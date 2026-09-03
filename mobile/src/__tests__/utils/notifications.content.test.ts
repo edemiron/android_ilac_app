@@ -21,8 +21,7 @@ import {
   buildSnoozeBody,
   parseMedicineNameFromLegacyTitle,
 } from '../../utils/notifications/content';
-
-const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]|\u{FE0F}/u;
+import { hasEmoji } from '../helpers/emoji';
 
 describe('alarm bildirim metni — emoji yok', () => {
   it('hicbir uretici emoji dondurmuyor', () => {
@@ -42,7 +41,7 @@ describe('alarm bildirim metni — emoji yok', () => {
       buildSnoozeBody('500mg dozu', '09:00'),
     ];
 
-    const offenders = produced.filter(text => EMOJI.test(text));
+    const offenders = produced.filter(text => hasEmoji(text));
 
     expect(offenders).toEqual([]);
   });
@@ -159,7 +158,7 @@ describe('bildirim eylemleri (config.ts)', () => {
     const titles = ALARM_ACTIONS.map((a: { title: string }) => a.title);
     const ids = ALARM_ACTIONS.map((a: { pressAction: { id: string } }) => a.pressAction.id);
 
-    expect(titles.filter((t: string) => EMOJI.test(t))).toEqual([]);
+    expect(titles.filter((t: string) => hasEmoji(t))).toEqual([]);
     expect(ids).toEqual(['take', 'snooze']);
     expect(ids).not.toContain('skip');
   });

@@ -81,6 +81,8 @@ export function MedicinePhotoChip({ imageUri, onRemovePhoto, colors, language }:
           style={[styles.removeBtn, { backgroundColor: colors.card }]}
           onPress={handleConfirmRemove}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Fotoğrafı sil"
         >
           <Ionicons name="trash-outline" size={18} color="#EF4444" />
         </TouchableOpacity>
@@ -98,6 +100,8 @@ export function MedicinePhotoChip({ imageUri, onRemovePhoto, colors, language }:
             style={styles.modalCloseBtn}
             onPress={() => setIsPreviewOpen(false)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Önizlemeyi kapat"
           >
             <Ionicons name="close-circle" size={36} color="#FFFFFF" />
           </TouchableOpacity>

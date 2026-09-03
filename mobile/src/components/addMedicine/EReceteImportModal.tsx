@@ -136,6 +136,8 @@ export function EReceteImportModal({
             <TouchableOpacity
               onPress={handleClose}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Kapat"
             >
               <Ionicons name="close-circle" size={24} color={colors.textSecondary} />
             </TouchableOpacity>

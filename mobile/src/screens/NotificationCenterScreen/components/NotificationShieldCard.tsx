@@ -172,6 +172,8 @@ export function NotificationShieldCard({
           ]}
           onPress={onOpenPermissions}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="İzin ayarlarını aç"
         >
           <Ionicons name="settings-outline" size={16} color={isDark ? '#E2E8F0' : '#475569'} />
         </TouchableOpacity>

@@ -172,6 +172,8 @@ export function CaregiversList({
                       ]}
                       onPress={() => onEditPermissions(caregiver)}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel="İzinleri düzenle"
                     >
                       <Ionicons name="settings-outline" size={18} color={colors.text} />
                     </TouchableOpacity>
@@ -180,6 +182,8 @@ export function CaregiversList({
                     style={[styles.removeButton, { backgroundColor: '#FEE2E2' }]}
                     onPress={() => onRemoveCaregiver(caregiver.id, displayName)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Bakıcıyı kaldır"
                   >
                     <Ionicons name="trash-outline" size={18} color="#DC2626" />
                   </TouchableOpacity>
