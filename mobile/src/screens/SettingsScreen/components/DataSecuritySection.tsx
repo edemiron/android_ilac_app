@@ -11,12 +11,18 @@ interface DataSecuritySectionProps {
   onExportBackup: () => void;
   navigation: NativeStackNavigationProp<RootStackParamList>;
   language: string;
+  /**
+   * v1.8.4 — Hesap ve veri silme. Verilmezse satır GÖSTERİLMEZ; misafir
+   * oturumda silinecek bir sunucu hesabı yok.
+   */
+  onDeleteAccountPress?: () => void;
 }
 
 export function DataSecuritySection({
   onExportBackup,
   navigation,
   language,
+  onDeleteAccountPress,
 }: DataSecuritySectionProps) {
   const isTr = language === 'tr';
 
@@ -70,6 +76,25 @@ export function DataSecuritySection({
         onPress={() => navigation.navigate('Statistics' as never)}
         showChevron
       />
+
+      {/*
+        v1.8.4 — HESAP VE VERI SILME.
+        Google Play, hesap olusturmaya izin veren uygulamalarda uygulama
+        ICINDE bir hesap silme yolu ZORUNLU tutuyor; bu yol hic yoktu ve
+        yayin engeliydi (KVKK md. 11-e / GDPR md. 17 "silinme hakki").
+        Bolumun EN ALTINDA: yikici olan en sonda durur.
+      */}
+      {onDeleteAccountPress ? (
+        <SettingRow
+          icon={{ name: 'trash-outline', color: '#DC2626' }}
+          label={isTr ? 'Hesabımı ve Verilerimi Sil' : 'Delete My Account and Data'}
+          description={isTr ? 'Kalıcı olarak siler, geri alınamaz' : 'Permanent, cannot be undone'}
+          labelColor="#DC2626"
+          onPress={onDeleteAccountPress}
+          showChevron
+          chevronColor="#DC2626"
+        />
+      ) : null}
     </SettingsSection>
   );
 }

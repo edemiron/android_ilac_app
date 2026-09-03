@@ -6,7 +6,9 @@ import {
   User,
   updateProfile,
   sendPasswordResetEmail,
-  deleteUser,
+  // v1.8.4: `deleteUser` import'u KALDIRILDI. Auth kaydini istemciden silmek,
+  // Firestore'daki saglik verisini ULASILAMAZ halde birakiyordu (bkz.
+  // asagidaki deleteAccount yorumu). Silme artik sunucuda.
   GoogleAuthProvider,
   signInWithCredential,
   signInAnonymously,
@@ -20,6 +22,8 @@ import {
   isErrorWithCode,
 } from '@react-native-google-signin/google-signin';
 import Config from 'react-native-config';
+// Hesap silmenin TEK kapisi (bkz. deleteAccount yorumu).
+import { requestServerAccountDeletion } from './accountDeletionService';
 
 const DEFAULT_GOOGLE_WEB_CLIENT_ID =
   '708668760763-2ta9pf3rrtn8cg7ihf16tsct42e06mq6.apps.googleusercontent.com';
@@ -183,17 +187,29 @@ export async function resetPassword(email: string): Promise<void> {
   }
 }
 
-// Hesap silme
+/**
+ * Hesap silme.
+ *
+ * ⚠️ v1.8.4 — BU FONKSİYON YALNIZCA AUTH KAYDINI SİLİYORDU ve hiçbir yerden
+ * çağrılmıyordu. Çağrılsaydı Firestore'daki `users/{uid}` alt ağacı yerinde
+ * kalacaktı; kurallar erişimi `request.auth.uid`e bağladığı için o sağlık
+ * verisi bir daha HİÇ KİMSE tarafından okunamaz ve silinemez hâle gelecekti.
+ *
+ * Artık silme işi tek bir yerden yürüyor: sunucudaki `deleteMyAccount`
+ * çağrılabilir fonksiyonu (bkz. `services/accountDeletionService.ts` ve
+ * `server/functions/deleteMyAccount.js`). O fonksiyon Auth kaydını EN SON
+ * siler, böylece herhangi bir adımda kesinti olsa bile kullanıcı hâlâ giriş
+ * yapıp yeniden deneyebilir.
+ *
+ * Bu sarmalayıcı geriye dönük uyumluluk için duruyor ve doğrudan
+ * `deleteUser` çağırmıyor.
+ */
 export async function deleteAccount(): Promise<void> {
-  try {
-    const user = auth.currentUser;
-    if (user) {
-      await deleteUser(user);
-    }
-  } catch (error: unknown) {
-    const authError = error as { code?: string };
-    throw translateAuthError(authError.code || 'unknown');
-  }
+  // STATIK import: dinamik `import()` babel tarafindan oldugu gibi
+  // birakiliyor ve jest onu araya girip mock'layamiyor
+  // (ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG). Bu yol test edilmek
+  // ZORUNDA, o yuzden statik.
+  await requestServerAccountDeletion();
 }
 
 // Mevcut kullanıcıyı al

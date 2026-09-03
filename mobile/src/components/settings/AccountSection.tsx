@@ -12,6 +12,12 @@ interface AccountSectionProps {
   isSyncing: boolean;
   onSyncPress: () => void;
   onLogoutPress: () => void;
+  /**
+   * v1.8.4 — Hesap silme. Verilmezse satır GÖSTERİLMEZ (misafir oturumda
+   * silinecek bir hesap yok). Opsiyonel olması bilinçli: zorunlu yapmak,
+   * misafir akışında anlamsız bir satır üretirdi.
+   */
+  onDeleteAccountPress?: () => void;
 }
 
 export const AccountSection: React.FC<AccountSectionProps> = ({
@@ -20,6 +26,7 @@ export const AccountSection: React.FC<AccountSectionProps> = ({
   isSyncing,
   onSyncPress,
   onLogoutPress,
+  onDeleteAccountPress,
 }) => {
   const { colors } = useTheme();
   const { language } = useLanguage();
@@ -55,6 +62,28 @@ export const AccountSection: React.FC<AccountSectionProps> = ({
         showChevron
         chevronColor={colors.error || '#EF4444'}
       />
+
+      {/*
+        v1.8.4 — Hesap ve veri silme.
+        Google Play, hesap olusturmaya izin veren uygulamalarda uygulama
+        ICINDE bir hesap silme yolu ZORUNLU tutuyor; bu satir olmadigi icin
+        yayin engeliydi. Ayrica KVKK md. 11-e / GDPR md. 17 "silinme hakki".
+        "Cikis Yap"in ALTINDA duruyor: yikici olan asagida, gunluk olan
+        yukarida.
+      */}
+      {onDeleteAccountPress ? (
+        <SettingRow
+          icon={{ name: 'trash-outline', color: '#DC2626' }}
+          label={language === 'tr' ? 'Hesabımı ve Verilerimi Sil' : 'Delete My Account and Data'}
+          description={
+            language === 'tr' ? 'Kalıcı olarak siler, geri alınamaz' : 'Permanent, cannot be undone'
+          }
+          labelColor="#DC2626"
+          onPress={onDeleteAccountPress}
+          showChevron
+          chevronColor="#DC2626"
+        />
+      ) : null}
     </SettingsSection>
   );
 };

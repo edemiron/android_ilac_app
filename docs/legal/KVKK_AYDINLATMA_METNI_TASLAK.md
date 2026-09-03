@@ -116,7 +116,32 @@ iletebilirsiniz; en geç **30 gün** içinde yanıtlanır.
 **Uygulama içinden:** Ayarlar → Hesap → "Hesabımı ve verilerimi sil" ile
 tüm verinizi kendiniz silebilirsiniz.
 
-> TODO (teknik): bu ekran ve arkasındaki Cloud Function henüz YOK.
+Bu yolla silinenler:
+
+- İlaç listeniz ve hatırlatma saatleriniz
+- Tüm doz geçmişiniz (alınan, atlanan, kaçırılan)
+- Reçeteleriniz ve stok kayıtlarınız
+- Bakıcı ilişkileriniz ve davet kodlarınız
+- Uygulama ayarlarınız
+- Giriş hesabınız (e-posta / Google bağlantısı)
+
+Silme sunucu tarafında yürütülür ve **geri alınamaz**; bulut yedeğinden
+kurtarma yoktur.
+
+> ✅ v1.8.4 (2026-09-03): Bu ekran ve arkasındaki Cloud Function
+> (`deleteMyAccount`, `europe-west1`) YAZILDI. Önceki taslakta "henüz YOK"
+> notu vardı.
+>
+> TODO (teknik, YAYIN ÖNCESİ): fonksiyon canlıya **deploy edilmedi**.
+> `cd server/functions && npm run deploy` gerekiyor. Deploy edilmeden
+> uygulamadaki düğme hata verir — yani bu madde deploy'a kadar hâlâ
+> yayın engeli.
+>
+> TODO (hukuk): yukarıdaki liste sunucudaki silme kapsamıyla birebir
+> tutulmalı (bkz. `server/functions/deleteMyAccount.js`). Yeni bir
+> koleksiyon eklenirse iki yer birlikte güncellenecek.
+>
+> (ESKİ NOT, artık geçersiz): bu ekran ve arkasındaki Cloud Function henüz YOK.
 > Yayın öncesi zorunlu — bkz. denetim planı Faz 2 madde 17.
 
 ## 8. Rıza ve Rızanın Geri Alınması

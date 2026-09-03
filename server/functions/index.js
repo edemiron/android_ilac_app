@@ -213,6 +213,16 @@ exports.claudeSearch = onCall(async (request) => {
  */
 
 /**
+ * HESAP VE VERİ SİLME (KVKK md. 7/11-e, GDPR md. 17, Google Play veri silme
+ * politikası). Ayrı dosyada, çünkü gerekçesi uzun ve tek başına okunmalı:
+ * bkz. `deleteMyAccount.js` dosya başı — özetle uygulamada var olan
+ * `deleteAccount()` YALNIZCA Auth kaydını siliyordu ve hiçbir yerden
+ * çağrılmıyordu; çağrılsaydı sağlık verisini sunucuda ULAŞILAMAZ hâlde
+ * bırakacaktı.
+ */
+exports.deleteMyAccount = require('./deleteMyAccount').deleteMyAccount;
+
+/**
  * ⚡ OTOMATİK CLOUD TRIGGER: Hasta İlaç Aldığında/Atladığında Bakıcıya Anında FCM Gönder
  * Hem Topic (`patient_{userId}`) hem Direct Token ile çift hat üzerinden garanti iletim.
  */

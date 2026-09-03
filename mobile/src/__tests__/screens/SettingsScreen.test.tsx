@@ -120,16 +120,29 @@ jest.mock('../../hooks/useUserProfile', () => ({
   }),
 }));
 
-jest.mock('../../stores/medicineStore', () => ({
-  useMedicineStore: {
-    getState: () => ({
-      medicines: [],
-      reminderTimes: [],
-      medicineLogs: [],
-      settings: {},
-    }),
-  },
-}));
+/**
+ * v1.8.4 — Bu mock GERCEK zustand'i taklit ETMIYORDU: `useMedicineStore`
+ * yalnizca `getState` tasiyan bir NESNE olarak tanimlanmisti, oysa gercek
+ * store CAGRILABILIR bir fonksiyon (`useMedicineStore(selector)`) ve
+ * uzerinde `getState` de var. Ekran selector'lu kullanima gecince mock
+ * "is not a function" ile patladi — yani sahte, gercegin sunmadigi bir
+ * sozlesmeyi dogruluyordu. Artik iki kullanim da desteklenmis durumda.
+ */
+jest.mock('../../stores/medicineStore', () => {
+  const state = {
+    medicines: [],
+    reminderTimes: [],
+    medicineLogs: [],
+    settings: {},
+    clearAllData: jest.fn().mockResolvedValue(undefined),
+  };
+  const useMedicineStore = (selector?: (s: typeof state) => unknown) =>
+    typeof selector === 'function' ? selector(state) : state;
+  useMedicineStore.getState = () => state;
+  useMedicineStore.setState = () => undefined;
+
+  return { useMedicineStore };
+});
 
 // Mock the settings components to simple text
 jest.mock('../../components/settings', () => {

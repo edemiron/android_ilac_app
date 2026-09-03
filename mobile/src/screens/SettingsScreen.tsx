@@ -7,7 +7,7 @@
  * Bu dosya yalnızca alt bileşenleri koordine eden salt bir görünüm katmanıdır.
  */
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -35,9 +35,18 @@ import { LogoutButton } from './SettingsScreen/components/LogoutButton';
 // Presenter Hook
 import { useSettingsController } from './SettingsScreen/hooks/useSettingsController';
 
+// v1.8.4 — Hesap ve veri silme (Google Play zorunlulugu + KVKK md. 11-e).
+// NOT: `useAuth` BILEREK import EDILMIYOR. Bu dosya "salt gorunum katmani"
+// olarak tanimli ve her seyi presenter hook'undan aliyor; ayrica AuthContext
+// zinciri native Google Sign-In modulunu cekiyor ve bu ekranin testini
+// kiriyordu. `logout` presenter uzerinden geliyor.
+import { useAccountDeletion } from '../hooks/useAccountDeletion';
+import { AccountDeletionModal } from '../components/settings/AccountDeletionModal';
+
 export default function SettingsScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const diagnosticsOffsetRef = useRef<number>(0);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
 
   const scrollToDiagnostics = useCallback(() => {
     scrollViewRef.current?.scrollTo({
@@ -85,7 +94,35 @@ export default function SettingsScreen() {
     handleVersionPress,
     handleFAQPress,
     handleExportBackup,
+    logout,
   } = useSettingsController();
+
+  /**
+   * v1.8.4 — Hesap ve veri silme akisi.
+   *
+   * `onDeleted` silme TAMAMLANDIKTAN sonra cagriliyor ve yalnizca oturumu
+   * kapatiyor. Yonlendirmeyi ayrica yapmiyoruz: AuthContext oturum
+   * kapaninca uygulamayi zaten giris akisina dusuruyor. Burada elle
+   * `navigation.navigate` cagirmak, artik var olmayan bir hesabin
+   * ekranlarina gitmeye calismak olurdu.
+   */
+  const accountDeletion = useAccountDeletion({
+    language: language === 'tr' ? 'tr' : 'en',
+    onDeleted: async () => {
+      setShowDeleteAccount(false);
+      await logout();
+    },
+  });
+
+  const openDeleteAccount = useCallback(() => {
+    accountDeletion.reset();
+    setShowDeleteAccount(true);
+  }, [accountDeletion]);
+
+  const closeDeleteAccount = useCallback(() => {
+    setShowDeleteAccount(false);
+    accountDeletion.reset();
+  }, [accountDeletion]);
 
   const styles = createSettingsStyles(colors, isDark);
 
@@ -197,6 +234,14 @@ export default function SettingsScreen() {
           onExportBackup={handleExportBackup}
           navigation={navigation}
           language={language}
+          /*
+            v1.8.4: Misafir oturumda satir GOSTERILMEZ — silinecek bir sunucu
+            hesabi yok ve "hesabimi sil" demek yanlis olurdu. `isGuest`
+            bayragi AuthUser'da tasiniyor.
+          */
+          onDeleteAccountPress={
+            user && !(user as { isGuest?: boolean }).isGuest ? openDeleteAccount : undefined
+          }
         />
 
         {/* 8. Yardım & Destek */}
@@ -248,6 +293,18 @@ export default function SettingsScreen() {
         onClose={handleCloseBatteryModal}
         isDark={isDark}
         language={language}
+      />
+
+      {/* v1.8.4 — Hesap ve Veri Silme Onayı */}
+      <AccountDeletionModal
+        visible={showDeleteAccount}
+        phase={accountDeletion.phase}
+        errorMessage={accountDeletion.errorMessage}
+        confirmationInput={accountDeletion.confirmationInput}
+        canDelete={accountDeletion.canDelete}
+        onChangeConfirmation={accountDeletion.setConfirmationInput}
+        onConfirm={accountDeletion.deleteAccountAndData}
+        onCancel={closeDeleteAccount}
       />
     </SafeAreaView>
   );
