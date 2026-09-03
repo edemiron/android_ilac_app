@@ -9,6 +9,19 @@ module.exports = {
   // Sprint 44.1: ts-jest eklendi (package.json), babel-jest fallback korundu.
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@notifee/react-native|uuid|moti|react-native-reanimated|react-native-worklets|react-native-gesture-handler)',
+    // v1.8.5: `server/functions/*.js` Babel'den GECMEZ.
+    // Sebep: o dosyalar saf CommonJS ve Node 20 icin yazilmis; babel-jest
+    // onlari donusturunce `@babel/runtime/helpers/...` require'i uretiyor ve
+    // o paket `server/functions/node_modules` altinda yok (mobil paketin
+    // bagimliligi). Donusume ihtiyac da yok.
+    //
+    // Niye mobil jest bu dosyalara bakiyor: `server/functions` altinda
+    // calisan bir test altyapisi yok ve v1.8.5'te kapatilan FCM topic
+    // sizintisini korumasiz birakmak istemedim. Dogru yer server/functions
+    // icinde kendi jest yapilandirmasi — Faz 4 madde 28 kapsaminda.
+    // Windows'ta yol ayiricisi `\`, POSIX'te `/` — ikisini de kabul eden
+    // desen. `<rootDir>/../server/functions/` yazmak Windows'ta ESLESMIYOR.
+    '[\\\\/]server[\\\\/]functions[\\\\/]',
   ],
   // Sprint 87A: react-native-svg ve svg-bagli component'leri stub'la — Babel'in
   // parse edemedigi node_modules'u test ortaminda bypass et.

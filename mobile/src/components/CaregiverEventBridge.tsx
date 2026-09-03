@@ -164,12 +164,28 @@ export function CaregiverEventBridge() {
       const active = activeList.find(r => r.status === 'active');
       setActivePatientId(active?.id ?? null);
 
-      // Hastaların yerel izleme alarmlarını ve FCM topic aboneliklerini güncelle
+      // Hastaların yerel izleme alarmlarını güncelle.
       syncCaregiverWatchSchedules(activeList);
+
+      /*
+       * ⚠️ v1.8.5 — FCM TOPIC ABONELIGI KALDIRILDI.
+       *
+       * Burada `subscribeToPatientTopics(ids)` cagriliyordu ve o fonksiyon
+       * `messaging().subscribeToTopic('patient_<id>')` yapiyordu. Topic
+       * aboneligi istemci tarafinda ve KIMLIK DOGRULAMASIZ; sunucuda da
+       * "bu kisi gercekten bakici mi" diye soran yer yoktu. Yani uid'i
+       * bilen herkes bir hastanin ilac bildirimlerini — SOS'ta telefon
+       * numarasi ve konumu dahil — alabiliyordu.
+       * Gonderim artik sunucuda caregiverRelationships uzerinden yetki
+       * denetlenerek TOKEN'a yapiliyor (server/functions/notify.js).
+       *
+       * Burada yapilan tek is, guncelleme oncesinden kalan abonelikleri
+       * TEMIZLEMEK: aksi halde cihazlar eski konularda asili kalir.
+       */
       const ids = activeList.map(p => p.id).filter(Boolean);
       if (ids.length > 0) {
         import('../services/caregiverNotificationService').then(srv => {
-          srv.subscribeToPatientTopics(ids);
+          srv.unsubscribeFromLegacyPatientTopics(ids);
         });
       }
     });

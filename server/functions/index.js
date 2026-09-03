@@ -11,6 +11,20 @@ const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const axios = require('axios');
 const admin = require('firebase-admin');
 
+/**
+ * ⚠️ v1.8.5 — Bildirim gonderiminin TEK KAPISI.
+ *
+ * Dort tetikleyici de FCM TOPIC'ine yayin yapiyordu; topic aboneligi
+ * istemci tarafinda ve kimlik dogrulamasiz oldugu icin uid'i bilen herkes
+ * bir hastanin ilac bildirimlerini — SOS'ta TELEFON NUMARASI ve KONUM
+ * dahil — alabiliyordu. Gerekcenin tamami: `notify.js` dosya basi.
+ */
+const {
+  getAuthorizedCaregiverTokens,
+  getPatientToken,
+  sendToTokens,
+} = require('./notify');
+
 if (!admin.apps.length) {
   try {
     admin.initializeApp();
@@ -296,16 +310,27 @@ exports.onMedicineLogCreated = onDocumentCreated('users/{userId}/medicineLogs/{l
       },
     };
 
-    // 1. TOPIC BROADCAST: patient_${userId} konusuna tekil yayın yap (Tüm bağlı bakıcılar tek seferde alır)
-    const topicMessage = {
-      topic: `patient_${userId}`,
-      notification: notificationPayload,
-      data: dataPayload,
-      android: androidConfig,
-    };
+    /*
+     * ⚠️ v1.8.5 — TOPIC YAYINI KALDIRILDI (VERİ SIZINTISI).
+     *
+     * Eski hâli: `admin.messaging().send({ topic: `patient_${userId}`, ... })`
+     * FCM topic aboneliği istemci tarafındadır ve kimlik doğrulaması
+     * gerektirmez; uid'i bilen herkes `subscribeToTopic('patient_<uid>')`
+     * ile bu hastanın ilaç bildirimlerini almaya başlayabiliyordu ve
+     * sunucuda "bu kişi gerçekten bakıcı mı" diye soran hiçbir yer yoktu.
+     * Ayrıntı: `notify.js` dosya başı.
+     *
+     * Bu fonksiyonun eski yorumu "hem Topic hem Direct Token ile ÇİFT HAT"
+     * diyordu ama kodda token hattı HİÇ YOKTU.
+     */
+    const { tokens, relationshipRefs } = await getAuthorizedCaregiverTokens(db, userId);
 
-    const msgId = await admin.messaging().send(topicMessage);
-    console.log(`[onMedicineLogCreated] Topic patient_${userId} mesajı başarıyla gönderildi: ${msgId}`);
+    await sendToTokens(
+      db,
+      tokens,
+      { notification: notificationPayload, data: dataPayload, android: androidConfig },
+      { label: `onMedicineLogCreated/${status}`, relationshipRefs }
+    );
   } catch (error) {
     console.error('[onMedicineLogCreated] Hata:', error);
   }
@@ -323,10 +348,14 @@ exports.onRemoteReminderCreated = onDocumentCreated('users/{userId}/remoteRemind
 
   try {
     const db = admin.firestore();
-    const userDoc = await db.collection('users').doc(userId).get();
-    if (!userDoc.exists) return;
 
-    const token = userDoc.data()?.pushToken || userDoc.data()?.caregiverFcmToken || userDoc.data()?.fcmToken;
+    // v1.8.5: Bu satir ZATEN VARDI ama kullanilmiyordu; asagida `user_{uid}`
+    // topic'ine yayin yapiliyordu. Yani guvenli yol yazilmis, baglanmamisti.
+    const token = await getPatientToken(db, userId);
+    if (!token) {
+      console.log(`[onRemoteReminderCreated] Hasta ${userId} icin token yok, atlandi`);
+      return;
+    }
 
     const caregiverName = reminder.caregiverName || 'Bakıcınız';
     const medicineName = reminder.medicineName || 'İlacınızı';
@@ -363,14 +392,15 @@ exports.onRemoteReminderCreated = onDocumentCreated('users/{userId}/remoteRemind
       },
     };
 
-    // Topic user_{userId} broadcast
-    await admin.messaging().send({
-      topic: `user_${userId}`,
-      notification: notificationPayload,
-      data: dataPayload,
-      android: androidConfig,
-    });
-    console.log(`[onRemoteReminderCreated] Hasta ${userId} konusuna FCM iletildi.`);
+    // v1.8.5: `user_{userId}` topic yayini yerine hastanin KENDI token'i.
+    // Topic aboneligi kimlik dogrulamasiz oldugu icin uid'i bilen herkes
+    // bu hatirlatmalari alabiliyordu (bkz. notify.js dosya basi).
+    await sendToTokens(
+      db,
+      [token],
+      { notification: notificationPayload, data: dataPayload, android: androidConfig },
+      { label: 'onRemoteReminderCreated' }
+    );
   } catch (error) {
     console.error('[onRemoteReminderCreated] Hata:', error);
   }
@@ -430,14 +460,23 @@ exports.onEmergencyAlertCreated = onDocumentCreated('users/{userId}/emergencyAle
       },
     };
 
-    // 1. TOPIC: patient_{userId} (Bağlı tüm bakıcılar anında tekil uyanır)
-    const msgId = await admin.messaging().send({
-      topic: `patient_${userId}`,
-      notification: notificationPayload,
-      data: dataPayload,
-      android: androidConfig,
-    });
-    console.log(`[onEmergencyAlertCreated] Topic patient_${userId} SOS iletildi: ${msgId}`);
+    /*
+     * ⚠️ v1.8.5 — BU EN AĞIR SIZINTIYDI.
+     *
+     * SOS bildirimi `patient_{userId}` topic'ine yayınlanıyordu ve
+     * `dataPayload` içinde **`patientPhone`** ile **`mapsUrl`** (konum) var.
+     * FCM topic aboneliği kimlik doğrulaması gerektirmediği için, uid'i
+     * bilen herhangi biri hastanın telefon numarasını ve konumunu
+     * alabiliyordu. Ayrıntı: `notify.js` dosya başı.
+     */
+    const { tokens, relationshipRefs } = await getAuthorizedCaregiverTokens(db, userId);
+
+    await sendToTokens(
+      db,
+      tokens,
+      { notification: notificationPayload, data: dataPayload, android: androidConfig },
+      { label: 'onEmergencyAlertCreated', relationshipRefs }
+    );
   } catch (error) {
     console.error('[onEmergencyAlertCreated] Hata:', error);
   }
@@ -500,14 +539,27 @@ exports.onCaregiverAlertCreated = onDocumentCreated('users/{caregiverId}/caregiv
       },
     };
 
-    // Topic user_{caregiverId}
-    const msgId = await admin.messaging().send({
-      topic: `user_${caregiverId}`,
-      notification: notificationPayload,
-      data: dataPayload,
-      android: androidConfig,
-    });
-    console.log(`[onCaregiverAlertCreated] Bakıcı ${caregiverId} kullanıcısına SOS FCM iletildi: ${msgId}`);
+    /*
+     * v1.8.5: `user_{caregiverId}` topic yayini yerine bakicinin KENDI
+     * token'i. Burada dokuman zaten BAKICININ kendi alt koleksiyonunda
+     * (users/{caregiverId}/caregiverAlerts) — yani yetki kontrolu Firestore
+     * kurallarinda yapilmis durumda; eksik olan tek sey bildirimin yalnizca
+     * O kisiye gitmesiydi. Topic aboneligi kimlik dogrulamasiz oldugu icin
+     * caregiverId'yi bilen herkes hastanin TELEFONU ve KONUMUNU
+     * iceren bu SOS bildirimini alabiliyordu.
+     */
+    const token = await getPatientToken(db, caregiverId);
+    if (!token) {
+      console.log(`[onCaregiverAlertCreated] Bakici ${caregiverId} icin token yok, atlandi`);
+      return;
+    }
+
+    await sendToTokens(
+      db,
+      [token],
+      { notification: notificationPayload, data: dataPayload, android: androidConfig },
+      { label: 'onCaregiverAlertCreated' }
+    );
   } catch (error) {
     console.error('[onCaregiverAlertCreated] Hata:', error);
   }

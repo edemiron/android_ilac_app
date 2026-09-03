@@ -116,12 +116,12 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
       return null;
     }
 
-    // 4. Topic Aboneliği (user_{userId} konusu)
-    try {
-      await messaging().subscribeToTopic(`user_${userId}`);
-    } catch (_tErr) {
-      log.debug('FCM topic subscribe skip');
-    }
+    // 4. v1.8.5 — TOPIC ABONELIGI KALDIRILDI (`user_{userId}`).
+    // Sunucu artik topic'e degil TOKEN'a gonderiyor (bkz. server/functions/
+    // notify.js). Onceden abone olmus kurulumlari temizliyoruz; aksi halde
+    // o cihazlar eski topic'te asili kalir ve bir gun topic'e bir sey
+    // gonderilirse sizinti yeniden acilir.
+    await unsubscribeFromLegacyTopics(userId);
 
     // 5. Token'ı kaydet (SecureStore & Firestore)
     await SecureStore.setItemAsync(FCM_TOKEN_KEY, pushToken);
@@ -137,17 +137,73 @@ export async function setupCaregiverNotifications(userId: string): Promise<strin
 }
 
 /**
- * Takip edilen hastaların FCM konularına abone ol (Örn: patient_123)
+ * Takip edilen hastaların bildirimlerine abone ol.
+ *
+ * ⚠️ v1.8.5 — ARTIK HİÇBİR ŞEY YAPMIYOR, ve bu bilinçli.
+ *
+ * Eski hâli:
+ *
+ *     await messaging().subscribeToTopic(`patient_${pId}`);
+ *
+ * FCM topic aboneliği **istemci tarafındadır ve kimlik doğrulaması
+ * gerektirmez.** Bu döngü, istemcinin verdiği hasta kimliğine körlemesine
+ * abone oluyordu; sunucuda da "bu kişi gerçekten bu hastanın bakıcısı mı"
+ * diye soran hiçbir yer yoktu. Sonuç: bir uid'i bilen herkes
+ * `subscribeToTopic('patient_<uid>')` çağırıp o hastanın ilaç
+ * bildirimlerini — SOS'ta telefon numarası ve konumu da — alabiliyordu.
+ *
+ * Gönderim artık sunucuda `caregiverRelationships` üzerinden yetki
+ * denetlenerek TOKEN'a yapılıyor (bkz. `server/functions/notify.js`).
+ * İstemcinin yapması gereken tek şey token'ını ilişki dokümanına yazmak;
+ * onu `setupCaregiverPushNotifications` zaten yapıyor.
+ *
+ * Fonksiyon SİLİNMEDİ çünkü çağıranları var ve boş bir gövde, çağrı
+ * noktalarını tek tek gezmekten daha güvenli bir geçiş. Bir sonraki
+ * temizlikte çağıranlarla birlikte kaldırılacak.
  */
 export async function subscribeToPatientTopics(patientIds: string[]): Promise<void> {
+  if (patientIds.length) {
+    log.debug('subscribeToPatientTopics artik no-op (v1.8.5 — topic sizintisi)', {
+      count: patientIds.length,
+    });
+  }
+}
+
+/**
+ * Eski (v1.8.4 ve öncesi) topic aboneliklerini temizler.
+ *
+ * Güncelleyen kullanıcılar `user_{uid}` ve `patient_{...}` konularına zaten
+ * abone durumda. Sunucu artık o konulara göndermiyor, ama abonelikler
+ * cihazda asılı kalıyor: ileride biri o konulara bir şey gönderirse sızıntı
+ * yeniden açılır. Bu yüzden kurulum sırasında bir kez temizliyoruz.
+ *
+ * Hata YUTULUYOR: temizlik başarısız olsa bile push kurulumu devam etmeli;
+ * bildirim almamak, temizlenmemiş bir abonelikten daha kötü.
+ */
+export async function unsubscribeFromLegacyTopics(userId: string): Promise<void> {
   try {
-    for (const pId of patientIds) {
-      if (!pId) continue;
-      await messaging().subscribeToTopic(`patient_${pId}`);
-      log.info('Hasta FCM konusuna abone olundu', { topic: `patient_${pId}` });
+    await messaging().unsubscribeFromTopic(`user_${userId}`);
+    log.debug('Eski FCM konusundan cikildi', { topic: `user_${userId}` });
+  } catch (error) {
+    log.debug('Eski konu aboneligi kaldirilamadi (onemsiz)', { error: String(error) });
+  }
+}
+
+/**
+ * Bir hastanın eski `patient_{id}` konusundan çık.
+ *
+ * Bakıcı tarafında çağrılır: hangi hastalara abone olduğunu yalnızca bakıcı
+ * cihazı biliyor.
+ */
+export async function unsubscribeFromLegacyPatientTopics(patientIds: string[]): Promise<void> {
+  for (const pId of patientIds) {
+    if (!pId) continue;
+    try {
+      await messaging().unsubscribeFromTopic(`patient_${pId}`);
+      log.debug('Eski hasta konusundan cikildi', { topic: `patient_${pId}` });
+    } catch (error) {
+      log.debug('Eski hasta konusu kaldirilamadi (onemsiz)', { error: String(error) });
     }
-  } catch (err) {
-    log.debug('subscribeToPatientTopics hata', err);
   }
 }
 
