@@ -22,6 +22,7 @@ import notifee, {
 import { createScopedLogger } from '../utils/logger';
 import { getPatientFullSchedule } from './caregiverService';
 import type { PatientInfo } from '../types';
+import { getLocalDateKey } from '../domain/doseLog';
 
 const log = createScopedLogger('CaregiverWatchScheduler');
 
@@ -64,7 +65,10 @@ export async function schedulePatientDoseWatches(
       return;
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    // ⚠️ v1.7.10 — YEREL gun. UTC gunu kullanmak TR'de 00:00-03:00 arasinda
+    // "bugun"u bir onceki gun sayiyordu; bakici o saatlerdeki dozlar icin
+    // yanlis gunun takibini kuruyordu.
+    const todayStr = getLocalDateKey(new Date());
 
     const todayDoses = (fullSchedule.reminderTimes || [])
       .map((rt: any) => {

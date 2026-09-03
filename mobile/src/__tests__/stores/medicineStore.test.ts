@@ -60,6 +60,7 @@ jest.mock('date-fns', () => ({
 // Import after mocks
 import { useMedicineStore, MEDICINE_COLORS } from '../../stores/medicineStore';
 import { Medicine, ReminderTime } from '../../types';
+import { getLocalDateKey } from '../../domain/doseLog';
 
 describe('MedicineStore', () => {
   // Reset store state before each test
@@ -759,7 +760,7 @@ describe('MedicineStore', () => {
           dosage: '500mg',
           frequency: 1,
           color: '#FF6B6B',
-          startDate: new Date().toISOString().split('T')[0],
+          startDate: getLocalDateKey(new Date()),
         });
 
         const { reminderTimes } = useMedicineStore.getState();

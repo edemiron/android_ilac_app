@@ -78,6 +78,36 @@ export default [
       // Genel kuralları
       'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
       'no-unused-vars': 'off', // TypeScript versiyonunu kullan
+
+      /**
+       * ═══════════════════════════════════════════════════════════════════
+       * PROJEYE OZEL KAPILAR — hepsi UretimDE YASANMIS hatalardan turedi.
+       *
+       * Bunlar stil tercihi DEGIL. Her biri kullaniciya ulasmis bir kusurun
+       * tekrar etmesini engelliyor; bu yuzden `warn` degil `error`.
+       * ═══════════════════════════════════════════════════════════════════
+       */
+      'no-restricted-syntax': [
+        'error',
+        {
+          /**
+           * UTC GUN TUZAGI (v1.7.5 / v1.7.7 / v1.7.10)
+           *
+           * `new Date().toISOString().split('T')[0]` UTC gununu verir.
+           * Turkiye UTC+3 oldugu icin 00:00-03:00 arasi BIR ONCEKI gunu
+           * gosterir. Bu kalip kod tabaninda 14 yerde vardi ve su hatalari
+           * uretti: cok dozlu ilacin dozu yanlis gune yazildi, islenmis alarm
+           * anahtari kaydi, bakici takibi yanlis gunu izledi, `endDate` bir
+           * gun erken doldu (ve v1.7.7'den beri `endDate` alarmi SUSTURUYOR).
+           *
+           * Dogrusu: `getLocalDateKey(date)` — src/domain/doseLog.ts
+           */
+          selector:
+            "CallExpression[callee.property.name='split'][callee.object.callee.property.name='toISOString']",
+          message:
+            "UTC gun tuzagi: toISOString().split('T')[0] UTC gununu verir (TR'de 00:00-03:00 arasi bir onceki gun). getLocalDateKey() kullan — src/domain/doseLog.ts",
+        },
+      ],
     },
     settings: {
       react: {

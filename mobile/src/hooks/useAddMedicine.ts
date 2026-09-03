@@ -26,6 +26,7 @@ import {
 import { CelebrationData } from '../components/addMedicine/MedicineAddedCelebrationModal';
 import { ParsedVoiceMedicine } from '../utils/voiceMedicineParser';
 import { createScopedLogger } from '../utils/logger';
+import { getLocalDateKey } from '../domain/doseLog';
 import {
   parseDosageAmount,
   parseMedicineForm,
@@ -558,7 +559,12 @@ export function useAddMedicine() {
       if (parsed.durationDays) {
         const now = new Date();
         const end = new Date(now.getTime() + parsed.durationDays * 24 * 60 * 60 * 1000);
-        updated.endDate = end.toISOString().split('T')[0];
+        // ⚠️ v1.7.10 — YEREL gun. `toISOString()` UTC gununu verir ve TR
+        // (UTC+3) icin gece yarisina yakin saatlerde tarihi BIR GUN GERI
+        // kaydirir. v1.7.7'den beri `endDate` alarmin kurulup kurulmayacagini
+        // BELIRLIYOR (bkz. notifications/diagnostics.ts), yani bir gun kayma
+        // tedavinin alarmini bir gun ERKEN susturur.
+        updated.endDate = getLocalDateKey(end);
         updated.scheduleType = 'cycle';
       }
       return updated;

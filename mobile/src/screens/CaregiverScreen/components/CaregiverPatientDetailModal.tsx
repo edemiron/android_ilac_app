@@ -37,6 +37,7 @@ import {
 import { getTelUri, formatPhoneNumber } from '../../../utils/phoneHelpers';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useHaptics } from '../../../hooks/useHaptics';
+import { getLocalDateKey } from '../../../domain/doseLog';
 
 interface CaregiverPatientDetailModalProps {
   visible: boolean;
@@ -211,7 +212,8 @@ export function CaregiverPatientDetailModal({
     }
   };
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  // ⚠️ v1.7.10 — YEREL gun (bkz. domain/doseLog.ts).
+  const todayStr = getLocalDateKey(new Date());
 
   const todayDoses = scheduleData.reminderTimes
     .map(rt => {

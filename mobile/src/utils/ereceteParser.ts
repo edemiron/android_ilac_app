@@ -7,6 +7,7 @@
 
 import { EReceteData, EReceteItem, MedicineInstruction } from '../types';
 import { detectFoodInteractions } from './clinicalSafetyEngine';
+import { getLocalDateKey } from '../domain/doseLog';
 
 /**
  * Tıbbi kullanım talimatı metninden (örn: "2x1 Tok", "1x1 Aç", "Günde 1x1.0", "Günde 3 defa")
@@ -117,7 +118,7 @@ export function parseEReceteInput(input: string): EReceteData | null {
   if (singleCodeMatch) {
     return {
       recipeNo: text.toUpperCase(),
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateKey(new Date()),
       medicines: [],
     };
   }
@@ -232,7 +233,7 @@ export function parseEReceteInput(input: string): EReceteData | null {
 
   return {
     recipeNo,
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateKey(new Date()),
     medicines,
   };
 }

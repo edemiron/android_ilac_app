@@ -19,6 +19,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import type { Prescription, PrescriptionInput } from '../../../types/prescription';
 import type { Medicine } from '../../../types';
 import type { ThemeColors } from '../../../contexts/ThemeContext';
+import { getLocalDateKey } from '../../../domain/doseLog';
 
 interface AddPrescriptionModalProps {
   visible: boolean;
@@ -63,10 +64,12 @@ export function AddPrescriptionModal({
       setSelectedMedicineIds(editingPrescription.medicineIds || []);
       setNotes(editingPrescription.notes || '');
     } else {
-      const today = new Date().toISOString().split('T')[0];
+      // ⚠️ v1.7.10 — YEREL gun. UTC gunu, TR'de gece yarisina yakin
+      // saatlerde recete tarihini BIR GUN GERI kaydiriyordu.
+      const today = getLocalDateKey(new Date());
       const nextMonth = new Date();
       nextMonth.setMonth(nextMonth.getMonth() + 1);
-      const nextMonthStr = nextMonth.toISOString().split('T')[0];
+      const nextMonthStr = getLocalDateKey(nextMonth);
 
       setTitle('');
       setPrescriptionCode('');
@@ -88,7 +91,7 @@ export function AddPrescriptionModal({
   const setQuickExpiry = (months: number) => {
     const base = prescribedDate ? new Date(prescribedDate) : new Date();
     base.setMonth(base.getMonth() + months);
-    setExpiryDate(base.toISOString().split('T')[0]);
+    setExpiryDate(getLocalDateKey(base));
   };
 
   const handleSave = async () => {
@@ -114,7 +117,7 @@ export function AddPrescriptionModal({
         prescriptionCode: prescriptionCode.trim() || undefined,
         doctorName: doctorName.trim() || undefined,
         hospitalName: hospitalName.trim() || undefined,
-        prescribedDate: prescribedDate.trim() || new Date().toISOString().split('T')[0],
+        prescribedDate: prescribedDate.trim() || getLocalDateKey(new Date()),
         expiryDate: expiryDate.trim(),
         medicineIds: selectedMedicineIds,
         notes: notes.trim() || undefined,

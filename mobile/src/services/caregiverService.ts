@@ -41,6 +41,7 @@ import {
 } from './caregiverHelpers';
 export { generateInviteCode, isValidInviteCode };
 import type { CaregiverRelationship, CaregiverInvite, PatientInfo } from '../types';
+import { getLocalDateKey } from '../domain/doseLog';
 
 const log = createScopedLogger('CaregiverService');
 
@@ -1287,7 +1288,8 @@ export async function getPatientFullSchedule(patientId: string): Promise<{
       getPatientMedicineLogs(patientId, 100),
     ]);
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    // ⚠️ v1.7.10 — YEREL gun (bkz. domain/doseLog.ts: UTC/yerel karisikligi).
+    const todayStr = getLocalDateKey(new Date());
     const todayLogs = logs.filter(
       (l: any) =>
         (l.scheduledTime && l.scheduledTime.startsWith(todayStr)) ||
