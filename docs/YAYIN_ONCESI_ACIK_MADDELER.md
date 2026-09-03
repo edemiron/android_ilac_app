@@ -48,34 +48,93 @@ Bu tek deploy **üç şeyi** birlikte canlıya alır:
 - [ ] Functions günlüklerinde `[notify] onMedicineLogCreated/taken: 1 basarili`
       benzeri bir satır gör (topic yerine token yolunun çalıştığının kanıtı).
 
-### A3. Google Sign-In'i fiilen dene
+### A3. Google Sign-In'i fiilen dene — iki bilinen hata nedeni de ELENDİ
 
-v1.8.6 client ID'yi düzeltti (yanlış GCP projesine gidiyordu). Doğrulaması
-sende:
+v1.8.7'de cihazda kontrol edildi. Girişin bozulabileceği **iki** bilinen
+neden vardı; ikisi de artık elendi:
 
-- [ ] Uygulama → giriş ekranı → "Google ile devam et" → bir hesap seç.
-- [ ] Firebase Console → Authentication'da sağlayıcısı Google olan yeni bir
-      satır belirdi mi?
+1. **Yanlış client ID** (v1.8.6'nın düzelttiği kusur) — v1.8.6'da çalışma
+   zamanında `Constants.expoConfig.extra.google.webClientId` gerçekten
+   çözümlendi ("client ID bulunamadı" hatası çıkmadı).
+2. **Kayıtlı olmayan SHA-1** (v1.8.6 kaydının açık bıraktığı şüphe) —
+   `apksigner verify --print-certs` ile v1.8.7 APK'sının gerçek imzası
+   okundu ve `google-services.json`'daki kayıtla **birebir eşleşti**:
 
-Hâlâ hata veriyorsa hata metnini paylaş:
+   ```
+   APK imza SHA-1                        : badf423c0d30bcf4ee727e8c948a45b6672a5dde
+   google-services.json certificate_hash : badf423c0d30bcf4ee727e8c948a45b6672a5dde
+   (client_type=1, package com.ilachatirlatici, project 506876057044)
+   ```
 
-| Hata | Anlamı |
-| :--- | :--- |
-| `audience` içeren mesaj | Client ID hâlâ yanlış |
-| `DEVELOPER_ERROR` | **Release keystore'unun SHA-1'i** Google Cloud Console'a kayıtlı değil. Depodan görülemez; `google-services.json`daki `certificate_hash` ile eşleşmesi gerekiyor |
+- [ ] **Sana kalan tek adım (~20 saniye):** çıkış yap → "Google ile devam
+      et" → bir hesap seç. Firebase Console → Authentication'da
+      sağlayıcısı Google olan yeni bir kullanıcı görünmeli.
+      Bunu ben yapmadım çünkü çıkış yapmak **yerel veriyi siliyor**
+      (`AuthContext.logout` → `clearAllData()`); bulut eşitlemesi aktif
+      olduğu için geri gelmesi gerekir ama gerçek doz geçmişinle bu kumarı
+      senin onayın olmadan oynamak doğru olmaz.
 
-### A4. Hesap silmeyi bir TEST hesabıyla dene
+### A3b. ⚠️ YENİ RİSK — Play App Signing kullanılıyorsa SHA-1 EKSİK
 
-A2'den sonra:
+`google-services.json` içinde **tek bir** Android sertifika hash'i var ve o
+da yerel `release.keystore`'a ait. Play Store'a **AAB** yüklersen
+(v1.8.1'de `npm run build:aab` eklendi) Google Play, uygulamayı
+**kendi anahtarıyla yeniden imzalar**. O zaman kullanıcının cihazındaki
+APK'nın SHA-1'i yerel keystore'unkinden FARKLI olur ve:
 
-- [ ] Bir test hesabı aç, birkaç ilaç ekle, bir bakıcı bağla.
-- [ ] Ayarlar → "Hesabımı ve Verilerimi Sil" → onay kelimesini yaz → sil.
-- [ ] Firebase Console'da kontrol et: `users/{uid}` **yok**,
-      `caregiverRelationships`te o kişiye ait kayıt **yok**,
-      Authentication'da kullanıcı **yok**.
+- Google ile giriş **canlıda** `DEVELOPER_ERROR` verir,
+- ama **senin cihazında çalışmaya devam eder** (sen yerel imzalı APK
+  kuruyorsun) — yani test ederken göremezsin.
 
-Gerçek bir hesapla denemeyin — geri alınamaz.
+Bu, "bende çalışıyordu" sınıfının klasik örneği.
 
+- [ ] Play Console → **Uygulama imzalama** sayfasından
+      **"Uygulama imzalama anahtarı sertifikası"** SHA-1'ini kopyala.
+- [ ] Firebase Console → Proje ayarları → uygulaman → **parmak izi ekle**
+      olarak o SHA-1'i de ekle (yükleme anahtarınınkinin yanına).
+- [ ] Yeni `google-services.json`'ı indirip
+      `mobile/android/app/google-services.json` üzerine yaz — sonra
+      dosyada **iki** `certificate_hash` görmen gerekir.
+
+> Not: Bu adım APK ile dağıtım yapıyorsan gerekmez. AAB yüklüyorsan
+> **zorunlu** ve yayın sonrası fark edilmesi en can sıkıcı kusurlardan biri.
+### A4. Hesap silmeyi bir TEST hesabıyla dene — akışın YARISI doğrulandı
+
+v1.8.7'de cihazda doğrulandı (v1.8.7 kurulu, gerçek hesapta, **hiçbir şey
+silinmeden**):
+
+- [x] Silme satırı Ayarlar'da var ve modal açılıyor.
+- [x] Modal **altı veri kalemini tek tek** sayıyor (KVKK'nın istediği
+      "neyin silindiğini somut söylemek"): ilaç listesi + saatler, tüm doz
+      geçmişi, reçete + stok, bakıcı ilişkileri + davet kodları, ayarlar,
+      giriş hesabı.
+- [x] Onay kapısı çalışıyor: alan boşken **"Kalıcı Olarak Sil" düğmesi
+      `enabled=false`**.
+- [x] **Türkçe noktasız-I tuzağı üretimde doğru** — cihazda iki yönlü
+      test edildi:
+
+      | Yazılan | Beklenen | Cihazda |
+      | :--- | :--- | :--- |
+      | `SIL` (noktasız I) | reddet | düğme `enabled=false` ✅ |
+      | `sil` (küçük harf) | kabul et | düğme `enabled=true` ✅ |
+
+      Kod `toUpperCase()` kullansa `'sil'` → `'SIL'` ≠ `'SİL'` olur ve
+      "sil" yazan kullanıcı **hiçbir zaman** onaylayamazdı.
+      `toLocaleUpperCase('tr-TR')` bunu çözüyor.
+
+**Doğrulanmayan yarısı** ve nedeni: `deleteMyAccount` **canlıda yok**
+(`firebase functions:list` çıktısı 10 fonksiyon gösteriyor, bu yok). Yani
+düğmeye basmak bugün hiçbir şey silemez, yalnızca hata yolunu çalıştırır
+(sunucu başarısız → yerel veri KORUNUR → çıkış YAPILMAZ). O yolu senin
+gerçek hesabında ben tetiklemedim: "Kalıcı Olarak Sil" düğmesine basma
+kararı bana ait olmamalı.
+
+- [ ] **Deploy'dan SONRA** bir test hesabı aç, birkaç ilaç ekle, bir bakıcı
+      bağla, sonra sil. Firebase Console'da kontrol et: `users/{uid}` yok,
+      `caregiverRelationships` temiz, Authentication'da kullanıcı yok.
+- [ ] Ayrıca **deploy'dan ÖNCE** bir test hesabıyla düğmeye bas: beklenen
+      davranış "Hesabınız silinemedi. Verilerinize hâlâ erişebiliyorsunuz."
+      mesajı, ilaçların yerinde durması ve oturumun AÇIK kalması.
 ### A5. KVKK aydınlatma metni
 
 `docs/legal/KVKK_AYDINLATMA_METNI_TASLAK.md` yazıldı ama başında
