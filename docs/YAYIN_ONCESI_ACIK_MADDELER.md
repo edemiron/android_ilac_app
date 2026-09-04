@@ -181,21 +181,24 @@ v1.8.7'de cihaz kilidi açıldı ve üçü de doğrulandı. Ayrıntı:
       `android/gradle.properties` → `VisionCamera_enableCodeScanner=true`
       (8.6 MB geri gelir).
 
-### A7. Uygulama içi emoji — ürün kararı sende
+### A7. Uygulama içi emoji — ✅ KARAR VERİLDİ VE UYGULANDI (v1.8.8)
 
-v1.8.2 emojiyi **bildirim** metinlerinden kaldırdı (TalkBack başlığı okuyor,
-bazı OEM gölgelerinde emoji boş kutuya dönüyor). **Uygulama içinde** emoji
-hâlâ var ve bu bilinçli bırakıldı, çünkü ürünün görünümüne dair bir karar:
+Kullanıcının kararı: **alarm ekranındakiler gitsin, ana ekrandaki dekoratif
+emoji kalsın.** v1.8.8'de uygulandı ve cihazda doğrulandı:
 
-- Ana ekran: `👋` (selamlama), `🔥` (seri), `📷` (reçete tara),
-  `🌅 ☀️ 🌃 🌙` (zaman dilimleri)
-- Tam ekran alarm: `🕐 Herhangi bir zaman`, `❓ Geç mi Kaldım?`,
-  `⏰ 5 dk ertele`, `✓ Şimdi Al`
-- İlaç formu seçicisi: her form için bir emoji
-- `drugInteraction.ts:468,474` — etkileşim şiddeti simgesi `'⚠️'` / `'❓'`
+- [x] Alarm ekranı: hero `💊` → ikon fontu hap, `✓` → `checkmark-circle`,
+      `⏰ 5 dk ertele` → `5 dk ertele`, `🕐 Herhangi bir zaman` → saat ikonu
+      + düz metin, `🚨` kaldırıldı (kalkan ikonu mükerrerdi).
+- [x] `🧪 TEST ALARMI` bilinçli korundu.
+- [x] Ana ekran dokunulmadı (karar bu).
 
-- [ ] Karar: kalsın mı, yoksa bildirimlerde olduğu gibi ikon fontuna mı
-      geçilsin? (İkincisi TalkBack için daha iyi, ama görünüm değişir.)
+Kalan iki küçük yer (istenirse):
+
+- [ ] Ayarlar → teşhis kartındaki `⏰ Test Alarmı Kuruldu` diyalog başlığı
+      (alarm ekranı değil, Ayarlar ekranı — kapsam dışı bırakıldı).
+- [ ] Gıda etkileşim rozetleri (`FOOD_INTERACTION_DETAILS.icon`) — o tablo
+      İlaç Ekle ekranıyla **paylaşılıyor**, değiştirmek "ana ekran kalsın"
+      kararının dışına taşar.
 ---
 
 ## 📋 B — KODDA KALAN İŞLER (fazlara göre)

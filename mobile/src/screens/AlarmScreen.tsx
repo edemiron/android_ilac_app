@@ -21,6 +21,7 @@ export default function AlarmScreen() {
     currentTime,
     currentDate,
     instructionDisplayText,
+    instructionIconName,
     pulseAnim,
     canSnooze,
     remainingSnoozes,
@@ -86,6 +87,7 @@ export default function AlarmScreen() {
         medicine={medicine}
         pulseAnim={pulseAnim}
         instructionDisplayText={instructionDisplayText}
+        instructionIconName={instructionIconName}
         t={t}
         onOpenMissedDoseGuide={() => setMissedDoseModalVisible(true)}
       />

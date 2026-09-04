@@ -50,7 +50,7 @@ import { isDoseLogged } from '../../../domain/doseLog';
 import { releaseAlarmDedupFor } from '../../../utils/notifications/alarmDedup';
 import { generateId } from '../../../utils/idGenerator';
 import { createScopedLogger } from '../../../utils/logger';
-import { getInstructionDisplay, resolveSnoozeRights } from '../helpers';
+import { getInstructionDisplay, getInstructionIcon, resolveSnoozeRights } from '../helpers';
 import { evaluateMissedDoseAction } from '../../../utils/clinicalSafetyEngine';
 import type { RootStackParamList, ReminderTime, Medicine } from '../../../types';
 import type { VoiceCommandIntent } from '../../../utils/voiceRecognition';
@@ -775,6 +775,8 @@ export function useAlarmController() {
   const instructionDisplayText = medicine
     ? getInstructionDisplay(medicine.instructions, language as 'tr' | 'en')
     : null;
+  // v1.8.7: gorsel isaret metinden ayrildi (emoji -> ikon fontu).
+  const instructionIconName = medicine ? getInstructionIcon(medicine.instructions) : null;
 
   // Kaçırılan Doz Klinik Değerlendirmesi
   const missedDoseEvaluation = useMemo(() => {
@@ -806,6 +808,7 @@ export function useAlarmController() {
     currentTime,
     currentDate,
     instructionDisplayText,
+    instructionIconName,
     pulseAnim,
     canSnooze,
     remainingSnoozes,

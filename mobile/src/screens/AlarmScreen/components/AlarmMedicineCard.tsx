@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import type { Medicine } from '../../../types';
 import type { TranslationKey } from '../../../contexts/LanguageContext';
 import {
@@ -12,6 +13,8 @@ interface AlarmMedicineCardProps {
   medicine: Medicine;
   pulseAnim: Animated.Value;
   instructionDisplayText: string | null;
+  /** v1.8.7: talimat rozetinin ikon adi (bkz. helpers.getInstructionIcon). */
+  instructionIconName?: string | null;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   onOpenMissedDoseGuide?: () => void;
 }
@@ -20,6 +23,7 @@ export function AlarmMedicineCard({
   medicine,
   pulseAnim,
   instructionDisplayText,
+  instructionIconName,
   t,
   onOpenMissedDoseGuide,
 }: AlarmMedicineCardProps) {
@@ -30,7 +34,20 @@ export function AlarmMedicineCard({
   return (
     <View style={styles.medicineSection}>
       <Animated.View style={[styles.iconContainer, { transform: [{ scale: pulseAnim }] }]}>
-        <Text style={styles.medicineIcon}>💊</Text>
+        {/*
+          v1.8.7: hero gorseli bir emoji karakteriydi (U+1F48A). Emoji
+          render'i cihazin emoji fontuna bagli — eksikse bos kutu cizilir ve
+          alarm ekraninin ortasinda bos bir kare kalirdi. Ikon fontu APK
+          icinde geldigi icin her cihazda ayni cizilir. TalkBack'ten gizli:
+          ustundeki "Ilac zamani!" basligi zaten anlami tasiyor.
+        */}
+        <MaterialCommunityIcons
+          name="pill"
+          size={72}
+          color="#FFFFFF"
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
       </Animated.View>
 
       <Text style={styles.alarmTitle}>{t('alarm_time_to_take')}</Text>
@@ -41,13 +58,25 @@ export function AlarmMedicineCard({
       {medicine.isCritical && (
         <View style={styles.criticalBadge}>
           <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-          <Text style={styles.criticalBadgeText}>🚨 Hayati İlaç — Israrlı Alarm</Text>
+          {/* v1.8.7: bastaki siren emojisi KALDIRILDI — solundaki kalkan
+              ikonu ayni isi zaten yapiyordu, emoji MUKERRERDI. */}
+          <Text style={styles.criticalBadgeText}>Hayati İlaç — Israrlı Alarm</Text>
         </View>
       )}
 
       <View style={styles.badgesWrapper}>
         {instructionDisplayText && (
           <View style={styles.instructionBadge}>
+            {instructionIconName ? (
+              <Ionicons
+                name={instructionIconName}
+                size={14}
+                color="#FFFFFF"
+                style={{ marginRight: 6 }}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+            ) : null}
             <Text style={styles.instructionText}>{instructionDisplayText}</Text>
           </View>
         )}
@@ -100,9 +129,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 30,
   },
-  medicineIcon: {
-    fontSize: 60,
-  },
   alarmTitle: {
     fontSize: 24,
     fontWeight: '300',
@@ -122,6 +148,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   instructionBadge: {
+    // v1.8.7: rozet artik ikon + metin tasiyor.
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 16,
     paddingVertical: 8,

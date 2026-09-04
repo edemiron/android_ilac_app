@@ -9,20 +9,28 @@ import {
   resolveSnoozeSettings,
   resolveSnoozeRights,
   INSTRUCTION_DISPLAY_TEXTS,
+  INSTRUCTION_ICONS,
+  getInstructionIcon,
   ALARM_TAKE_ACTION_LABELS,
   DEFAULT_SNOOZE_DURATION,
   DEFAULT_MAX_SNOOZE_COUNT,
 } from '../../screens/AlarmScreen/helpers';
 import type { MedicineInstruction } from '../../types';
+import { hasEmoji } from '../helpers/emoji';
 
 describe('getInstructionDisplay', () => {
+  // v1.8.7: bu iddialar eskiden etiketi EMOJISIYLE birlikte sabitliyordu
+  // ('🍽️ Yemekten önce'). Emojiyi metinden cikarip ikon fontuna tasimak
+  // davranissal bir gerileme olmadigi halde testi kirdi — yani test yanlis
+  // seyi kilitlemisti. Artik dogrulanan sey etiketin ANLAMI ve emoji
+  // TASIMADIGI.
   it('returns Turkish label for known instruction', () => {
-    expect(getInstructionDisplay('before_meal', 'tr')).toBe('🍽️ Yemekten önce');
-    expect(getInstructionDisplay('after_meal', 'tr')).toBe('🍽️ Yemekten sonra');
+    expect(getInstructionDisplay('before_meal', 'tr')).toBe('Yemekten önce');
+    expect(getInstructionDisplay('after_meal', 'tr')).toBe('Yemekten sonra');
   });
 
   it('returns English label for known instruction', () => {
-    expect(getInstructionDisplay('after_meal', 'en')).toBe('🍽️ After meal');
+    expect(getInstructionDisplay('after_meal', 'en')).toBe('After meal');
   });
 
   it('returns null for unknown instruction', () => {
@@ -109,6 +117,46 @@ describe('INSTRUCTION_DISPLAY_TEXTS', () => {
       expect(entry.tr).toBeTruthy();
       expect(entry.en).toBeTruthy();
     }
+  });
+
+  /**
+   * v1.8.7 — ALARM EKRANI EMOJI KAPISI.
+   *
+   * Alarm ekrani kritik yol: hasta uykudan uyanip bu ekrana bakiyor.
+   * TalkBack kullaniyorsa emoji basligin parcasi olarak okunuyordu
+   * ("saat emojisi Herhangi bir zaman") ve emoji fontu eksik cihazlarda
+   * bos kutuya donuyordu. Gorsel isaret artik ikon fontunda.
+   */
+  it('hicbir talimat etiketi emoji TASIMIYOR', () => {
+    const offenders = Object.entries(INSTRUCTION_DISPLAY_TEXTS).flatMap(([key, entry]) =>
+      [entry.tr, entry.en].filter(text => hasEmoji(text)).map(text => `${key}: ${text}`)
+    );
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('her talimatin bir IKON adi var (metni olan ama ikonu olmayan rozet olmaz)', () => {
+    const textKeys = Object.keys(INSTRUCTION_DISPLAY_TEXTS).sort();
+    const iconKeys = Object.keys(INSTRUCTION_ICONS).sort();
+
+    expect(iconKeys).toEqual(textKeys);
+    expect(textKeys.length).toBe(6);
+    for (const key of textKeys) {
+      expect(INSTRUCTION_ICONS[key]).toMatch(/^[a-z-]+$/);
+    }
+  });
+});
+
+describe('getInstructionIcon', () => {
+  it('bilinen talimat icin ikon adi doner', () => {
+    expect(getInstructionIcon('any_time')).toBe('time-outline');
+    expect(getInstructionIcon('empty_stomach')).toBe('warning-outline');
+    expect(getInstructionIcon('before_sleep')).toBe('moon-outline');
+  });
+
+  it('bilinmeyen/tanimsiz talimatta null doner (rozet ikonsuz cizilir)', () => {
+    expect(getInstructionIcon('xyz' as MedicineInstruction)).toBeNull();
+    expect(getInstructionIcon(undefined)).toBeNull();
   });
 });
 

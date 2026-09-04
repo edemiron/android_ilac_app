@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import type { TranslationKey } from '../../../contexts/LanguageContext';
 
 interface AlarmActionButtonsProps {
@@ -37,23 +38,47 @@ export function AlarmActionButtons({
   // dozu atliyordu; yani ilan edilen 3 hakkin ucuncusu hic kullanilamiyordu.
   // Erteleme artik son hakta da NORMAL calisir; hak bitince buton gercekten
   // devre disi kalir ve kullaniciyi iki gercek eyleme yonlendirir.
+  // v1.8.7: bastaki saat emojisi (U+23F0) KALDIRILDI. Metin zaten kendini
+  // anlatiyor ("5 dk ertele — 3 hak"); emoji bilgi TASIMIYORDU ama TalkBack
+  // onu da okuyordu ve bazi OEM'lerde bos kutuya donuyordu. Yerine ikon
+  // EKLENMEDI: butonun tamami tek bir metin ve ikon icin satir duzeni
+  // kurmak, hicbir sey kazandirmadan karmasiklik eklerdi.
   const snoozeButtonLabel = (() => {
     if (!canSnooze) {
       return language === 'tr'
-        ? '⏰ Erteleme hakkın bitti — "Aldım" ya da "İlacı Atla" seç'
-        : '⏰ No snoozes left — choose "Take" or "Skip"';
+        ? 'Erteleme hakkın bitti — "Aldım" ya da "İlacı Atla" seç'
+        : 'No snoozes left — choose "Take" or "Skip"';
     }
     if (remainingSnoozes === 1) {
-      return `⏰ ${durationLabel} ${language === 'tr' ? 'ertele — son hak' : 'snooze — last one'}`;
+      return `${durationLabel} ${language === 'tr' ? 'ertele — son hak' : 'snooze — last one'}`;
     }
-    return `⏰ ${durationLabel} ${language === 'tr' ? 'ertele' : 'snooze'} — ${language === 'tr' ? `${remainingSnoozes} hak` : `${remainingSnoozes} left`}`;
+    return `${durationLabel} ${language === 'tr' ? 'ertele' : 'snooze'} — ${language === 'tr' ? `${remainingSnoozes} hak` : `${remainingSnoozes} left`}`;
   })();
 
   return (
     <View style={styles.actionSection}>
       {/* Ana buton - Aldım */}
-      <TouchableOpacity style={styles.takeButton} onPress={onTake} activeOpacity={0.8}>
-        <Text style={styles.takeButtonIcon}>✓</Text>
+      <TouchableOpacity
+        style={styles.takeButton}
+        onPress={onTake}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={t('alarm_take_now')}
+      >
+        {/*
+          v1.8.7: onay isareti bir metin karakteri (U+2713) idi. TalkBack
+          bunu basligin parcasi olarak okuyordu ve isaretin genisligi yazi
+          tipine gore degisiyordu. Artik ikon fontu glifi ve ekran
+          okuyucudan gizli — erisilebilir ad butonun kendisinde.
+        */}
+        <Ionicons
+          name="checkmark-circle"
+          size={26}
+          color="#4ECDC4"
+          style={styles.takeButtonIcon}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
         <Text style={styles.takeButtonText}>{t('alarm_take_now')}</Text>
       </TouchableOpacity>
 
@@ -109,8 +134,6 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   takeButtonIcon: {
-    fontSize: 24,
-    color: '#4ECDC4',
     marginRight: 10,
   },
   takeButtonText: {

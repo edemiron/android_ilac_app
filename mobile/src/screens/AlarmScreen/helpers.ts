@@ -15,13 +15,41 @@ export interface InstructionDisplay {
   en: string;
 }
 
+/**
+ * v1.8.7 — EMOJI METINDEN CIKARILDI, YERINE IKON ADI GELDI.
+ *
+ * Neden: alarm ekrani kritik yol. Hasta uykudan uyaniyor ve bu ekrana
+ * bakiyor; TalkBack kullaniyorsa "saat emojisi Herhangi bir zaman" duyuyordu.
+ * Ayrica bazi OEM'lerde emoji fontu eksik oldugunda bos kutuya donuyor.
+ * Artik metin duz, gorsel isaret bir ikon fontu glifi (bkz.
+ * `INSTRUCTION_ICONS`) ve ikon `accessibilityElementsHidden` ile TalkBack'ten
+ * gizlenebiliyor — yani ekran okuyucu yalnizca ANLAMI okur.
+ *
+ * `🧪 TEST ALARMI` isareti BILEREK korunuyor (bkz. useAlarmController):
+ * orada amac susleme degil, kullanicinin bunu gercek bir doz sanmasini
+ * onlemek.
+ */
 export const INSTRUCTION_DISPLAY_TEXTS: Record<string, InstructionDisplay> = {
-  before_meal: { tr: '🍽️ Yemekten önce', en: '🍽️ Before meal' },
-  after_meal: { tr: '🍽️ Yemekten sonra', en: '🍽️ After meal' },
-  with_meal: { tr: '🍽️ Yemekle birlikte', en: '🍽️ With meal' },
-  empty_stomach: { tr: '⚠️ Aç karnına', en: '⚠️ Empty stomach' },
-  before_sleep: { tr: '🌙 Yatmadan önce', en: '🌙 Before sleep' },
-  any_time: { tr: '🕐 Herhangi bir zaman', en: '🕐 Any time' },
+  before_meal: { tr: 'Yemekten önce', en: 'Before meal' },
+  after_meal: { tr: 'Yemekten sonra', en: 'After meal' },
+  with_meal: { tr: 'Yemekle birlikte', en: 'With meal' },
+  empty_stomach: { tr: 'Aç karnına', en: 'Empty stomach' },
+  before_sleep: { tr: 'Yatmadan önce', en: 'Before sleep' },
+  any_time: { tr: 'Herhangi bir zaman', en: 'Any time' },
+};
+
+/**
+ * Talimat basina Ionicons glif adi. Anahtar kumesi
+ * `INSTRUCTION_DISPLAY_TEXTS` ile AYNI olmak zorunda (teste baglandi):
+ * eksik bir anahtar, metni olan ama ikonu olmayan bir rozet demek olurdu.
+ */
+export const INSTRUCTION_ICONS: Record<string, string> = {
+  before_meal: 'restaurant-outline',
+  after_meal: 'restaurant-outline',
+  with_meal: 'restaurant-outline',
+  empty_stomach: 'warning-outline',
+  before_sleep: 'moon-outline',
+  any_time: 'time-outline',
 };
 
 /**
@@ -33,6 +61,15 @@ export function getInstructionDisplay(
 ): string | null {
   if (!instruction) return null;
   return INSTRUCTION_DISPLAY_TEXTS[instruction]?.[language] ?? null;
+}
+
+/**
+ * Talimatin ikon adi. Bilinmeyen/eksik talimatta `null` doner ve rozet
+ * ikonsuz cizilir — metin her zaman tek basina yeterli olmali.
+ */
+export function getInstructionIcon(instruction: MedicineInstruction | undefined): string | null {
+  if (!instruction) return null;
+  return INSTRUCTION_ICONS[instruction] ?? null;
 }
 
 /**
