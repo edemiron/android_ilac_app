@@ -14,19 +14,84 @@ durum var.
 
 Bunlar kod tarafında bitti ama **senin bir dış işlem yapmadan çalışmıyor.**
 
-### A1. Sızdırılan API anahtarlarını döndür
+### A1. Sızdırılan API anahtarlarını döndür — ⚠️ SANDIĞIMIZDAN CİDDİ
 
-Gemini, Resend ve Anthropic anahtarları git geçmişine hiç girmedi
-(`server/.env` ve `server/functions/.env` `.gitignore:54` ile korunuyor,
-doğrulandı) **ama** v1.7.4 öncesinde APK'ya gömülü Gemini anahtarı
-dağıtılmış olabilir.
+v1.8.9'da kaynak yeniden incelendi ve bu maddenin **önceki hâli iki yerde
+eksikti**: sızıntının yolu yanlış tarif edilmişti ve iki anahtar hiç
+listelenmemişti.
 
-- [ ] Üç anahtarı ilgili konsollardan **döndür** (rotate).
-- [ ] Yeni değerleri `server/functions/.env` içine yaz.
+#### Sızıntı gerçekte nasıl oldu
 
-İstemcide artık hiçbir anahtar yok (v1.7.4), o yüzden APK'yı yeniden
-derlemek gerekmiyor.
+Bu madde eskiden "v1.7.4 öncesinde APK'ya gömülü Gemini anahtarı dağıtılmış
+**olabilir**" diyordu. Gerçek yol bu değil ve "olabilir" değil:
 
+1. `mobile/scripts/setupAIConfig.js` Gemini anahtarını **Firestore'a**
+   yazıyordu: `doc(db, 'config', 'ai')` → alan `geminiApiKey`.
+2. `aiMedicineService.ts` (v1.7.4 öncesi) onu oradan **okuyordu**.
+3. Ve `firestore.rules` o dokümanı şöyle açıyordu:
+
+   | Sürüm | Kural | Kimler okuyabiliyordu |
+   | :--- | :--- | :--- |
+   | v1.7.4 **öncesi** | `allow read: if true` | **KİMLİK DOĞRULAMASI YOK** — proje kimliğini bilen herkes |
+   | v1.7.4 – v1.8.8 | `allow read: if isAuthenticated()` | kayıt açık olduğu için: uygulamayı kurup üye olan herkes |
+   | v1.8.9 (bu tur) | `allow read: if false` | hiç kimse |
+
+Yani anahtar bir APK'nın içinde "belki" değil, **internete açık bir Firestore
+dokümanında** duruyordu. APK'nın dağıtılıp dağıtılmaması konuyu değiştirmiyor.
+Bu, v1.7.4'te kapatılan `health` fonksiyonu ve v1.8.5'teki FCM topic
+sızıntısıyla **aynı sınıf**: erişim kontrolünün hiç bulunmadığı bir kanal.
+
+#### Döndürülecek anahtarların TAM listesi
+
+| Anahtar | Dosya | Aciliyet | Neden |
+| :--- | :--- | :--- | :--- |
+| `GEMINI_API_KEY` | `server/functions/.env` **ve** `server/.env` | 🔴 **YÜKSEK** | Firestore `config/ai` üzerinden kimlik doğrulamasız okunabiliyordu |
+| `ANTHROPIC_API_KEY` | `server/functions/.env` **ve** `server/.env` | 🟡 orta | Firestore'a hiç yazılmadı; yalnızca sunucuda. Aynı dönemin hijyeni için döndür |
+| `RESEND_API_KEY` | `server/.env` | 🟢 düşük | Yalnızca `server/src` Express sunucusunda ve **o sunucu hiçbir yere deploy edilmiyor** (`package.json`da yalnızca `start`/`dev` var) |
+| `COMPOSIO_API_KEY` | `server/.env` | 🟢 düşük | Aynı sunucu. **Bu madde eskiden bu anahtarı hiç listelemiyordu** |
+
+> `GEMINI_API_KEY` ve `ANTHROPIC_API_KEY` **iki dosyada birden** duruyor.
+> Yalnızca `server/functions/.env`i güncellemek yarım iş olur.
+
+#### Yapılacaklar — sırayla
+
+- [ ] **1. Konsollardan yeni anahtar üret ve ESKİSİNİ SİL/İPTAL ET.**
+      Yeni anahtar üretmek eskisini geçersiz kılmaz; eskisini **açıkça iptal
+      etmezsen sızan anahtar çalışmaya devam eder.**
+      - Gemini → Google AI Studio / Google Cloud Console → API'ler ve Hizmetler → Kimlik Bilgileri
+      - Anthropic → console.anthropic.com → API Keys
+      - Resend → resend.com → API Keys
+      - Composio → Composio panosu → API Keys
+- [ ] **2. Yeni değerleri iki `.env` dosyasına da yaz:**
+      `server/functions/.env` ve `server/.env`.
+- [ ] **3. Firestore'daki eski dokümanı SİL.** Kural kapatıldı ama
+      **doküman silinmedi**; `config/ai` hâlâ eski anahtarı taşıyor olabilir.
+      Firebase Console → Firestore → `config` koleksiyonu → `ai` dokümanı →
+      sil. (Kuralı kapatmak veriyi silmez; ileride biri kuralı gevşetirse
+      sızıntı yeniden açılır.)
+- [ ] **4. Yeni Firestore kurallarını deploy et** (A2'deki functions deploy
+      bunu KAPSAMAZ):
+      ```
+      firebase deploy --only firestore:rules
+      ```
+- [ ] **5. Sonra A2** (`firebase deploy --only functions`).
+- [ ] **6. Doğrula:** Gemini/Anthropic konsollarında eski anahtarın
+      kullanımı **sıfırlanmalı**; yeni anahtarın kullanımı deploy sonrası
+      AI aramasını denediğinde artmalı.
+
+İstemcide artık hiçbir anahtar yok (v1.7.4), o yüzden **APK'yı yeniden
+derlemek gerekmiyor.**
+
+#### Sıfırdan yapılan kontroller (v1.8.9)
+
+- ✅ Hiçbir `.env` dosyası git geçmişine **hiç** girmemiş
+  (`git log --all --diff-filter=A` ile `.env` araması boş).
+- ✅ `config/` koleksiyonunu okuyan **kod kalmadı** — bu yüzden kural
+  tamamen kapatılabildi. Cloud Functions Admin SDK kullanıyor ve Admin SDK
+  kuralları zaten bypass eder, yani `false` sunucuyu etkilemez.
+- ⚠️ `config/ai` dokümanının **hâlâ var olup olmadığını doğrulayamadım** —
+  Firestore'u okumak için servis hesabı kimliği gerekiyor. Konsoldan bakman
+  30 saniye sürer ve 3. adımın cevabı bu.
 ### A2. Cloud Functions'ı deploy et
 
 ```

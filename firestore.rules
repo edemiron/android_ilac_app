@@ -164,15 +164,30 @@ service cloud.firestore {
     }
 
     // ============================================
-    // SİSTEM VE AI YAPILANDIRMASI
-    // v1.7.4: eskiden `allow read: if true` idi — kimlik doğrulamasız HERKES
-    // okuyabiliyordu ve istemci bu dokümandan `geminiApiKey`/`openaiApiKey`
-    // bekliyordu. Anahtarlar artık burada TUTULMAZ (bkz. Faz 0.3);
-    // okuma da oturum şartına bağlandı.
+    // SİSTEM VE AI YAPILANDIRMASI — ARTIK TAMAMEN KAPALI (v1.8.9)
+    //
+    // KURALIN GEÇMİŞİ, KUSURUN BOYUTUNU ANLATIYOR:
+    //   v1.7.4 öncesi : `allow read: if true`   → KİMLİK DOĞRULAMASI YOK.
+    //                    Proje kimliğini bilen HERKES `config/ai` dokümanını
+    //                    okuyup içindeki `geminiApiKey`'i alabiliyordu.
+    //   v1.7.4        : `allow read: if isAuthenticated()` → hâlâ yetersiz;
+    //                    kayıt açık olduğu için "herhangi bir kullanıcı" =
+    //                    uygulamayı kurup üye olan herkes.
+    //   v1.8.9 (bu)   : `allow read: if false`  → hiç kimse.
+    //
+    // Neden şimdi tamamen kapatılabiliyor: `config/` koleksiyonunu okuyan
+    // KOD KALMADI. v1.7.4 (Faz 0.3) istemci tarafı anahtar katmanını
+    // kaldırdı; anahtarlar artık yalnızca `server/functions/.env` içinde ve
+    // Cloud Functions bunları Admin SDK ile okuyor — Admin SDK bu kuralları
+    // ZATEN BYPASS eder, yani buradaki `false` sunucuyu etkilemez.
+    //
+    // ⚠️ Kuralı kapatmak, DOKÜMANI SİLMEZ. `config/ai` hâlâ eski anahtarı
+    // taşıyor olabilir; rotasyon runbook'u onu silmeyi de kapsıyor
+    // (bkz. docs/YAYIN_ONCESI_ACIK_MADDELER.md → A1).
     // ============================================
 
     match /config/{configId} {
-      allow read: if isAuthenticated();
+      allow read: if false;
       allow write: if false;
     }
 
