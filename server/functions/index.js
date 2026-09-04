@@ -33,15 +33,59 @@ if (!admin.apps.length) {
   }
 }
 
-// Environment variable'dan API key'leri al
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const ANTHROPIC_API_URL = process.env.ANTHROPIC_API_URL || 'https://api.anthropic.com';
+/**
+ * ⚠️ v1.9.0 — API ANAHTARLARI ARTIK GOOGLE SECRET MANAGER'DA.
+ *
+ * ── Nereden geldik ────────────────────────────────────────────────────────
+ * 1. En basta anahtar Firestore'daki `config/ai` dokumanindaydi ve
+ *    `firestore.rules` onu `allow read: if true` ile aciyordu — yani KIMLIK
+ *    DOGRULAMASI OLMADAN internete acikti (bkz. v1.8.9).
+ * 2. v1.7.4 istemci katmanini kaldirdi ve anahtarlari `.env` dosyasina aldi.
+ *    O turun commit basligi "Secret Manager'a tasindi" diyordu AMA kod
+ *    `process.env` okumaya devam ediyordu: gercekte Secret Manager'a hic
+ *    gecilmemisti. Bu tur o farki kapatiyor.
+ *
+ * ── `.env` neden yeterli degil ────────────────────────────────────────────
+ * `firebase deploy` `.env` icerigini fonksiyonun ortam degiskenleri olarak
+ * DUZ METIN halinde gomer. Sonuc:
+ *   - Cloud Console'da fonksiyonun detay sayfasini gorebilen HERKES okur
+ *     (Viewer rolu bile yeter — "gizli" degil, yalnizca "gorunmez" saniliyor)
+ *   - Deploy eden makinede dosya olarak durur, yedeklere/senkronlara sizar
+ *   - Versiyonu yok: rotasyon "dosyayi degistir + yeniden deploy" demek,
+ *     eski degerin nerede kaldigini kimse bilmez
+ *   - Kim ne zaman okudu sorusunun cevabi yok
+ *
+ * ── Secret Manager ne veriyor ─────────────────────────────────────────────
+ *   - Beklemede SIFRELI, erisim IAM ile (`roles/secretmanager.secretAccessor`)
+ *   - VERSIYONLU: rotasyon = yeni versiyon; eskisi `disable` edilir ve
+ *     gerekirse geri alinir
+ *   - Erisim denetim kaydina (audit log) yazilir
+ *   - Deponun icinde HICBIR yerde durmaz
+ *
+ * ── Dikkat edilmesi gereken tek sey ───────────────────────────────────────
+ * `.value()` YALNIZCA istek isleyicisinin ICINDE cagrilabilir. Modul
+ * kapsaminda cagirmak deploy analizi sirasinda bos deger dondurur ve
+ * fonksiyon "yapilandirilmamis" sanilir — bu yuzden asagida her okuma
+ * handler'in ilk satirlarindadir, eskiden oldugu gibi dosya basinda DEGIL.
+ *
+ * Kurulum ve rotasyon adimlari: docs/YAYIN_ONCESI_ACIK_MADDELER.md → A1.
+ */
+const { defineSecret, defineString } = require('firebase-functions/params');
+
+const geminiApiKey = defineSecret('GEMINI_API_KEY');
+const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
+
+// Bu bir SIR DEGIL, yalnizca uc nokta adresi — Secret Manager'a koymak
+// gereksiz yere IAM ve maliyet ekler. Parametre olarak tanimli ki
+// degistirmek icin kod degisikligi gerekmesin.
+const anthropicApiUrl = defineString('ANTHROPIC_API_URL', {
+  default: 'https://api.anthropic.com',
+});
 
 /**
  * Gemini ile ilaç ara (onCall)
  */
-exports.geminiSearch = onCall(async (request) => {
+exports.geminiSearch = onCall({ secrets: [geminiApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Bu servisi kullanmak için giriş yapmalısınız.');
   }
@@ -51,6 +95,8 @@ exports.geminiSearch = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'prompt veya barcode parametresi gereklidir.');
   }
 
+  // v1.9.0: sir YALNIZCA burada, handler icinde okunur.
+  const GEMINI_API_KEY = geminiApiKey.value();
   if (!GEMINI_API_KEY) {
     throw new HttpsError('unavailable', 'Gemini API servisi henüz yapılandırılmamış.');
   }
@@ -105,7 +151,7 @@ const ALLOWED_GEMINI_MODELS = new Set([
 const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
 const MAX_INLINE_IMAGE_CHARS = 8 * 1024 * 1024; // base64 karakter sayısı
 
-exports.geminiGenerate = onCall(async (request) => {
+exports.geminiGenerate = onCall({ secrets: [geminiApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Bu servisi kullanmak için giriş yapmalısınız.');
   }
@@ -124,6 +170,8 @@ exports.geminiGenerate = onCall(async (request) => {
       throw new HttpsError('invalid-argument', 'Görsel çok büyük.');
     }
   }
+  // v1.9.0: sir YALNIZCA burada, handler icinde okunur.
+  const GEMINI_API_KEY = geminiApiKey.value();
   if (!GEMINI_API_KEY) {
     throw new HttpsError('unavailable', 'Gemini API servisi henüz yapılandırılmamış.');
   }
@@ -165,7 +213,7 @@ exports.geminiGenerate = onCall(async (request) => {
 /**
  * Claude (Anthropic) ile ilaç ara (onCall)
  */
-exports.claudeSearch = onCall(async (request) => {
+exports.claudeSearch = onCall({ secrets: [anthropicApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Bu servisi kullanmak için giriş yapmalısınız.');
   }
@@ -175,6 +223,9 @@ exports.claudeSearch = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'prompt veya barcode gereklidir.');
   }
 
+  // v1.9.0: sir YALNIZCA burada, handler icinde okunur.
+  const ANTHROPIC_API_KEY = anthropicApiKey.value();
+  const ANTHROPIC_API_URL = anthropicApiUrl.value() || 'https://api.anthropic.com';
   if (!ANTHROPIC_API_KEY) {
     throw new HttpsError('unavailable', 'Anthropic Claude API henüz yapılandırılmamış.');
   }

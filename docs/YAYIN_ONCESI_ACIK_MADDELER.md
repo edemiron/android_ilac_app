@@ -53,45 +53,183 @@ sızıntısıyla **aynı sınıf**: erişim kontrolünün hiç bulunmadığı bi
 > `GEMINI_API_KEY` ve `ANTHROPIC_API_KEY` **iki dosyada birden** duruyor.
 > Yalnızca `server/functions/.env`i güncellemek yarım iş olur.
 
-#### Yapılacaklar — sırayla
+#### v1.9.0'da BENİM YAPTIKLARIM (kod tarafı bitti)
 
-- [ ] **1. Konsollardan yeni anahtar üret ve ESKİSİNİ SİL/İPTAL ET.**
-      Yeni anahtar üretmek eskisini geçersiz kılmaz; eskisini **açıkça iptal
-      etmezsen sızan anahtar çalışmaya devam eder.**
-      - Gemini → Google AI Studio / Google Cloud Console → API'ler ve Hizmetler → Kimlik Bilgileri
+| Ne | Durum |
+| :--- | :--- |
+| `server/functions/index.js` → **Google Secret Manager** (`defineSecret`) | ✅ |
+| `server/.env`'den `GEMINI_API_KEY` + `ANTHROPIC_API_KEY` **silindi** | ✅ (o sunucu bu ikisini hiç kullanmıyordu — tarandı, tek referans yok) |
+| `firestore.rules` → `config/` okuma tamamen kapalı + kapı testi | ✅ (v1.8.9) |
+| `server/functions/.env` → "artık okunmuyor" başlığı + adım adım sıra | ✅ |
+
+`.env` neden yetmiyordu: `firebase deploy` içeriği fonksiyonun ortam
+değişkenlerine **düz metin** olarak gömer. Cloud Console'da fonksiyonun
+detayını görebilen herkes okur (Viewer rolü yeter), versiyonu yoktur,
+kimin okuduğu kayda geçmez. Secret Manager: beklemede şifreli, erişim IAM
+ile, **versiyonlu** (rotasyon = yeni versiyon, eskisi `disable`), erişim
+denetim kaydına yazılır, depoda hiçbir yerde durmaz.
+
+> ⚠️ v1.7.4 turunun commit başlığı *"anahtarlar Secret Manager'a taşındı"*
+> diyordu ama kod `process.env` okumaya devam ediyordu — gerçekte Secret
+> Manager'a hiç geçilmemişti. v1.9.0 o farkı kapattı.
+
+#### Senin yapacakların — sırayla
+
+- [ ] **1. Yeni anahtar üret ve ESKİSİNİ İPTAL ET.** Yeni anahtar üretmek
+      eskisini geçersiz kılmaz; iptal etmezsen sızan anahtar çalışmaya
+      devam eder.
+      - Gemini → Google AI Studio (veya Cloud Console → Kimlik Bilgileri)
       - Anthropic → console.anthropic.com → API Keys
       - Resend → resend.com → API Keys
       - Composio → Composio panosu → API Keys
-- [ ] **2. Yeni değerleri iki `.env` dosyasına da yaz:**
-      `server/functions/.env` ve `server/.env`.
-- [ ] **3. Firestore'daki eski dokümanı SİL.** Kural kapatıldı ama
-      **doküman silinmedi**; `config/ai` hâlâ eski anahtarı taşıyor olabilir.
-      Firebase Console → Firestore → `config` koleksiyonu → `ai` dokümanı →
-      sil. (Kuralı kapatmak veriyi silmez; ileride biri kuralı gevşetirse
-      sızıntı yeniden açılır.)
-- [ ] **4. Yeni Firestore kurallarını deploy et** (A2'deki functions deploy
-      bunu KAPSAMAZ):
+
+- [ ] **2. Secret Manager'a yaz** (değer sorulur; diske ve kabuk geçmişine
+      **hiç yazılmaz**):
+      ```
+      cd server/functions
+      firebase functions:secrets:set GEMINI_API_KEY
+      firebase functions:secrets:set ANTHROPIC_API_KEY
+      ```
+      Kontrol: `firebase functions:secrets:access GEMINI_API_KEY`
+
+- [ ] **3. `config/ai` dokümanını SİL.** Kuralı kapatmak veriyi silmez;
+      doküman hâlâ eski anahtarı taşıyor olabilir.
+      Firebase Console → Firestore → `config` → `ai` → sil.
+
+- [ ] **4. Kuralları deploy et** (A2'deki functions deploy'u kapsamaz):
       ```
       firebase deploy --only firestore:rules
       ```
-- [ ] **5. Sonra A2** (`firebase deploy --only functions`).
-- [ ] **6. Doğrula:** Gemini/Anthropic konsollarında eski anahtarın
-      kullanımı **sıfırlanmalı**; yeni anahtarın kullanımı deploy sonrası
-      AI aramasını denediğinde artmalı.
 
-İstemcide artık hiçbir anahtar yok (v1.7.4), o yüzden **APK'yı yeniden
-derlemek gerekmiyor.**
+- [ ] **5. Functions'ı deploy et.** İlk Secret Manager deploy'unda Firebase
+      sana sırlara erişim izni (`secretmanager.secretAccessor`) vermek için
+      onay sorabilir — kabul et.
+      ```
+      firebase deploy --only functions
+      ```
 
-#### Sıfırdan yapılan kontroller (v1.8.9)
+- [ ] **6. Artık gereksiz dosyayı sil:**
+      ```
+      rm server/functions/.env
+      ```
 
-- ✅ Hiçbir `.env` dosyası git geçmişine **hiç** girmemiş
-  (`git log --all --diff-filter=A` ile `.env` araması boş).
-- ✅ `config/` koleksiyonunu okuyan **kod kalmadı** — bu yüzden kural
-  tamamen kapatılabildi. Cloud Functions Admin SDK kullanıyor ve Admin SDK
-  kuralları zaten bypass eder, yani `false` sunucuyu etkilemez.
-- ⚠️ `config/ai` dokümanının **hâlâ var olup olmadığını doğrulayamadım** —
-  Firestore'u okumak için servis hesabı kimliği gerekiyor. Konsoldan bakman
-  30 saniye sürer ve 3. adımın cevabı bu.
+- [ ] **7. Doğrula:** uygulamada AI ile ilaç ekleme / reçete fotoğrafı
+      dene. Gemini konsolunda **yeni** anahtarın kullanımı artmalı, eski
+      anahtarın kullanımı sıfır kalmalı.
+
+#### ⚠️ Canlıda KODDA OLMAYAN üç fonksiyon var
+
+`firebase functions:list` şunları gösteriyor ama `index.js` bunları **export
+etmiyor**:
+
+- `geminiVision`
+- `caregiverGetPatientFullSchedule`
+- `caregiverGetPatientMedicineLogs`
+
+Bunlar eski bir sürümden kalmış ve **hâlâ deploy edilmiş durumda** — yani
+içlerine gömülü eski Gemini anahtarıyla çalışmaya devam ediyorlar. Rotasyon
+onları düzeltmez, çünkü kaynakta olmayan bir fonksiyon deploy ile
+güncellenmez.
+
+- [ ] Deploy sırasında Firebase "kaynakta olmayan şu fonksiyonlar silinsin
+      mi?" diye soracak → **evet** de. Ya da elle:
+      ```
+      firebase functions:delete geminiVision
+      firebase functions:delete caregiverGetPatientFullSchedule
+      firebase functions:delete caregiverGetPatientMedicineLogs
+      ```
+      Silmeden önce emin ol: uygulama bunlardan **hiçbirini** çağırmıyor
+      (tarandı — istemci yalnızca `geminiGenerate` çağırıyor).
+
+#### Kodda duran ama HİÇ ÇAĞRILMAYAN iki uç nokta
+
+İstemci taraması sonucu: uygulama yalnızca **`geminiGenerate`** çağırıyor.
+`geminiSearch` ve `claudeSearch` kodda var, deploy ediliyor, ama hiçbir
+yerden çağrılmıyor.
+
+`claudeSearch` silinirse **Anthropic anahtarına hiç gerek kalmaz** — yani
+yönetilecek bir sır eksilir. Bu bir ürün kararı olduğu için dokunmadım.
+
+- [ ] Karar: `geminiSearch` + `claudeSearch` kalsın mı, silinsin mi?
+
+#### Sıfırdan yapılan kontroller (v1.8.9 – v1.9.0)
+
+- ✅ Hiçbir `.env` dosyası git geçmişine **hiç** girmemiş.
+- ✅ `config/` koleksiyonunu okuyan kod kalmamış → kural tamamen kapatıldı.
+- ✅ `server/src` Gemini/Anthropic **hiç kullanmıyor** → o iki anahtar
+  `server/.env`'den silindi.
+- ✅ İstemcide (APK) **hiçbir API anahtarı yok** — `securityAudit` ve
+  `googleSignIn` testleri bunu kaynak tarayarak kapıya bağlıyor.
+- ⚠️ `config/ai` dokümanının hâlâ var olup olmadığını doğrulayamadım
+  (Firestore okumak servis hesabı gerektiriyor). 3. adımın cevabı bu.
+
+---
+
+### A1b. "API anahtarımı uygulamaya nasıl gömerim?" — GÖMMÜYORSUN
+
+Kısa cevap: **bir mobil uygulamaya sır gömmenin güvenli bir yolu yok.**
+Uzunu:
+
+APK bir zip dosyası. İçindeki her şey — kaynak dizeleri, JS paketi, native
+kütüphaneler — kullanıcının cihazında ve okunabilir. Yaygın "çözümler" ve
+neden hiçbiri işe yaramıyor:
+
+| Yöntem | Nasıl kırılır |
+| :--- | :--- |
+| Dizeyi `strings.xml` / JS sabitine koymak | `unzip` + `grep`. Saniyeler. |
+| Base64 / ROT13 / "şifreleme" | Uygulama **kullanmak için çözmek zorunda**; çözme kodu da APK'nın içinde. Aynı adımları tersten uygularsın. |
+| ProGuard / R8 obfuscation | Kod adlarını karıştırır, **dizeleri değil**. Anahtar aynen durur. |
+| Native `.so` içine gömmek | `strings libfoo.so` çoğu zaman yeter; yetmezse Frida ile çalışma anında yakalanır. |
+| Sunucudan indirip cihazda saklamak | Cihazda anahtar = elde anahtar. Ayrıca indirme çağrısını taklit edebilirsin. |
+| Keystore / EncryptedSharedPreferences | Cihazdaki **veriyi** korur; uygulamanın kendi çalışma anındaki erişimini korumaz. |
+
+Ortak kök: **uygulama anahtarı kullanabiliyorsa, kullanıcı da kullanabilir.**
+Uygulamanın çözebildiği her şeyi, uygulamanın sahibi olan kişi de çözer.
+
+#### Doğru mimari — ve sende ZATEN var
+
+```
+  ŞU AN (doğru)                          v1.7.4 ÖNCESİ (yanlış)
+  ─────────────                          ──────────────────────
+  Uygulama                                Uygulama
+    │  Firebase Auth ile kimlik             │  Firestore'dan anahtarı ÇEK
+    ▼                                      ▼
+  Cloud Function  (geminiGenerate)       Gemini API'ye DOĞRUDAN git
+    │  request.auth kontrolü                     ▲
+    │  anahtar = Secret Manager                  │
+    ▼                                     anahtar cihazdaydı
+  Gemini API
+```
+
+Uygulama **anahtarı hiç görmüyor**; yalnızca kendi Firebase kimliğiyle
+fonksiyonu çağırıyor. Anahtar sunucuda kalıyor. v1.7.4 bunu kurdu, v1.9.0
+sunucudaki saklamayı da şifreliye çevirdi. **Yapman gereken bir şey yok —
+yapmaman gereken şey bunu geri almak.**
+
+#### Uygulamaya girmesi NORMAL olan tek şey
+
+`google-services.json` içindeki Firebase Web API anahtarı (`AIza...`)
+**sır değildir** — tasarımı gereği herkese açıktır ve kimlik doğrulaması
+yerine kota/proje tanımlaması yapar. Gerçek koruma Firestore kuralları,
+Auth ve App Check'tir. Yine de Cloud Console → Kimlik Bilgileri'nden o
+anahtara **uygulama kısıtlaması** (Android paket adı + SHA-1) ve **API
+kısıtlaması** eklemek iyi hijyendir.
+
+- [ ] Firebase Web API anahtarına Android paket + SHA-1 kısıtlaması ekle
+      (paket `com.ilachatirlatici`, SHA-1 `badf423c…5dde`; Play App Signing
+      kullanacaksan **onun** SHA-1'ini de ekle — bkz. A3b).
+
+#### Yeni bir AI/servis anahtarı eklemen gerekirse — desen
+
+1. `index.js`'e `const yeniAnahtar = defineSecret('YENI_ANAHTAR');`
+2. Fonksiyona `onCall({ secrets: [yeniAnahtar] }, async (request) => {`
+3. Değeri **handler'ın içinde** oku: `const k = yeniAnahtar.value();`
+   (modül kapsamında okumak deploy analizinde boş döner)
+4. `firebase functions:secrets:set YENI_ANAHTAR`
+5. `firebase deploy --only functions`
+
+Anahtar hiçbir zaman depoya, `.env`'e veya APK'ya girmez.
+
 ### A2. Cloud Functions'ı deploy et
 
 ```
