@@ -102,6 +102,43 @@ describe('firestore.rules — yapısal değişmezler', () => {
     expect(inviteBlock?.[1]).toMatch(/allow list: if isAuthenticated\(\) && \(/);
   });
 
+  /**
+   * v1.8.9 — `config/` KOLEKSIYONU SIR TASIYORDU VE ACIKTI.
+   *
+   * Gecmisi: `mobile/scripts/setupAIConfig.js` Gemini anahtarini
+   * `config/ai` dokumanina yaziyordu, `aiMedicineService.ts` oradan
+   * okuyordu, ve kural sunu diyordu:
+   *
+   *   v1.7.4 oncesi : allow read: if true             -> KIMLIK DOGRULAMASI YOK
+   *   v1.7.4-v1.8.8 : allow read: if isAuthenticated() -> kayit acik, yani herkes
+   *   v1.8.9        : allow read: if false
+   *
+   * Yani anahtar internete acik bir Firestore dokumanindaydi. Bugun o
+   * koleksiyonu okuyan KOD KALMADI; Cloud Functions Admin SDK kullaniyor ve
+   * Admin SDK kurallari zaten bypass eder.
+   *
+   * Bu kapi olmadan biri kurali "gecici olarak" geri acabilir ve kimse fark
+   * etmez — kusurun ilk hali de tam olarak boyle yasadi.
+   */
+  it('`config/` koleksiyonu istemciye TAMAMEN kapali', () => {
+    const configBlock = code.match(/match\s+\/config\/\{[^}]*\}\s*\{([\s\S]*?)\}/);
+
+    // Blok hic bulunamazsa kapi sessizce bosa duser — once varligini dogrula.
+    expect(configBlock).not.toBeNull();
+
+    const clauses = [
+      ...(configBlock as RegExpMatchArray)[1].matchAll(/allow\s+([a-z,\s]+):\s*if([^;]*);/g),
+    ].map(m => ({
+      actions: m[1].replace(/\s+/g, ''),
+      condition: m[2].replace(/\s+/g, ' ').trim(),
+    }));
+
+    expect(clauses.length).toBeGreaterThan(0);
+    for (const clause of clauses) {
+      expect(clause.condition).toBe('false');
+    }
+  });
+
   it('kural dosyası varsayılan-kapalı ile bitiyor', () => {
     expect(code).toMatch(/match \/\{document=\*\*\}\s*\{\s*allow read, write: if false;\s*\}/);
   });
