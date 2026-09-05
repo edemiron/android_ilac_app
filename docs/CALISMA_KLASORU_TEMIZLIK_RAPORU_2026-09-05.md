@@ -168,3 +168,35 @@ Kökteki dosya sayısı **~310 → ~12**.
 - `node_modules/` ve `.git/` içine bakılmadı.
 - `web/node_modules` boyutu ölçülmedi (bağlı klasör üzerinden `du` zaman
   aşımına düştü); silindiğinde muhtemelen +200–400 MB daha kazanılır.
+
+---
+
+## ✔ UYGULANDI — 5 Eylül 2026, 23:50
+
+**✅ bölümü:** tüm maddeler `_to_delete/` altına taşındı ve repodan `git rm`
+edildi (commit `772322c`). Kalıcı silme yetkisi bana verilmediği için silme
+işlemini kullanıcı yaptı; `_to_delete/` artık yok.
+
+**🟡 bölümü (taşıma):**
+
+| Eski yer | Yeni yer |
+| :--- | :--- |
+| `rakip-analizi.md`, `dunya-turkiye-rakip-analizi-2025.md`, `docs/Apify analiz.md` | `docs/strateji/` (büyük harf, boşluksuz adlar) |
+| `docs/ASO_*`, `docs/BUYUME_*`, `docs/PAZAR_*`, `docs/UGC_*` | `docs/strateji/` |
+| `ozellikekle.md`, `yeniozellik.md` | `docs/plans/ozellik-fikirleri-1.md`, `-2.md` |
+| `GOOGLE_STITCH_THEME_PROMPT.md`, `stitch_instruction_based_theme_builder/` | `docs/design/` |
+| `playstore yükleme talimatı.txt` | `docs/store/PLAYSTORE_YUKLEME_TALIMATI.txt` |
+| `tasks/` | `docs/tasks/` (`CLAUDE.md` bağlantıları güncellendi) |
+| `mobile/docs/` (54 sprint incelemesi) | `docs/archive/sprint-reviews/` |
+| `icon/mipmap-*` | `mobile/assets/icon-source/` |
+
+> Not: `stitch_instruction_based_theme_builder/` klasörü taşıma sırasında
+> diskten kaybolmuş bulundu (muhtemelen `_to_delete/` ile birlikte silindi —
+> raporda yalnızca `.zip` kopyası silinmeye işaretliydi). Git'ten 13 dosya
+> geri alınıp doğrudan `docs/design/` altına yerleştirildi; içerik kaybı yok.
+
+> `icon/` ve `mobile/docs/` klasörleri **boş** kaldı; bağlı klasör üzerinden
+> boş klasör silinemiyor. Gezgin'de silinebilir, git için önemi yok.
+
+Kök dizin: `AGENTS.md CLAUDE.md GEMINI.md ARCHITECTURE.md CHANGELOG.md README.md
+LICENSE firebase.json firestore.rules docs/ mobile/ server/` — 12 girdi.

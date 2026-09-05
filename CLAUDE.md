@@ -38,8 +38,8 @@ Server/web kurulumu, ABI yapılandırması, seed scriptler, API key rotation run
 - [mobile/.env.example](mobile/.env.example) — env şablonu + 90 günlük API key rotation runbook'u
 - [mobile/app.config.json](mobile/app.config.json) — Expo plugin zinciri, permissions, intent filter'lar
 - [mobile/scripts/](mobile/scripts/) — geliştirme helper scriptleri
-- [tasks/lessons.md](tasks/lessons.md) — operasyonel dersler (büyük refactor öncesi mutlaka oku)
-- [tasks/todo.md](tasks/todo.md) — sprint durumu + bekleyen P1/P2/P3 işler
+- [docs/tasks/lessons.md](docs/tasks/lessons.md) — operasyonel dersler (büyük refactor öncesi mutlaka oku)
+- [docs/tasks/todo.md](docs/tasks/todo.md) — sprint durumu + bekleyen P1/P2/P3 işler
 - [docs/SORUN-COZUMLERI.md](docs/SORUN-COZUMLERI.md) — Metro cache + gradle timeout iş çözümleri
 
 ---
