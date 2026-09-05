@@ -143,6 +143,70 @@ karakterlerin çoğu açıkta.
 
 ---
 
+#### 🔴 A1-OLAY-2: sırrı SİLİP YENİDEN OLUŞTURMAK IAM'i de sildi
+
+İkinci rotasyonda sırlar **silinip yeniden oluşturuldu** (`GEMINI_API_KEY`
+5 Eyl 03:27, `ANTHROPIC_API_KEY` 03:30 — ikisi de yine "sürüm 1").
+Ardından `firebase deploy --only functions` çalıştırıldı ve **iki deploy da
+başarısız oldu**:
+
+```
+Permission denied on secret:
+  projects/ilachatirlatici-15a71/secrets/GEMINI_API_KEY/versions/1
+for Revision service account 506876057044-compute@developer.gserviceaccount.com.
+The service account used must be granted the 'Secret Manager Secret Accessor'
+role (roles/secretmanager.secretAccessor) at the secret, project or higher level.
+```
+
+| Servis | Yeni revizyon | Trafik |
+| :--- | :--- | :--- |
+| `geminigenerate` | `00002-yam` — **Failed** | %0 |
+| | `00001-qac` (8 saat önce) | %100 |
+| `claudesearch` | `00002-tuy` — **Failed** | %0 |
+| | `00001-xuq` (8 saat önce) | %100 |
+
+**Kök neden:** bir sırrı silmek **IAM politikasını da yok eder.** Firebase
+ilk deploy'da `506876057044-compute@…` servis hesabına
+`secretmanager.secretAccessor` rolünü vermişti; aynı isimle yeniden
+oluşturulan sır **boş bir politikayla** doğdu.
+
+Proje düzeyindeki **Editor** rolü yetmiyor — `secretmanager.versions.access`
+iznini içermiyor. Hata bunu ampirik olarak kanıtlıyor: hesabın Editor'ü var
+ve yine reddediliyor.
+
+**Eski revizyonlar da güvenli değil:** %100 trafiği alıyorlar ama aynı servis
+hesabını kullanıyorlar ve silinmiş sırrın yoluna bağlılar — ilk soğuk
+başlangıçta onlar da düşer. Instance sayısı zaten 0.
+
+##### Düzeltme
+
+- [ ] Her iki sırra `roles/secretmanager.secretAccessor` ver:
+      ```
+      gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
+        --member="serviceAccount:506876057044-compute@developer.gserviceaccount.com" \
+        --role="roles/secretmanager.secretAccessor" \
+        --project=ilachatirlatici-15a71
+      ```
+      (aynısı `ANTHROPIC_API_KEY` için; ya da Konsol → Secret Manager → sır →
+      Permissions → Grant access)
+- [ ] `firebase deploy --only functions`
+- [ ] Cloud Run'da `…-00003` revizyonlarının **%100 trafik** aldığını doğrula
+
+##### DERS — rotasyonun DOĞRU yolu
+
+Sırrı **silme**. Yeni **versiyon ekle**:
+
+```
+firebase functions:secrets:set GEMINI_API_KEY   # sırrı silmez, v2 ekler
+```
+
+Versiyon eklemek IAM politikasını korur; silmek yok eder. Bu tur A1'de
+**iki kez** aynı sınıf hata yapıldı: önce anahtar sır *adına* yazıldı
+(A1-OLAY), sonra sır silinip yeniden oluşturuldu (A1-OLAY-2). İkisi de
+"anahtarı döndür" işinin kendisinden çıktı — asıl işten daha çok kusur
+üretti.
+
+---
 #### ✅ 5 Eylül konsol denetimi — canlı durum doğrulandı
 
 Firebase/Cloud Console'dan gözle bakıldı (`edemiron@gmail.com`):
