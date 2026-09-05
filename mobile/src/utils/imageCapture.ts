@@ -107,6 +107,11 @@ export async function captureImageForAI(source: CaptureSource): Promise<CaptureR
 
     const options: ImagePicker.ImagePickerOptions = {
       quality: CAPTURE_QUALITY,
+      // allowsEditing BİLEREK false: Android'de `allowsEditing: true` harici bir Crop Activity
+      // başlatır. Kamera + Kırpıcı art arda açıldığında Android Low Memory Killer (LMK) arka plandaki
+      // ana uygulamayı öldürür (kullanıcının ana sayfaya fırlatılma nedenlerinden biri). Ayrıca
+      // OEM'lerde (Samsung/Xiaomi) kırpma en-boy oranı ve null URI tutarsızlıkları vardır.
+      // Gemini Vision modeli tam kareden kutuyu başarıyla okuyabildiği için false stabilite kalkanıdır.
       allowsEditing: false,
       // base64 BİLEREK istenmiyor.
     };
