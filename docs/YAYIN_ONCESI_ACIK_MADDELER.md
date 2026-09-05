@@ -83,63 +83,84 @@ denetim kaydına yazılır, depoda hiçbir yerde durmaz.
       - Resend → resend.com → API Keys
       - Composio → Composio panosu → API Keys
 
-- [ ] **2. Secret Manager'a yaz** (değer sorulur; diske ve kabuk geçmişine
-      **hiç yazılmaz**):
-      ```
-      cd server/functions
-      firebase functions:secrets:set GEMINI_API_KEY
-      firebase functions:secrets:set ANTHROPIC_API_KEY
-      ```
-      Kontrol: `firebase functions:secrets:access GEMINI_API_KEY`
+- [x] **2. Secret Manager'a yaz** (TAMAMLANDI — v1 versiyonları Secret Manager'da aktif).
 
-- [ ] **3. `config/ai` dokümanını SİL.** Kuralı kapatmak veriyi silmez;
-      doküman hâlâ eski anahtarı taşıyor olabilir.
-      Firebase Console → Firestore → `config` → `ai` → sil.
+- [x] **3. `config/ai` dokümanını SİL** (TAMAMLANDI — Firebase CLI `firestore:delete config/ai -f` ile silindi).
 
-- [ ] **4. Kuralları deploy et** (A2'deki functions deploy'u kapsamaz):
-      ```
-      firebase deploy --only firestore:rules
-      ```
+- [x] **4. Kuralları deploy et** (TAMAMLANDI — `firebase deploy --only firestore:rules` başarıyla yüklendi).
 
-- [ ] **5. Functions'ı deploy et.** İlk Secret Manager deploy'unda Firebase
-      sana sırlara erişim izni (`secretmanager.secretAccessor`) vermek için
-      onay sorabilir — kabul et.
-      ```
-      firebase deploy --only functions
-      ```
+- [x] **5. Functions'ı deploy et** (TAMAMLANDI — `firebase deploy --only functions` başarıyla yüklendi, Secret Manager IAM yetkileri verildi).
 
-- [ ] **6. Artık gereksiz dosyayı sil:**
-      ```
-      rm server/functions/.env
-      ```
+- [x] **6. Artık gereksiz dosyayı temizle** (TAMAMLANDI — `.env` dosyasından tüm sırlar kaldırıldı, yalnızca sır olmayan endpoint URL bırakıldı).
 
 - [ ] **7. Doğrula:** uygulamada AI ile ilaç ekleme / reçete fotoğrafı
       dene. Gemini konsolunda **yeni** anahtarın kullanımı artmalı, eski
       anahtarın kullanımı sıfır kalmalı.
 
-#### ⚠️ Canlıda KODDA OLMAYAN üç fonksiyon var
+#### 🔴 A1-OLAY: anahtarlar sır ADI olarak yazıldı (5 Eylül'de bulundu)
 
-`firebase functions:list` şunları gösteriyor ama `index.js` bunları **export
-etmiyor**:
+Konsol denetiminde Secret Manager'da **dört** sır çıktı:
 
-- `geminiVision`
-- `caregiverGetPatientFullSchedule`
-- `caregiverGetPatientMedicineLogs`
+| Ad | Oluşturulma |
+| :--- | :--- |
+| `<REDACTED-GCP-SECRET-NAME>…` | 4 Eyl 18:50 |
+| `SK_ANT_API03_…` | 4 Eyl 18:53 |
+| `ANTHROPIC_API_KEY` ✅ | 4 Eyl 18:55 |
+| `GEMINI_API_KEY` ✅ | 4 Eyl 18:55 |
 
-Bunlar eski bir sürümden kalmış ve **hâlâ deploy edilmiş durumda** — yani
-içlerine gömülü eski Gemini anahtarıyla çalışmaya devam ediyorlar. Rotasyon
-onları düzeltmez, çünkü kaynakta olmayan bir fonksiyon deploy ile
-güncellenmez.
+İlk ikisi sır adı değil, **anahtarın kendisi**: `SK_ANT_API03_…` Anthropic
+formatı (`sk-ant-api03-…`), `<REDACTED-GCP-SECRET-NAME>…` Google AI Studio'nun yeni
+formatı (`<REDACTED-GEMINI-API-KEY>…`). Saatler hikâyeyi anlatıyor — 18:50 ve 18:53'te
+anahtar **ad** alanına yapıştırılmış, 18:55'te doğrusu yapılmış.
 
-- [ ] Deploy sırasında Firebase "kaynakta olmayan şu fonksiyonlar silinsin
-      mi?" diye soracak → **evet** de. Ya da elle:
-      ```
-      firebase functions:delete geminiVision
-      firebase functions:delete caregiverGetPatientFullSchedule
-      firebase functions:delete caregiverGetPatientMedicineLogs
-      ```
-      Silmeden önce emin ol: uygulama bunlardan **hiçbirini** çağırmıyor
-      (tarandı — istemci yalnızca `geminiGenerate` çağırıyor).
+Komutun şekli şu: **ad argümandır, değer sonra sorulur.**
+
+```
+firebase functions:secrets:set GEMINI_API_KEY      # ← ad burada
+? Enter a value for GEMINI_API_KEY  [gizli giriş]  # ← anahtar buraya
+```
+
+**Neden önemli:** sır *değeri* şifrelidir, sır *adı* değildir. Ad; konsol
+listesinde, `gcloud secrets list` çıktısında, **denetim kayıtlarında**, IAM
+politikalarında ve varlık/faturalama dışa aktarımlarında düz metin durur —
+projede Viewer rolü olan herkes okur.
+
+**Abartmamak gerek:** Firebase CLI adı büyük harfe çevirip `-`/`.`
+karakterlerini `_` yapıyor, yani harf büyüklüğü kayboluyor ve anahtar
+oradan **birebir geri kurtarılamıyor**. Ama sağlayıcı, önek, uzunluk ve
+karakterlerin çoğu açıkta.
+
+- [x] İki hurda sır **silindi** (5 Eyl'de doğrulandı: listede yalnızca
+      `ANTHROPIC_API_KEY` ve `GEMINI_API_KEY` kaldı).
+- [ ] **Gemini ve Anthropic anahtarlarını BİR KEZ DAHA döndür.** Sır
+      silindi ama **denetim kaydı silinmiyor**; ad orada kalıyor. Anahtarlar
+      daha bir günlük olduğu için can sıkıcı, ama önekleri düz metin olarak
+      log'da durduğu sürece "sızmış" statüsündeler.
+
+> Ders: bu, A1'in kendisinin bir alt kümesi — *sırrı doğru yere koymak
+> yetmiyor, doğru ALANA koymak gerekiyor.* Rotasyonun kendisi yeni bir
+> sızıntı yolu üretti.
+
+---
+
+#### ✅ 5 Eylül konsol denetimi — canlı durum doğrulandı
+
+Firebase/Cloud Console'dan gözle bakıldı (`edemiron@gmail.com`):
+
+| Ne | Kanıt |
+| :--- | :--- |
+| `config/ai` silindi | Firestore kökünde `config` koleksiyonu **hiç yok**; yalnızca `caregiverInvites`, `caregiverRelationships`, `globalMedicines`, `users` |
+| Kurallar canlıda | Canlı kural metninde satır 189–191: `match /config/{configId} { allow read: if false; allow write: if false; }` + v1.8.9 yorum bloğu. Sürüm geçmişi tepesi 4 Eyl 19:15 |
+| Sırlar kurulu | `GEMINI_API_KEY` ve `ANTHROPIC_API_KEY`, ikisi de sürüm 1, **Enabled** (değerlerine bakılmadı) |
+| Functions kaynakla birebir | Deploy edilen **8** fonksiyon = `index.js`'in 8 export'u. Yetim üçü ve eski `health` uç noktası **404** |
+| v1.8.5 FCM düzeltmesi **fiilen çalışıyor** | `onMedicineLogCreated` son 24 saatte **7 istek**, `onCaregiverAlertCreated` **4 istek** — token yolu üretimde. Topic yayını bitti |
+
+Son madde önemli: deploy'un yalnızca *geçtiğini* değil, **doğru davrandığını**
+gösteriyor.
+
+---
+#### ✅ Canlıda KODDA OLMAYAN üç fonksiyon temizlendi
+- [x] `geminiVision`, `caregiverGetPatientFullSchedule`, `caregiverGetPatientMedicineLogs` başarıyla silindi (`firebase functions:delete`).
 
 #### Kodda duran ama HİÇ ÇAĞRILMAYAN iki uç nokta
 
