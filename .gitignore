@@ -107,3 +107,9 @@ mobile/scripts/_tmp_*
 
 # Claude Code oturum dosyalari
 .claude/
+
+# Temizlik: silinecekler burada bekler (2026-09-05 raporu)
+_to_delete/
+
+# Windows Gezgini
+desktop.ini
