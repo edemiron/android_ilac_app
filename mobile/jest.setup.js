@@ -178,6 +178,10 @@ jest.mock('expo-file-system', () => ({
     async bytes() {
       return new Uint8Array([1, 2, 3, 4]);
     }
+
+    async base64() {
+      return 'bW9jaw==';
+    }
   },
   Paths: {
     cache: { uri: 'file:///mock-cache/' },

@@ -14,8 +14,8 @@ import { useDebounce } from './useDebounce';
 import { useMedicinePersistence } from './useMedicinePersistence';
 import { useAlert } from '../contexts/AlertContext';
 import { checkInteractions } from '../services/drugInteraction';
-import * as ImagePicker from 'expo-image-picker';
 import { recognizeMedicineBoxPhotoAI } from '../services/aiMedicineService';
+import { captureImageForAI, captureFailureMessage } from '../utils/imageCapture';
 import {
   AddMedicineFormState,
   AutocompleteState,
@@ -470,66 +470,62 @@ export function useAddMedicine() {
   const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState(false);
 
   const handleScanPhotoBox = useCallback(async () => {
+    // v1.9.1: fotograf yakalama artik `utils/imageCapture` yardimcisinda.
+    // Picker'a `base64: true` GECILMEZ (bellek zirvesi kamera donusunde olusuyordu)
+    // ve gonderim oncesi boyut denetleniyor. Gerekce: utils/imageCapture.ts basligi.
+    const capture = await captureImageForAI('camera');
+
+    if (!capture.ok) {
+      const message = captureFailureMessage(capture.reason, language === 'tr' ? 'tr' : 'en');
+      // `cancelled` icin mesaj yok -> kullanici vazgectiyse sessizce cik.
+      if (message) {
+        showAlert({
+          type: capture.reason === 'permission-denied' ? 'warning' : 'error',
+          title:
+            capture.reason === 'permission-denied'
+              ? language === 'tr'
+                ? 'Kamera İzni Gerekli'
+                : 'Camera Permission Required'
+              : language === 'tr'
+                ? 'Fotoğraf İşlenemedi'
+                : 'Photo Could Not Be Processed',
+          message,
+        });
+      }
+      return;
+    }
+
+    setIsAnalyzingPhoto(true);
     try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
+      const ocrResult = await recognizeMedicineBoxPhotoAI(capture.base64);
+      setIsAnalyzingPhoto(false);
+
+      if (ocrResult.success && ocrResult.name) {
+        setFormState(prev => ({
+          ...prev,
+          name: ocrResult.name || prev.name,
+          dosage: ocrResult.dosage || prev.dosage,
+          dosageAmount: ocrResult.dosage ? parseDosageAmount(ocrResult.dosage) : prev.dosageAmount,
+          medicineForm: ocrResult.form ? (ocrResult.form as any) : prev.medicineForm,
+          instruction: ocrResult.instructions ? (ocrResult.instructions as any) : prev.instruction,
+          imageUri: capture.uri || prev.imageUri,
+        }));
+
+        showAlert({
+          type: 'info',
+          title: language === 'tr' ? 'İlaç Kutusu Tanındı' : 'Medicine Identified',
+          message: `${ocrResult.name} (${ocrResult.dosage || ''}) başarıyla okundu ve forma aktarıldı.`,
+        });
+      } else {
         showAlert({
           type: 'warning',
-          title: language === 'tr' ? 'Kamera İzni Gerekli' : 'Camera Permission Required',
+          title: language === 'tr' ? 'Bilgi Çıkarılamadı' : 'Recognition Incomplete',
           message:
-            language === 'tr'
-              ? 'İlaç kutusunu fotoğraflamak için kamera izni vermelisiniz.'
-              : 'Please grant camera access to photograph the medicine box.',
+            ocrResult.error ||
+            (language === 'tr'
+              ? 'Kutudan ilaç adı okunamadı. Lütfen elle giriniz veya barkod ile deneyiniz.'
+              : 'Could not detect medicine details. Please enter manually or scan barcode.'),
         });
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.6,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        if (asset.base64) {
-          setIsAnalyzingPhoto(true);
-          const ocrResult = await recognizeMedicineBoxPhotoAI(asset.base64);
-          setIsAnalyzingPhoto(false);
-
-          if (ocrResult.success && ocrResult.name) {
-            setFormState(prev => ({
-              ...prev,
-              name: ocrResult.name || prev.name,
-              dosage: ocrResult.dosage || prev.dosage,
-              dosageAmount: ocrResult.dosage
-                ? parseDosageAmount(ocrResult.dosage)
-                : prev.dosageAmount,
-              medicineForm: ocrResult.form ? (ocrResult.form as any) : prev.medicineForm,
-              instruction: ocrResult.instructions
-                ? (ocrResult.instructions as any)
-                : prev.instruction,
-              imageUri: asset.uri || prev.imageUri,
-            }));
-
-            showAlert({
-              type: 'info',
-              title: language === 'tr' ? 'İlaç Kutusu Tanındı' : 'Medicine Identified',
-              message: `${ocrResult.name} (${ocrResult.dosage || ''}) başarıyla okundu ve forma aktarıldı.`,
-            });
-          } else {
-            showAlert({
-              type: 'warning',
-              title: language === 'tr' ? 'Bilgi Çıkarılamadı' : 'Recognition Incomplete',
-              message:
-                ocrResult.error ||
-                (language === 'tr'
-                  ? 'Kutudan ilaç adı okunamadı. Lütfen elle giriniz veya barkod ile deneyiniz.'
-                  : 'Could not detect medicine details. Please enter manually or scan barcode.'),
-            });
-          }
-        }
       }
     } catch (error) {
       setIsAnalyzingPhoto(false);

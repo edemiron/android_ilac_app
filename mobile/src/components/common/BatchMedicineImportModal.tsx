@@ -21,7 +21,6 @@ import {
   Switch,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useMedicineStore } from '../../stores/medicineStore';
@@ -31,6 +30,11 @@ import {
 } from '../../services/aiMedicineService';
 import { scheduleMedicineNotification } from '../../utils/notifications';
 import { createScopedLogger } from '../../utils/logger';
+import {
+  captureImageForAI,
+  captureFailureMessage,
+  type CaptureSource,
+} from '../../utils/imageCapture';
 
 const log = createScopedLogger('BatchMedicineImportModal');
 
@@ -79,41 +83,23 @@ export const BatchMedicineImportModal: React.FC<BatchMedicineImportModalProps> =
   }, []);
 
   const handlePickImage = useCallback(
-    async (source: 'camera' | 'library') => {
+    async (source: CaptureSource) => {
+      // v1.9.1: fotograf yakalama artik `imageCapture` yardimcisinda.
+      // Picker'a `base64: true` GECILMEZ; gerekce icin bkz. utils/imageCapture.ts.
+      const capture = await captureImageForAI(source);
+
+      if (!capture.ok) {
+        const message = captureFailureMessage(capture.reason, isTr ? 'tr' : 'en');
+        // `cancelled` icin mesaj yok -> kullanici vazgectiyse sessizce cik.
+        if (message) {
+          Alert.alert(isTr ? 'Fotoğraf' : 'Photo', message);
+        }
+        return;
+      }
+
+      setIsLoading(true);
       try {
-        let result: ImagePicker.ImagePickerResult;
-
-        if (source === 'camera') {
-          const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== 'granted') {
-            Alert.alert(
-              isTr ? 'İzin Gerekli' : 'Permission Required',
-              isTr
-                ? 'İlaç kutularını tarayabilmek için kamera izni vermeniz gerekir.'
-                : 'Camera permission is required to scan medicine boxes.'
-            );
-            return;
-          }
-          result = await ImagePicker.launchCameraAsync({
-            base64: true,
-            quality: 0.8,
-            allowsEditing: false,
-          });
-        } else {
-          result = await ImagePicker.launchImageLibraryAsync({
-            base64: true,
-            quality: 0.8,
-            allowsEditing: false,
-          });
-        }
-
-        if (result.canceled || !result.assets?.[0]?.base64) {
-          return;
-        }
-
-        setIsLoading(true);
-        const base64 = result.assets[0].base64;
-        const res = await recognizeMultipleMedicineBoxesPhotoAI(base64);
+        const res = await recognizeMultipleMedicineBoxesPhotoAI(capture.base64);
 
         setIsLoading(false);
 

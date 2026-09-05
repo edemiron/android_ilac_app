@@ -221,6 +221,10 @@ Sır bağlaması bozuk olsaydı konteyner hiç başlamaz, 500/503 dönerdi. Bu,
 - [x] Revizyonlar %100 trafik
 - [ ] Uygulamada AI ile ilaç ekleme dene (A1 adım 7) — Gemini konsolunda
       **yeni** anahtarın kullanımı artmalı
+      > ⚠️ **Bunu 1.9.1 (68) ile dene, 1.8.8 ile değil.** 1.8.8'de AI fotoğraf
+      > akışı uygulamayı Android'e öldürtüyordu (bkz. A8) — istek sunucuya hiç
+      > ulaşmadığı için konsolda kullanım da görünmez. Önce
+      > `cd mobile && npm run build:release` ile 1.9.1'i kur.
 ##### DERS — rotasyonun DOĞRU yolu
 
 Sırrı **silme**. Yeni **versiyon ekle**:
@@ -255,16 +259,14 @@ gösteriyor.
 #### ✅ Canlıda KODDA OLMAYAN üç fonksiyon temizlendi
 - [x] `geminiVision`, `caregiverGetPatientFullSchedule`, `caregiverGetPatientMedicineLogs` başarıyla silindi (`firebase functions:delete`).
 
-#### Kodda duran ama HİÇ ÇAĞRILMAYAN iki uç nokta
+#### ✅ claudeSearch ve Anthropic Bağımlılığı Tamamen Silindi (5 Eylül)
 
-İstemci taraması sonucu: uygulama yalnızca **`geminiGenerate`** çağırıyor.
-`geminiSearch` ve `claudeSearch` kodda var, deploy ediliyor, ama hiçbir
-yerden çağrılmıyor.
-
-`claudeSearch` silinirse **Anthropic anahtarına hiç gerek kalmaz** — yani
-yönetilecek bir sır eksilir. Bu bir ürün kararı olduğu için dokunmadım.
-
-- [ ] Karar: `geminiSearch` + `claudeSearch` kalsın mı, silinsin mi?
+İstemci taraması sonucu uygulamanın yalnızca **`geminiGenerate`** çağırdığı
+doğrulandı. `claudeSearch` uç noktası ve Anthropic sırrı (`ANTHROPIC_API_KEY`)
+koddan, Secret Manager gereksinimlerinden ve canlı Cloud Functions
+ortamından tamamen kaldırıldı (`firebase functions:delete claudeSearch`).
+Böylece fazladan sır ve IAM yönetimi ihtiyacı sıfırlandı; tek AI sağlayıcısı
+olarak Google Gemini sabitlendi.
 
 #### Sıfırdan yapılan kontroller (v1.8.9 – v1.9.0)
 
@@ -516,6 +518,38 @@ Kalan iki küçük yer (istenirse):
 - [ ] Gıda etkileşim rozetleri (`FOOD_INTERACTION_DETAILS.icon`) — o tablo
       İlaç Ekle ekranıyla **paylaşılıyor**, değiştirmek "ana ekran kalsın"
       kararının dışına taşar.
+---
+
+### A8. AI fotoğraf akışı uygulamayı öldürtüyordu — ✅ KOD DÜZELTİLDİ, CİHAZDA DENENMEDİ (v1.9.1)
+
+Şikâyet: *"Fotoğraf çektim, resime tamam dedim, sonra beni ana sayfaya attı."*
+
+Bu bir çökme değildi. Üç kanıt:
+
+| Kanıt | Ne söylüyor |
+| :--- | :--- |
+| `geminiGenerate`'e o denemeden **hiç istek gelmemiş** (Cloud Logging, 2 saat) | İstemci sunucuya ulaşmadan durmuş |
+| Crashlytics'te **1.8.x çökmesi yok** | Süreç sinyal almadan gitmiş |
+| İstemci kodunda **hiçbir dal ana sayfaya yönlendirmiyor** | "Kod attı" ihtimali eleniyor |
+
+Tablo: **Android, kamera ön plandayken uygulamayı bellek için öldürdü**;
+dönüşte uygulama sıfırdan başladı. Kodun katkısı, picker'a `base64: true`
+verilmesiydi — 8MP fotoğraf hem JPEG hem ~3–5 MB'lik dize olarak, tam da
+bellek baskısının zirve yaptığı anda.
+
+Yapılan (v1.9.1): yakalama tek kaynağa taşındı (`utils/imageCapture.ts`),
+picker'dan base64 istenmiyor, kodlama uygulama **ön plana döndükten sonra**
+yapılıyor, ve gönderim öncesi **boyut denetleniyor** (6 MB tavan — sunucunun
+8 MB'ının altında; eskiden istemcide hiç denetim yoktu, büyük fotoğraf
+sessizce reddedilip kullanıcı "tanınmadı" sanıyordu).
+
+- [ ] **Sende:** `cd mobile && npm run build:release`, 1.9.1 (68) kur,
+      AI ile ilaç ekleme fotoğrafı çek. Beklenen: ana sayfaya düşmüyor +
+      Gemini konsolunda istek görünüyor.
+- [ ] **Kalan iyileştirme (opsiyonel):** görseli göndermeden önce küçültmek
+      belleği bir kat daha düşürür (`expo-image-manipulator`). Yeni native
+      modül olduğu için, cihazda derleyip ölçebildiğimizde eklenmeli.
+
 ---
 
 ## 📋 B — KODDA KALAN İŞLER (fazlara göre)
