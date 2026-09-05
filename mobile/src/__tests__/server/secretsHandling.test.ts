@@ -34,13 +34,19 @@ const stripComments = (s: string): string =>
 
 const code = stripComments(source);
 
-/** Sır sayılan parametre adları. */
-const SECRET_NAMES = ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY'];
+/** Sır sayılan parametre adları (v1.9.1: claudeSearch silindi, tek sır Gemini). */
+const SECRET_NAMES = ['GEMINI_API_KEY'];
 
 describe("Cloud Functions — sırlar Secret Manager'dan geliyor", () => {
   it('kaynak dosya gerçekten okundu (kapı boşa düşmesin)', () => {
     expect(source.length).toBeGreaterThan(2000);
     expect(code).toContain('exports.geminiGenerate');
+  });
+
+  it('claudeSearch ve Anthropic sirri artik projede YOK (tek saglayici: Gemini)', () => {
+    expect(code).not.toContain('exports.claudeSearch');
+    expect(code).not.toContain('ANTHROPIC_API_KEY');
+    expect(code).not.toContain('anthropicApiKey');
   });
 
   it.each(SECRET_NAMES)('%s `process.env` ile OKUNMUYOR', name => {
@@ -85,7 +91,6 @@ describe("Cloud Functions — sırlar Secret Manager'dan geliyor", () => {
     const handlers = [
       { name: 'geminiSearch', secret: 'geminiApiKey' },
       { name: 'geminiGenerate', secret: 'geminiApiKey' },
-      { name: 'claudeSearch', secret: 'anthropicApiKey' },
     ];
 
     for (const { name, secret } of handlers) {

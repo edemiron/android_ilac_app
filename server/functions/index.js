@@ -71,17 +71,9 @@ if (!admin.apps.length) {
  * Kurulum ve rotasyon adimlari: docs/YAYIN_ONCESI_ACIK_MADDELER.md → A1.
  * IAM rolleri tanimli: roles/secretmanager.secretAccessor
  */
-const { defineSecret, defineString } = require('firebase-functions/params');
+const { defineSecret } = require('firebase-functions/params');
 
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
-const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
-
-// Bu bir SIR DEGIL, yalnizca uc nokta adresi — Secret Manager'a koymak
-// gereksiz yere IAM ve maliyet ekler. Parametre olarak tanimli ki
-// degistirmek icin kod degisikligi gerekmesin.
-const anthropicApiUrl = defineString('ANTHROPIC_API_URL', {
-  default: 'https://api.anthropic.com',
-});
 
 /**
  * Gemini ile ilaç ara (onCall)
@@ -211,54 +203,6 @@ exports.geminiGenerate = onCall({ secrets: [geminiApiKey] }, async (request) => 
   }
 });
 
-/**
- * Claude (Anthropic) ile ilaç ara (onCall)
- */
-exports.claudeSearch = onCall({ secrets: [anthropicApiKey] }, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Bu servisi kullanmak için giriş yapmalısınız.');
-  }
-
-  const { prompt, barcode } = request.data || {};
-  if (!prompt && !barcode) {
-    throw new HttpsError('invalid-argument', 'prompt veya barcode gereklidir.');
-  }
-
-  // v1.9.0: sir YALNIZCA burada, handler icinde okunur.
-  const ANTHROPIC_API_KEY = anthropicApiKey.value();
-  const ANTHROPIC_API_URL = anthropicApiUrl.value() || 'https://api.anthropic.com';
-  if (!ANTHROPIC_API_KEY) {
-    throw new HttpsError('unavailable', 'Anthropic Claude API henüz yapılandırılmamış.');
-  }
-
-  const searchPrompt = barcode
-    ? `Bu barkodlu ilaç hakkında bilgi ver: ${barcode}. İlaç adı, etken madde, kullanım dozu ve yan etkileri hakkında bilgi ver. Türkçe yanıt ver. Max 500 kelime.`
-    : prompt;
-
-  try {
-    const response = await axios.post(
-      `${ANTHROPIC_API_URL}/v1/messages`,
-      {
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: searchPrompt }],
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-        },
-      }
-    );
-
-    const result = response.data?.content?.[0]?.text || '';
-    return { success: true, result };
-  } catch (error) {
-    console.error('Claude API error:', error.message);
-    throw new HttpsError('internal', 'AI servisi yanıt vermedi.');
-  }
-});
 
 /**
  * ⚠️ v1.7.4 — `health` KALDIRILDI (Faz 0.2, KRİTİK GÜVENLİK)
