@@ -69,6 +69,7 @@ if (!admin.apps.length) {
  * handler'in ilk satirlarindadir, eskiden oldugu gibi dosya basinda DEGIL.
  *
  * Kurulum ve rotasyon adimlari: docs/YAYIN_ONCESI_ACIK_MADDELER.md → A1.
+ * IAM rolleri tanimli: roles/secretmanager.secretAccessor
  */
 const { defineSecret, defineString } = require('firebase-functions/params');
 

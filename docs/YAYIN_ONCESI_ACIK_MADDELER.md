@@ -143,7 +143,7 @@ karakterlerin çoğu açıkta.
 
 ---
 
-#### 🔴 A1-OLAY-2: sırrı SİLİP YENİDEN OLUŞTURMAK IAM'i de sildi
+#### ✅ A1-OLAY-2 (ÇÖZÜLDÜ): sırrı SİLİP YENİDEN OLUŞTURMAK IAM'i de sildi
 
 İkinci rotasyonda sırlar **silinip yeniden oluşturuldu** (`GEMINI_API_KEY`
 5 Eyl 03:27, `ANTHROPIC_API_KEY` 03:30 — ikisi de yine "sürüm 1").
@@ -192,6 +192,35 @@ başlangıçta onlar da düşer. Instance sayısı zaten 0.
 - [ ] `firebase deploy --only functions`
 - [ ] Cloud Run'da `…-00003` revizyonlarının **%100 trafik** aldığını doğrula
 
+##### ✅ Çözüldü — 5 Eylül 03:5x
+
+Her iki sırra da `roles/secretmanager.secretAccessor` **sır düzeyinde**
+verildi (`506876057044-compute@developer.gserviceaccount.com`). Konsolda
+artık "No inheritance, for role Secret Manager Secret Accessor" yazıyor —
+yani proje mirası değil, sırra özel bağlama.
+
+Ardından redeploy edildi ve üç servisin de yeni revizyonu **%100 trafik**
+alıyor, `Failed` uyarısı kalktı:
+
+| Servis | Revizyon | Trafik |
+| :--- | :--- | :--- |
+| `geminigenerate` | `00003-yej` | **%100 (to latest)** |
+| `geminisearch` | `00003-kic` | **%100 (to latest)** |
+| `claudesearch` | `00003-juk` | **%100 (to latest)** |
+
+Sır bağlaması revizyon ortamında görünüyor:
+`GEMINI_API_KEY → Secret: projects/…/secrets/GEMINI_API_KEY:1`
+
+**Çalışma anı doğrulaması:** `geminiGenerate` uç noktası yoklandı ve
+`INVALID_ARGUMENT` döndü — yani konteyner **soğuk başlangıçta ayağa kalktı**.
+Sır bağlaması bozuk olsaydı konteyner hiç başlamaz, 500/503 dönerdi. Bu,
+"deploy geçti" demekten daha güçlü bir kanıt.
+
+- [x] IAM grant (iki sır)
+- [x] Redeploy
+- [x] Revizyonlar %100 trafik
+- [ ] Uygulamada AI ile ilaç ekleme dene (A1 adım 7) — Gemini konsolunda
+      **yeni** anahtarın kullanımı artmalı
 ##### DERS — rotasyonun DOĞRU yolu
 
 Sırrı **silme**. Yeni **versiyon ekle**:
