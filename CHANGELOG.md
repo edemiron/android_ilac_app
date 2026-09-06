@@ -10,6 +10,13 @@ Biçimlendirme standardı [Keep a Changelog](https://keepachangelog.com/tr/1.0.0
 ### Added
 - Gelecek sürüm geliştirmeleri ve yol haritası maddeleri.
 
+## [1.9.4] - 2026-09-06
+### Added
+- **Hayati İlaç Ses Seviyesi İadesi (Volume Restore Engine - `AlarmModule.kt` & `nativeAlarm.ts`):** Alarm susturulduğunda veya kullanıcı dozu onayladığında/ertelediğinde, duyulabilirlik amacıyla yükseltilmiş olan `STREAM_ALARM` ses seviyesi otomatik olarak kullanıcının önceki ses tercihine iade edilir.
+- **Kritik İlaç Dinamik Ses Eşiği:** Hayati (`isCritical`) işaretli ilaçlarda alarm çaldığı anda minimum güvenli ses tabanı %80'e yükseltilir (standart ilaçlarda %70).
+- **Alarm Ekranı Güvenlik Rozeti (`AlarmMedicineCard.tsx`):** Kritik ilaçlarda kalkan rozeti "Hayati İlaç — Israrlı Alarm & Ses Kalkanı" olarak güncellendi.
+- **Volume Restore Birim Testleri (`directBootAlarm.test.ts`):** 3 yeni birim testi eklendi (toplam 12 test %100 yeşil).
+
 ## [1.9.3] - 2026-09-06
 ### Added
 - **DirectBoot Sentinel — Device Protected Storage (DE) Aynalama (`DirectBootAlarmHelper.kt`):** Cihaz yeniden başladığında kullanıcı ilk kilit açmayı (PIN/desen) yapana kadar kilitli kalan Credential Encrypted (CE) depolama engelini aşmak için `createDeviceProtectedStorageContext()` ile şifrelenmemiş SharedPreferences aynası oluşturuldu.

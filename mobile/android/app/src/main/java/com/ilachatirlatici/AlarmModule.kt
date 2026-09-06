@@ -48,6 +48,9 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
         @Volatile
         private var lastAlarmData: HashMap<String, String>? = null
 
+        @Volatile
+        private var cachedPreviousAlarmVolume: Int? = null
+
         /**
          * Volume button action'ı JS'e emit et (mute/snooze).
          * MainActivity.dispatchKeyEvent tarafından çağrılır.
@@ -802,6 +805,9 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
             }
 
             if (current < targetMinVolume) {
+                if (cachedPreviousAlarmVolume == null) {
+                    cachedPreviousAlarmVolume = current
+                }
                 am.setStreamVolume(AudioManager.STREAM_ALARM, targetMinVolume, 0)
                 map.putInt("currentVolume", targetMinVolume)
                 map.putBoolean("wasAdjusted", true)
@@ -813,6 +819,29 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
             promise.resolve(map)
         } catch (e: Exception) {
             Log.e(TAG, "ensureSafeAlarmVolume hatası", e)
+            promise.resolve(false)
+        }
+    }
+
+    /**
+     * Alarm susturulduğunda veya ertelendiğinde daha önce yükseltilmiş olan ses seviyesini
+     * kullanıcının orijinal tercihine geri döndürür (v1.9.4).
+     */
+    @ReactMethod
+    fun restoreAlarmVolume(promise: Promise) {
+        try {
+            val prev = cachedPreviousAlarmVolume
+            if (prev != null) {
+                val am = reactApplicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                am?.setStreamVolume(AudioManager.STREAM_ALARM, prev, 0)
+                Log.i(TAG, "restoreAlarmVolume: Alarm sesi eski değerine ($prev) geri yüklendi")
+                cachedPreviousAlarmVolume = null
+                promise.resolve(true)
+            } else {
+                promise.resolve(false)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "restoreAlarmVolume hatası", e)
             promise.resolve(false)
         }
     }

@@ -20,6 +20,7 @@ import {
   getDirectBootAlarmCount,
   getAlarmStreamVolume,
   ensureSafeAlarmVolume,
+  restoreAlarmVolume,
 } from '../../utils/notifications/nativeAlarm';
 
 describe('DirectBoot and Volume Shield Bridge', () => {
@@ -119,4 +120,28 @@ describe('DirectBoot and Volume Shield Bridge', () => {
       expect(result?.wasAdjusted).toBe(false);
     });
   });
+
+  describe('restoreAlarmVolume', () => {
+    it('returns false when AlarmModule is unavailable', async () => {
+      const result = await restoreAlarmVolume();
+      expect(result).toBe(false);
+    });
+
+    it('returns true when native module successfully restores volume', async () => {
+      NativeModules.AlarmModule = {
+        restoreAlarmVolume: jest.fn().mockResolvedValue(true),
+      };
+      const result = await restoreAlarmVolume();
+      expect(result).toBe(true);
+    });
+
+    it('handles native exception gracefully and returns false', async () => {
+      NativeModules.AlarmModule = {
+        restoreAlarmVolume: jest.fn().mockRejectedValue(new Error('Audio service failure')),
+      };
+      const result = await restoreAlarmVolume();
+      expect(result).toBe(false);
+    });
+  });
 });
+

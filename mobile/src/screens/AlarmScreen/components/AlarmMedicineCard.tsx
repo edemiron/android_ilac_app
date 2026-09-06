@@ -60,7 +60,7 @@ export function AlarmMedicineCard({
           <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
           {/* v1.8.7: bastaki siren emojisi KALDIRILDI — solundaki kalkan
               ikonu ayni isi zaten yapiyordu, emoji MUKERRERDI. */}
-          <Text style={styles.criticalBadgeText}>Hayati İlaç — Israrlı Alarm</Text>
+          <Text style={styles.criticalBadgeText}>Hayati İlaç — Israrlı Alarm & Ses Kalkanı</Text>
         </View>
       )}
 

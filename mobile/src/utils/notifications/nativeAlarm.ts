@@ -57,6 +57,7 @@ interface AlarmModuleShape {
   getDirectBootAlarmCount?: () => Promise<number>;
   getAlarmStreamVolume?: () => Promise<StreamVolumeInfo | null>;
   ensureSafeAlarmVolume?: (minRatio: number) => Promise<VolumeAdjustmentResult | null>;
+  restoreAlarmVolume?: () => Promise<boolean>;
 }
 
 export interface StreamVolumeInfo {
@@ -198,4 +199,17 @@ export async function ensureSafeAlarmVolume(
     return null;
   }
 }
+
+/** Alarm sonlandığında veya ertelendiğinde daha önce yükseltilen ses seviyesini eski haline döndürür (v1.9.4). */
+export async function restoreAlarmVolume(): Promise<boolean> {
+  const alarmModule = getAlarmModule();
+  if (!alarmModule?.restoreAlarmVolume) return false;
+  try {
+    return await alarmModule.restoreAlarmVolume();
+  } catch (error) {
+    log.debug('restoreAlarmVolume başarısız', { error: String(error) });
+    return false;
+  }
+}
+
 

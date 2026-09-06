@@ -33,6 +33,7 @@ import {
   cancelNativeAlarmResources,
   cancelNativeAlarmNotification,
   ensureSafeAlarmVolume,
+  restoreAlarmVolume,
   ALARM_KIND_MAIN,
   ALARM_KIND_SNOOZE,
   type NativeAlarmKind,
@@ -304,6 +305,7 @@ export function useAlarmController() {
     // 2. Kilit ekrani bayraklarini arka planda sifirla — alarm bittikten sonra
     //    uygulama kilit ekraninda gorunur kalmasin. Await EDILMEZ.
     void withTimeout(NativeModules.AlarmModule?.clearLockScreenFlags?.(), 'clearLockScreenFlags');
+    void withTimeout(restoreAlarmVolume(), 'restoreAlarmVolume');
   }, [dismissAlarm, navigation, medicineId, reminderTimeId, isSnoozeAlarm, routeSnoozeId]);
 
   // Ses/titresim/TTS'i ANINDA kes. Await yok: kopru askida kalsa bile UI akisi durmaz.
@@ -324,6 +326,7 @@ export function useAlarmController() {
 
     void withTimeout(stopAdvancedSpeaking(), 'stopAdvancedSpeaking');
     void withTimeout(stopAlarmSound(), 'stopAlarmSound');
+    void withTimeout(restoreAlarmVolume(), 'restoreAlarmVolume');
   }, []);
 
   // Bu doza ait bildirimleri HEDEFE YONELIK iptal et.
@@ -495,9 +498,9 @@ export function useAlarmController() {
     });
 
     if (!isStoppedRef.current) {
-      // v1.9.3: Volume Shield — alarm anında Android STREAM_ALARM seviyesini
-      // kontrol et, sıfırsa/kısıksa güvenli %70 seviyesine yükselt.
-      void ensureSafeAlarmVolume(0.7);
+      // v1.9.4: Volume Shield — Hayati (isCritical) ilaçlar için %80, standart ilaçlar için %70 taban ses garantisi
+      const safeRatio = medicine?.isCritical ? 0.8 : 0.7;
+      void ensureSafeAlarmVolume(safeRatio);
       playAlarmSound(settings.alarmVolume ?? 80, settings.alarmSound ?? 'soft_chime');
     }
 
