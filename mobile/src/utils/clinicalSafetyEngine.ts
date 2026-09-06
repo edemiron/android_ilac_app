@@ -100,6 +100,36 @@ export const FOOD_INTERACTION_DETAILS: Record<
       'Take with a full glass of water 30-60 minutes before breakfast. Food/coffee completely blocks absorption.',
     severity: 'critical',
   },
+  potassium: {
+    icon: '🍌',
+    titleTr: 'Potasyum & Diyet Tuzu Uyarısı',
+    titleEn: 'Potassium & Salt Substitutes',
+    warningTr:
+      'Potasyumdan zengin gıdalar (muz, ıspanak) ve potasyumlu diyet tuzları kanda potasyum birikmesine (hiperkalemi) yol açabilir. Takviye almadan önce doktorunuza danışınız.',
+    warningEn:
+      'Potassium-rich foods and salt substitutes may cause high potassium (hyperkalemia). Consult your doctor before taking supplements.',
+    severity: 'critical',
+  },
+  vitamin_k: {
+    icon: '🥬',
+    titleTr: 'K Vitamini & Yeşil Sebze Dengesi',
+    titleEn: 'Vitamin K & Green Leafy Vegetables',
+    warningTr:
+      'Ispanak, brokoli, lahana gibi K vitamini zengini gıdalar kan sulandırıcı ilacın etkisini zayıflatır. Günlük K vitamini alımınızı sabit tutunuz.',
+    warningEn:
+      'Green leafy vegetables rich in Vitamin K weaken anticoagulant effectiveness. Maintain a consistent daily intake.',
+    severity: 'critical',
+  },
+  tyramine: {
+    icon: '🧀',
+    titleTr: 'Tiramin / Fermente Gıda Engeli',
+    titleEn: 'Tyramine / Aged Foods Warning',
+    warningTr:
+      'Eski kaşar/parmesan, fermente sucuk, soya sosu ve bira gibi tiramin zengini gıdalarla birlikte tüketildiğinde ani ve tehlikeli tansiyon yükselmesine (hipertansif kriz) yol açabilir.',
+    warningEn:
+      'Aged cheeses, fermented meats, and soy sauce contain tyramine which can trigger dangerous hypertensive crisis with this medication.',
+    severity: 'critical',
+  },
 };
 
 // Yaygın Etken Madde & İlaç Eşleme Tablosu
@@ -237,6 +267,37 @@ const INGREDIENT_FOOD_RULES: Array<{
     keywords: ['glifor', 'matofin', 'diaformin', 'glucophage', 'metformin'],
     interactions: ['alcohol'],
     canonicalIngredient: 'Metformin',
+  },
+  // Varfarin / Kan Sulandırıcı
+  {
+    keywords: ['coumadin', 'varfarin', 'warfarin'],
+    interactions: ['vitamin_k', 'alcohol'],
+    canonicalIngredient: 'Varfarin (K Vitamini Antagonisti)',
+  },
+  // ACE İnhibitörleri ve ARB'ler (Tansiyon)
+  {
+    keywords: [
+      'ramipril',
+      'delix',
+      'enalapril',
+      'enap',
+      'perindopril',
+      'coversyl',
+      'valsartan',
+      'diovan',
+      'losartan',
+      'cozaar',
+      'candesartan',
+      'atacand',
+    ],
+    interactions: ['potassium', 'alcohol'],
+    canonicalIngredient: 'ACE İnhibitörü / ARB (Renin-Anjiyotensin)',
+  },
+  // MAO İnhibitörleri
+  {
+    keywords: ['aurorix', 'moklobemid', 'moclobemide', 'selegilin'],
+    interactions: ['tyramine'],
+    canonicalIngredient: 'MAO İnhibitörü',
   },
 ];
 

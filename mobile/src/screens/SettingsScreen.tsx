@@ -42,6 +42,7 @@ import { useSettingsController } from './SettingsScreen/hooks/useSettingsControl
 // kiriyordu. `logout` presenter uzerinden geliyor.
 import { useAccountDeletion } from '../hooks/useAccountDeletion';
 import { AccountDeletionModal } from '../components/settings/AccountDeletionModal';
+import { MedicalIdModal } from '../components/medicalId/MedicalIdModal';
 
 export default function SettingsScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
@@ -124,6 +125,8 @@ export default function SettingsScreen() {
     accountDeletion.reset();
   }, [accountDeletion]);
 
+  const [showMedicalIdModal, setShowMedicalIdModal] = useState(false);
+
   const styles = createSettingsStyles(colors, isDark);
 
   return (
@@ -166,6 +169,7 @@ export default function SettingsScreen() {
           user={user}
           isSyncing={isSyncing}
           onAccountPress={handleAccountPress}
+          onMedicalIdPress={() => setShowMedicalIdModal(true)}
           navigation={navigation}
           language={language}
         />
@@ -305,6 +309,15 @@ export default function SettingsScreen() {
         onChangeConfirmation={accountDeletion.setConfirmationInput}
         onConfirm={accountDeletion.deleteAccountAndData}
         onCancel={closeDeleteAccount}
+      />
+
+      {/* v2.0.0 — Acil Durum Tıbbi Kimlik Kartı Modalı (ICE) */}
+      <MedicalIdModal
+        visible={showMedicalIdModal}
+        onClose={() => setShowMedicalIdModal(false)}
+        colors={colors}
+        isDark={isDark}
+        language={language === 'tr' ? 'tr' : 'en'}
       />
     </SafeAreaView>
   );

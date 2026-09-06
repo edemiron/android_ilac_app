@@ -32,12 +32,41 @@ describe('clinicalSafetyEngine', () => {
       expect(interactions).toContain('alcohol');
     });
 
+    it('detects vitamin_k and alcohol for warfarin/coumadin', () => {
+      const interactions = detectFoodInteractions('Coumadin 5 mg Tablet');
+      expect(interactions).toContain('vitamin_k');
+      expect(interactions).toContain('alcohol');
+    });
+
+    it('detects potassium risk for ACE inhibitors and ARBs', () => {
+      const interactions = detectFoodInteractions('Delix 2.5 mg Kapsül');
+      expect(interactions).toContain('potassium');
+      expect(interactions).toContain('alcohol');
+    });
+
+    it('detects tyramine risk for MAO inhibitors', () => {
+      const interactions = detectFoodInteractions('Aurorix 150 mg Film Tablet');
+      expect(interactions).toContain('tyramine');
+    });
+
     it('provides localized details for all food interaction types', () => {
       const dairy = FOOD_INTERACTION_DETAILS.dairy;
       expect(dairy.icon).toBe('🥛');
       expect(dairy.titleTr).toContain('Süt');
       expect(dairy.warningTr).toContain('kalsiyum');
       expect(dairy.severity).toBe('critical');
+
+      const vitK = FOOD_INTERACTION_DETAILS.vitamin_k;
+      expect(vitK.icon).toBe('🥬');
+      expect(vitK.titleTr).toContain('K Vitamini');
+
+      const pot = FOOD_INTERACTION_DETAILS.potassium;
+      expect(pot.icon).toBe('🍌');
+      expect(pot.titleTr).toContain('Potasyum');
+
+      const tyr = FOOD_INTERACTION_DETAILS.tyramine;
+      expect(tyr.icon).toBe('🧀');
+      expect(tyr.titleTr).toContain('Tiramin');
     });
   });
 

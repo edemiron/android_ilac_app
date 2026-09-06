@@ -11,11 +11,11 @@
  * 4. PATCH: Bug fix'ler
  */
 
-export const APP_VERSION = '1.9.4';
+export const APP_VERSION = '2.0.0';
 
-export const ANDROID_VERSION_CODE = 71;
+export const ANDROID_VERSION_CODE = 72;
 
-export const IOS_BUILD_NUMBER = '71';
+export const IOS_BUILD_NUMBER = '72';
 
 /**
  * Versiyon tarih damgası (Build zamanı)

@@ -8,7 +8,20 @@ Biçimlendirme standardı [Keep a Changelog](https://keepachangelog.com/tr/1.0.0
 
 ## [Unreleased]
 ### Added
-- Gelecek sürüm geliştirmeleri ve yol haritası maddeleri.
+- Gelecek sürüm geliştirmeleri ve Ufuk 3 AI Vision yol haritası maddeleri.
+
+## [2.0.0] - 2026-09-06
+### Added
+- **TİTCK Genişletilmiş İlaç-Gıda Etkileşim Motoru (`clinicalSafetyEngine.ts`):** Potasyum zengini gıdalar (ACE/ARB), K Vitamini / Yeşil yapraklı sebzeler (Warfarin/Coumadin) ve Tiramin içerikli gıdalar (MAO inhibitörleri) için klinik etkileşim kuralları ve hasta rehberliği eklendi.
+- **Acil Durum Tıbbi Kimlik Kartı (ICE - In Case of Emergency - `medicalIdStore.ts` & `MedicalIdModal.tsx`):**
+  - Kan grubu (A+, B+, AB+, 0+, Rh+/-), kronik hastalıklar, kayıtlı alerjiler ve özel protez/kalp pili notları.
+  - Tek dokunuşla 112 Acil Çağrı Merkezi ve acil irtibat kişilerini arama entegrasyonu.
+  - Kilit ekranında açık rıza ile tıbbi kimlik gösterme tercihi ve yerel şifrelenmiş kalıcı depolama (`ilac_medical_id_v1`).
+- **Vital Bulgular & İlaç Korelasyon Kartı (`VitalCorrelationCard.tsx`):**
+  - İlaç tedavisiyle eşzamanlı tansiyon (sistolik/diyastolik), açlık/tokluk kan şekeri ve nabız trend analizi.
+  - İlaç uyum skoru (`adherence`) ile vital ölçümler arasındaki klinik korelasyon özeti ve doğrudan semptom/ölçüm ekleme kısayolu.
+- **Kapsamlı Test Kapsamı:** Toplam 212 test paketi ve 2.211 birim/entegrasyon/stres testi (%100 yeşil, 0 hata).
+- **SemVer Major Sürüm Yükseltmesi:** `v2.0.0` (Android `versionCode: 72`).
 
 ## [1.9.4] - 2026-09-06
 ### Added

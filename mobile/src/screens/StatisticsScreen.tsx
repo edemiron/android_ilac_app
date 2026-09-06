@@ -23,6 +23,8 @@ import { PeriodSelector } from './StatisticsScreen/components/PeriodSelector';
 import { WeeklyDoseTracker } from './StatisticsScreen/components/WeeklyDoseTracker';
 import { MedicineBreakdownList } from './StatisticsScreen/components/MedicineBreakdownList';
 import { DoctorReportCard } from './StatisticsScreen/components/DoctorReportCard';
+import { VitalCorrelationCard } from './StatisticsScreen/components/VitalCorrelationCard';
+import { RecordSymptomModal } from '../components/common/RecordSymptomModal';
 
 // Presenter Hook
 import { useStatisticsController } from './StatisticsScreen/hooks/useStatisticsController';
@@ -51,6 +53,7 @@ export default function StatisticsScreen() {
     handleShareWhatsAppSummary,
   } = useStatisticsController();
 
+  const [showRecordVitalModal, setShowRecordVitalModal] = React.useState(false);
   const isTr = language === 'tr';
 
   return (
@@ -173,7 +176,17 @@ export default function StatisticsScreen() {
               language={language}
             />
 
-            {/* 4. İlaç Bazlı Başarı & Disiplin Analizi */}
+            {/* 4. Vital Sağlık Bulguları & İlaç Korelasyon Kartı (v2.0.0) */}
+            <VitalCorrelationCard
+              medicines={medicines}
+              overallAdherenceRate={overallStats.adherenceRate}
+              onOpenRecordVital={() => setShowRecordVitalModal(true)}
+              colors={colors}
+              isDark={isDark}
+              language={language}
+            />
+
+            {/* 5. İlaç Bazlı Başarı & Disiplin Analizi */}
             <MedicineBreakdownList
               medicines={medicineBreakdown}
               colors={colors}
@@ -269,6 +282,14 @@ export default function StatisticsScreen() {
 
         <View style={{ height: 60 }} />
       </ScrollView>
+
+      {/* v2.0.0 — Hızlı Semptom, Tansiyon & Şeker Kayıt Modalı */}
+      <RecordSymptomModal
+        visible={showRecordVitalModal}
+        onClose={() => setShowRecordVitalModal(false)}
+        colors={colors}
+        language={language === 'tr' ? 'tr' : 'en'}
+      />
     </SafeAreaView>
   );
 }

@@ -11,6 +11,7 @@ interface ProfileSectionProps {
   user: { email?: string | null; displayName?: string | null } | null;
   isSyncing: boolean;
   onAccountPress: () => void;
+  onMedicalIdPress?: () => void;
   navigation: NativeStackNavigationProp<RootStackParamList>;
   language: string;
 }
@@ -19,6 +20,7 @@ export function ProfileSection({
   user,
   isSyncing,
   onAccountPress,
+  onMedicalIdPress,
   navigation,
   language,
 }: ProfileSectionProps) {
@@ -43,6 +45,18 @@ export function ProfileSection({
         label={isTr ? 'Güvenlik & PIN Kilidi' : 'Security & PIN Lock'}
         description={isTr ? 'PIN ve Biyometrik Parmak İzi' : 'PIN & Biometric Fingerprint'}
         onPress={() => navigation.navigate('Security')}
+        showChevron
+      />
+
+      <SettingRow
+        icon={{ name: 'medical', color: '#DC2626' }}
+        label={isTr ? 'Acil Tıbbi Kimlik Kartı (ICE)' : 'Emergency Medical ID (ICE)'}
+        description={
+          isTr
+            ? 'Kan grubu, alerjiler ve 112 acil irtibat'
+            : 'Blood type, allergies & emergency contacts'
+        }
+        onPress={onMedicalIdPress}
         showChevron
       />
     </SettingsSection>

@@ -64,7 +64,10 @@ export type FoodInteractionType =
   | 'alcohol' // Alkol karaciğer/sedasyon riski
   | 'sunlight' // Güneş ışığına duyarlılık / fotosensitivite
   | 'caffeine' // Kafein taşikardi/emilim
-  | 'empty_stomach_strict'; // Kesin aç karnına
+  | 'empty_stomach_strict' // Kesin aç karnına
+  | 'potassium' // Potasyum / Tuz ikamesi (ACE/ARB hiperkalemi riski)
+  | 'vitamin_k' // K Vitamini / Yeşil sebzeler (Varfarin/Coumadin antagonizmi)
+  | 'tyramine'; // Tiramin / Fermente gıdalar (MAOI hipertansif kriz)
 
 export type MissedDoseRule =
   | 'take_now_if_half_time' // Yarı zaman geçmediyse hemen al

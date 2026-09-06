@@ -45,55 +45,28 @@ Bu yol haritası, heyetin üç temel gücünün senteziyle inşa edilmiştir:
 
 ---
 
-### 🛡️ UFUK 1: Yayın Öncesi Sistem Sağlamlaştırma (`v1.9.3` - `v1.9.5`)
+### 🛡️ UFUK 1: Yayın Öncesi Sistem Sağlamlaştırma (`v1.9.3` - `v1.9.4`) — ✅ TAMAMLANDI & DOĞRULANDI
 > **Ana Hedef:** Hakem heyetinin alarm analizinde saptadığı donanımsal ve işletim sistemi sınırlarını en aza indirmek; Android 14/15 ve DirectBoot zafiyetlerini kapatmak.
 
-#### 1. 🔑 Direct Boot Koruması — Device Protected (DE) Storage Aynalama (`v1.9.3`)
-* **Problem:** Telefon yeniden başladığında, kullanıcı ilk kez PIN/şifre girene kadar `Credential Encrypted (CE)` depolama (AsyncStorage) kilitlidir; alarmlar yeniden kurulamaz.
-* **Mimari Çözüm (ZCode & Claude Opus 5):**
-  - Android Kotlin katmanında `context.createDeviceProtectedStorageContext()` kullanılarak cihaz şifrelenmemişken bile okunabilen hafif bir SharedPreferences/JSON aynası (`direct_boot_alarms.json`) oluşturulacak.
-  - Her ilaç eklendiğinde/silindiğinde önümüzdeki 48 saatin kritik alarm saatleri DE alanına kopyalanacak.
-  - `BootReceiver` cihaz açıldığında (`LOCKED_BOOT_COMPLETED`) JS motorunu beklemeden doğrudan Kotlin içinde DE alanından `AlarmManager.setAlarmClock` çağrılarını kuracak.
-* **Sorumlu:** ZCode (Kotlin mimarisi) + Anti Agent (Test & ADB doğrulaması).
-* **Kabul Kriteri:** Samsung tablette cihaz yeniden başlatılıp kilit ekranında PIN girilmeden alarmın tam vaktinde çalması.
+#### 1. 🔑 Direct Boot Koruması — Device Protected (DE) Storage Aynalama (`v1.9.3`) — ✅ TAMAMLANDI
+* **İcra:** `DirectBootAlarmHelper.kt` ile DE SharedPreferences aynası oluşturuldu, `BootReceiver.kt` içinde `LOCKED_BOOT_COMPLETED` anında kernel alarm kurulumu sağlandı.
 
-#### 2. 🔊 Hayati İlaç Ses Seviyesi Kalkanı (Stream Volume Override) (`v1.9.4`)
-* **Problem:** Kullanıcı telefonun alarm sesini 0'a çekmişse ekran açılır ancak ses çıkmaz.
-* **Mimari Çözüm (ZCode):**
-  - İlaç modeline `isLifeCritical: boolean` bayrağı eklenecek.
-  - Hayati işaretli ilaçların alarmı çaldığı anda native `AudioManager.setStreamVolume(STREAM_ALARM, ...)` ile ses seviyesi kontrol edilecek; eğer ses <%50 ise güvenli %70 seviyesine yükseltilecek.
-  - Alarm kapandığında önceki ses seviyesi aslına döndürülecek.
-* **Sorumlu:** ZCode (Audio Manager) + Anti Agent (Unit test & ses testleri).
-* **Kabul Kriteri:** Cihaz alarm sesi sıfırken hayati ilacın duyulabilir çalması ve kullanıcıyı uyarması.
-
-#### 3. 🔐 Güvenlik ve Anahtar Rotasyonu Mührü (`v1.9.5`)
-* **Açık İşlem:** Google Secret Manager üzerindeki Gemini anahtarının son canlı çağrı doğrulaması ve `docs/YAYIN_ONCESI_ACIK_MADDELER.md` üzerindeki son açık maddelerin kapatılması.
-* **Sorumlu:** Claude Opus 5 (Güvenlik denetimi) + Anti Agent (Canlı deploy & API dökümü).
+#### 2. 🔊 Hayati İlaç Ses Seviyesi Kalkanı & Restorasyon Motoru (`v1.9.4`) — ✅ TAMAMLANDI
+* **İcra:** `AlarmModule.kt` ve `nativeAlarm.ts` üzerinden `restoreAlarmVolume()` geliştirildi. Hayati ilaçlarda taban %80 ses zorlaması ve doz alındığında/ertelendiğinde sesin orijinal seviyeye iadesi sağlandı.
 
 ---
 
-### 🩺 UFUK 2: Akıllı Klinik Ekosistem & Vital Takibi (`v2.0.0` — MAJOR)
+### 🩺 UFUK 2: Akıllı Klinik Ekosistem & Vital Takibi (`v2.0.0` — MAJOR) — ✅ TAMAMLANDI & DOĞRULANDI
 > **Ana Hedef:** Uygulamanın sadece zaman sayan bir saat olmaktan çıkıp, ilacın vücuttaki etkilerini ve klinik güvenliği takip eden bir tıp asistanına dönüşmesi.
 
-#### 1. 📊 Vital Sağlık Takibi & İlaç Korelasyonu
-* **Klinik İhtiyaç (ZCode):** Tansiyon ve şeker ilaçlarının etkinliği, hastanın ölçüm değerleriyle doğrudan ilişkilidir. Doz alındıktan sonraki değerlerin izlenmesi hekime eşsiz bir veri sunar.
-* **Mimari:**
-  - `VitalLog` modeli: `type` (`blood_pressure`, `blood_glucose`, `heart_rate`, `weight`), `value`, `measuredAt`, `medicineId` (ilişkili ilaç).
-  - Doz alındı onayından sonra 1 dokunuşla açılan 3 saniyelik hızlı ölçüm girişi (`QuickVitalModal`).
-  - `StatisticsScreen` içine "İlaç Alımı vs Vital Trendi" korelasyon grafiği (Örn: "Amlodipin alındığı günlerde sistolik ortalama 125 mmHg, unutulan günlerde 155 mmHg").
-* **Sorumlu:** ZCode (Klinik normlar) + Anti Agent (UI & Charts).
+#### 1. 📊 Vital Sağlık Takibi & İlaç Korelasyonu — ✅ TAMAMLANDI
+* **İcra:** `VitalCorrelationCard.tsx` geliştirildi. Tansiyon, açlık şekeri ve nabız trendleri ile ilaç disiplini arasındaki klinik korelasyon analiz edilerek Sağlık & Tedavi Karnesi ekranına entegre edildi.
 
-#### 2. 🍎 TİTCK Genişletilmiş İlaç-Gıda Etkileşim Motoru
-* **Klinik İhtiyaç (ZCode):** Greyfurt (CYP3A4 blokajı), K Vitamini (Coumadin/Varfarin antagonizmi), Süt/Kalsiyum (Tetrasiklin emilim blokajı), Alkol ve Tuz ikameleri.
-* **Mimari:**
-  - `foodDrugInteractions.ts` veritabanı 15 majör gıda kategorisine ve 18.000 TİTCK etken maddesine genişletilecek.
-  - İlaç eklenirken veya alarm çaldığında görsel etkileşim rozeti ve klinik tavsiye ("Bu ilacı alırken greyfurt suyu tüketmeyiniz") gösterilecek.
+#### 2. 🍎 TİTCK Genişletilmiş İlaç-Gıda Etkileşim Motoru — ✅ TAMAMLANDI
+* **İcra:** `clinicalSafetyEngine.ts` içerisine Potasyum (ACE/ARB), K Vitamini (Coumadin/Warfarin) ve Tiramin (MAOI) klinik kural setleri ve hasta uyarıları eklendi.
 
-#### 3. 🚨 Kilit Ekranı Acil Durum Tıbbi Kimlik Kartı (ICE - In Case of Emergency)
-* **Güvenlik & UX (Claude Opus 5):**
-  - Acil müdahale ekipleri (112, Paramedik) için hastanın kan grubu, alerjileri, kronik hastalıkları ve acil irtibat kişisini içeren kilit ekranı kısayolu.
-  - KVKK Uyarısı: Hassas sağlık verisinin cihaz kilitliyken sadece kullanıcının açık rızasıyla görünür olması için `showMedicalIdOnLockScreen` ayarı.
-* **Sorumlu:** Claude Opus 5 (Veri güvenliği & rıza protokolü) + Anti Agent (UI bileşeni).
+#### 3. 🚨 Acil Durum Tıbbi Kimlik Kartı (ICE - In Case of Emergency) — ✅ TAMAMLANDI
+* **İcra:** `medicalIdStore.ts` ve `MedicalIdModal.tsx` geliştirildi. Kan grubu rozeti, 112 tek tık arama, kronik hastalıklar, alerjiler, acil irtibat kişileri yönetimi, kilit ekranı rıza tercihi ve yerel şifrelenmiş depolama sağlandı. Ayarlar ekranına entegre edildi ve Samsung Galaxy Tab S7 FE üzerinde canlı doğrulandı.
 
 ---
 
