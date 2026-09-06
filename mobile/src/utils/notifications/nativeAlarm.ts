@@ -54,6 +54,23 @@ interface AlarmModuleShape {
     reminderTimeId: string,
     alarmKind: NativeAlarmKind
   ) => Promise<boolean>;
+  getDirectBootAlarmCount?: () => Promise<number>;
+  getAlarmStreamVolume?: () => Promise<StreamVolumeInfo | null>;
+  ensureSafeAlarmVolume?: (minRatio: number) => Promise<VolumeAdjustmentResult | null>;
+}
+
+export interface StreamVolumeInfo {
+  currentVolume: number;
+  maxVolume: number;
+  volumePercent: number;
+  isMuted: boolean;
+}
+
+export interface VolumeAdjustmentResult {
+  previousVolume: number;
+  currentVolume: number;
+  maxVolume: number;
+  wasAdjusted: boolean;
 }
 
 /**
@@ -143,3 +160,42 @@ export async function cancelNativeAlarmResources(
   await cancelNativeAlarm(target, kind);
   await cancelNativeAlarmNotification(target, kind);
 }
+
+/** Direct Boot DE storage alanındaki kayıtlı alarm sayısını döner (v1.9.3). */
+export async function getDirectBootAlarmCount(): Promise<number> {
+  const alarmModule = getAlarmModule();
+  if (!alarmModule?.getDirectBootAlarmCount) return 0;
+  try {
+    return await alarmModule.getDirectBootAlarmCount();
+  } catch (error) {
+    log.debug('DirectBoot alarm sayısı okunamadı', { error: String(error) });
+    return 0;
+  }
+}
+
+/** STREAM_ALARM ses seviyesi bilgilerini döner (v1.9.3). */
+export async function getAlarmStreamVolume(): Promise<StreamVolumeInfo | null> {
+  const alarmModule = getAlarmModule();
+  if (!alarmModule?.getAlarmStreamVolume) return null;
+  try {
+    return await alarmModule.getAlarmStreamVolume();
+  } catch (error) {
+    log.debug('STREAM_ALARM seviyesi okunamadı', { error: String(error) });
+    return null;
+  }
+}
+
+/** Hayati ilaçlar için STREAM_ALARM ses seviyesini en az minRatio (varsayılan %70) seviyesine çeker (v1.9.3). */
+export async function ensureSafeAlarmVolume(
+  minRatio: number = 0.7
+): Promise<VolumeAdjustmentResult | null> {
+  const alarmModule = getAlarmModule();
+  if (!alarmModule?.ensureSafeAlarmVolume) return null;
+  try {
+    return await alarmModule.ensureSafeAlarmVolume(minRatio);
+  } catch (error) {
+    log.debug('ensureSafeAlarmVolume başarısız', { error: String(error) });
+    return null;
+  }
+}
+

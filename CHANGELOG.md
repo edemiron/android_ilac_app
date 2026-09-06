@@ -10,6 +10,13 @@ Biçimlendirme standardı [Keep a Changelog](https://keepachangelog.com/tr/1.0.0
 ### Added
 - Gelecek sürüm geliştirmeleri ve yol haritası maddeleri.
 
+## [1.9.3] - 2026-09-06
+### Added
+- **DirectBoot Sentinel — Device Protected Storage (DE) Aynalama (`DirectBootAlarmHelper.kt`):** Cihaz yeniden başladığında kullanıcı ilk kilit açmayı (PIN/desen) yapana kadar kilitli kalan Credential Encrypted (CE) depolama engelini aşmak için `createDeviceProtectedStorageContext()` ile şifrelenmemiş SharedPreferences aynası oluşturuldu.
+- **Kilit Açılmadan Önce Otomatik Kernel Alarm Kurulumu (`BootReceiver.kt`):** `LOCKED_BOOT_COMPLETED` veya `BOOT_COMPLETED` alındığında React Native ve HeadlessJS'in başlatılmasını beklemeden DE alanındaki tüm geçerli alarmlar doğrudan `AlarmManager.setAlarmClock` ile kurulur.
+- **Kritik Alarm Ses Seviyesi Kalkanı (`AlarmModule.kt` & `nativeAlarm.ts`):** `ensureSafeAlarmVolume` ve `getAlarmStreamVolume` native köprüleri eklendi. Alarm tetiklendiğinde `STREAM_ALARM` ses seviyesi sıfırsa veya çok kısıksa otomatik olarak güvenli %70 seviyesine yükseltilir (`useAlarmController.ts`).
+- **DirectBoot & Volume Shield Birim Testleri (`directBootAlarm.test.ts`):** 9 yeni birim testi eklendi; toplam test paketi 209'a, test sayısı 2.195'e yükseldi (%100 yeşil).
+
 ---
 
 ## [1.9.2] - 2026-09-06

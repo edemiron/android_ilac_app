@@ -7,7 +7,7 @@
   "expo": {
     "name": "İlaç Hatırlatıcı",
     "slug": "ilac-hatirlatici",
-    "version": "1.9.2",
+    "version": "1.9.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -21,15 +21,19 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ilachatirlatici",
       "infoPlist": {
-        "UIBackgroundModes": ["audio", "fetch", "remote-notification"],
+        "UIBackgroundModes": [
+          "audio",
+          "fetch",
+          "remote-notification"
+        ],
         "NSCameraUsageDescription": "Barkod taramak için kamera erişimi gereklidir.",
         "NSSpeechRecognitionUsageDescription": "Sesli hatırlatmalar için konuşma tanıma gereklidir."
       },
-      "buildNumber": "69"
+      "buildNumber": "70"
     },
     "scheme": "ilachatirlatici",
     "android": {
-      "versionCode": 69,
+      "versionCode": 70,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4ECDC4"
@@ -45,7 +49,10 @@
               "scheme": "ilachatirlatici"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "permissions": [
@@ -78,7 +85,9 @@
       [
         "expo-notifications",
         {
-          "sounds": ["./assets/alarm.mp3"]
+          "sounds": [
+            "./assets/alarm.mp3"
+          ]
         }
       ],
       "@react-native-firebase/app",
@@ -104,11 +113,11 @@
       }
     }
   },
-  "version": "1.9.2",
+  "version": "1.9.3",
   "android": {
-    "versionCode": 69
+    "versionCode": 70
   },
   "ios": {
-    "buildNumber": "69"
+    "buildNumber": "70"
   }
 }

@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -195,6 +196,8 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
             val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerTimeMs.toLong(), showIntent)
 
             alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
+            // DirectBoot DE storage aynasını güncelle (v1.9.3)
+            DirectBootAlarmHelper.saveAlarm(context, triggerTimeMs.toLong(), medicineId, reminderTimeId, kind)
             Log.d(TAG, "scheduleNativeAlarm: AlarmManager.setAlarmClock kuruldu (triggerTime: $triggerTimeMs -> AlarmReceiver)")
             promise.resolve(true)
         } catch (e: Exception) {
@@ -358,6 +361,8 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
                 val pendingIntent = PendingIntent.getBroadcast(context, requestCode, intent, flags)
                 alarmManager.cancel(pendingIntent)
                 pendingIntent.cancel()
+                // DirectBoot DE storage aynasından sil (v1.9.3)
+                DirectBootAlarmHelper.removeAlarm(context, medicineId, reminderTimeId, kind)
                 Log.d(TAG, "cancelNativeAlarm: Alarm iptal edildi ($medicineId - $reminderTimeId, kind=$kind)")
             }
             promise.resolve(true)
@@ -729,6 +734,86 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
         } catch (e: Exception) {
             Log.e(TAG, "getOEMShieldInfo hatası", e)
             promise.resolve(Arguments.createMap())
+        }
+    }
+
+    /**
+     * Direct Boot DE SharedPreferences'ta kayıtlı alarm sayısını döner (v1.9.3).
+     */
+    @ReactMethod
+    fun getDirectBootAlarmCount(promise: Promise) {
+        try {
+            val count = DirectBootAlarmHelper.getAlarmCount(reactApplicationContext)
+            promise.resolve(count)
+        } catch (e: Exception) {
+            Log.e(TAG, "getDirectBootAlarmCount hatası", e)
+            promise.resolve(0)
+        }
+    }
+
+    /**
+     * STREAM_ALARM ses seviyesini sorgular (v1.9.3).
+     */
+    @ReactMethod
+    fun getAlarmStreamVolume(promise: Promise) {
+        try {
+            val am = reactApplicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (am == null) {
+                promise.resolve(null)
+                return
+            }
+            val current = am.getStreamVolume(AudioManager.STREAM_ALARM)
+            val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            val percent = if (max > 0) ((current.toDouble() / max.toDouble()) * 100).toInt() else 0
+
+            val map = Arguments.createMap().apply {
+                putInt("currentVolume", current)
+                putInt("maxVolume", max)
+                putInt("volumePercent", percent)
+                putBoolean("isMuted", current == 0)
+            }
+            promise.resolve(map)
+        } catch (e: Exception) {
+            Log.e(TAG, "getAlarmStreamVolume hatası", e)
+            promise.resolve(null)
+        }
+    }
+
+    /**
+     * Hayati ilaçlar için STREAM_ALARM ses seviyesinin minimum oranda (varsayılan %70)
+     * duyulabilir olmasını sağlar (v1.9.3).
+     */
+    @ReactMethod
+    fun ensureSafeAlarmVolume(minRatio: Double, promise: Promise) {
+        try {
+            val am = reactApplicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (am == null) {
+                promise.resolve(false)
+                return
+            }
+            val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            val current = am.getStreamVolume(AudioManager.STREAM_ALARM)
+            val ratio = if (minRatio in 0.1..1.0) minRatio else 0.7
+            val targetMinVolume = (max * ratio).toInt().coerceAtLeast(1)
+
+            val map = Arguments.createMap().apply {
+                putInt("previousVolume", current)
+                putInt("maxVolume", max)
+            }
+
+            if (current < targetMinVolume) {
+                am.setStreamVolume(AudioManager.STREAM_ALARM, targetMinVolume, 0)
+                map.putInt("currentVolume", targetMinVolume)
+                map.putBoolean("wasAdjusted", true)
+                Log.i(TAG, "ensureSafeAlarmVolume: Alarm sesi $current -> $targetMinVolume seviyesine yükseltildi")
+            } else {
+                map.putInt("currentVolume", current)
+                map.putBoolean("wasAdjusted", false)
+            }
+            promise.resolve(map)
+        } catch (e: Exception) {
+            Log.e(TAG, "ensureSafeAlarmVolume hatası", e)
+            promise.resolve(false)
         }
     }
 }

@@ -4,10 +4,11 @@ Bu dosya, **Antigravity (Anti Agent)** için IDE kapatılıp açılsa dahi her z
 
 ---
 
-## 🏛️ 1. Temel İş Bölümü: "Beyin (ZCode) — El (Antigravity)"
+## 🏛️ 1. Temel İş Bölümü: "Beyin (Çift Hakem Heyeti) — El (Antigravity)"
 
-- **ZCode (GLM-5.3 Flash High):** Mimari planlama, klinik güvenlik kuralları, TİTCK veri modellemesi, zamanlama algoritmaları, Doze Mode & alarm stratejileri, SemVer sürümleme kararları ve hakem kod incelemesini (Code Review) yürütür.
-- **Anti Agent (Antigravity):** Kodlama, dosya işlemleri, tüm Jest test paketlerini çalıştırma, Gradle release derleme (`assembleRelease`), ADB ile Samsung/Xiaomi cihazlara canlı yükleme ve SemVer Changelog/arşivleme protokolünü icra eder.
+- **ZCode (GLM-5.3 Flash High):** Birincil klinik & Android mimarı. TİTCK ilaç veri modeli, Doze Mode & alarm stratejileri, Refakatçi senkronizasyonu ve hakem kod incelemesini yürütür.
+- **Claude Opus 5 (High Effort):** Bağımsız üst hakem & baş denetçi. 1M token bağlam analizi, karmaşık mimari refactoring, derin güvenlik/zafiyet denetimi ve çapraz ikinci görüş sağlar.
+- **Anti Agent (Antigravity):** Akıllı yönlendirici (orchestrator), kodlama, dosya işlemleri, tüm Jest testlerini çalıştırma, Gradle release derleme (`assembleRelease`), ADB ile Samsung/Xiaomi cihazlara canlı yükleme ve SemVer Changelog/arşivleme protokolünü icra eder.
 
 ---
 
@@ -39,3 +40,15 @@ Bu dosya, **Antigravity (Anti Agent)** için IDE kapatılıp açılsa dahi her z
 2. **Sürüm Arşivi:** `docs/archive/vX.X.X_YYYY-MM-DD_HH-mm_konu-basligi.md` oluşturulacak ve `ARCHIVE_INDEX.md` güncellenecektir.
 3. **APK Kaydı:** Güncel release APK ana dizine (`IlacHatirlatici_vX.X.X_release.apk`, `app-release.apk`) ve `apk/` klasörüne kopyalanacaktır.
 4. **Anti Agent Eylem Raporu & Store Notu:** Rapor sonucunda Anti Agent'ın ve ZCode'un yaptığı teknik adımlar ve mağaza güncelleme notu açıkça sunulacaktır.
+
+---
+
+## 🤖 5. Akıllı Hakem Yönlendirme Protokolü (Otomatik Hakem Triage)
+
+Kullanıcı model belirtmeksizin bir soru sorduğunda ya da görev verdiğinde, **Antigravity (Anti Agent)** konunun mahiyetine göre hakemi otomatik seçer ve yanıtında seçilen hakemi açıkça bildirir:
+
+1. **🧠 ZCode (GLM-5.3 Flash High):** Android 14/15 `USE_EXACT_ALARM`, Doze Mode, OEM (Samsung, Xiaomi, Huawei) pil kalkanı, TİTCK ilaç veri tabanı, kaçırılan doz triyajı ve Refakatçi Firestore yarış durumları.
+2. **👑 Claude Opus 5 (High Effort):** Büyük çaplı mimari tasarımlar, derin kod refactoring stratejileri, derin güvenlik ve yetkilendirme denetimleri, bellek sızıntıları ve karmaşık algoritmik çakışmalar.
+3. **⚖️ Çift Hakem Heyeti (Konsensüs):** Kırıcı değişiklikler (MAJOR SemVer), veritabanı şema migrasyonları veya çekirdek mimariyi değiştiren radikal kararlarda her iki hakeme de danışılır, sentezlenip tek konsensüs raporu sunulur.
+4. **⚡ Doğrudan İcra (Antigravity):** Kodlama, dosya işlemleri, test çalıştırma, APK derleme ve ADB cihaz kurulumu gibi operasyonel adımlar hakem meşgul edilmeden doğrudan icra edilir.
+

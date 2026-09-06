@@ -32,6 +32,7 @@ import {
 import {
   cancelNativeAlarmResources,
   cancelNativeAlarmNotification,
+  ensureSafeAlarmVolume,
   ALARM_KIND_MAIN,
   ALARM_KIND_SNOOZE,
   type NativeAlarmKind,
@@ -494,6 +495,9 @@ export function useAlarmController() {
     });
 
     if (!isStoppedRef.current) {
+      // v1.9.3: Volume Shield — alarm anında Android STREAM_ALARM seviyesini
+      // kontrol et, sıfırsa/kısıksa güvenli %70 seviyesine yükselt.
+      void ensureSafeAlarmVolume(0.7);
       playAlarmSound(settings.alarmVolume ?? 80, settings.alarmSound ?? 'soft_chime');
     }
 

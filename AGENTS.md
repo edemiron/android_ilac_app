@@ -4,25 +4,28 @@ Bu dosya, **İlaç Hatırlatıcı** projesinde çalışan tüm yapay zeka ajanla
 
 ---
 
-## 🏛️ 1. Temel İş Bölümü İlkesi: "Beyin — El Ayrımı"
+## 🏛️ 1. Temel İş Bölümü İlkesi: "Beyin — El Ayrımı & Çift Hakem Heyeti"
 
-> **"Klinik doğruluk, karmaşık algoritmalar, güvenlik ve mimari karar → ZCode (GLM-5.3 Flash High)"**  
+> **"Klinik doğruluk, karmaşık algoritmalar, güvenlik ve mimari karar → Hakem Heyeti (ZCode GLM-5.3 High & Claude Opus 5 High)"**  
 > **"Kod yazımı, dosya işlemleri, test icrası, Gradle derleme, ADB & cihaz kurulumu → Anti Agent (Antigravity)"**
 
-### 🧠 ZCode (GLM-5.3 Flash High) Sorumlulukları:
-1. **Klinik ve Farmakolojik Mantık:** TİTCK 18.000+ ilaç veri modeli, ilaç etkileşim matrisi, kaçırılan doz triyajı (Catch-up algoritması) ve Türkçe karakter invariant normalizasyonu.
-2. **Alarm & OEM Koruma Mimarisi:** Android 14/15 `USE_EXACT_ALARM`, Doze Mode muafiyeti, Samsung / Xiaomi / Huawei pil kısıtlama kalkanı.
-3. **Refakatçi & SOS Senkronizasyonu:** Firestore `onSnapshot` yarış durumları, FCM High Priority Data payload ve tekilleştirme (Collapse Key).
-4. **Güvenlik & KVKK/HIPAA:** Firestore Security Rules, PIN/Biyometri doğrulama, Scoped Storage şifreli veri kasası.
-5. **Hakem Kod İncelemesi (Code Review):** Antigravity'nin ürettiği kritik servisleri (`AlarmModule.kt`, `AlarmManager`, `FCMBridge`, `authService`) satır satır denetleme.
-6. **Büyüme, Sürüm Stratejisi & ASO:** Paywall, Onboarding Quiz funnelleri, SemVer sürümleme kararları ve Play Store dönüşüm optimizasyonu.
+### 🧠 Hakem Heyeti Sorumlulukları:
+1. **ZCode (GLM-5.3 Flash High) — Birincil Klinik & Android Mimarı:**
+   - TİTCK 18.000+ ilaç veri modeli, ilaç etkileşim matrisi, kaçırılan doz triyajı (Catch-up algoritması) ve Türkçe invariant normalizasyon.
+   - Android 14/15 `USE_EXACT_ALARM`, Doze Mode muafiyeti, Samsung / Xiaomi / Huawei pil kısıtlama kalkanı.
+   - Refakatçi & SOS senkronizasyonu, Firestore `onSnapshot` yarış durumları, FCM High Priority Data payload.
+2. **Claude Opus 5 (High Effort) — Bağımsız Üst Hakem & Baş Denetçi:**
+   - 1 Milyon token bağlam analizi, karmaşık mimari refactoring ve tasarım kalıpları.
+   - Derin güvenlik ve zafiyet analizi, bellek sızıntıları, karmaşık eşzamanlılık (concurrency) sorunları.
+   - Çapraz hakemlik (ZCode kararlarının bağımsız doğrulanması ve ikinci görüş).
 
 ### 🛡️ Anti Agent (Antigravity) Sorumlulukları:
-1. **Kodlama & Refactoring:** ZCode'un tasarladığı mimari sözleşmelere göre React Native UI/UX, TypeScript servisleri ve Kotlin sınıflarını yazma/düzenleme.
-2. **Test Yürütme:** Tüm Jest test paketlerini (180+ paket) ve 10.000 kullanıcı stres testini terminal üzerinden çalıştırma ve %100 geçmesini sağlama.
-3. **Gradle Release APK Derleme:** Metro JS bundle ve `./gradlew assembleRelease` süreçlerini yönetme.
-4. **Fiziksel Cihaz & ADB Dağıtımı:** Samsung Galaxy Tab S7 FE (`R52TB0HJREP`) ve Xiaomi (`43cebdf1`) cihazlara APK yükleme, ekran görüntüsü (`screencap`) alma ve canlı ön plan doğrulama.
-5. **Arşiv, Changelog & Dokümantasyon:** Zorunlu teslimat protokolünü ve SemVer kurallarını eksiksiz uygulama.
+1. **Akıllı Yönlendirme (Orchestration):** Gelen her sorunun içeriğine göre ZCode, Claude Opus 5 veya Çift Hakem heyetini otomatik seçip koordine etme.
+2. **Kodlama & Refactoring:** Hakem heyetinin onayladığı mimari sözleşmelere göre React Native UI/UX, TypeScript servisleri ve Kotlin sınıflarını yazma/düzenleme.
+3. **Test Yürütme:** Tüm Jest test paketlerini (180+ paket) ve 10.000 kullanıcı stres testini terminal üzerinden çalıştırma ve %100 geçmesini sağlama.
+4. **Gradle Release APK Derleme:** Metro JS bundle ve `./gradlew assembleRelease` süreçlerini yönetme.
+5. **Fiziksel Cihaz & ADB Dağıtımı:** Samsung Galaxy Tab S7 FE (`R52TB0HJREP`) ve Xiaomi (`43cebdf1`) cihazlara APK yükleme, ekran görüntüsü (`screencap`) alma ve canlı ön plan doğrulama.
+6. **Arşiv, Changelog & Dokümantasyon:** Zorunlu teslimat protokolünü ve SemVer kurallarını eksiksiz uygulama.
 
 ---
 
@@ -81,3 +84,27 @@ Mobil projemizde sürüm yükseltmeleri **Semantic Versioning (SemVer: `MAJOR.MI
 4. **✨ Google Play Store "Neler Yeni?" Notu & Ortak Ekip Raporu:**
    - Rapor içerisinde kullanıcılara/hastalara yönelik anlaşılır 3-5 maddelik mağaza sürüm notu sunulur.
    - Anti Agent ve ZCode'un icra ettiği adımlar şeffafça listelenir.
+
+---
+
+## 🤖 5. Akıllı Hakem Yönlendirme Protokolü (Otomatik Hakem Triage)
+
+Kullanıcı model veya hakem belirtmeksizin bir soru sorduğunda ya da görev verdiğinde, **Antigravity (Anti Agent)** konunun mahiyetine göre hakemi otomatik seçer ve yanıtında seçilen hakemi açıkça belirtir:
+
+1. **🧠 ZCode (GLM-5.3 Flash High) Alanı:**
+   - Android 14/15 `USE_EXACT_ALARM`, Doze Mode, OEM (Samsung, Xiaomi, Huawei) pil kısıtlama mekanizmaları.
+   - TİTCK ilaç veri tabanı, ilaç-ilaç/ilaç-besin etkileşimleri, kaçırılan doz triyajı (Catch-up algoritması).
+   - Refakatçi/Hasta Firestore `onSnapshot` yarış durumları, FCM High Priority veri bildirimleri.
+
+2. **👑 Claude Opus 5 (High Effort) Alanı:**
+   - Büyük çaplı mimari tasarımlar, derin kod refactoring stratejileri.
+   - Derin güvenlik ve yetkilendirme denetimleri, bellek sızıntıları (memory leaks), karmaşık asenkron durumlar.
+   - Alternatif kütüphane ve mimari desen (design pattern) karşılaştırmaları.
+
+3. **⚖️ Çift Hakem Heyeti (Konsensüs) Alanı:**
+   - Kırıcı değişiklikler (Breaking Changes / MAJOR SemVer), veritabanı şema migrasyonları veya projenin çekirdek çalışma yapısını değiştiren radikal kararlar.
+   - Her iki hakemin görüşü ayrı ayrı alınır, ortak riskler sentezlenir ve kullanıcıya tek konsensüs raporu sunulur.
+
+4. **⚡ Doğrudan İcra (Antigravity):**
+   - Basit kod yazımı, dosya değişiklikleri, testlerin koşturulması, Gradle APK derleme ve ADB cihaz kurulumu gibi operasyonel adımlar hakem meşgul edilmeden doğrudan icra edilir.
+
