@@ -28,6 +28,7 @@ import { WeeklyCalendarStrip } from './HomeScreen/components/WeeklyCalendarStrip
 import { TimeSlotGrid } from './HomeScreen/components/TimeSlotGrid';
 import { TimeSlotModal } from './HomeScreen/components/TimeSlotModal';
 import { SeniorHomeView } from './HomeScreen/components/SeniorHomeView';
+import { AlarmHealthBanner } from './HomeScreen/components/AlarmHealthBanner';
 
 // Presenter Hook
 import { useHomeController } from './HomeScreen/hooks/useHomeController';
@@ -152,6 +153,9 @@ export default function HomeScreen() {
           onSettingsPress={() => navigation.navigate('Settings' as never)}
           onSosPress={handleEmergencySos}
         />
+
+        {/* 1.5. Alarm Sağlık & İzin Kalkanı Uyarısı (Eksik kritik izin varsa gösterilir) */}
+        <AlarmHealthBanner language={language === 'en' ? 'en' : 'tr'} isDark={isDark} />
 
         {/* 2. Compact Haftalık Takvim Çubuğu */}
         <WeeklyCalendarStrip

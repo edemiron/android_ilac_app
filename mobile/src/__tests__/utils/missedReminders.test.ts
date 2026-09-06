@@ -108,4 +108,37 @@ describe('markMissedReminders', () => {
       markMissedReminders(medicines, reminders, [], new Date('2024-06-25T20:00:00Z'), 0)
     ).not.toThrow();
   });
+
+  it('skips medicines when not scheduled for target day (specificDays)', () => {
+    // 2024-06-25 Salı günüdür (day index 2)
+    // specificDays = [1] (yalnızca Pazartesi)
+    const mondayOnlyMed: Medicine = {
+      ...baseMedicine,
+      scheduleType: 'specific_days',
+      specificDays: [1],
+    };
+    const result = markMissedReminders(
+      [mondayOnlyMed],
+      [baseReminder],
+      [],
+      new Date('2024-06-25T20:00:00Z'),
+      0
+    );
+    expect(result).toEqual([]);
+  });
+
+  it('skips medicines when past endDate (treatment completed)', () => {
+    const expiredMed: Medicine = {
+      ...baseMedicine,
+      endDate: '2024-06-20',
+    };
+    const result = markMissedReminders(
+      [expiredMed],
+      [baseReminder],
+      [],
+      new Date('2024-06-25T20:00:00Z'),
+      0
+    );
+    expect(result).toEqual([]);
+  });
 });

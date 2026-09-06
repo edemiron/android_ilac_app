@@ -915,6 +915,9 @@ function AppContent() {
           appLog.debug('Stale snooze cleanup done', { staleCount });
         }
 
+        // Kaçırılan geçmiş dozları mutabakat et (missed olarak kaydet)
+        storeState.markMissedReminders();
+
         // Alarmları yeniden planla
         if (validMedicineIds.length > 0) {
           const result = await reRegisterAllAlarms('app_startup');

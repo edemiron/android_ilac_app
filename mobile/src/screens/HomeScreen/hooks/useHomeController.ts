@@ -81,6 +81,7 @@ export function useHomeController() {
   const createSnooze = useMedicineStore(state => state.createSnooze);
   const getLowStockMedicines = useMedicineStore(state => state.getLowStockMedicines);
   const updateSettings = useMedicineStore(state => state.updateSettings);
+  const markMissedReminders = useMedicineStore(state => state.markMissedReminders);
 
   const isSeniorMode = settings?.seniorModeEnabled ?? false;
   const toggleSeniorMode = useCallback(() => {
@@ -116,34 +117,40 @@ export function useHomeController() {
     return () => clearTimeout(timer);
   }, [medicines, expiryWarningShown]);
 
-  // Kalıcı bildirim kontrolü
+  // Yaşam döngüsü & Ön Plan Senkronizasyonu (AppState active / mount)
   useEffect(() => {
-    if (!settings.persistentNotificationEnabled) {
-      dismissAllPersistentNotifications();
-      return;
-    }
-
-    const checkPendingMedicines = async () => {
+    const handleForegroundSync = () => {
       try {
-        await checkAndShowPersistentNotifications(medicines, reminderTimes, medicineLogs);
+        markMissedReminders();
+        refreshWidget();
+        dismissAllPersistentNotifications();
       } catch (error) {
-        log.warn('Kalıcı bildirim kontrolü hatası', error);
+        log.warn('Ön plan senkronizasyon hatası', error);
       }
     };
+
+    // İlk mount anında kaçırılan dozları hesapla ve widget/bildirim durumunu senkronize et
+    handleForegroundSync();
 
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
-        dismissAllPersistentNotifications();
-        refreshWidget();
-      } else if (nextAppState === 'background') {
-        checkPendingMedicines();
+        handleForegroundSync();
+      } else if (nextAppState === 'background' && settings.persistentNotificationEnabled) {
+        checkAndShowPersistentNotifications(medicines, reminderTimes, medicineLogs).catch(error => {
+          log.warn('Kalıcı bildirim kontrolü hatası', error);
+        });
       }
     };
 
-    dismissAllPersistentNotifications();
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
-  }, [medicines, reminderTimes, medicineLogs, settings.persistentNotificationEnabled]);
+  }, [
+    markMissedReminders,
+    medicines,
+    reminderTimes,
+    medicineLogs,
+    settings.persistentNotificationEnabled,
+  ]);
 
   const isSelectedDateToday = useMemo(() => {
     return isSameDay(selectedCalendarDate, new Date());

@@ -12,6 +12,20 @@ Biçimlendirme standardı [Keep a Changelog](https://keepachangelog.com/tr/1.0.0
 
 ---
 
+## [1.9.2] - 2026-09-06
+### Added
+- **Ana Ekran Alarm İzin & Sağlık Kalkanı (`AlarmHealthBanner.tsx`):** Android 12+ kesin alarm (`canScheduleExactAlarms`), Android 14+ kilit ekranında tam ekran alarm (`canUseFullScreenIntent`), bildirim izni veya pil optimizasyonu muafiyeti kapalı olduğunda Ana Ekranda uyarı gösterilerek tek dokunuşla ilgili üretici/sistem ayarına yönlendirme sağlandı.
+- **Alarm Kalkanı & Kaçırılan Doz Kapsamlı Testleri:** `AlarmHealthBanner.test.tsx` (6 test) ve `missedReminders.test.ts` (9 test) eklendi.
+
+### Changed
+- **Uygulama Açılışı ve Ön Planda Otomatik Kaçırılan Doz Mutabakatı (`markMissedReminders`):** `useHomeController.ts` (`AppState` active) ve `App.tsx` startup temizliğine `markMissedReminders()` entegre edildi. 60 dakikalık klinik tolerans süresini aşan ve alınmamış dozlar otomatik olarak `missed` işaretlenir, hasta uyum skoru (`adherence.ts`) ve bakıcı canlı senkronizasyonu güncellenir.
+
+### Fixed
+- **Özel Gün & Tedavi Bitiş Tarihi Kaçırılan Doz Hatası (`missedReminders.ts`):** `isMedicineScheduledForDate` entegrasyonu ile yalnızca o gün için planlanmış ilaçların (`specificDays`, `intervalDays`, `cycle`, `endDate`) kaçırıldı olarak kaydedilmesi sağlandı; ara günlerdeki ilaçların yanlışlıkla kaçırıldı sayılması engellendi.
+- **Kalıcı Bildirim Kapalıyken Ön Plan Yaşam Döngüsü Engeli (`useHomeController.ts`):** `AppState` dinleyicisi kalıcı bildirim ayarından bağımsız hale getirilerek her ön plana gelişte widget yenilenmesi ve mutabakat güvenceye alındı.
+
+---
+
 ## [1.7.0] - 2026-08-31
 ### Added
 - **14 Günlük Kayar Ufuk Doz Zamanlama Algoritması (`rollingHorizonScheduler.ts`):** iOS 64 bekleyen yerel bildirim sınırını (`MAX_PENDING = 60`) ve Android aşırı alarm bellek şişmesini engelleyen akıllı kayar pencere projeksiyon motoru.
