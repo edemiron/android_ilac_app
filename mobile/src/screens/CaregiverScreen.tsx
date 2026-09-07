@@ -27,14 +27,16 @@ import { CaregiverPermissionsModal } from './CaregiverScreen/components/Caregive
 import { CaregiverQRModal } from './CaregiverScreen/components/CaregiverQRModal';
 import { CaregiverGuestNotice } from './CaregiverScreen/components/CaregiverGuestNotice';
 
-// Presenter Hook
+// Presenter Hook & Responsive
 import { useCaregiverController } from './CaregiverScreen/hooks/useCaregiverController';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 interface CaregiverScreenProps {
   navigation?: any;
 }
 
 export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
+  const { isTablet } = useResponsiveLayout();
   const {
     colors,
     isDark,
@@ -131,7 +133,7 @@ export default function CaregiverScreen({ navigation }: CaregiverScreenProps) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, isTablet && styles.tabletScrollContent]}
         style={styles.scrollView}
       >
         {activeTab === 'my_caregivers' ? (
@@ -258,5 +260,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 24,
+  },
+  tabletScrollContent: {
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 24,
   },
 });

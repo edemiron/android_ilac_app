@@ -29,3 +29,4 @@ export { ScreenHeader } from './ScreenHeader';
 export type { ScreenHeaderProps } from './ScreenHeader';
 export { ThemedText } from './ThemedText';
 export type { ThemedTextVariant } from './ThemedText';
+export * from './wheel';

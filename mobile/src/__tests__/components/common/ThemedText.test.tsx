@@ -22,6 +22,10 @@ jest.mock('../../../contexts/ThemeContext', () => ({
     colors: { text: '#0F172A' },
     isDark: false,
   }),
+  useThemeSafe: () => ({
+    colors: { text: '#0F172A' },
+    isDark: false,
+  }),
 }));
 
 import { ThemedText, ThemedTextStyles } from '../../../components/common/ThemedText';
@@ -85,7 +89,9 @@ describe('ThemedText', () => {
 
     it('color override edilir', () => {
       const { UNSAFE_root } = render(
-        <ThemedText variant="bodyLg" color="#FF6B6B">Özel renk</ThemedText>
+        <ThemedText variant="bodyLg" color="#FF6B6B">
+          Özel renk
+        </ThemedText>
       );
       const text = UNSAFE_root.findByType('Text');
       const flatStyle = Array.isArray(text.props.style)
@@ -101,6 +107,15 @@ describe('ThemedText', () => {
         ? Object.assign({}, ...text.props.style.filter(Boolean))
         : text.props.style;
       expect(flatStyle.color).toBe('#0F172A');
+    });
+
+    it('fallback durumunda multiplier 1.0 olarak baz boyutta render edilir', () => {
+      const { UNSAFE_root } = render(<ThemedText variant="bodyLg">Test</ThemedText>);
+      const text = UNSAFE_root.findByType('Text');
+      const flatStyle = Array.isArray(text.props.style)
+        ? Object.assign({}, ...text.props.style.filter(Boolean))
+        : text.props.style;
+      expect(flatStyle.fontSize).toBe(16);
     });
   });
 });

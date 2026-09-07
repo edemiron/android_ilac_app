@@ -9,7 +9,15 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  StyleProp,
+  ViewStyle,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -45,6 +53,7 @@ interface MedicineRowProps {
   isSelected?: boolean;
   onSelect?: () => void;
   onLongPressSelect?: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
 function formatExpiryDate(dateStr: string, language: 'tr' | 'en'): string {
@@ -85,6 +94,7 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
   isSelected,
   onSelect,
   onLongPressSelect,
+  style,
 }) => {
   const isTr = language === 'tr';
   const medColor = medicine.color || colors.primary || '#0D9488';
@@ -190,6 +200,7 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
     <View
       style={[
         styles.medicineCard,
+        style,
         {
           backgroundColor: colors.card,
           borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
@@ -283,7 +294,7 @@ export const MedicineRow: React.FC<MedicineRowProps> = ({
                   { color: colors.text },
                   !medicine.isActive && { color: colors.textMuted },
                 ]}
-                numberOfLines={1}
+                numberOfLines={2}
               >
                 {medicine.name}
               </Text>
@@ -449,7 +460,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   moreButton: {
-    width: 36,
+    width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
@@ -487,7 +498,7 @@ const styles = StyleSheet.create({
   },
   titleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 2,
   },
   medicineTitle: {
@@ -495,6 +506,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.2,
     flexShrink: 1,
+    lineHeight: 21,
   },
   dosageText: {
     fontSize: 12.5,

@@ -17,6 +17,7 @@ import { Medicine, MedicineLog, ReminderTime } from '../../../types';
 import { ThemeColors } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { isMedicineScheduledForDate } from '../../../utils/timeCalculator';
+import { useResponsiveLayout } from '../../../hooks/useResponsiveLayout';
 
 interface MonthCalendarViewProps {
   medicines: Medicine[];
@@ -139,6 +140,327 @@ export function MonthCalendarView({
   const skippedCount = selectedDayDoses.filter(d => d.status === 'skipped').length;
   const missedCount = selectedDayDoses.filter(d => d.status === 'missed').length;
   const pendingCount = selectedDayDoses.filter(d => d.status === 'pending').length;
+  const responsive = useResponsiveLayout();
+  const isTablet = responsive?.isTablet ?? false;
+
+  const renderCalendarHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity
+        onPress={handlePrevMonth}
+        style={[styles.navButton, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9' }]}
+        accessibilityRole="button"
+        accessibilityLabel="Önceki ay"
+      >
+        <Ionicons name="chevron-back" size={18} color={colors.text} />
+      </TouchableOpacity>
+
+      <Text style={[styles.monthTitle, { color: colors.text }]}>
+        {format(currentMonth, 'MMMM yyyy', { locale: dateLocale })}
+      </Text>
+
+      <TouchableOpacity
+        onPress={handleNextMonth}
+        style={[styles.navButton, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9' }]}
+        accessibilityRole="button"
+        accessibilityLabel="Sonraki ay"
+      >
+        <Ionicons name="chevron-forward" size={18} color={colors.text} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderWeekdays = () => (
+    <View style={styles.weekdaysRow}>
+      {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cts', 'Paz'].map((dayName, idx) => (
+        <Text key={idx} style={[styles.weekdayLabel, { color: colors.textSecondary }]}>
+          {dayName}
+        </Text>
+      ))}
+    </View>
+  );
+
+  const renderCalendarGrid = () => (
+    <View style={styles.calendarGrid}>
+      {Array.from({ length: firstDayOffset }).map((_, idx) => (
+        <View key={`empty-${idx}`} style={styles.emptyDayCell} />
+      ))}
+
+      {daysInMonth.map(day => {
+        const dayStr = format(day, 'yyyy-MM-dd');
+        const isSelected = isSameDay(day, selectedDate);
+        const isTodayDay = isToday(day);
+        const stats = dayAdherenceMap.get(dayStr);
+
+        const hasData = stats && (stats.taken > 0 || stats.skipped > 0 || stats.missed > 0);
+        const isFullSuccess = stats && stats.total > 0 && stats.taken === stats.total;
+        const hasMissed = stats && stats.missed > 0;
+
+        return (
+          <TouchableOpacity
+            key={dayStr}
+            onPress={() => setSelectedDate(day)}
+            style={[
+              styles.dayCell,
+              isSelected && {
+                backgroundColor: colors.primary,
+                borderRadius: 10,
+              },
+              isTodayDay &&
+                !isSelected && {
+                  borderColor: colors.primary,
+                  borderWidth: 1.5,
+                  borderRadius: 10,
+                },
+            ]}
+          >
+            <Text
+              style={[
+                styles.dayNumber,
+                {
+                  color: isSelected ? '#FFFFFF' : isTodayDay ? colors.primary : colors.text,
+                  fontWeight: isSelected || isTodayDay ? '700' : '500',
+                },
+              ]}
+            >
+              {format(day, 'd')}
+            </Text>
+
+            <View
+              style={[
+                styles.dotIndicator,
+                hasData
+                  ? {
+                      backgroundColor: isFullSuccess
+                        ? '#10B981'
+                        : hasMissed
+                          ? '#EF4444'
+                          : '#F59E0B',
+                    }
+                  : { backgroundColor: 'transparent' },
+                isSelected && hasData && { backgroundColor: '#FFFFFF' },
+              ]}
+            />
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  const renderDoseCards = () => {
+    if (selectedDayDoses.length === 0) {
+      return (
+        <View style={styles.emptyDosesContainer}>
+          <Ionicons name="calendar-outline" size={32} color={colors.textMuted} />
+          <Text style={[styles.emptyDosesText, { color: colors.textMuted }]}>
+            {isTr ? 'Bu gün için planlanmış doz yok' : 'No scheduled doses for this day'}
+          </Text>
+        </View>
+      );
+    }
+
+    return selectedDayDoses.map((dose, index) => {
+      const isTaken = dose.status === 'taken';
+      const isSkipped = dose.status === 'skipped';
+      const isMissed = dose.status === 'missed';
+
+      return (
+        <View
+          key={`${dose.medicine.id}_${dose.time}_${index}`}
+          style={[
+            styles.doseCard,
+            {
+              backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+              borderColor: isDark ? '#334155' : '#E2E8F0',
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.medicineColorIndicator,
+              { backgroundColor: dose.medicine.color || colors.primary },
+            ]}
+          />
+
+          <View style={styles.doseInfo}>
+            <Text style={[styles.doseMedicineName, { color: colors.text }]} numberOfLines={1}>
+              {dose.medicine.name}
+            </Text>
+            <Text style={[styles.doseDetailsText, { color: colors.textSecondary }]}>
+              {dose.medicine.dosage || ''} · ⏰ {dose.time}
+            </Text>
+            {dose.skipReason && (
+              <Text style={styles.skipReasonText}>
+                ⚠️ {isTr ? 'Atlama Nedeni: ' : 'Skip: '}
+                {dose.skipReasonNote
+                  ? `${dose.skipReason}: ${dose.skipReasonNote}`
+                  : dose.skipReason}
+              </Text>
+            )}
+          </View>
+
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor: isTaken
+                  ? 'rgba(16, 185, 129, 0.18)'
+                  : isSkipped
+                    ? 'rgba(245, 158, 11, 0.18)'
+                    : isMissed
+                      ? 'rgba(239, 68, 68, 0.18)'
+                      : isDark
+                        ? 'rgba(56, 189, 248, 0.15)'
+                        : '#EFF6FF',
+                borderColor: isTaken
+                  ? '#10B981'
+                  : isSkipped
+                    ? '#F59E0B'
+                    : isMissed
+                      ? '#EF4444'
+                      : '#38BDF8',
+                borderWidth: 1,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                {
+                  color: isTaken
+                    ? '#10B981'
+                    : isSkipped
+                      ? '#F59E0B'
+                      : isMissed
+                        ? '#EF4444'
+                        : isDark
+                          ? '#38BDF8'
+                          : '#0284C7',
+                },
+              ]}
+            >
+              {isTaken
+                ? isTr
+                  ? '✓ Alındı'
+                  : '✓ Taken'
+                : isSkipped
+                  ? isTr
+                    ? '⊘ Atlandı'
+                    : '⊘ Skipped'
+                  : isMissed
+                    ? isTr
+                      ? '✗ Kaçırıldı'
+                      : '✗ Missed'
+                    : isTr
+                      ? '⏳ Bekliyor'
+                      : '⏳ Pending'}
+            </Text>
+          </View>
+        </View>
+      );
+    });
+  };
+
+  if (isTablet) {
+    return (
+      <View
+        style={[
+          styles.container,
+          styles.tabletSplitContainer,
+          {
+            backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+            borderColor: isDark ? '#334155' : '#E2E8F0',
+          },
+        ]}
+      >
+        <View style={styles.tabletCalendarColumn}>
+          {renderCalendarHeader()}
+          {renderWeekdays()}
+          {renderCalendarGrid()}
+        </View>
+
+        <View
+          style={[
+            styles.tabletDetailColumn,
+            {
+              backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+              borderColor: isDark ? '#334155' : '#E2E8F0',
+            },
+          ]}
+        >
+          <View style={styles.tabletDetailHeader}>
+            <Text style={[styles.summaryDateText, { color: colors.text }]}>
+              📅 {format(selectedDate, 'd MMMM yyyy, EEEE', { locale: dateLocale })}
+            </Text>
+            <Text style={[styles.summarySubtitleText, { color: colors.textSecondary }]}>
+              {selectedDayDoses.length > 0
+                ? `${selectedDayDoses.length} ${isTr ? 'Doz Planlandı' : 'Doses Scheduled'}`
+                : isTr
+                  ? 'Planlanmış doz yok'
+                  : 'No scheduled doses'}
+            </Text>
+
+            {selectedDayDoses.length > 0 && (
+              <View style={[styles.pillsRow, { marginTop: 8 }]}>
+                {takenCount > 0 && (
+                  <View
+                    style={[
+                      styles.miniPill,
+                      { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10B981' },
+                    ]}
+                  >
+                    <Text style={[styles.miniPillText, { color: '#10B981' }]}>
+                      ✓ {takenCount} {isTr ? 'Alındı' : 'Taken'}
+                    </Text>
+                  </View>
+                )}
+                {pendingCount > 0 && (
+                  <View
+                    style={[
+                      styles.miniPill,
+                      {
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#EFF6FF',
+                        borderColor: '#38BDF8',
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.miniPillText, { color: isDark ? '#38BDF8' : '#0284C7' }]}>
+                      ⏳ {pendingCount} {isTr ? 'Bekliyor' : 'Pending'}
+                    </Text>
+                  </View>
+                )}
+                {skippedCount > 0 && (
+                  <View
+                    style={[
+                      styles.miniPill,
+                      { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: '#F59E0B' },
+                    ]}
+                  >
+                    <Text style={[styles.miniPillText, { color: '#F59E0B' }]}>
+                      ⊘ {skippedCount} {isTr ? 'Atlandı' : 'Skipped'}
+                    </Text>
+                  </View>
+                )}
+                {missedCount > 0 && (
+                  <View
+                    style={[
+                      styles.miniPill,
+                      { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: '#EF4444' },
+                    ]}
+                  >
+                    <Text style={[styles.miniPillText, { color: '#EF4444' }]}>
+                      ✗ {missedCount} {isTr ? 'Kaçırıldı' : 'Missed'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          <View style={{ flex: 1, marginTop: 10 }}>{renderDoseCards()}</View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -150,102 +472,9 @@ export function MonthCalendarView({
         },
       ]}
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={handlePrevMonth}
-          style={[styles.navButton, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9' }]}
-          accessibilityRole="button"
-          accessibilityLabel="Önceki ay"
-        >
-          <Ionicons name="chevron-back" size={18} color={colors.text} />
-        </TouchableOpacity>
-
-        <Text style={[styles.monthTitle, { color: colors.text }]}>
-          {format(currentMonth, 'MMMM yyyy', { locale: dateLocale })}
-        </Text>
-
-        <TouchableOpacity
-          onPress={handleNextMonth}
-          style={[styles.navButton, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9' }]}
-          accessibilityRole="button"
-          accessibilityLabel="Sonraki ay"
-        >
-          <Ionicons name="chevron-forward" size={18} color={colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.weekdaysRow}>
-        {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cts', 'Paz'].map((dayName, idx) => (
-          <Text key={idx} style={[styles.weekdayLabel, { color: colors.textSecondary }]}>
-            {dayName}
-          </Text>
-        ))}
-      </View>
-
-      <View style={styles.calendarGrid}>
-        {Array.from({ length: firstDayOffset }).map((_, idx) => (
-          <View key={`empty-${idx}`} style={styles.emptyDayCell} />
-        ))}
-
-        {daysInMonth.map(day => {
-          const dayStr = format(day, 'yyyy-MM-dd');
-          const isSelected = isSameDay(day, selectedDate);
-          const isTodayDay = isToday(day);
-          const stats = dayAdherenceMap.get(dayStr);
-
-          const hasData = stats && (stats.taken > 0 || stats.skipped > 0 || stats.missed > 0);
-          const isFullSuccess = stats && stats.total > 0 && stats.taken === stats.total;
-          const hasMissed = stats && stats.missed > 0;
-
-          return (
-            <TouchableOpacity
-              key={dayStr}
-              onPress={() => setSelectedDate(day)}
-              style={[
-                styles.dayCell,
-                isSelected && {
-                  backgroundColor: colors.primary,
-                  borderRadius: 10,
-                },
-                isTodayDay &&
-                  !isSelected && {
-                    borderColor: colors.primary,
-                    borderWidth: 1.5,
-                    borderRadius: 10,
-                  },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.dayNumber,
-                  {
-                    color: isSelected ? '#FFFFFF' : isTodayDay ? colors.primary : colors.text,
-                    fontWeight: isSelected || isTodayDay ? '700' : '500',
-                  },
-                ]}
-              >
-                {format(day, 'd')}
-              </Text>
-
-              <View
-                style={[
-                  styles.dotIndicator,
-                  hasData
-                    ? {
-                        backgroundColor: isFullSuccess
-                          ? '#10B981'
-                          : hasMissed
-                            ? '#EF4444'
-                            : '#F59E0B',
-                      }
-                    : { backgroundColor: 'transparent' },
-                  isSelected && hasData && { backgroundColor: '#FFFFFF' },
-                ]}
-              />
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {renderCalendarHeader()}
+      {renderWeekdays()}
+      {renderCalendarGrid()}
 
       <View
         style={[
@@ -730,5 +959,36 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  tabletSplitContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    alignItems: 'stretch',
+  },
+  tabletCalendarColumn: {
+    flex: 1.15,
+  },
+  tabletDetailColumn: {
+    flex: 0.95,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    minHeight: 340,
+  },
+  tabletDetailHeader: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(150, 150, 150, 0.2)',
+    paddingBottom: 10,
+  },
+  emptyDosesContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    gap: 8,
+  },
+  emptyDosesText: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

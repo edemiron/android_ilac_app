@@ -376,6 +376,124 @@ class AlarmModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
     }
 
     /**
+     * Tüm native alarmları iptal eder ve DirectBoot aynasını temizler (v2.0.1).
+     */
+    @ReactMethod
+    fun cancelAllNativeAlarms(promise: Promise) {
+        try {
+            val context = reactApplicationContext
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+
+            var cancelledCount = 0
+            val prefs = DirectBootAlarmHelper.getPrefs(context)
+            val allEntries = prefs.all
+
+            for ((_, value) in allEntries) {
+                if (value !is String) continue
+                try {
+                    val obj = org.json.JSONObject(value)
+                    val medicineId = obj.getString("medicineId")
+                    val reminderTimeId = obj.getString("reminderTimeId")
+                    val kind = obj.optString("kind", AlarmReceiver.KIND_MAIN)
+
+                    if (alarmManager != null) {
+                        val intent = Intent(context, AlarmReceiver::class.java).apply {
+                            action = AlarmReceiver.ACTION_ALARM_TRIGGER
+                        }
+                        val requestCode = AlarmReceiver.buildNotificationId(medicineId, reminderTimeId, kind)
+                        val pendingIntent = PendingIntent.getBroadcast(context, requestCode, intent, flags)
+                        alarmManager.cancel(pendingIntent)
+                        pendingIntent.cancel()
+                    }
+                    cancelledCount++
+                } catch (_e: Exception) {
+                    // entry bazlı hata yutulur
+                }
+            }
+
+            // DirectBoot DE storage alanını sıfırla
+            DirectBootAlarmHelper.clearAllAlarms(context)
+            Log.i(TAG, "cancelAllNativeAlarms: $cancelledCount native alarm ve DirectBoot aynası temizlendi")
+            promise.resolve(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "cancelAllNativeAlarms hatası", e)
+            promise.resolve(false)
+        }
+    }
+
+    /**
+     * Direct Boot DE SharedPreferences alanındaki tüm kayıtları temizler (v2.0.1).
+     */
+    @ReactMethod
+    fun clearAllDirectBootAlarms(promise: Promise) {
+        try {
+            val count = DirectBootAlarmHelper.clearAllAlarms(reactApplicationContext)
+            promise.resolve(count)
+        } catch (e: Exception) {
+            Log.e(TAG, "clearAllDirectBootAlarms hatası", e)
+            promise.resolve(0)
+        }
+    }
+
+    /**
+     * Android 14+ Tam Ekran Bildirim (FullScreenIntent) iznini sorgula (v2.0.1).
+     */
+    @ReactMethod
+    fun canUseFullScreenIntent(promise: Promise) {
+        try {
+            val context = reactApplicationContext
+            val canFSI = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                nm?.canUseFullScreenIntent() ?: true
+            } else {
+                true
+            }
+            promise.resolve(canFSI)
+        } catch (e: Exception) {
+            Log.e(TAG, "canUseFullScreenIntent hatası", e)
+            promise.resolve(true)
+        }
+    }
+
+    /**
+     * Android 14+ Tam Ekran Bildirim İzinleri Ayar Ekranını Aç (v2.0.1).
+     */
+    @ReactMethod
+    fun openFullScreenIntentSettings(promise: Promise) {
+        try {
+            val context = reactApplicationContext
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                    promise.resolve(true)
+                    return
+                } catch (_e: Exception) {
+                    // Fallback to app details
+                }
+            }
+
+            val fallbackIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(fallbackIntent)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "openFullScreenIntentSettings hatası", e)
+            promise.resolve(false)
+        }
+    }
+
+    /**
      * Pil optimizasyonu muafiyeti (Doze Mode) durumunu sorgula
      */
     @ReactMethod

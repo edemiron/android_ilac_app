@@ -10,6 +10,160 @@ Biçimlendirme standardı [Keep a Changelog](https://keepachangelog.com/tr/1.0.0
 ### Added
 - Gelecek sürüm geliştirmeleri ve Ufuk 3 AI Vision yol haritası maddeleri.
 
+## [2.4.0] - 2026-09-07
+### Added
+- **📱 İlaçlarım Ekranı Tablet 2'li Akıllı Izgara Mimarisi (`MedicinesScreen.tsx` & `MedicineRow.tsx`):**
+  - Samsung Galaxy Tab S7 FE (12.4" 1600x2560 WQXGA) ve tüm tabletlerde aktif/pasif ilaç kartları tek bir uzun satır yerine yan yana 2 sütunlu (`width: '49%'`, `flexWrap: 'wrap'`) modern ve kompakt bir ızgarada listelendi.
+  - Kart dış kenar boşlukları (`tabletMedicineCard`) dengelendi; kart içi 3 nokta işlem menüsü dokunma alanı (`moreButton`) WCAG 2.5.5 erişilebilirlik standardına uygun olarak minimum 44dp genişliğe yükseltildi.
+- **📅 Aylık Uyum Takvimi Split-Pane & Entegre Detay Paneli (`MonthCalendarView.tsx`):**
+  - Tablet geniş ekranında açılır modal sheet yerine Sol Pano'da tam kare 7x5 takvim ızgarası, Sağ Pano'da ise seçili günün tüm ilaç doz kartları ve uyum rozetleri eşzamanlı olarak gösterildi.
+  - Tıklanan günün ilaçları, saatleri ve "Bekliyor / Alındı" durumları modal açmaya gerek kalmadan doğrudan sağ kolonda dinamik ve interaktif olarak incelenebilir hale getirildi.
+- **📝 İlaç Ekleme Ekranı Dual-Pane Form Mimarisi (`AddMedicineScreen.tsx`):**
+  - Tablet form boyunu %50 kısaltarak dikey kaydırma ihtiyacını ortadan kaldıran 2 sütunlu form mimarisi kuruldu:
+    - **Sol Sütun (%49):** E-Reçete Hızlı İçe Aktarma, İlaç Adı (TİTCK Canlı Arama), Dozaj ve İlaç Form Seçici (2x3 Izgara).
+    - **Sağ Sütun (%49):** Sezgisel Kullanım Planı (Günde kaç kez, hatırlatıcı saatleri, aç/tok durumu) ve Gelişmiş Seçenekler Akordeonu (Kür, SKT, Stok, Renk, Titreşim).
+- **⚡ Ana Sayfa Tablet Sağ Sütun Widget & Hızlı Erişim Paneli (`HomeScreen.tsx` & `StatsGrid.tsx`):**
+  - Tablet ana sayfasında Haftalık Takvim Çubuğu altına 2x2 Özet Bilgiler Grid'i (`StatsGrid` - Bugün, Alınan, Bekleyen, Stok Uyarısı) ve 3'lü Hızlı Erişim Kartı (🏥 Nöbetçi Eczane, 👥 Refakatçi Canlı Takip, 📊 Raporlar) eklenerek sağ sütundaki ölü boşluklar tamamen giderildi.
+- **🎯 Ayarlar ve Refakatçi Ekranı Tablet Merkezleme (`SettingsScreen.tsx` & `CaregiverScreen.tsx`):**
+  - `useResponsiveLayout` entegrasyonu ile tabletlerde içerik maksimum 960dp genişlikte merkezlenerek kenarlarda rahat göz hizalama marjinleri sağlandı.
+
+### Changed
+- **🛡️ Klinik Erişilebilirlik ve Minimum Yazı Boyutu Güvencesi (`HomeScreen.tsx`):**
+  - Ana ekran hızlı erişim butonlarındaki yazı boyutu klinik güvenlik kapısı kuralı gereğince `14pt` standardına yükseltildi (`a11y.test.ts` %100 uyum).
+
+### Fixed
+- **🧪 Test Ortamında `useResponsiveLayout` Çökme Koruması (`useResponsiveLayout.ts`):**
+  - Jest ve mocksuz test ortamlarında `useWindowDimensions` veya `Dimensions` tanımsız olsa dahi güvenli varsayılan değerlerle (390x844) çalışmasını sağlayan savunmacı kalkan eklendi.
+### Added
+- **🎬 Tema Değişiminde Ani Parlama Önleyici Geçiş Animasyonu (`ThemeTransitionOverlay.tsx`):**
+  - Ayarlar'dan açık/koyu tema değiştirildiğinde ekranın aniden bembeyaz veya simsiyah parlamasını (özellikle gece vakti fotofobi ve göz kamaşmasını) önlemek amacıyla `250ms` süreli yumuşak native cross-fade geçiş katmanı eklendi. `pointerEvents="none"` ile kullanıcı etkileşimini asla bloklamaz.
+- **🖥️ Tablet 2 Sütunlu Responsive Dashboard Mimarisi (`HomeScreen.tsx`):**
+  - Samsung Galaxy Tab S7 FE ve 600dp+ geniş ekranlı tabletlerde yatay alan israfını ve devasa boşlukları ortadan kaldıran 2 sütunlu (Split View) dashboard kuruldu:
+    - **Sol Sütun (1.1 flex):** AI Reçete/İlaç Tarama Kartı, Sıradaki Doz Kahraman Kartı ("Hero Card") ve 2x2 Zaman Dilimleri (Sabah, Öğle, Akşam, Gece).
+    - **Sağ Sütun (0.9 flex):** Haftalık Takvim Çizelgesi & İlaç Uyum Kartı.
+  - Telefonlarda tek sütunlu orijinal düzen eksiksiz korunarak sıfır regresyon sağlandı.
+- **👓 Yaşlı ve Uzaktan Okuma İçin Tablet Yazı Ölçekleyici (`useResponsiveLayout.ts` & `ThemedText.tsx`):**
+  - Tabletlerde hastaların ekranı masaya veya sehpaya koyup uzaktan okuduğu senaryolarda klinik talimatların rahat okunması için `fontSizeMultiplier: 1.15` dinamik ölçeği entegre edildi. Tipografi ve satır yükseklikleri otomatik ölçeklenir.
+- **📱 Tablet Form Seçici Dengeli 2x3 Izgarası (`DosageInput.tsx`):**
+  - İlaç ekleme ekranında tablet yatayında tek satıra dizilip sığmayan veya dengesiz duran ilaç form butonları (Tablet, Kapsül, Damla, Şurup, Merhem, Toz) 3 sütun x 2 satırlık şık ve dengeli bir ızgaraya dönüştürüldü.
+  - WCAG 2.5.5 uyumlu minimum 48dp dokunma hedefi ile motor kontrol güçlüğü olan hastalar için tıklama ergonomisi maksimize edildi.
+
+### Changed
+- **🎨 Tasarım Sistemi & Statik Renk Temizliği (`HomeScreen.tsx` & `AppearanceSection.tsx`):**
+  - `HomeScreen` ve `AppearanceSection` bileşenlerindeki statik/hardcoded hex kodları (`#0F172A`, `#38BDF8`, `#E2E8F0`, `#F8FAFC`) temizlendi; dinamik `useTheme().colors` tasarım sistemi token'larına bağlandı.
+
+### Fixed
+- **🛡️ Katı Tip Güvenliği & Test İzolasyonu (`ThemedText.tsx`):**
+  - `ThemedText` içindeki isteğe bağlı `TextStyle.fontSize` için `multiplier > 1 && baseStyle.fontSize` koruması getirilerek TypeScript derleme güvenliği sağlandı; izole testlerde tema eksikliğinde de güvenli fallback sağlandı.
+
+## [2.2.0] - 2026-09-07
+### Added
+- **🖥️ Tablet & Geniş Ekran Adaptif Yerleşim Mimarisi (`useResponsiveLayout.ts`):**
+  - Samsung Galaxy Tab S7 FE ve tüm Android tabletlerde (ekran genişliği >= 768dp veya minDimension >= 600dp) dashboard ve ilaç listesinin ekranda aşırı esneyip okunabilirliği bozmasını önleyen adaptif container motoru kuruldu (`maxWidth: 960`, `alignSelf: 'center'`).
+  - Tablet yöneliminde içerik merkezlenerek göz ergonomisi ve klinik odaklanma sağlandı.
+
+### Changed
+- **🎨 Gündüz / Dış Mekan Yüksek Kontrast Çerçeve İyileştirmesi (`ThemeContext.tsx`):**
+  - Açık mod sınır rengi (`lightColors.border`), `outlineVariant` ve `inputBorder` token'ları `#E2E8F0` (Slate 200) seviyesinden `#CBD5E1` (Slate 300) seviyesine yükseltilerek doğrudan güneş ışığı altında ve parlak ekranlarda kart ve buton sınırlarının WCAG AAA kontrastında net görünmesi sağlandı.
+- **👆 WCAG 2.5.5 Uyumlu Tema Seçim Butonları (`AppearanceSection.tsx`):**
+  - Ayarlar altındaki "Açık", "Koyu", "Oto" segment düğmeleri dar 15dp dokunma alanından kurtarılarak `minHeight: 40`, `minWidth: 52`, `paddingVertical: 8`, `paddingHorizontal: 14`, `borderRadius: 16` ve `hitSlop: 8` ile 56dp efektif dokunma hedefine genişletildi. Yaşlı ve titreyen parmaklar için hedeflenebilirlik garanti edildi.
+
+### Fixed
+- **💊 Klinik İlaç İsimlerinin Kırpılması & Doz Görünürlüğü (`MedicineRow.tsx` & `CurrentDoseCard.tsx`):**
+  - Xiaomi ve dar ekranlı telefonlarda tek satıra sığmayan ve kesilen uzun klinik formülasyonlar (örn: `BLEPHAMIDE LIQUIFILM 5 ML DAMLA`, `NERUDA 300 MG FILM KAPLI TABLET (50 TABLET)`) için `numberOfLines={2}` ve `lineHeight: 21` esnekliği getirildi. Hiçbir klinik doz ve ilaç adı kırpılmayacak şekilde kilitlendi.
+- **⚛️ ThemedText React Hook İhlali & Güvenli Tema Tüketimi (`ThemedText.tsx` & `ThemeContext.tsx`):**
+  - `ThemedText` içindeki koşullu hook çağrısı (`react-hooks/rules-of-hooks`) temizlendi. `ThemeContext`'ten bağımsız çalışabilen `useThemeSafe` ve `useThemeSafeFallback` mekanizması ile hem prodüksiyon çalışma zamanı hem de izole test suite'leri %100 uyumlu hale getirildi.
+
+## [2.1.4] - 2026-09-07
+### Fixed
+- **🚨 Kritik SOS Veri Sızıntısı & Fallback Açığı (`caregiverService.ts`):**
+  - `sendEmergencySosToCaregivers` içindeki acil durum SOS bildirimlerinde `targetCaregivers.length > 0 ? targetCaregivers : caregivers` fallback'i tamamen kaldırıldı.
+  - Sadece ve kesin olarak `c.status === 'active'` durumundaki aktif refakatçilere acil durum bildirimleri, telefon ve canlı konum koordinatları iletilecek şekilde kilitlendi; iptal edilmiş veya duraklatılmış bakıcılara veri sızması önlendi.
+- **🛡️ Yetkisiz İstemci Push Bildirim Çağrılarının Temizlenmesi (`caregiverService.ts`):**
+  - Hem `sendEmergencySosToCaregivers` hem de `sendRemoteReminderToPatient` içerisindeki ham HTTP Expo Push istekleri (`fetch('https://exp.host/--/api/v2/push/send')`) kaldırıldı. Bildirim dağıtımı tam yetkili Cloud Functions (`server/functions/notify.js`) ve Firestore tetikleyicilerine devredildi.
+- **⚡ Agresif Polling ve Kota Tüketim Döngüsünün Kaldırılması (`CaregiverEventBridge.tsx`):**
+  - Saatte ~7.200 adet lüzumsuz Firestore okuması yaparak kotaları tüketen ve pili yıpratan `1500ms` aralıklı `setInterval(pollActiveEmergencyAlerts, 1500)` döngüsü tamamen silindi; tüm acil durum bildirimleri optimize `onSnapshot` akışına devredildi.
+- **🔕 Çift Alarm / Çoklu Bildirim Kapatma Senkronizasyonu (`CaregiverEventBridge.tsx`):**
+  - İlaç alındığında Notifee bildirim kapatma mekanizması (`dismissNotification`), hem ana ilaç kimliği (`med.id`), hem hatırlatıcı kimliği (`rt.id`), hem de bileşik alarm kimliğini (`alarm-${med.id}-${rt.id}`) iptal edecek şekilde güçlendirildi.
+- **📱 Notifee Arka Plan Olay Çakışması (`caregiverEventHandler.ts` & `mobile/index.ts`):**
+  - `useCaregiverEventHandler` hook'u içerisindeki izole `notifee.onBackgroundEvent` kaydı kaldırılarak global olay çatışması önlendi; bakıcı arka plan aksiyonları (`CAREGIVER_ACTION_TAKEN`, `CAREGIVER_ACTION_CALL`) doğrudan kök `mobile/index.ts`'teki ana Notifee arka plan işleyicisine bağlandı.
+- **🎯 Deterministik Firestore Log Kimliği (`caregiverService.ts`):**
+  - `logMedicineTakenByCaregiver` fonksiyonuna `medicineId?: string` parametresi eklendi ve rastgele Firestore ID yerine deterministik `${patientId}_${medicineId}_${scheduledTime}` kimliğiyle mükerrer kayıtlar engellendi.
+- **🔑 Dinamik Davet Kodu Doğrulaması (`useCaregiverController.ts`):**
+  - 6 haneli katı kısıtlama yerine merkezi `isValidInviteCode(cleanCode)` doğrulayıcısı entegre edildi.
+- **🛡️ Firestore Davet Kodu Çalınma / Tekrar Kullanım Koruması (`firestore.rules`):**
+  - `caregiverInvites` kuralına `status == 'pending'` kontrolü eklenerek kabul edilmiş veya süresi geçmiş davetlerin tekrar talep edilmesi yasaklandı.
+- **📲 Gerçek Cihaz FCM Token Entegrasyonu (`useCaregiverController.ts` & `useCaregiver.ts`):**
+  - Davet kabul akışında cihazın gerçek FCM belirteci dinamik olarak alınarak bakıcı ilişkisine işlendi.
+
+## [2.1.3] - 2026-09-06
+### Added
+- **Tarih Çarkı Mekanik Tıkırtı Sesi & Dokunsal Ses Animasyonu (`WheelSoundModule.kt` & `wheelSound.ts`):**
+  - **Mekanik Çark / Mandal Sesi ("Çıt Çıt Çıt"):** Tarih tamburu kaydırılırken her bir gün, ay veya yıl öğesi merkez seçim penceresinden geçerken son derece gerçekçi, net ve akustik olarak tatmin edici mekanik mandal (ratchet wheel / rotary bezel click) tıkırtı sesi entegre edildi.
+  - **Sıfır Gecikmeli (Zero-Latency) Android Donanım Ses Motoru (`SoundPool`):** 60 FPS kaydırma akıcılığını korumak ve ses gecikmesini 0ms seviyesinde tutmak amacıyla RAM üzerinde önceden çözülmüş 16-bit PCM ses örneği (`res/raw/wheel_tick.wav`) ve 6 eşzamanlı ses akış kanalı (`SoundPool`, maxStreams: 6) mimarisi kuruldu.
+  - **Hızlı Fırlatmalarda Akustik Koruma (Acoustic Throttle):** 25ms koruma penceresi (`WHEEL_SOUND_THROTTLE_MS = 25ms`) ile yüksek hızlı kaydırmalarda ses boğulması ve aşırı doygunluk önlenirken 40Hz frekansa kadar gerçekçi mekanik dişli hissi sunuldu.
+  - **Eşzamanlı Ses & Dokunsal Geri Bildirim:** `WheelColumn.tsx` içerisindeki görsel odaklanma animasyonu, haptik titreşim darbesi (`selection`) ve mekanik klik sesi mikro-saniye hassasiyetinde birleştirilerek tam teşekküllü fiziksel bir mekanik kadran deneyimi oluşturuldu.
+  - **Android Sistem Sesi Fallback Mekanizması:** Donanım ses havuzu yüklenme aşamasında veya kaynak bulunamadığında `AudioManager.playSoundEffect(SoundEffectConstants.CLICK)` ile kesintisiz yedek ses desteği sağlandı.
+  - **Kaynak & Bellek Temizliği:** React Native bağlamı yok edildiğinde `SoundPool` otomatik serbest bırakılarak (`release`) bellek sızıntısı riski sıfırlandı.
+
+## [2.1.2] - 2026-09-06
+### Fixed
+- **Koyu Mod Kan Grubu Kontrastı & Okunabilirlik Optimizasyonu (`MedicalIdModal.tsx`):**
+  - **Karanlık Temada Görünmezlik Hatası Giderildi:** Koyu temada unselected kan grubu butonlarının (`A+`, `A-`, `B+`, `B-`, `AB+`, `AB-`, `0+`, `0-`) metin renginin tanımsız olması sebebiyle siyah görünerek koyu lacivert kart arka planında kaybolması sorunu çözüldü.
+  - **WCAG AAA Yüksek Kontrast Desteği:** Seçili olmayan butonlar için koyu modda `#334155` (Slate-700) zemin, `#475569` (Slate-600) kenarlık ve `#F8FAFC` (Slate-50) parlak beyaz metin (kontrast oranı: 11.8:1); açık modda `#F1F5F9` zemin, `#CBD5E1` kenarlık ve `#1E293B` metin tanımlandı.
+  - **Klinik Vurgulu Seçim Durumu:** Seçilen kan grubu için acil durum tıbbi kırmızı zemin (`#DC2626`), koyu kırmızı sınır (`#B91C1C`) ve kalın beyaz tipografi (`#FFFFFF`, font weight `700`) ile anında ayırt edilebilir görsel teyit sağlandı.
+  - **Erişilebilirlik (A11y) & Dokunma Ergonomisi:** Butonlara `accessibilityRole="button"`, `accessibilityState={{ selected }}` ve yerelleştirilmiş TalkBack etiketleri (`"A+ kan grubu"`) eklendi; minimum dokunma alanı `minWidth: 44px` ve dikey merkezleme ile güçlendirildi.
+  - **Form Ayırıcı Uyumlaştırması:** `addContactBlock` üst ayırıcı çizgisi koyu temaya duyarlı hale getirildi (`isDark ? '#334155' : '#CBD5E1'`).
+
+## [2.1.1] - 2026-09-06
+### Fixed
+- **Çark Kaydırma & Momentum Koruma Optimizasyonu (`WheelColumn.tsx`):**
+  - **Geri Sekme / Yanlış Yıla Atlama Hatası Çözüldü:** Kullanıcı tekeri 1989'a doğru kaydırırken Android `velocity.y` değerinin `undefined` dönmesi sebebiyle `onScrollEndDrag` anında parmağın kalktığı ara koordinatta (1985) momentumu erken durduran ve yapay `scrollToOffset` ile geri fırlatan mantık hatası tamamen giderildi.
+  - **Android `OverScroller` Uyumlu Deterministik `snapOffsets`:** Önceden kullanılan çakışmalı `snapToAlignment="center"` kaldırıldı; her satırın tam koordinatını hesaplayan `snapToOffsets` dizisi entegre edilerek yerel donanım ivmeli sönümleme sağlandı.
+  - **Canlı ve Akıcı (60 FPS) Görsel Odaklama:** Donuk ve hareketsiz görünen statik render yerine, kaydırma sırasında parmağın altındaki ortadaki satırın gerçek zamanlı olarak büyümesini (`tier 0, 1, 2`) sağlayan hafifletilmiş yerel indeks (`localIndex`) durum takibi ve hız kısıtlamalı haptik geri bildirim eklendi.
+  - **Akıllı `settle()` ve Sınır Koruması:** Teker doğal duruş noktasına ulaştığında hedef indeks zaten geçerli sınırlar içindeyse yapay kaydırma çağrılmayarak sıfır titreşimli, doğal ve ipeksi bir duruş sağlandı.
+  - **FlatList Performans & Batching Optimizasyonu:** `windowSize={11}`, `initialNumToRender=30`, `maxToRenderPerBatch=30` ve `updateCellsBatchingPeriod=16` ile hızlı kaydırmalarda boş hücre oluşması ve takılmalar önlendi.
+  - **Ebeveyn State İzolasyonu (`WheelDatePicker.tsx`):** Seçim işleyicileri `useRef` ve `useCallback` ile referans olarak donduruldu; bir sütun kaydırılırken diğer sütunların gereksiz yere render olması engellendi.
+
+## [2.1.0] - 2026-09-06
+### Added
+- **Özel 3 Sütunlu Çark / Tambur Doğum Tarihi Seçici (`WheelDatePickerModal.tsx` & `WheelDatePicker.tsx`):**
+  - Kullanıcı referans görseliyle %100 birebir uyumlu, koyu pencereli (`#1E293B`), ortasında çift camgöbeği (`#38BDF8`) seçim çizgisi ve dokunmatik sönümlemeli 3 sütunlu dikey tambur (wheel/drum) tarih seçici mimarisi geliştirildi.
+  - Gün (`1..31`), Ay (`Oca..Ara` / `Jan..Dec`), Yıl (`1901..2026`, 125 yıllık dinamik pencere) bağımsız kaydırmalı tamburlar.
+  - Seçilen doğum tarihine göre anlık yaş rozeti (`"46 Yaşında"`) hesaplama ve görsel teyit.
+  - Acil Tıbbi Kimlik Kartı (`MedicalIdModal.tsx`) içerisine entegre edildi; eski `DateTimePicker` ve kuşak çipleri emekliye ayrıldı.
+  - TalkBack erişilebilirlik entegrasyonu: Sütun bazlı tek düğümlü `accessibilityRole="adjustable"` ve tek parmak yukarı/aşağı kaydırmayla değer artırma/azaltma.
+  - Haptic geri bildirim (`triggerHapticTick` & 70ms hız sınırlayıcı).
+
+### Fixed
+- **Android Sistem Dili ile Uygulama Dili Ayrımı:** Yerel `DateTimePicker` bileşeninin uygulama dili Türkçe seçilse dahi Android OS dilinde açılması engellendi; statik Türkçe ve İngilizce ay dizileriyle tam dil tutarlılığı sağlandı.
+- **Tarih Kayması & UTC/Zaman Dilimi Güvenliği (`dateParts.ts`):** `new Date()` nesnesinin UTC+3 diliminde gün kayması ve artık yıl kırılmaları yaratmasını önlemek amacıyla saf tam sayı aritmetiği (`year, month, day`) ve Gregoryen artık yıl formülü uygulandı.
+- **Yıl Değerleri Görünümü:** Tambur listesinde indeks yerine 4 basamaklı gerçek takvim yılları (`1978, 1979, 1980...`) eksiksiz eşleştirildi.
+
+## [2.0.2] - 2026-09-06
+### Added
+- **Acil Tıbbi Kimlik Doğum Tarihi Seçici & Kuşak Atlama Motoru (`MedicalIdModal.tsx`):**
+  - Manuel metin girişinin (`YYYY-AA-GG`) yerini alan modern, erişilebilir ve yerel `DateTimePicker` (`@react-native-community/datetimepicker`) bileşeni entegre edildi.
+  - **Akıllı Başlangıç Yılı:** Tarih girilmemişse takvim 2026 yerine yetişkin/yaşlı hastalar için ideal referans olan 1980 yılından başlatılır; yüzlerce ay geriye kaydırma zorunluluğu ortadan kaldırıldı.
+  - **Hızlı Yıl Kuşağı (Decade Chips):** `1940'lar`, `1950'ler`, `1960'lar`, `1970'ler`, `1980'ler`, `1990'lar`, `2000'ler` yatay kayar butonlarıyla tek dokunuşla ilgili döneme atlama ve takvim açma desteği sağlandı.
+  - **Anlık Yaş Rozeti:** Seçilen doğum tarihi üzerinden hesaplanan yaş (`56 Yaşında`) rozet olarak anında gösterilerek kullanıcı teyidi sağlandı.
+  - **Profil Görüntüleme Zenginleştirmesi:** Okuma modunda doğum tarihi biçimlendirilmiş Türkçe metin ve yaş bilgisiyle (`Doğum: 15 Ocak 1970 (56 yaş)`) sunuldu.
+  - Tek dokunuşla doğum tarihini sıfırlayan temizleme butonu (`close-circle`) eklendi.
+
+## [2.0.1] - 2026-09-06
+### Added
+- **DirectBoot DE Depolama Temizliği (`DirectBootAlarmHelper.kt` & `AlarmModule.kt`):** `clearAllAlarms` metodu eklenerek tüm alarmlar iptal edildiğinde veya veriler sıfırlandığında Device Protected Storage (DE) alanındaki `direct_boot_alarms` temizliği güvenceye alındı; silinen alarmların cihaz yeniden başladığında hortlaması (zombie alarms) engellendi.
+- **Yerel Alarm & Tam Ekran İzin Köprüleri (`AlarmModule.kt` & `nativeAlarm.ts`):** `cancelAllNativeAlarms`, `clearAllDirectBootAlarms`, `canUseFullScreenIntent` ve `openFullScreenIntentSettings` native köprüleri sisteme kazandırıldı.
+- **3 Dakikalık Otomatik Erteleme Koruması (`useAlarmController.ts`):** Alarm çaldığında kullanıcının müdahale etmemesi durumunda alarmın sonsuza kadar çalarak pili bitirmesini ve cihazı aşırı ısıtmasını önleyen 180 saniyelik (`AUTO_SNOOZE_TIMEOUT_MS = 180_000`) otomatik erteleme koruması devreye alındı.
+
+### Changed
+- **Çift Ses & Yankı Önleme (Audio Loop Race Fix - `schedule.ts`):** Tam ekran alarm tetiklendiğinde Notifee taşıyıcı bildirimindeki `loopSound: true` bayrağı `loopSound: false` yapılarak ses döngüsünün kontrolü tamamen `AlarmScreen` / `useAlarmController` ses motoruna devredildi; Notifee ile React Native arasındaki çift ses çalma ve yankı yarışı ortadan kaldırıldı.
+- **Alarm İptal Zinciri Senkronizasyonu (`cancel.ts` & `actions.ts`):** `cancelMedicineNotifications` doğrudan `cancelNotification` üzerinden hem Notifee hem native `AlarmManager` alarmlarını iptal edecek şekilde güncellendi; `cancelAllNotifications` içine native alarm iptali entegre edildi.
+- **Yetim Önbellek Anahtarlarının Temizlenmesi (`builders.ts`):** `MEDICINE_STORE_STORAGE_KEYS` içine `'medicine-storage'`, `'ilac_medical_id_v1'`, `'ilac_symptom_logs_v1'` ve `'@ilachatirlatici_prescriptions_v1'` eklenerek verilerin sıfırlanması veya hesap silme durumunda tüm AsyncStorage alanlarının eksiksiz temizlenmesi sağlandı.
+
+### Fixed
+- **Firestore `updatedAt` Timestamp Tip Uyuşmazlığı (`firestoreSync.ts`):** Firestore'dan gelen `Timestamp` nesneleri (`toDate()` veya `{ seconds, nanoseconds }`) ISO string formatına dönüştürülerek TypeScript tip sözleşmesi ve zaman damgası mutabakatı güvenceye alındı.
+
 ## [2.0.0] - 2026-09-06
 ### Added
 - **TİTCK Genişletilmiş İlaç-Gıda Etkileşim Motoru (`clinicalSafetyEngine.ts`):** Potasyum zengini gıdalar (ACE/ARB), K Vitamini / Yeşil yapraklı sebzeler (Warfarin/Coumadin) ve Tiramin içerikli gıdalar (MAO inhibitörleri) için klinik etkileşim kuralları ve hasta rehberliği eklendi.

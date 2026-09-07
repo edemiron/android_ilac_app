@@ -47,7 +47,7 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
   onLanguageSelect,
   getLanguageLabel,
 }) => {
-  const { isDark, theme, setTheme } = useTheme();
+  const { colors, isDark, theme, setTheme } = useTheme();
   const { language } = useLanguage();
   const isTr = language === 'tr';
 
@@ -90,7 +90,9 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             style={[
               styles.segmentedContainer,
               {
-                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+                backgroundColor: isDark
+                  ? 'rgba(255,255,255,0.08)'
+                  : colors.surfaceContainer || '#E2E8F0',
               },
             ]}
           >
@@ -106,24 +108,21 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                     isSelected && [
                       styles.segmentButtonActive,
                       {
-                        backgroundColor: isDark ? '#0D9488' : '#FFFFFF',
+                        backgroundColor: isDark ? colors.primary : '#FFFFFF',
                       },
                     ],
                   ]}
                   onPress={() => handleThemeSelect(opt.value)}
                   activeOpacity={0.8}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
                 >
                   <Text
                     style={[
                       styles.segmentText,
                       {
-                        color: isSelected
-                          ? isDark
-                            ? '#FFFFFF'
-                            : '#0F172A'
-                          : isDark
-                            ? '#94A3B8'
-                            : '#64748B',
+                        color: isSelected ? (isDark ? '#FFFFFF' : colors.text) : colors.textMuted,
                         fontWeight: isSelected ? '700' : '500',
                       },
                     ]}
@@ -214,17 +213,15 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                         color: isSelected
                           ? isDark
                             ? '#FFFFFF'
-                            : '#0F172A'
-                          : isDark
-                            ? '#E2E8F0'
-                            : '#1E293B',
+                            : colors.text
+                          : colors.textSecondary,
                         fontWeight: isSelected ? '700' : '600',
                       },
                     ]}
                   >
                     {lang.name}
                   </Text>
-                  <Text style={[styles.itemDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                  <Text style={[styles.itemDesc, { color: colors.textMuted }]}>
                     {lang.nativeName}
                   </Text>
                 </View>
@@ -243,14 +240,16 @@ const styles = StyleSheet.create({
   segmentedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 3,
-    borderRadius: 18,
-    gap: 2,
+    padding: 4,
+    borderRadius: 20,
+    gap: 4,
   },
   segmentButton: {
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 15,
+    minHeight: 40,
+    minWidth: 52,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -262,7 +261,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   segmentText: {
-    fontSize: 12,
+    fontSize: 13,
   },
   drawerContainer: {
     marginHorizontal: 12,

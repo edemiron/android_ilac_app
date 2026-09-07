@@ -10,7 +10,7 @@ import com.facebook.react.uimanager.ViewManager
 class AlarmPackage : ReactPackage {
     @Deprecated("ReactPackage still requires createNativeModules on React Native 0.81.")
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        return listOf(AlarmModule(reactContext))
+        return listOf(AlarmModule(reactContext), WheelSoundModule(reactContext))
     }
 
     @Deprecated("ReactPackage still requires createViewManagers on React Native 0.81.")

@@ -42,11 +42,46 @@ import { db as firestoreDb } from '../config/firebase';
 
 const log = createScopedLogger('FirestoreSync');
 
+/** Firestore `Timestamp` | Plain Timestamp Object | ISO string | Date → ISO string */
+export function toIsoString(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === 'string') return value;
+  if (value instanceof Date) return value.toISOString();
+  const maybeTimestamp = value as {
+    toDate?: () => Date;
+    seconds?: number;
+    _seconds?: number;
+  };
+  if (typeof maybeTimestamp.toDate === 'function') {
+    try {
+      return maybeTimestamp.toDate().toISOString();
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof maybeTimestamp.seconds === 'number') {
+    return new Date(maybeTimestamp.seconds * 1000).toISOString();
+  }
+  if (typeof maybeTimestamp._seconds === 'number') {
+    return new Date(maybeTimestamp._seconds * 1000).toISOString();
+  }
+  return undefined;
+}
+
 function sanitizeMedicine(medicine: Medicine): Medicine {
+  const normalizedUpdatedAt =
+    toIsoString((medicine as { updatedAt?: unknown }).updatedAt) ??
+    (typeof medicine.updatedAt === 'string' ? medicine.updatedAt : new Date().toISOString());
+  const normalizedCreatedAt =
+    toIsoString((medicine as { createdAt?: unknown }).createdAt) ??
+    (typeof medicine.createdAt === 'string' ? medicine.createdAt : normalizedUpdatedAt);
+
   return {
     ...medicine,
     name: sanitizeString(medicine.name) || medicine.name,
     dosage: medicine.dosage ? sanitizeString(medicine.dosage) : medicine.dosage,
+    updatedAt: normalizedUpdatedAt,
+    createdAt: normalizedCreatedAt,
   };
 }
 
@@ -178,13 +213,17 @@ export async function getMedicinesFromCloud(userId: string): Promise<Medicine[]>
   const medicinesRef = buildMedicinesCollectionRef(firestoreDb, userId);
   const snapshot = await getDocs(medicinesRef);
 
-  // Türkçe karakter encoding sorunlarını düzelt
-  return snapshot.docs.map(doc =>
-    sanitizeMedicine({
-      ...doc.data(),
+  // Türkçe karakter encoding ve Firestore Timestamp tip normalizasyonu
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return sanitizeMedicine({
+      ...data,
       id: doc.id,
-    } as Medicine)
-  );
+      updatedAt: toIsoString(data.updatedAt) ?? new Date().toISOString(),
+      createdAt:
+        toIsoString(data.createdAt) ?? toIsoString(data.updatedAt) ?? new Date().toISOString(),
+    } as Medicine);
+  });
 }
 
 // ============ HATIRLATMA ZAMANLARI ============
@@ -383,22 +422,6 @@ export async function syncSettingsToCloud(
   // merge: true → yalnizca `payload`daki alanlar degisir, dokumandaki diger
   // alanlar OLDUGU GIBI kalir.
   await setDoc(docRef, payload, { merge: true });
-}
-
-/** Firestore `Timestamp` | ISO string | Date → ISO string */
-function toIsoString(value: unknown): string | undefined {
-  if (!value) return undefined;
-  if (typeof value === 'string') return value;
-  if (value instanceof Date) return value.toISOString();
-  const maybeTimestamp = value as { toDate?: () => Date };
-  if (typeof maybeTimestamp.toDate === 'function') {
-    try {
-      return maybeTimestamp.toDate().toISOString();
-    } catch {
-      return undefined;
-    }
-  }
-  return undefined;
 }
 
 /**

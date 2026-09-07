@@ -54,10 +54,10 @@ export const lightColors = {
 
   // MD3 Outline
   outline: '#94A3B8',
-  outlineVariant: '#E2E8F0',
+  outlineVariant: '#CBD5E1', // Slate 300 - High Contrast Daylight Border
 
   // Sınır ve ayırıcı
-  border: '#E2E8F0', // Slate 200
+  border: '#CBD5E1', // Slate 300 - High Contrast Daylight Border
   borderFocused: '#0D9488', // Teal 600
   divider: '#F1F5F9', // Slate 100
 
@@ -73,7 +73,7 @@ export const lightColors = {
 
   // Input
   inputBackground: '#F8FAFC',
-  inputBorder: '#E2E8F0',
+  inputBorder: '#CBD5E1',
   placeholder: '#94A3B8',
 
   // Özel
@@ -214,7 +214,7 @@ interface ThemeContextType {
   setTheme: (theme: ThemeMode) => void;
 }
 
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = '@app_theme';
 
@@ -290,6 +290,10 @@ export function useTheme() {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
   return context;
+}
+
+export function useThemeSafe(): ThemeContextType | undefined {
+  return useContext(ThemeContext);
 }
 
 // Tema bazlı stil oluşturma yardımcısı

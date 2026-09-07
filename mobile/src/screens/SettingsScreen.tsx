@@ -43,8 +43,10 @@ import { useSettingsController } from './SettingsScreen/hooks/useSettingsControl
 import { useAccountDeletion } from '../hooks/useAccountDeletion';
 import { AccountDeletionModal } from '../components/settings/AccountDeletionModal';
 import { MedicalIdModal } from '../components/medicalId/MedicalIdModal';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 export default function SettingsScreen() {
+  const { isTablet } = useResponsiveLayout();
   const scrollViewRef = useRef<ScrollView>(null);
   const diagnosticsOffsetRef = useRef<number>(0);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
@@ -152,6 +154,11 @@ export default function SettingsScreen() {
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
+        contentContainerStyle={
+          isTablet
+            ? { maxWidth: 960, width: '100%', alignSelf: 'center', paddingHorizontal: 16 }
+            : undefined
+        }
         showsVerticalScrollIndicator={false}
       >
         {/* 1. Üst Profil & Premium Kartı */}

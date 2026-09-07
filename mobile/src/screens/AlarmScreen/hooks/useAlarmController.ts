@@ -775,6 +775,30 @@ export function useAlarmController() {
     closeAlarmScreen();
   };
 
+  // v2.0.1 (Qwen 3.8 Max): Klinik Güvenlik & Pil Koruma Kalkanı — Auto-Snooze (3 Dakika)
+  // Kullanıcı 3 dakika boyunca telefona dokunmazsa alarm sonsuza dek çalarak pili bitirmez;
+  // otomatik ertelemeye (snooze) geçer veya maksimum snooze sonrası güvenle kapanır.
+  useEffect(() => {
+    if (isTestMode) return;
+    const AUTO_SNOOZE_TIMEOUT_MS = 180_000; // 3 dakika klinik çalma sınırı
+
+    const autoSnoozeTimer = setTimeout(() => {
+      if (isStoppedRef.current || isSnoozingRef.current) return;
+      log.info('Auto-snooze tetiklendi: 3 dakika boyunca kullanici tarafindan aksiyon alinmadi');
+      if (canSnooze) {
+        void handleSnooze();
+      } else {
+        stopAlarmAudio();
+        void withTimeout(clearAlarmNotifications(), 'autoSnooze.clearAlarmNotifications', 2500);
+        dismissAlarm();
+      }
+    }, AUTO_SNOOZE_TIMEOUT_MS);
+
+    return () => {
+      clearTimeout(autoSnoozeTimer);
+    };
+  }, [canSnooze, isTestMode]);
+
   const [missedDoseModalVisible, setMissedDoseModalVisible] = useState(false);
 
   const currentTime = format(new Date(), 'HH:mm');

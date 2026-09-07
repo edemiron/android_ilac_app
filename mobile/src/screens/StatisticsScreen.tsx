@@ -28,6 +28,7 @@ import { RecordSymptomModal } from '../components/common/RecordSymptomModal';
 
 // Presenter Hook
 import { useStatisticsController } from './StatisticsScreen/hooks/useStatisticsController';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 export default function StatisticsScreen() {
   const {
@@ -53,6 +54,7 @@ export default function StatisticsScreen() {
     handleShareWhatsAppSummary,
   } = useStatisticsController();
 
+  const { isTablet } = useResponsiveLayout();
   const [showRecordVitalModal, setShowRecordVitalModal] = React.useState(false);
   const isTr = language === 'tr';
 
@@ -63,7 +65,7 @@ export default function StatisticsScreen() {
     >
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, isTablet && styles.tabletScrollContent]}
         showsVerticalScrollIndicator={false}
       >
         <ScreenHeader
@@ -300,6 +302,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 30,
+  },
+  tabletScrollContent: {
+    maxWidth: 1040,
+    width: '100%',
+    alignSelf: 'center',
   },
   tabSwitcherWrapper: {
     paddingHorizontal: 16,

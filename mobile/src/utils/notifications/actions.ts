@@ -96,4 +96,13 @@ export async function cancelAllNotifications(): Promise<void> {
   } catch (error) {
     log.error('Tum bildirimler iptal edilirken hata', error);
   }
+
+  try {
+    // v2.0.1: Native donanım RTC alarmları ve DirectBoot aynası da temizlenmeli
+    const { cancelAllNativeAlarms } = await import('./nativeAlarm');
+    await cancelAllNativeAlarms();
+    log.debug('Tum native alarmlar ve DirectBoot aynasi iptal edildi');
+  } catch (error) {
+    log.error('Tum native alarmlar iptal edilirken hata', error);
+  }
 }

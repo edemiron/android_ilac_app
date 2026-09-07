@@ -34,14 +34,8 @@ export function useCaregiverEventHandler(callbacks: CaregiverEventCallbacks) {
       handleEvent(type, detail, callbacks);
     });
 
-    // Background events (app kapalıyken basılan action'lar)
-    notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
-      handleEvent(type, detail, callbacks);
-    });
-
     return () => {
       unsubscribeForeground();
-      // onBackgroundEvent için unsubscribe yok (top-level), app lifetime'ı boyunca çalışır
     };
   }, [callbacks]);
 }
@@ -70,5 +64,31 @@ function handleEvent(type: EventType, detail: Event['detail'], callbacks: Caregi
     callbacks.onCallPatient?.();
   } else {
     log.warn('Caregiver unknown action press', { pressActionId });
+  }
+}
+
+/**
+ * Global background handler (mobile/index.ts) tarafindan cagrilan
+ * arkaplan bakici eylem isleyicisi.
+ */
+export async function handleCaregiverBackgroundAction(pressActionId: string, data: any) {
+  if (pressActionId === CAREGIVER_ACTION_TAKEN) {
+    const patientId = (data?.patientId as string) || '';
+    const medicineName = (data?.medicineName as string) ?? 'Bilinmeyen ilaç';
+    const doseTime = (data?.doseTime as string) || (data?.scheduledTime as string) || '';
+    const medicineId = data?.medicineId as string | undefined;
+
+    log.info('[BG] Caregiver tapped Hasta Aldı', { patientId, medicineName, doseTime });
+    if (patientId && medicineName) {
+      const { logMedicineTakenByCaregiver } = await import('./caregiverService');
+      await logMedicineTakenByCaregiver(patientId, medicineName, doseTime, medicineId);
+    }
+  } else if (pressActionId === CAREGIVER_ACTION_CALL) {
+    const phone = data?.patientPhone as string;
+    log.info('[BG] Caregiver tapped Ara', { phone });
+    if (phone) {
+      const { Linking } = await import('react-native');
+      Linking.openURL(`tel:${phone}`).catch(() => {});
+    }
   }
 }

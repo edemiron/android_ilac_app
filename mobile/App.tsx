@@ -88,6 +88,7 @@ import { usePermissionsGate } from './src/hooks/usePermissionsGate';
 import { useSecurityGate } from './src/hooks/useSecurityGate';
 import { useBootRecovery } from './src/hooks/useBootRecovery';
 import { useAlarmNavigation } from './src/hooks/useAlarmNavigation';
+import { ThemeTransitionOverlay } from './src/components/theme/ThemeTransitionOverlay';
 import type { AlarmScreenNavigationParams } from './src/utils/alarmNavigation';
 import {
   getAlarmNotificationId,
@@ -1561,6 +1562,9 @@ function AppContent() {
       {/* Canlı Bakıcı & Hasta Acil Durum / Doz Modalları — Ekranın en üstünde gösterilir */}
       <CaregiverFullScreenAlertModal />
       <PatientFullScreenReminderModal />
+
+      {/* Tema Geçiş Perdesi — Anlık fotofobiyi ve parlamayı önler */}
+      <ThemeTransitionOverlay />
     </NavigationContainer>
   );
 }

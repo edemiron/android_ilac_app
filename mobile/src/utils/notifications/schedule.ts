@@ -208,7 +208,9 @@ export async function scheduleSnoozeNotification(
           visibility: AndroidVisibility.PUBLIC,
           ongoing: behavior.fullScreenAlarm,
           autoCancel: !behavior.fullScreenAlarm,
-          loopSound: behavior.fullScreenAlarm,
+          // v2.0.1 (Qwen 3.8 Max): Çift ses (double sound) yankılanmasını önle.
+          // Tam ekran alarm açıkken ses döngüsünü AlarmScreen (audio owner) yönetir.
+          loopSound: false,
           fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
           pressAction: PRESS_ACTION,
           smallIcon: 'ic_notification',
@@ -573,7 +575,9 @@ export async function scheduleMedicineNotification(
           ongoing: behavior.fullScreenAlarm,
           autoCancel: !behavior.fullScreenAlarm,
           onlyAlertOnce: false,
-          loopSound: behavior.fullScreenAlarm,
+          // v2.0.1 (Qwen 3.8 Max): Çift ses (double sound) yankılanmasını önle.
+          // Tam ekran alarm açıkken ses döngüsünü AlarmScreen (audio owner) yönetir.
+          loopSound: false,
           fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
           pressAction: PRESS_ACTION,
           smallIcon: 'ic_notification',

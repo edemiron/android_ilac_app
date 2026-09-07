@@ -16,6 +16,7 @@ import { useAlert } from '../../../contexts/AlertContext';
 import { useHaptics } from '../../../hooks/useHaptics';
 import { auth } from '../../../config/firebase';
 import { acceptCaregiverInvite } from '../../../services/caregiverService';
+import { isValidInviteCode } from '../../../services/caregiverHelpers';
 import type { CaregiverRelationship } from '../../../types';
 import type { CaregiverTabRole } from '../components/CaregiverRoleSegmentedControl';
 
@@ -394,11 +395,18 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
               await loginWithGoogleProvider();
               const fbUser = auth.currentUser;
               if (codeToAutoAccept && fbUser?.uid) {
+                let autoFcmToken = '';
+                try {
+                  const messaging = (await import('@react-native-firebase/messaging')).default;
+                  autoFcmToken = await messaging().getToken();
+                } catch (_aErr) {
+                  // best-effort
+                }
                 const retryRes = await acceptCaregiverInvite(
                   codeToAutoAccept,
                   fbUser.uid,
                   fbUser.displayName || 'Bakıcı',
-                  ''
+                  autoFcmToken
                 );
                 if (retryRes.success) {
                   triggerHaptic('success');
@@ -498,13 +506,13 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
       return;
     }
 
-    if (cleanCode.length !== 6) {
+    if (!isValidInviteCode(cleanCode)) {
       triggerHaptic('error');
       showError(
         isTr ? 'Geçersiz Kod' : 'Invalid Code',
         isTr
-          ? 'Davet kodu 6 karakterden oluşmalıdır (Örn: 53DD4F).'
-          : 'Invite code must be 6 characters.'
+          ? 'Lütfen geçerli bir davet kodu girin (Örn: 53DD4F).'
+          : 'Please enter a valid invite code.'
       );
       return;
     }
@@ -521,6 +529,14 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
       if (!effectiveUserId || effectiveUserId === 'guest_local_user') {
         result = { success: false, error: 'Oturum bulunamadı. Lütfen tekrar giriş yapın.' };
       } else {
+        let fcmToken = '';
+        try {
+          const messaging = (await import('@react-native-firebase/messaging')).default;
+          fcmToken = await messaging().getToken();
+        } catch (_tErr) {
+          // Token alımı opsiyonel/best-effort
+        }
+
         const timeoutPromise = new Promise<{ success: boolean; error?: string }>((_, reject) =>
           setTimeout(
             () =>
@@ -533,7 +549,7 @@ export function useCaregiverController({ navigation }: UseCaregiverControllerPro
           )
         );
         result = await Promise.race([
-          acceptCaregiverInvite(cleanCode, effectiveUserId, effectiveDisplayName, ''),
+          acceptCaregiverInvite(cleanCode, effectiveUserId, effectiveDisplayName, fcmToken),
           timeoutPromise,
         ]);
       }

@@ -443,19 +443,15 @@ export function CaregiverEventBridge() {
     // İlk mountta hemen kontrol et
     pollActiveEmergencyAlerts();
 
-    // AppState aktif olduğunda anında kontrol et
+    // AppState aktif olduğunda kontrol et (arka plandan ön plana dönüşte)
     const appStateSub = AppState.addEventListener('change', nextState => {
       if (nextState === 'active') {
         pollActiveEmergencyAlerts();
       }
     });
 
-    // Her 1.5 saniyede periyodik arka plan heartbeat
-    const ticker = setInterval(pollActiveEmergencyAlerts, 1500);
-
     return () => {
       isSubscribed = false;
-      clearInterval(ticker);
       appStateSub.remove();
     };
   }, [effectiveCaregiverId, patientsKey]);
@@ -511,9 +507,12 @@ export function CaregiverEventBridge() {
                   med.id,
                   'Bakıcınız tarafından işaretlendi'
                 );
+                // Yerel bildirimi sustur (alarm ve reminder kimlikleriyle)
+                dismissNotification(rt.id).catch(() => {});
+                dismissNotification(`alarm-${med.id}-${rt.id}`).catch(() => {});
               }
 
-              // Yerel bildirimi sustur
+              // Yerel bildirimi sustur (Firestore log ID fallback)
               dismissNotification(logId).catch(() => {});
 
               showAlert({

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 
 jest.mock('react-native', () => ({
@@ -75,6 +75,15 @@ const mockReminder: TodayReminder = {
 
 describe('CurrentDoseCard — Early Dose Clinical Safety', () => {
   const testColors = mockColors as unknown as ThemeColors;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 8, 6, 12, 0, 0));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
   it('renders "Erken Al" and hides snooze when dose is > 45 mins in the future', () => {
     const onTake = jest.fn();

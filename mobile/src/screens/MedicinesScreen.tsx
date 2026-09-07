@@ -22,10 +22,13 @@ import { MedicineSummaryCard } from './MedicinesScreen/components/MedicineSummar
 import { MedicineEmptyState } from './MedicinesScreen/components/MedicineEmptyState';
 import { SelectionActionBar } from './MedicinesScreen/components/SelectionActionBar';
 
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+
 // Presenter Hook
 import { useMedicinesController } from './MedicinesScreen/hooks/useMedicinesController';
 
 export default function MedicinesScreen() {
+  const { isTablet } = useResponsiveLayout();
   const {
     navigation,
     colors,
@@ -124,7 +127,7 @@ export default function MedicinesScreen() {
       )}
 
       {/* 2. Klinik Arama Çubuğu */}
-      <View style={styles.searchWrapper}>
+      <View style={[styles.searchWrapper, isTablet && styles.tabletContainer]}>
         <ClinicalSearchBar
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -146,7 +149,7 @@ export default function MedicinesScreen() {
       {/* 4. İlaç Listesi ve Boş Durum */}
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, isTablet && styles.tabletScrollContent]}
         showsVerticalScrollIndicator={false}
       >
         {/* 4A. Hero Sağlık & İlaç Özeti Kartı */}
@@ -197,32 +200,36 @@ export default function MedicinesScreen() {
                     </Text>
                   </View>
                 </View>
-                {activeMedicines.map(medicine => {
-                  const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
-                  return (
-                    <MedicineRow
-                      key={medicine.id}
-                      medicine={medicine}
-                      times={times}
-                      onPress={() =>
-                        navigation.navigate('AddMedicine', { medicineId: medicine.id })
-                      }
-                      onToggleActive={() => toggleMedicineActive(medicine.id)}
-                      onDelete={() => deleteMedicine(medicine.id)}
-                      onShowActionMenu={showActionMenu}
-                      colors={colors}
-                      isDark={isDark}
-                      t={t}
-                      language={language}
-                      isSelectionMode={isSelectionMode}
-                      isSelected={selectedIds.has(medicine.id)}
-                      onSelect={() => toggleSelection(medicine.id)}
-                      onLongPressSelect={
-                        !isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined
-                      }
-                    />
-                  );
-                })}
+                <View style={isTablet ? styles.tabletGridContainer : undefined}>
+                  {activeMedicines.map(medicine => {
+                    const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
+                    return (
+                      <View key={medicine.id} style={isTablet ? styles.tabletGridItem : undefined}>
+                        <MedicineRow
+                          medicine={medicine}
+                          times={times}
+                          onPress={() =>
+                            navigation.navigate('AddMedicine', { medicineId: medicine.id })
+                          }
+                          onToggleActive={() => toggleMedicineActive(medicine.id)}
+                          onDelete={() => deleteMedicine(medicine.id)}
+                          onShowActionMenu={showActionMenu}
+                          colors={colors}
+                          isDark={isDark}
+                          t={t}
+                          language={language}
+                          isSelectionMode={isSelectionMode}
+                          isSelected={selectedIds.has(medicine.id)}
+                          onSelect={() => toggleSelection(medicine.id)}
+                          onLongPressSelect={
+                            !isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined
+                          }
+                          style={isTablet ? styles.tabletMedicineCard : undefined}
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             )}
 
@@ -249,32 +256,36 @@ export default function MedicinesScreen() {
                     </Text>
                   </View>
                 </View>
-                {inactiveMedicines.map(medicine => {
-                  const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
-                  return (
-                    <MedicineRow
-                      key={medicine.id}
-                      medicine={medicine}
-                      times={times}
-                      onPress={() =>
-                        navigation.navigate('AddMedicine', { medicineId: medicine.id })
-                      }
-                      onToggleActive={() => toggleMedicineActive(medicine.id)}
-                      onDelete={() => deleteMedicine(medicine.id)}
-                      onShowActionMenu={showActionMenu}
-                      colors={colors}
-                      isDark={isDark}
-                      t={t}
-                      language={language}
-                      isSelectionMode={isSelectionMode}
-                      isSelected={selectedIds.has(medicine.id)}
-                      onSelect={() => toggleSelection(medicine.id)}
-                      onLongPressSelect={
-                        !isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined
-                      }
-                    />
-                  );
-                })}
+                <View style={isTablet ? styles.tabletGridContainer : undefined}>
+                  {inactiveMedicines.map(medicine => {
+                    const times = getReminderTimesForMedicine(medicine.id).map(rt => rt.time);
+                    return (
+                      <View key={medicine.id} style={isTablet ? styles.tabletGridItem : undefined}>
+                        <MedicineRow
+                          medicine={medicine}
+                          times={times}
+                          onPress={() =>
+                            navigation.navigate('AddMedicine', { medicineId: medicine.id })
+                          }
+                          onToggleActive={() => toggleMedicineActive(medicine.id)}
+                          onDelete={() => deleteMedicine(medicine.id)}
+                          onShowActionMenu={showActionMenu}
+                          colors={colors}
+                          isDark={isDark}
+                          t={t}
+                          language={language}
+                          isSelectionMode={isSelectionMode}
+                          isSelected={selectedIds.has(medicine.id)}
+                          onSelect={() => toggleSelection(medicine.id)}
+                          onLongPressSelect={
+                            !isSelectionMode ? () => enterSelectionMode(medicine.id) : undefined
+                          }
+                          style={isTablet ? styles.tabletMedicineCard : undefined}
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             )}
           </>
@@ -475,6 +486,30 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 40,
+  },
+  tabletContainer: {
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  tabletScrollContent: {
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  tabletGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
+  tabletGridItem: {
+    width: '49%',
+  },
+  tabletMedicineCard: {
+    marginHorizontal: 0,
+    marginVertical: 6,
+    flex: 1,
   },
   selectionHeader: {
     flexDirection: 'row',

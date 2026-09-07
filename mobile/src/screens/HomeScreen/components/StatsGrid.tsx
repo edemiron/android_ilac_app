@@ -18,6 +18,8 @@ import { MotiPressable } from '../../../components/common/MotiPressable';
 import { motiTransitions } from '../../../theme/moti-config';
 import { IconBadge } from './IconBadge';
 
+import type { StyleProp, ViewStyle } from 'react-native';
+
 export interface StatsGridProps {
   /** Bugünkü toplam doz sayısı. */
   totalCount: number;
@@ -27,6 +29,8 @@ export interface StatsGridProps {
   remainingCount: number;
   /** Stok uyarısı olan ilaç sayısı. 0 ise hücre disable gösterilir. */
   lowStockCount: number;
+  /** İsteğe bağlı dış container stili (örn. tablet sütun hizalaması) */
+  style?: StyleProp<ViewStyle>;
 }
 
 interface CellDef {
@@ -46,6 +50,7 @@ export function StatsGrid({
   completedCount,
   remainingCount,
   lowStockCount,
+  style,
 }: StatsGridProps) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
@@ -106,7 +111,7 @@ export function StatsGrid({
       from={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={motiTransitions.standard}
-      style={styles.grid}
+      style={[styles.grid, style]}
       accessibilityRole="summary"
       accessibilityLabel={
         language === 'tr'

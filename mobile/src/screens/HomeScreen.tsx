@@ -29,6 +29,9 @@ import { TimeSlotGrid } from './HomeScreen/components/TimeSlotGrid';
 import { TimeSlotModal } from './HomeScreen/components/TimeSlotModal';
 import { SeniorHomeView } from './HomeScreen/components/SeniorHomeView';
 import { AlarmHealthBanner } from './HomeScreen/components/AlarmHealthBanner';
+import { StatsGrid } from './HomeScreen/components/StatsGrid';
+
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 // Presenter Hook
 import { useHomeController } from './HomeScreen/hooks/useHomeController';
@@ -38,6 +41,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [batchImportVisible, setBatchImportVisible] = React.useState(false);
+  const { isTablet } = useResponsiveLayout();
   const {
     colors,
     isDark,
@@ -137,6 +141,7 @@ export default function HomeScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={[isTablet && styles.tabletContentContainer]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* 1. Header (Avatar + Selamlama + Günlük İlerleme Göstergesi) */}
@@ -157,140 +162,296 @@ export default function HomeScreen() {
         {/* 1.5. Alarm Sağlık & İzin Kalkanı Uyarısı (Eksik kritik izin varsa gösterilir) */}
         <AlarmHealthBanner language={language === 'en' ? 'en' : 'tr'} isDark={isDark} />
 
-        {/* 2. Compact Haftalık Takvim Çubuğu */}
-        <WeeklyCalendarStrip
-          selectedDate={selectedCalendarDate}
-          onSelectDate={setSelectedCalendarDate}
-          medicineLogsSummary={weeklyLogsSummary}
-        />
+        {/* Banners & Section Header Helpers */}
+        {(() => {
+          const renderBatchImportBanner = () => (
+            <TouchableOpacity
+              style={[
+                styles.batchImportBanner,
+                isTablet && styles.tabletNoMargin,
+                {
+                  backgroundColor: isDark ? 'rgba(78, 205, 196, 0.12)' : '#E6FFFA',
+                  borderColor: isDark ? 'rgba(78, 205, 196, 0.3)' : '#B2F5EA',
+                },
+              ]}
+              onPress={() => setBatchImportVisible(true)}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.batchImportIconBg, { backgroundColor: colors.primary }]}>
+                <Ionicons name="camera" size={16} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.batchImportTitle, { color: colors.text }]}>
+                  {language === 'tr'
+                    ? '📸 Çoklu İlaç / Reçete AI ile Tara'
+                    : '📸 Batch AI Medicine Import'}
+                </Text>
+                <Text style={[styles.batchImportSubtitle, { color: colors.textSecondary }]}>
+                  {language === 'tr'
+                    ? 'Kutuları veya reçeteyi tek fotoğrafla listeye aktarın'
+                    : 'Import multiple boxes with one photo'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          );
 
-        {/* 2.2. Çoklu İlaç & Reçete AI Hızlı Aktarma Butonu */}
-        <TouchableOpacity
-          style={[
-            styles.batchImportBanner,
-            {
-              backgroundColor: isDark ? 'rgba(78, 205, 196, 0.12)' : '#E6FFFA',
-              borderColor: isDark ? 'rgba(78, 205, 196, 0.3)' : '#B2F5EA',
-            },
-          ]}
-          onPress={() => setBatchImportVisible(true)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.batchImportIconBg}>
-            <Ionicons name="camera" size={16} color="#FFFFFF" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.batchImportTitle, { color: isDark ? '#E6FFFA' : '#234E52' }]}>
-              {language === 'tr'
-                ? '📸 Çoklu İlaç / Reçete AI ile Tara'
-                : '📸 Batch AI Medicine Import'}
-            </Text>
-            <Text style={[styles.batchImportSubtitle, { color: isDark ? '#A0AEC0' : '#4A5568' }]}>
-              {language === 'tr'
-                ? 'Kutuları veya reçeteyi tek fotoğrafla listeye aktarın'
-                : 'Import multiple boxes with one photo'}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={isDark ? '#E6FFFA' : '#234E52'} />
-        </TouchableOpacity>
-
-        {/* 2.5. Stok Azaldı & Nöbetçi Eczane Köprüsü */}
-        {lowStockMedicines && lowStockMedicines.length > 0 && (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('DutyPharmacy' as never)}
-            style={[
-              styles.slimLowStockBanner,
-              {
-                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#FFFBEB',
-                borderColor: isDark ? 'rgba(245, 158, 11, 0.35)' : '#FDE68A',
-              },
-            ]}
-            activeOpacity={0.8}
-          >
-            <View style={styles.slimLowStockLeft}>
-              <Ionicons name="warning" size={15} color="#F59E0B" />
-              <Text
-                style={[styles.slimLowStockText, { color: isDark ? '#FDE68A' : '#92400E' }]}
-                numberOfLines={1}
-              >
-                {lowStockMedicines.length}{' '}
-                {language === 'tr' ? 'ilacın stoğu azalıyor' : 'medicines low on stock'}
-              </Text>
-            </View>
-            <View style={styles.slimLowStockAction}>
-              <Text
-                style={[styles.slimLowStockActionText, { color: isDark ? '#38BDF8' : '#0284C7' }]}
-              >
-                {language === 'tr' ? 'Nöbetçi Eczaneler ›' : 'Pharmacies ›'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* 3. Bölüm Başlığı & Alınan Doz Özeti */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionTitleLeft}>
-            <Text style={[styles.sectionTitleText, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
-              {isSelectedDateToday
-                ? language === 'tr'
-                  ? 'Sıradaki İlaç'
-                  : 'Next Dose'
-                : format(selectedCalendarDate, language === 'tr' ? 'd MMMM, EEEE' : 'EEEE, MMM d', {
-                    locale: dateLocale,
-                  }) + (language === 'tr' ? ' İlaçları' : '')}
-            </Text>
-            {!isSelectedDateToday && (
+          const renderLowStockBanner = () => {
+            if (!lowStockMedicines || lowStockMedicines.length === 0) return null;
+            return (
               <TouchableOpacity
-                onPress={() => setSelectedCalendarDate(new Date())}
+                onPress={() => navigation.navigate('DutyPharmacy' as never)}
                 style={[
-                  styles.todayBadgeBtn,
+                  styles.slimLowStockBanner,
+                  isTablet && styles.tabletNoMargin,
                   {
-                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#EFF6FF',
-                    borderColor: isDark ? '#38BDF8' : '#93C5FD',
+                    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#FFFBEB',
+                    borderColor: isDark ? 'rgba(245, 158, 11, 0.35)' : '#FDE68A',
                   },
                 ]}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.todayBadgeBtnText, { color: isDark ? '#38BDF8' : '#0284C7' }]}>
-                  {language === 'tr' ? 'Bugün ↩' : 'Today ↩'}
-                </Text>
+                <View style={styles.slimLowStockLeft}>
+                  <Ionicons name="warning" size={15} color="#F59E0B" />
+                  <Text
+                    style={[styles.slimLowStockText, { color: isDark ? '#FDE68A' : '#92400E' }]}
+                    numberOfLines={1}
+                  >
+                    {lowStockMedicines.length}{' '}
+                    {language === 'tr' ? 'ilacın stoğu azalıyor' : 'medicines low on stock'}
+                  </Text>
+                </View>
+                <View style={styles.slimLowStockAction}>
+                  <Text style={[styles.slimLowStockActionText, { color: colors.primary }]}>
+                    {language === 'tr' ? 'Nöbetçi Eczaneler ›' : 'Pharmacies ›'}
+                  </Text>
+                </View>
               </TouchableOpacity>
-            )}
-          </View>
-          <Text style={[styles.doseSummaryText, { color: colors.textMuted }]}>
-            {completedCount}/{totalCount} {language === 'tr' ? 'Alındı' : 'Taken'}
-          </Text>
-        </View>
+            );
+          };
 
-        {/* 4. Sıradaki İlaç (Current Dose Hero Card) */}
-        <CurrentDoseCard
-          key={
-            currentReminder
-              ? `current-reminder-${currentReminder.reminderTime.id}`
-              : 'all-reminders-completed'
+          const renderSectionHeader = () => (
+            <View style={[styles.sectionHeaderRow, isTablet && styles.tabletNoMargin]}>
+              <View style={styles.sectionTitleLeft}>
+                <Text style={[styles.sectionTitleText, { color: colors.text }]}>
+                  {isSelectedDateToday
+                    ? language === 'tr'
+                      ? 'Sıradaki İlaç'
+                      : 'Next Dose'
+                    : format(
+                        selectedCalendarDate,
+                        language === 'tr' ? 'd MMMM, EEEE' : 'EEEE, MMM d',
+                        {
+                          locale: dateLocale,
+                        }
+                      ) + (language === 'tr' ? ' İlaçları' : '')}
+                </Text>
+                {!isSelectedDateToday && (
+                  <TouchableOpacity
+                    onPress={() => setSelectedCalendarDate(new Date())}
+                    style={[
+                      styles.todayBadgeBtn,
+                      {
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#EFF6FF',
+                        borderColor: colors.primary,
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.todayBadgeBtnText, { color: colors.primary }]}>
+                      {language === 'tr' ? 'Bugün ↩' : 'Today ↩'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={[styles.doseSummaryText, { color: colors.textMuted }]}>
+                {completedCount}/{totalCount} {language === 'tr' ? 'Alındı' : 'Taken'}
+              </Text>
+            </View>
+          );
+
+          if (isTablet) {
+            return (
+              /* Tablet 2 Sütunlu Responsive Dashboard */
+              <View style={styles.tabletDashboardRow}>
+                {/* Sol Sütun: Günün Dozları & Zaman Dilimleri */}
+                <View style={styles.tabletLeftColumn}>
+                  {renderBatchImportBanner()}
+                  {renderLowStockBanner()}
+                  {renderSectionHeader()}
+                  <CurrentDoseCard
+                    key={
+                      currentReminder
+                        ? `current-reminder-${currentReminder.reminderTime.id}`
+                        : 'all-reminders-completed'
+                    }
+                    reminder={currentReminder}
+                    colors={colors}
+                    isDark={isDark}
+                    language={language}
+                    onTake={() => currentReminder && handleTake(currentReminder.reminderTime.id)}
+                    onSnooze={minutes => currentReminder && handleSnooze(currentReminder, minutes)}
+                    onSkip={() => {
+                      if (currentReminder) {
+                        handleSkip(currentReminder.reminderTime.id);
+                      }
+                    }}
+                  />
+                  <TimeSlotGrid
+                    slots={groupedTimeline}
+                    activeSlotKey={activeSlotKey}
+                    onSelectSlot={slotKey => setActiveModalSlotKey(slotKey)}
+                    colors={colors}
+                    isDark={isDark}
+                    language={language}
+                  />
+                </View>
+
+                {/* Sağ Sütun: Haftalık Takvim Çubuğu & Bilgi Paneli */}
+                <View style={styles.tabletRightColumn}>
+                  <View
+                    style={[
+                      styles.tabletCalendarCard,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
+                    <Text style={[styles.tabletCalendarTitle, { color: colors.text }]}>
+                      {language === 'tr'
+                        ? '📅 Haftalık Takvim & Doz Takibi'
+                        : '📅 Weekly Calendar & Adherence'}
+                    </Text>
+                    <WeeklyCalendarStrip
+                      selectedDate={selectedCalendarDate}
+                      onSelectDate={setSelectedCalendarDate}
+                      medicineLogsSummary={weeklyLogsSummary}
+                    />
+                  </View>
+
+                  {/* Tablet Özet İstatistikler Grid'i */}
+                  <StatsGrid
+                    totalCount={totalCount}
+                    completedCount={completedCount}
+                    remainingCount={Math.max(0, totalCount - completedCount)}
+                    lowStockCount={lowStockMedicines?.length ?? 0}
+                    style={styles.tabletNoMargin}
+                  />
+
+                  {/* Tablet Hızlı Sağlık ve Acil Durum Kısayolları */}
+                  <View
+                    style={[
+                      styles.tabletQuickActionsCard,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
+                    <Text style={[styles.tabletQuickActionsTitle, { color: colors.text }]}>
+                      {language === 'tr' ? '⚡ Hızlı Erişim' : '⚡ Quick Actions'}
+                    </Text>
+                    <View style={styles.tabletQuickActionsRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.tabletQuickActionButton,
+                          {
+                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#EFF6FF',
+                            borderColor: colors.primary,
+                          },
+                        ]}
+                        onPress={() => navigation.navigate('DutyPharmacy' as never)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="medical" size={17} color={colors.primary} />
+                        <Text style={[styles.tabletQuickActionText, { color: colors.primary }]}>
+                          {language === 'tr' ? 'Nöbetçi Eczane' : 'Pharmacy'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.tabletQuickActionButton,
+                          {
+                            backgroundColor: isDark ? 'rgba(78, 205, 196, 0.12)' : '#E6FFFA',
+                            borderColor: '#4ECDC4',
+                          },
+                        ]}
+                        onPress={() => navigation.navigate('Caregiver' as never)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="people" size={17} color="#4ECDC4" />
+                        <Text
+                          style={[
+                            styles.tabletQuickActionText,
+                            { color: isDark ? '#4ECDC4' : '#0D9488' },
+                          ]}
+                        >
+                          {language === 'tr' ? 'Refakatçi' : 'Caregiver'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.tabletQuickActionButton,
+                          {
+                            backgroundColor: isDark ? 'rgba(168, 85, 247, 0.12)' : '#FAF5FF',
+                            borderColor: '#A855F7',
+                          },
+                        ]}
+                        onPress={() => navigation.navigate('Statistics' as never)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="stats-chart" size={17} color="#A855F7" />
+                        <Text
+                          style={[
+                            styles.tabletQuickActionText,
+                            { color: isDark ? '#C084FC' : '#7E22CE' },
+                          ]}
+                        >
+                          {language === 'tr' ? 'Raporlar' : 'Reports'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            );
           }
-          reminder={currentReminder}
-          colors={colors}
-          isDark={isDark}
-          language={language}
-          onTake={() => currentReminder && handleTake(currentReminder.reminderTime.id)}
-          onSnooze={minutes => currentReminder && handleSnooze(currentReminder, minutes)}
-          onSkip={() => {
-            if (currentReminder) {
-              handleSkip(currentReminder.reminderTime.id);
-            }
-          }}
-        />
 
-        {/* 5. 2x2 Zaman Dilimi Izgarası (Sabah, Öğle, Akşam, Gece) */}
-        <TimeSlotGrid
-          slots={groupedTimeline}
-          activeSlotKey={activeSlotKey}
-          onSelectSlot={slotKey => setActiveModalSlotKey(slotKey)}
-          colors={colors}
-          isDark={isDark}
-          language={language}
-        />
+          /* Telefon Tek Sütunlu Akış (Mevcut düzen aynen korunur) */
+          return (
+            <>
+              <WeeklyCalendarStrip
+                selectedDate={selectedCalendarDate}
+                onSelectDate={setSelectedCalendarDate}
+                medicineLogsSummary={weeklyLogsSummary}
+              />
+              {renderBatchImportBanner()}
+              {renderLowStockBanner()}
+              {renderSectionHeader()}
+              <CurrentDoseCard
+                key={
+                  currentReminder
+                    ? `current-reminder-${currentReminder.reminderTime.id}`
+                    : 'all-reminders-completed'
+                }
+                reminder={currentReminder}
+                colors={colors}
+                isDark={isDark}
+                language={language}
+                onTake={() => currentReminder && handleTake(currentReminder.reminderTime.id)}
+                onSnooze={minutes => currentReminder && handleSnooze(currentReminder, minutes)}
+                onSkip={() => {
+                  if (currentReminder) {
+                    handleSkip(currentReminder.reminderTime.id);
+                  }
+                }}
+              />
+              <TimeSlotGrid
+                slots={groupedTimeline}
+                activeSlotKey={activeSlotKey}
+                onSelectSlot={slotKey => setActiveModalSlotKey(slotKey)}
+                colors={colors}
+                isDark={isDark}
+                language={language}
+              />
+            </>
+          );
+        })()}
 
         {/* 6. Zaman Dilimi Detay Modalı (Bottom Sheet) */}
         <TimeSlotModal
@@ -412,6 +573,81 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  tabletContentContainer: {
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  tabletDashboardRow: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingHorizontal: 16,
+    marginTop: 10,
+    alignItems: 'flex-start',
+  },
+  tabletLeftColumn: {
+    flex: 1.1,
+  },
+  tabletRightColumn: {
+    flex: 0.9,
+    gap: 12,
+  },
+  tabletCalendarCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabletCalendarTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  tabletNoMargin: {
+    marginHorizontal: 0,
+  },
+  tabletQuickActionsCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    marginTop: 4,
+  },
+  tabletQuickActionsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+    marginLeft: 2,
+  },
+  tabletQuickActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  tabletQuickActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  tabletQuickActionText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   batchImportBanner: {
     marginHorizontal: 16,

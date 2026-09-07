@@ -5,7 +5,7 @@
  * kronik rahatsızlıkları, hayati ilaçları ve acil irtibat kişilerini görüntüler (v2.0.0).
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,9 +19,38 @@ import {
   Switch,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { format, parse, isValid, differenceInYears } from 'date-fns';
+import { tr, enUS } from 'date-fns/locale';
 import { useMedicalIdStore, BloodType } from '../../stores/medicalIdStore';
 import { useMedicineStore } from '../../stores/medicineStore';
 import type { ThemeColors } from '../../contexts/ThemeContext';
+import { WheelDatePickerModal } from '../common/wheel';
+import { getLocalDateKey } from '../../domain/doseLog';
+import { isoToParts } from '../../domain/dateParts';
+import { MAX_AGE_YEARS } from '../../domain/wheelDateModel';
+
+function calculateAge(birthDateStr?: string): number | null {
+  if (!birthDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(birthDateStr)) return null;
+  try {
+    const parsed = parse(birthDateStr, 'yyyy-MM-dd', new Date());
+    if (!isValid(parsed)) return null;
+    const age = differenceInYears(new Date(), parsed);
+    return age >= 0 && age <= 125 ? age : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatBirthDateDisplay(birthDateStr: string | undefined, isTr: boolean): string {
+  if (!birthDateStr) return isTr ? 'Tarih seçilmedi' : 'No date set';
+  try {
+    const parsed = parse(birthDateStr, 'yyyy-MM-dd', new Date());
+    if (!isValid(parsed)) return birthDateStr;
+    return format(parsed, 'd MMMM yyyy', { locale: isTr ? tr : enUS });
+  } catch {
+    return birthDateStr;
+  }
+}
 
 interface MedicalIdModalProps {
   visible: boolean;
@@ -59,6 +88,28 @@ export function MedicalIdModal({
   const [chronicText, setChronicText] = useState(medicalId.chronicConditions.join(', '));
   const [notes, setNotes] = useState(medicalId.notes);
   const [showOnLockScreen, setShowOnLockScreen] = useState(medicalId.showOnLockScreen);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const birthDateRange = useMemo(() => {
+    const todayParts = isoToParts(getLocalDateKey(new Date()));
+    if (!todayParts) return undefined;
+    const minYear = Math.max(todayParts.year - MAX_AGE_YEARS, 1900);
+    return {
+      min: `${minYear}-01-01`,
+      max: getLocalDateKey(new Date()),
+    };
+  }, []);
+
+  const handleConfirmBirthDate = useCallback((iso: string) => {
+    setBirthDate(iso);
+    setShowDatePicker(false);
+  }, []);
+
+  const handleCancelBirthDate = useCallback(() => {
+    setShowDatePicker(false);
+  }, []);
+
+  const currentAge = calculateAge(birthDate);
 
   // Yeni acil durum kişisi ekleme formu
   const [newContactName, setNewContactName] = useState('');
@@ -178,8 +229,16 @@ export function MedicalIdModal({
                       <Text style={[styles.metaText, { color: colors.textMuted }]}>
                         {medicalId.birthDate
                           ? isTr
-                            ? `Doğum: ${medicalId.birthDate}`
-                            : `Birth: ${medicalId.birthDate}`
+                            ? `Doğum: ${formatBirthDateDisplay(medicalId.birthDate, true)}${
+                                calculateAge(medicalId.birthDate) !== null
+                                  ? ` (${calculateAge(medicalId.birthDate)} yaş)`
+                                  : ''
+                              }`
+                            : `Birth: ${formatBirthDateDisplay(medicalId.birthDate, false)}${
+                                calculateAge(medicalId.birthDate) !== null
+                                  ? ` (${calculateAge(medicalId.birthDate)} yrs)`
+                                  : ''
+                              }`
                           : isTr
                             ? 'Doğum tarihi belirtilmedi'
                             : 'Birth date not set'}
@@ -351,40 +410,134 @@ export function MedicalIdModal({
                   placeholderTextColor={colors.textMuted}
                 />
 
-                <Text style={[styles.formLabel, { color: colors.text }]}>
-                  {isTr ? 'Doğum Tarihi (YYYY-AA-GG)' : 'Birth Date'}
-                </Text>
-                <TextInput
-                  style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+                <View style={styles.formLabelRow}>
+                  <Text style={[styles.formLabel, { color: colors.text, marginBottom: 0 }]}>
+                    {isTr ? 'Doğum Tarihi' : 'Birth Date'}
+                  </Text>
+                  {currentAge !== null && (
+                    <View
+                      style={[
+                        styles.ageBadge,
+                        { backgroundColor: isDark ? 'rgba(13, 148, 136, 0.2)' : '#CCFBF1' },
+                      ]}
+                    >
+                      <Text style={[styles.ageBadgeText, { color: colors.primary }]}>
+                        {currentAge} {isTr ? 'Yaşında' : 'years'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Doğum Tarihi Seçici Kartı */}
+                <View style={styles.datePickerContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.datePickerButton,
+                      {
+                        borderColor: birthDate ? colors.primary : colors.border,
+                        backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : '#F8FAFC',
+                      },
+                    ]}
+                    onPress={() => setShowDatePicker(true)}
+                    activeOpacity={0.7}
+                    accessibilityLabel={
+                      isTr ? 'Doğum tarihi seçiciyi aç' : 'Open birth date picker'
+                    }
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.datePickerLeft}>
+                      <Ionicons
+                        name="calendar"
+                        size={22}
+                        color={birthDate ? colors.primary : colors.textMuted}
+                      />
+                      <View style={{ marginLeft: 10 }}>
+                        <Text
+                          style={[
+                            styles.datePickerValueText,
+                            { color: birthDate ? colors.text : colors.textMuted },
+                          ]}
+                        >
+                          {birthDate
+                            ? formatBirthDateDisplay(birthDate, isTr)
+                            : isTr
+                              ? 'Tarih seçmek için dokunun'
+                              : 'Tap to select date'}
+                        </Text>
+                        {birthDate ? (
+                          <Text style={[styles.datePickerIsoText, { color: colors.textMuted }]}>
+                            {birthDate}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+
+                    <View style={styles.datePickerRight}>
+                      {birthDate ? (
+                        <TouchableOpacity
+                          style={styles.clearDateBtn}
+                          onPress={() => setBirthDate('')}
+                          accessibilityLabel={isTr ? 'Doğum tarihini temizle' : 'Clear birth date'}
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        >
+                          <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+                        </TouchableOpacity>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                <WheelDatePickerModal
+                  visible={showDatePicker}
                   value={birthDate}
-                  onChangeText={setBirthDate}
-                  placeholder="1970-01-15"
-                  placeholderTextColor={colors.textMuted}
+                  range={birthDateRange}
+                  title={isTr ? 'Doğum Tarihi' : 'Birth Date'}
+                  onConfirm={handleConfirmBirthDate}
+                  onCancel={handleCancelBirthDate}
                 />
 
                 <Text style={[styles.formLabel, { color: colors.text }]}>
                   {isTr ? 'Kan Grubu' : 'Blood Type'}
                 </Text>
                 <View style={styles.bloodGrid}>
-                  {BLOOD_TYPES.map(bt => (
-                    <TouchableOpacity
-                      key={bt}
-                      style={[
-                        styles.bloodOption,
-                        bloodType === bt && { backgroundColor: '#EF4444', borderColor: '#DC2626' },
-                      ]}
-                      onPress={() => setBloodType(bt)}
-                    >
-                      <Text
+                  {BLOOD_TYPES.map(bt => {
+                    const isSelected = bloodType === bt;
+                    return (
+                      <TouchableOpacity
+                        key={bt}
                         style={[
-                          styles.bloodOptionText,
-                          bloodType === bt && { color: '#FFFFFF', fontWeight: 'bold' },
+                          styles.bloodOption,
+                          {
+                            backgroundColor: isSelected
+                              ? '#DC2626'
+                              : isDark
+                                ? '#334155'
+                                : '#F1F5F9',
+                            borderColor: isSelected ? '#B91C1C' : isDark ? '#475569' : '#CBD5E1',
+                          },
                         ]}
+                        onPress={() => setBloodType(bt)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={`${bt} ${isTr ? 'kan grubu' : 'blood type'}`}
                       >
-                        {bt}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text
+                          style={[
+                            styles.bloodOptionText,
+                            {
+                              color: isSelected ? '#FFFFFF' : isDark ? '#F8FAFC' : '#1E293B',
+                              fontWeight: isSelected ? '700' : '600',
+                            },
+                          ]}
+                        >
+                          {bt}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 <Text style={[styles.formLabel, { color: colors.text }]}>
@@ -425,7 +578,12 @@ export function MedicalIdModal({
                 />
 
                 {/* Acil Kişi Ekle */}
-                <View style={styles.addContactBlock}>
+                <View
+                  style={[
+                    styles.addContactBlock,
+                    { borderTopColor: isDark ? '#334155' : '#CBD5E1' },
+                  ]}
+                >
                   <Text style={[styles.formLabel, { color: colors.text, marginTop: 10 }]}>
                     {isTr ? 'Yeni Acil İrtibat Kişisi Ekle' : 'Add Emergency Contact'}
                   </Text>
@@ -751,14 +909,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   bloodOption: {
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderWidth: 1.5,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bloodOptionText: {
     fontSize: 14,
+    letterSpacing: 0.3,
   },
   addContactBlock: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -834,5 +995,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     marginLeft: 6,
+  },
+  formLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  ageBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  ageBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  datePickerContainer: {
+    marginBottom: 8,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 48,
+  },
+  datePickerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  datePickerValueText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  datePickerIsoText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  datePickerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  clearDateBtn: {
+    padding: 4,
   },
 });

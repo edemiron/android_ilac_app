@@ -164,7 +164,7 @@ export const CurrentDoseCard: React.FC<CurrentDoseCardProps> = ({
           <View style={styles.currentDoseText}>
             <Text
               style={[styles.currentDoseName, { color: isDark ? '#F8FAFC' : '#0F172A' }]}
-              numberOfLines={1}
+              numberOfLines={2}
             >
               {reminder.medicine.name}
             </Text>
@@ -393,6 +393,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.2,
     marginBottom: 3,
+    lineHeight: 21,
   },
   tagRow: {
     flexDirection: 'row',

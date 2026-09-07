@@ -608,6 +608,14 @@ notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
       } catch (e) {
         console.error('[BG] Snooze hatası:', e);
       }
+    } else if (actionId === 'CAREGIVER_ACTION_TAKEN' || actionId === 'CAREGIVER_ACTION_CALL') {
+      try {
+        const { handleCaregiverBackgroundAction } =
+          await import('./src/services/caregiverEventHandler');
+        await handleCaregiverBackgroundAction(actionId, data);
+      } catch (cgErr) {
+        console.error('[BG] Caregiver action handling error:', cgErr);
+      }
     }
     // 'stop' veya diğer aksiyonlar — zaten cancelAlarmCompletely ile iptal edildi
   }

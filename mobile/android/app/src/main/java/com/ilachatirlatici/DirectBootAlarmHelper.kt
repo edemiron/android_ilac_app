@@ -187,4 +187,23 @@ object DirectBootAlarmHelper {
             0
         }
     }
+
+    /**
+     * DE SharedPreferences'taki tüm alarmları temizler (v2.0.1).
+     * Kullanıcı tüm verileri sildiğinde, oturumu kapattığında veya hesap sıfırlandığında çağrılır.
+     * Silinen kayıt sayısını döner.
+     */
+    fun clearAllAlarms(context: Context): Int {
+        return try {
+            val prefs = getPrefs(context)
+            val count = prefs.all.size
+            prefs.edit().clear().apply()
+            Log.i(TAG, "clearAllAlarms: DirectBoot DE alanındaki $count alarm temizlendi")
+            count
+        } catch (e: Exception) {
+            Log.e(TAG, "clearAllAlarms failed", e)
+            0
+        }
+    }
 }
+

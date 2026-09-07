@@ -205,11 +205,19 @@ export function useCaregiver(): UseCaregiverResult {
         };
       }
 
+      let fcmToken = '';
+      try {
+        const messaging = (await import('@react-native-firebase/messaging')).default;
+        fcmToken = await messaging().getToken();
+      } catch (_tErr) {
+        // best-effort
+      }
+
       const result = await acceptCaregiverInvite(
         inviteCode,
         effectiveUserId,
         effectiveDisplayName,
-        ''
+        fcmToken
       );
 
       if (result.success) {

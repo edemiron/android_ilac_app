@@ -103,8 +103,8 @@ export async function cancelMedicineNotifications(medicineId: string): Promise<v
     const medicineNotificationIds = triggerIds.filter(id => belongsToMedicine(id, medicineId));
 
     for (const notifId of medicineNotificationIds) {
-      await notifee.cancelNotification(notifId);
-      log.debug('Ilac bildirimi iptal edildi', { notifId, medicineId });
+      await cancelNotification(notifId);
+      log.debug('Ilac bildirimi ve native alarm iptal edildi', { notifId, medicineId });
     }
 
     const displayedNotifications = await notifee.getDisplayedNotifications();

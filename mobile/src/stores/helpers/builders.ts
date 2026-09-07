@@ -207,6 +207,7 @@ export function countWhere<T>(items: T[], predicate: (item: T) => boolean): numb
  * Buraya eklendiler ki "tum verileri temizle" gercekten temizlesin.
  */
 export const MEDICINE_STORE_STORAGE_KEYS = [
+  'medicine-storage',
   'medicine-store',
   'medicine-store-sync-queue',
   '@medicine_storage',
@@ -215,6 +216,10 @@ export const MEDICINE_STORE_STORAGE_KEYS = [
   'ilac-app-logs-storage',
   'ilac-app-snoozes-storage',
   'ilac-app-settings-storage',
+  // v2.0.1: KVKK & Tam Temizlik — yetim kalabilecek bağımsız store/servis anahtarları:
+  'ilac_medical_id_v1',
+  'ilac_symptom_logs_v1',
+  '@ilachatirlatici_prescriptions_v1',
 ] as const;
 
 /**

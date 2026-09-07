@@ -58,6 +58,10 @@ interface AlarmModuleShape {
   getAlarmStreamVolume?: () => Promise<StreamVolumeInfo | null>;
   ensureSafeAlarmVolume?: (minRatio: number) => Promise<VolumeAdjustmentResult | null>;
   restoreAlarmVolume?: () => Promise<boolean>;
+  cancelAllNativeAlarms?: () => Promise<boolean>;
+  clearAllDirectBootAlarms?: () => Promise<number>;
+  canUseFullScreenIntent?: () => Promise<boolean>;
+  openFullScreenIntentSettings?: () => Promise<boolean>;
 }
 
 export interface StreamVolumeInfo {
@@ -212,4 +216,50 @@ export async function restoreAlarmVolume(): Promise<boolean> {
   }
 }
 
+/** Tüm native alarmları iptal eder ve DirectBoot aynasını temizler (v2.0.1). */
+export async function cancelAllNativeAlarms(): Promise<boolean> {
+  const alarmModule = getAlarmModule();
+  if (!alarmModule?.cancelAllNativeAlarms) return false;
+  try {
+    return await alarmModule.cancelAllNativeAlarms();
+  } catch (error) {
+    log.debug('cancelAllNativeAlarms başarısız', { error: String(error) });
+    return false;
+  }
+}
 
+/** Direct Boot DE SharedPreferences alanındaki tüm kayıtları temizler (v2.0.1). */
+export async function clearAllDirectBootAlarms(): Promise<number> {
+  const alarmModule = getAlarmModule();
+  if (!alarmModule?.clearAllDirectBootAlarms) return 0;
+  try {
+    return await alarmModule.clearAllDirectBootAlarms();
+  } catch (error) {
+    log.debug('clearAllDirectBootAlarms başarısız', { error: String(error) });
+    return 0;
+  }
+}
+
+/** Android 14+ Tam Ekran Bildirim (FullScreenIntent) iznini sorgular (v2.0.1). */
+export async function canUseFullScreenIntent(): Promise<boolean> {
+  const alarmModule = getAlarmModule();
+  if (!alarmModule?.canUseFullScreenIntent) return true;
+  try {
+    return await alarmModule.canUseFullScreenIntent();
+  } catch (error) {
+    log.debug('canUseFullScreenIntent başarısız', { error: String(error) });
+    return true;
+  }
+}
+
+/** Android 14+ Tam Ekran Bildirim İzinleri Ayar Ekranını Açar (v2.0.1). */
+export async function openFullScreenIntentSettings(): Promise<boolean> {
+  const alarmModule = getAlarmModule();
+  if (!alarmModule?.openFullScreenIntentSettings) return false;
+  try {
+    return await alarmModule.openFullScreenIntentSettings();
+  } catch (error) {
+    log.debug('openFullScreenIntentSettings başarısız', { error: String(error) });
+    return false;
+  }
+}

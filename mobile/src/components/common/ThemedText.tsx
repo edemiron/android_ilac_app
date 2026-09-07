@@ -11,7 +11,23 @@
 
 import React from 'react';
 import { Text, StyleSheet, type TextStyle, type StyleProp } from 'react-native';
-import { useTheme } from '../../contexts/ThemeContext';
+import * as ThemeContextModule from '../../contexts/ThemeContext';
+import * as ResponsiveLayoutModule from '../../hooks/useResponsiveLayout';
+
+function useThemeSafeFallback() {
+  const mod = ThemeContextModule as any;
+  if (typeof mod.useThemeSafe === 'function') {
+    return mod.useThemeSafe();
+  }
+  if (typeof mod.useTheme === 'function') {
+    try {
+      return mod.useTheme();
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
 
 export type ThemedTextVariant =
   | 'headlineLg' // 28/700/-0.4 letterSpacing — screen title
@@ -72,21 +88,40 @@ const VARIANT_STYLES: Record<ThemedTextVariant, TextStyle> = {
   },
 };
 
-export function ThemedText({ variant, children, color, style, numberOfLines }: ThemedTextProps) {
-  let textColor = color;
-  if (!textColor) {
-    try {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      const theme = useTheme();
-      textColor = theme?.colors?.text ?? '#0F172A';
-    } catch {
-      textColor = '#0F172A';
+function useResponsiveMultiplier(): number {
+  try {
+    const mod = ResponsiveLayoutModule as any;
+    if (typeof mod.useResponsiveLayout === 'function') {
+      const layout = mod.useResponsiveLayout();
+      if (layout && typeof layout.fontSizeMultiplier === 'number') {
+        return layout.fontSizeMultiplier;
+      }
     }
+  } catch {
+    // Tests or environments without Dimensions fallback safely to 1.0
   }
+  return 1.0;
+}
+
+export function ThemedText({ variant, children, color, style, numberOfLines }: ThemedTextProps) {
+  const theme = useThemeSafeFallback();
+  const textColor = color ?? theme?.colors?.text ?? '#0F172A';
+  const multiplier = useResponsiveMultiplier();
+
+  const baseStyle = VARIANT_STYLES[variant];
+  const scaledStyle =
+    multiplier > 1 && baseStyle.fontSize
+      ? {
+          fontSize: Math.round(baseStyle.fontSize * multiplier),
+          lineHeight: baseStyle.lineHeight
+            ? Math.round(baseStyle.lineHeight * multiplier)
+            : undefined,
+        }
+      : null;
 
   return (
     <Text
-      style={[VARIANT_STYLES[variant], { color: textColor }, style]}
+      style={[baseStyle, scaledStyle, { color: textColor }, style]}
       numberOfLines={numberOfLines}
       allowFontScaling
     >
