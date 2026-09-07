@@ -10,6 +10,19 @@ Biçimlendirme standardı [Keep a Changelog](https://keepachangelog.com/tr/1.0.0
 ### Added
 - Gelecek sürüm geliştirmeleri ve Ufuk 3 AI Vision yol haritası maddeleri.
 
+### Security
+- **🔒 Firestore Rules Sertleştirmesi — Davet Zinciri ve Doz Kaydı Bütünlüğü (`firestore.rules`):** App Check mobilde fiilen kapalı olduğu için kural dosyası tek koruma katmanı; kapsamlı depo denetiminin K1/K2/K3 bulguları bu yüzden kural tarafında kapatıldı. Commit'lendi ama **henüz deploy edilmedi** (`firebase deploy --only firestore:rules` çalıştırılmadı, APK derlenmedi, sürüm yükseltilmedi).
+  - **Anonim kimlik kapatıldı (`isNotAnonymous()`):** `caregiverInvites/{inviteCode}` üzerindeki `allow get: if isAuthenticated()` koşulu, sınırsız ve atfedilemez tek kullanımlık kimliklerle davet kodu uzayının taranmasına imkân veriyordu. `sign_in_provider != 'anonymous'` şartı hem davet okumaya hem ilişki kurmaya eklendi. Kırıcı değil: uygulama anonim girişi hiçbir akışta çağırmıyor (`loginAnonymously`'nin çağıranı yok).
+  - **Davet süresi dolumu kuralda bağlayıcı (`inviteNotExpired()`):** süre kontrolü yalnızca istemcideydi, SDK'yı doğrudan kullanan herkes atlıyordu ve süresi dolmuş ama `pending` kalmış davet sonsuza dek çalışıyordu. `expiresAt` ISO string olduğu ve Rules `Timestamp`'te `toISOString()` bulunmadığı için string↔Timestamp karşılaştırması **tüm kabulleri reddederdi**; bu yüzden sayısal `expiresAtMs` alanı eklendi. Alanı olmayan eski davetler sentinel ile korunuyor (kırıcı olmayan geçiş).
+  - **Bakıcı davet güncellemesi kısıtlandı:** `pending → accepted` geçişi ve `affectedKeys().hasOnly(['status','caregiverId','caregiverName','acceptedAt'])` zorunlu. Eskiden bekleyen bir davette `caregiverId`'sini kendi UID'sine eşitleyen herkes keyfi alan yazabiliyordu.
+  - **Doz kaydı bakıcı için APPEND-ONLY:** `medicineLogs`'ta bakıcının `update` hakkı kaldırıldı, `source == 'caregiver_action'` beyanı zorunlu kılındı. Eskiden bakıcı hastanın kaydettiği bir `missed` logu `taken`'a çevirip `source`'u aynı yazımda değiştirerek düzenlemenin izini örtebiliyordu; hiçbir yerde aktör kimliği tutulmuyordu. KVKK m.6 kapsamında bütünlüğü yasal yükümlülük olan özel nitelikli veri. `actorUid` istemciye eklendi ama kural şartı **saha yayılımı beklenerek** Faz 2'ye bırakıldı.
+- **🔒 `scripts/` fail-closed gitignore:** dizindeki iki ayrı betikte (`qwen_alarm_audit.js:5`, `qwen_general_codebase_audit.js:5`) düz metin canlı bir API anahtarı bulundu. Anahtar git geçmişine **hiç girmedi** (`git log --all -S` boş) ve `scripts/*` + iki doğrulanmış araç istisnasıyla yok sayılıyor; böylece yeni eklenen her dosya otomatik dışlanır. ⚠️ **Anahtarın kendisi hâlâ diskte ve iptal edilmesi gerekiyor** — gitignore sızıntıyı önler ama mevcut anahtarı geçersiz kılmaz.
+
+### Fixed
+- **`domain/wheelDateModel.ts` — `no-fallthrough`:** iç `switch`'te `default` olmadığı için `case 'step'` bloğu dönüşsüz tamamlanıp `case 'reset'`'e düşüyordu; orada bir step aksiyonunda `action.parts` tanımsız olduğundan `TypeError` üretirdi.
+- **`hooks/useResponsiveLayout.ts` — `react-hooks/rules-of-hooks`:** `useWindowDimensions` bir `if` içinde çağrılıyordu. Koşul render'lar arasında değişirse React hook sırası bozulur ve "Rendered fewer hooks than expected" ile çöker; kanca 9 ekranda kullanılıyor. Çağrı koşulsuz hale getirildi, v2.4.0'ın savunmacı test kalkanı korundu.
+- **8 lint error temizlendi:** yukarıdaki iki gerçek kusur + 6 kullanılmayan import (`WheelColumn`, `WheelDatePicker`, `WheelDatePickerModal`, `MedicalIdModal`, `dateParts.test`, `caregiverService`). `npm run lint` artık **0 error**.
+
 ## [2.4.0] - 2026-09-07
 ### Added
 - **📱 İlaçlarım Ekranı Tablet 2'li Akıllı Izgara Mimarisi (`MedicinesScreen.tsx` & `MedicineRow.tsx`):**
