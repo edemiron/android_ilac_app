@@ -70,6 +70,42 @@ service cloud.firestore {
     }
 
     // ============================================
+    // v2.0.1 — K1 / K2 SERTLEŞTİRME YARDIMCILARI
+    // ============================================
+
+    // K1 — Anonim kimlikler sınırsız, ücretsiz ve ATFEDİLEMEZ olduğu için
+    // davet kodu brute-force'unu bedavaya getiriyor; saldırgan her deneme
+    // kümesi için yeni bir kimlik atabiliyor ve iz bırakmıyor.
+    //
+    // KIRICI DEĞİL: uygulama anonim girişi hiçbir akışta ÇAĞIRMIYOR.
+    // `loginAnonymously` (authService.ts:227) tanımlı ama çağıranı yok, yani
+    // bu kural meşru kullanıcıyı etkilemez; yalnızca saldırganın en ucuz
+    // kimlik yolunu kapatır.
+    function isNotAnonymous() {
+      return isAuthenticated()
+        && 'firebase' in request.auth.token
+        && 'sign_in_provider' in request.auth.token.firebase
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // K2 — Davet süresi dolumu.
+    //
+    // NEDEN `expiresAt` DEĞİL: istemci süreyi ISO STRING yazıyor
+    // (caregiverService.ts:165). Rules Timestamp'te toISOString() YOK,
+    // dolayısıyla string ↔ Timestamp karşılaştırması tip hatası verir ve
+    // kural REDDEDER — yani tüm bakıcı ilişkileri kilitlenirdi. Bu yüzden
+    // sayısal `expiresAtMs` alanına bakılıyor.
+    //
+    // Sentinel: alanı olmayan ESKİ davetler reddedilmez → yama tek başına,
+    // istemci güncellenmeden de güvenle yayınlanabilir. İstemci `expiresAtMs`
+    // yazmaya başladığı an kontrol kendiliğinden bağlayıcı olur.
+    // INVITE_EXPIRY_DAYS (7 gün) geçtikten sonra sentinel dalı silinmeli.
+    function inviteNotExpired(inviteData) {
+      return !('expiresAtMs' in inviteData)
+        || inviteData.expiresAtMs > request.time.toMillis();
+    }
+
+    // ============================================
     // KULLANICI VERİ KOLEKSİYONU (/users/{userId})
     // ============================================
 
@@ -98,11 +134,40 @@ service cloud.firestore {
       // ----------------------------------------
       // İLAÇ KULLANIM LOGLARI
       // Bakıcı hastanın dozunu "alındı" işaretleyebilir (aktif ilişki şartı).
+      //
+      // K3 (v2.0.1) — DOZ KAYDI ARTIK BAKICI İÇİN APPEND-ONLY.
+      // Eskiden `allow create, update: if isOwner || isActiveCaregiverOf`
+      // idi: bakıcı, hastanın kaydettiği bir `missed` logu `taken`'a
+      // çevirebilir ve `source` alanını AYNI yazımda yeniden yazarak
+      // düzenlemenin izini örtebilirdi. Ayrıca hiçbir yerde aktör kimliği
+      // tutulmuyordu, yani birden çok bakıcıda dozu KİMİN işaretlediği
+      // tespit edilemiyordu. Bu, hekim/sigorta/mahkeme nezdinde güvenilen
+      // uyum kaydının imal edilebilir olması demek — KVKK m.6 kapsamında
+      // bütünlüğü yasal yükümlülük olan özel nitelikli veri.
       // ----------------------------------------
       match /medicineLogs/{logId} {
         allow read: if isOwner(userId) || isActiveCaregiverOf(userId);
-        allow create, update: if isOwner(userId) || isActiveCaregiverOf(userId);
-        allow delete: if isOwner(userId);
+
+        // Hasta kendi doz kaydını serbestçe yönetir (firestoreSync.ts
+        // batch.update/batch.delete bu yetkiye dayanıyor).
+        allow create, update, delete: if isOwner(userId);
+
+        // Bakıcı YALNIZCA yeni kayıt oluşturabilir; kaynak beyanı zorunlu.
+        // Düzeltme = eski kayda referans veren YENİ doküman, yerinde
+        // düzenleme asla.
+        //
+        // FAZ 2 — SAHA YAYILIMI BEKLENİYOR (karar: 2026-09-07).
+        // İstemci artık `actorUid` YAZIYOR (`logMedicineTakenByCaregiver`,
+        // caregiverService.ts: `actorUid: auth.currentUser?.uid ?? ''`), yani
+        // ön koşul kod tarafında hazır. Açılmamasının nedeni kod değil
+        // YAYILIM: sahada hâlâ `actorUid` göndermeyen eski sürümler var ve
+        // bu satır açılırsa o sürümlerdeki bakıcıların "Hasta Aldı" düğmesi
+        // permission-denied ile kırılır.
+        //
+        // Yeni sürümün sahayı kapladığı doğrulandığında eklenecek satır:
+        //   && request.resource.data.actorUid == request.auth.uid
+        allow create: if isActiveCaregiverOf(userId)
+          && request.resource.data.source == 'caregiver_action';
       }
 
       // ----------------------------------------
@@ -207,7 +272,13 @@ service cloud.firestore {
     // ============================================
 
     match /caregiverInvites/{inviteCode} {
-      allow get: if isAuthenticated();
+      // K1 — anonim kimlik kapatıldı (gerekçe: isNotAnonymous notu).
+      //
+      // ⚠️ DÜRÜST SINIR: bu, brute-force'u ÇÖZMEZ. E-posta/Google hesabı
+      // açmak da ucuz ve kurallar rate-limit ifade edemez. Gerçek çözüm
+      // sunucuda ≥128 bit kod üretimi + rate-limit'li redeem callable'ı.
+      // Buradaki kazanım: atfedilebilirlik ve en ucuz kimlik yolunun kapanması.
+      allow get: if isNotAnonymous();
       allow list: if isAuthenticated() && (
         resource.data.patientId == request.auth.uid ||
         resource.data.caregiverId == request.auth.uid
@@ -217,11 +288,26 @@ service cloud.firestore {
       allow create: if isAuthenticated()
         && request.resource.data.patientId == request.auth.uid;
 
-      // Hasta her alanı; bakıcı yalnızca BEKLEYEN daveti kendi üzerine kabul eder.
+      // K2 — Hasta her alanı güncelleyebilir. Bakıcı ise YALNIZCA
+      // `pending → accepted` geçişini, YALNIZCA kendi üzerine ve SABİT bir
+      // alan kümesiyle yapabilir.
+      //
+      // Eskiden bakıcı dalı hedef status'u ve alan kümesini kısıtlamıyordu:
+      // bekleyen bir davette caregiverId'sini kendi UID'sine eşitleyen
+      // HERKES keyfi alan yazabiliyordu.
+      //
+      // İstemcinin kabul akışı tam olarak bu dört alanı yazıyor
+      // (caregiverService.ts:298-303) → hasOnly alt küme olarak da geçer.
       allow update: if isAuthenticated() && (
         resource.data.patientId == request.auth.uid ||
-        (resource.data.status == 'pending' &&
-         request.resource.data.caregiverId == request.auth.uid)
+        (
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'accepted' &&
+          request.resource.data.caregiverId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'caregiverId', 'caregiverName', 'acceptedAt'
+          ])
+        )
       );
 
       allow delete: if isAuthenticated() && (
@@ -251,10 +337,19 @@ service cloud.firestore {
           // (2) Bakıcı, hastanın ürettiği davet kodunu bilerek kabul ediyor
           (
             request.resource.data.caregiverId == request.auth.uid
+            // K1 — anonim kimlikle davet kabul edilemez.
+            && isNotAnonymous()
             && request.resource.data.inviteCode is string
             && exists(/databases/$(database)/documents/caregiverInvites/$(request.resource.data.inviteCode))
             && get(/databases/$(database)/documents/caregiverInvites/$(request.resource.data.inviteCode)).data.patientId
                  == request.resource.data.patientId
+            && get(/databases/$(database)/documents/caregiverInvites/$(request.resource.data.inviteCode)).data.status
+                 == 'pending'
+            // K2 — süre dolumu artık KURALDA da bağlayıcı. İstemcideki kontrol
+            // (caregiverService.ts:251-262) tek başına bir güvenlik kontrolü
+            // değildi: SDK'yı doğrudan kullanan herkes onu atlıyordu ve süresi
+            // dolmuş ama `pending` kalmış bir davet sonsuza dek çalışıyordu.
+            && inviteNotExpired(get(/databases/$(database)/documents/caregiverInvites/$(request.resource.data.inviteCode)).data)
           )
         );
 

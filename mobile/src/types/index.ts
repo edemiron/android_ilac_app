@@ -315,6 +315,10 @@ export interface CaregiverInvite {
   caregiverEmail: string; // Davet edilen e-posta
   status: InviteStatus;
   expiresAt: string; // ISO date string
+  // firestore.rules tarafındaki süre kontrolü bu sayısal alana bakar:
+  // Rules Timestamp'te toISOString() olmadığı için ISO string ile
+  // request.time karşılaştırılamaz (tip hatası → tüm kabuller reddedilir).
+  expiresAtMs?: number; // epoch ms
   createdAt: string; // ISO date string
   // Yetkiler
   permissions: {

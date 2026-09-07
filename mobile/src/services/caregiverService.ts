@@ -22,7 +22,6 @@ import {
   where,
   onSnapshot,
   getDocs,
-  addDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
@@ -170,6 +169,8 @@ export async function createCaregiverInvite(
       caregiverEmail: (caregiverEmail || '').toLowerCase(),
       status: 'pending',
       expiresAt: expiresAt.toISOString(),
+      // K2: kuralın tip-güvenli süre dolumu kontrolü (inviteNotExpired).
+      expiresAtMs: expiresAt.getTime(),
       createdAt: new Date().toISOString(),
       permissions: {
         canViewSchedule: permissions?.canViewSchedule ?? true,
@@ -252,10 +253,16 @@ export async function acceptCaregiverInvite(
       };
     }
 
-    // Süre kontrolü
+    // Süre kontrolü.
+    // NOT: eskiden burada daveti `expired` durumuna çeken bir updateDoc vardı.
+    // Kaldırıldı: bu çağrıyı yapan kişi daveti kabul etmekte olan BAKICI ve
+    // firestore.rules artık bakıcının davet güncellemesini yalnızca
+    // `pending → accepted` geçişiyle ve sabit alan kümesiyle sınırlıyor.
+    // Dolayısıyla o yazım her zaman permission-denied alıp dış catch'e düşerek
+    // "Davet süresi dolmuş" mesajını genel bir hataya çeviriyordu.
+    // Süre dolumu zaten kuralda bağlayıcı (inviteNotExpired) — süresi dolmuş
+    // bir davet `pending` kalsa bile bir daha kabul edilemez.
     if (new Date(invite.expiresAt) < new Date()) {
-      // Daveti expired yap
-      await updateDoc(inviteRef, { status: 'expired' });
       return {
         success: false,
         error: 'Davet süresi dolmuş.',
@@ -289,7 +296,6 @@ export async function acceptCaregiverInvite(
     await setDoc(doc(db, RELATIONSHIPS_COLLECTION, relationshipId), relationship);
 
     try {
-      // Daveti güncelle (accepted) - Firestore security rules gereği opsiyonel
       await updateDoc(
         inviteRef,
         cleanUndefined({
@@ -560,11 +566,8 @@ export async function sendEmergencySosToCaregivers(
       caregivers = await getCaregivers(auth.currentUser.uid);
     }
 
-    // Aktif / silinmemiş tüm bakıcıları hedefle
-    const targetCaregivers = caregivers.filter(
-      c => c.status !== 'removed' && c.status !== 'paused'
-    );
-    const effectiveCaregivers = targetCaregivers.length > 0 ? targetCaregivers : caregivers;
+    // YALNIZCA aktif ve geçerli bakıcıları hedefle (silinmiş veya duraklatılmışlara sızdırılamaz)
+    const effectiveCaregivers = caregivers.filter(c => c.status === 'active');
 
     if (effectiveCaregivers.length === 0) {
       return {
@@ -658,57 +661,6 @@ export async function sendEmergencySosToCaregivers(
                 caregiverId: caregiver.id,
               });
             } catch (_subErr) {
-              /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
-            }
-          }
-
-          // Push token ara
-          let pushToken = caregiver.caregiverFcmToken;
-          if (!pushToken) {
-            try {
-              const cUserDoc = await getDoc(doc(db, 'users', caregiverTargetId));
-              if (cUserDoc.exists()) {
-                const cData = cUserDoc.data();
-                pushToken = cData?.pushToken || cData?.caregiverFcmToken || cData?.fcmToken;
-              }
-            } catch (_cErr) {
-              /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
-            }
-          }
-
-          if (pushToken) {
-            try {
-              await fetch('https://exp.host/--/api/v2/push/send', {
-                method: 'POST',
-                headers: {
-                  Accept: 'application/json',
-                  'Accept-encoding': 'gzip, deflate',
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  to: pushToken,
-                  // v1.8.2: Emoji kaldirildi (bkz. caregiverNotificationService.ts).
-                  title: `ACİL DURUM: ${resolvedPatientName} yardım istiyor`,
-                  body:
-                    customNote ||
-                    `${resolvedPatientName} acil durum butonuna bastı. Lütfen hemen kontrol edin veya arayın!`,
-                  sound: 'sound_urgent_alert',
-                  priority: 'high',
-                  channelId: 'emergency-sos-v6',
-                  data: {
-                    type: 'emergency_sos',
-                    patientId: resolvedPatientId,
-                    patientName: resolvedPatientName,
-                    patientPhone,
-                    alertId,
-                    createdAt: alertData.createdAt,
-                    mapsUrl: alertData.location?.mapsUrl,
-                    channelId: 'emergency-sos-v6',
-                    sound: 'sound_urgent_alert',
-                  },
-                }),
-              });
-            } catch (_expErr) {
               /* yutulan hata: bu adim best-effort, basarisizligi akisi bozmamali */
             }
           }
@@ -1007,7 +959,8 @@ export async function getCaregiversService(
 export async function logMedicineTakenByCaregiver(
   patientId: string,
   medicineName: string,
-  doseTime: string
+  doseTime: string,
+  medicineId?: string
 ): Promise<{ success: boolean; logId?: string; error?: string }> {
   try {
     if (!patientId || !medicineName) {
@@ -1020,27 +973,30 @@ export async function logMedicineTakenByCaregiver(
     const logId = generateId();
     const logDoc = {
       id: logId,
-      medicineId: '', // caregiver tarafindan bilinmez — sadece medicineName loglanir
+      medicineId: medicineId || '',
       medicineName,
       scheduledTime: doseTime,
       status: 'taken',
       takenAt: new Date().toISOString(),
       source: 'caregiver_action', // ayirt edici: caregiver basladi
+      // K3 Faz 2: dozu KİMİN işaretlediği kayda bağlanıyor. Birden çok
+      // bakıcıda atfedilebilirlik için zorunlu; firestore.rules'taki
+      // append-only kuralın ikinci yarısı bu alan üzerine kurulacak.
+      actorUid: auth.currentUser?.uid ?? '',
       createdAtServer: serverTimestamp(),
     };
 
-    const docRef = await addDoc(
-      collection(db, 'users', patientId, MEDICINE_LOGS_SUBCOLLECTION),
-      logDoc
-    );
+    const docRef = doc(db, 'users', patientId, MEDICINE_LOGS_SUBCOLLECTION, logId);
+    await setDoc(docRef, logDoc);
 
     log.info('Caregiver medicineLog yazildi', {
       patientId,
-      logId: docRef.id,
+      logId,
       medicineName,
+      medicineId,
     });
 
-    return { success: true, logId: docRef.id };
+    return { success: true, logId };
   } catch (error) {
     log.error('Caregiver logMedicineTakenByCaregiver hata', error);
     return {
@@ -1406,52 +1362,6 @@ export async function sendRemoteReminderToPatient(params: {
 
     await setDoc(reminderRef, data);
     log.info('Uzaktan hatırlatma gönderildi', { patientId: params.patientId, reminderId });
-
-    // Hasta push token'ı kontrol et ve arka plan push bildirimi gönder
-    try {
-      const patientDoc = await getDoc(doc(db, 'users', params.patientId));
-      const pData = patientDoc.data();
-      const patientPushToken = pData?.pushToken || pData?.caregiverFcmToken;
-      if (patientPushToken) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Accept-encoding': 'gzip, deflate',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: patientPushToken,
-            // v1.8.2: Emoji kaldirildi. Govde de degisti: "almayı unutmayın"
-            // bir TALIMAT ve bu mesaji uygulama degil bir BAKICI gonderiyor —
-            // uygulamanin agzindan doz emri vermesi klinik dil disiplinine
-            // aykiri (denetim maddesi 22). Artik yalnizca hatirlatmanin
-            // KIMDEN geldigini ve HANGI dozu ilgilendirdigini soyluyor.
-            title: `${params.caregiverName || 'Bakıcınız'} ilaç hatırlatması gönderdi`,
-            body:
-              params.customMessage ||
-              `${params.medicineName} (${params.scheduledTime}) dozu için hatırlatma.`,
-            sound: 'default',
-            priority: 'high',
-            channelId: 'patient-remote-reminders-v1',
-            data: {
-              type: 'remote_reminder',
-              patientId: params.patientId,
-              caregiverId: params.caregiverId,
-              caregiverName: params.caregiverName,
-              medicineId: params.medicineId,
-              medicineName: params.medicineName,
-              scheduledTime: params.scheduledTime,
-              customMessage: params.customMessage,
-            },
-          }),
-        });
-        log.info('Hastaya arka plan push bildirimi gönderildi');
-      }
-    } catch (_pushErr) {
-      log.debug('Hasta push iletim atlandı');
-    }
-
     return { success: true, reminderId };
   } catch (error: any) {
     log.error('Uzaktan hatırlatma gönderme hatası', error);
