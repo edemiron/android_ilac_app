@@ -259,7 +259,7 @@ interface MedicineState {
 
   // Ortak log fonksiyonları (private - sadece internal kullanım)
   _createMedicineLog: (
-    status: 'taken' | 'skipped',
+    status: MedicineLog['status'],
     reminderTimeId: string,
     scheduledTime: string,
     medicineIdFallback?: string,
@@ -283,6 +283,25 @@ interface MedicineState {
     note?: string,
     skipReason?: string,
     skipReasonNote?: string
+  ) => void;
+  /**
+   * Dozu "yanitlanmadi" olarak kaydeder.
+   *
+   * `skipped` ile KARIŞTIRILMAMALI: `skipped` hastanın verdiği KLİNİK BİR
+   * KARARDIR ve yalnizca kullanici acikca secerse yazilir (bkz. v1.7.7
+   * invarianti, useAlarmController.ts). `missed` bir karar degil BİR SONUÇTUR
+   * — "hasta bu dozu yanitlamadi". Bu kod tabaninda zaten otomatik yaziliyor
+   * (`markMissedReminders`, uygulama acilisinda), yani otomatik `missed`
+   * yerlesik ve onaylanmis bir desendir.
+   *
+   * Kullanim: alarm erteleme haklari tukendiginde ve kullanici yanit
+   * vermediginde dozun KAYITSIZ kapanmasini engellemek icin.
+   */
+  logMedicineMissed: (
+    reminderTimeId: string,
+    scheduledTime: string,
+    medicineIdFallback?: string,
+    note?: string
   ) => void;
   markMissedReminders: () => void;
 
@@ -1071,7 +1090,7 @@ export const useMedicineStore = create<MedicineState>()(
 
       // Ortak log oluşturma fonksiyonu - DRY prensibi
       _createMedicineLog: (
-        status: 'taken' | 'skipped',
+        status: MedicineLog['status'],
         reminderTimeId: string,
         scheduledTime: string,
         medicineIdFallback?: string,
@@ -1370,6 +1389,105 @@ export const useMedicineStore = create<MedicineState>()(
               updateWidgetData(medicines, reminderTimes, currentLogs).catch(() => {});
             } catch (e) {
               log.debug('Widget hatası (logMedicineSkipped)', e);
+            }
+          }, 500);
+        }
+      },
+
+      logMedicineMissed: (reminderTimeId, scheduledTime, medicineIdFallback, note) => {
+        log.debug('logMedicineMissed called', { reminderTimeId, scheduledTime });
+
+        const { userId, medicines, reminderTimes, medicineLogs } = get();
+
+        // ⚠️ BU SLOT İÇİN HERHANGİ BİR KAYIT VARSA HİÇBİR ŞEY YAZMA.
+        //
+        // İki ayrı tehlike var:
+        //   1. `taken`/`skipped` zaten varsa hastanın verdiği kararın ÜZERİNE
+        //      yazmak, uyum raporunda "aldım" denmiş dozu "kaçırdı" gösterirdi.
+        //      Kullanıcı zamanlayıcı tetiklenmeden bir an önce "Aldım"a
+        //      bastıysa tam olarak bu olurdu.
+        //   2. `missed` zaten varsa yan etkiler (bulut yazması + bakıcı push)
+        //      gereksiz yere tekrarlardı — `logMedicineTaken`'ın v1.7.6'da
+        //      onardığı 20+ kez açılan tam ekran alarm sınıfı hata.
+        //
+        // `normalizeMedicineLogsBySlot` slot başına tek kayıt tuttuğu için
+        // mevcut kaydı bulmak yeterli.
+        const missedSlotKey = buildMedicineLogSlotKey(reminderTimeId, scheduledTime);
+        const existingForSlot = medicineLogs.find(
+          entry =>
+            buildMedicineLogSlotKey(entry.reminderTimeId, entry.scheduledTime) === missedSlotKey
+        );
+        if (existingForSlot) {
+          log.warn('Bu doz zaten kayitli, missed yazilmadi', {
+            reminderTimeId,
+            scheduledTime,
+            existingStatus: existingForSlot.status,
+          });
+          return;
+        }
+
+        const resolvedArgs = resolveMedicineLogArgs(
+          reminderTimeId,
+          medicines,
+          reminderTimes,
+          medicineIdFallback,
+          note
+        );
+        const medicineLog = get()._createMedicineLog(
+          'missed',
+          reminderTimeId,
+          scheduledTime,
+          resolvedArgs.medicineIdFallback,
+          resolvedArgs.note
+        );
+
+        if (!medicineLog) return;
+
+        const medicine = findMedicineById(medicines, medicineLog.medicineId);
+
+        // Bakıcı bildirimi — `markMissedReminders` ile aynı 'missed' semantiği.
+        if (userId && medicine) {
+          import('../services/caregiverNotificationService').then(
+            ({ notifyCaregiversAboutMedicineStatus }) => {
+              notifyCaregiversAboutMedicineStatus(
+                userId,
+                medicine.name,
+                scheduledTime,
+                'missed'
+              ).catch(err => log.error('Bakıcı missed bildirimi hatası', err));
+            }
+          );
+        }
+
+        const { notificationId, activeSnoozes } = get()._cleanupNotifications(
+          medicineLog.medicineId,
+          reminderTimeId
+        );
+
+        set(state => ({
+          medicineLogs: normalizeMedicineLogsBySlot([...state.medicineLogs, medicineLog]),
+          snoozes: deactivateSnoozesIntersectingWith(state.snoozes, activeSnoozes),
+        }));
+
+        log.debug('Doz kacirildi olarak kaydedildi, bildirimler iptal edildi', {
+          notificationId,
+          cancelledSnoozes: activeSnoozes.length,
+        });
+
+        if (userId) {
+          saveMedicineLogToCloud(userId, medicineLog).catch(err =>
+            log.error('Failed to save missed log to cloud', err)
+          );
+        }
+
+        // Widget'ı güncelle (ilaç kaçırıldı)
+        if (isAndroidPlatform()) {
+          setTimeout(() => {
+            try {
+              const { medicines, reminderTimes, medicineLogs: currentLogs } = get();
+              updateWidgetData(medicines, reminderTimes, currentLogs).catch(() => {});
+            } catch (e) {
+              log.debug('Widget hatası (logMedicineMissed)', e);
             }
           }, 500);
         }

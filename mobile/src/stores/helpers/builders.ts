@@ -89,7 +89,7 @@ export function buildMedicineLogBase(
   medicineId: string,
   reminderTimeId: string,
   scheduledTime: string,
-  status: 'taken' | 'skipped',
+  status: MedicineLog['status'],
   note?: string,
   medicineName?: string
 ): Omit<MedicineLog, 'takenAt'> {
@@ -107,10 +107,12 @@ export function buildMedicineLogBase(
 
 /**
  * 'taken' durumunda takenAt ekler; diger statusler icin base'i doner.
+ * `missed` ve `pending` icin de base aynen doner — takenAt yalnizca hastanin
+ * dozu aldigi ANLAMINA gelir, kacirilan/bekleyen doza yazilmaz.
  */
 export function withTakenAt<T extends object>(
   base: T,
-  status: 'taken' | 'skipped',
+  status: MedicineLog['status'],
   now: string = nowISO()
 ): T & { takenAt?: string } {
   return status === 'taken' ? { ...base, takenAt: now } : (base as T & { takenAt?: string });

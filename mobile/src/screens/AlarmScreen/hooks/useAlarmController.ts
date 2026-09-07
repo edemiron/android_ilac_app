@@ -135,6 +135,7 @@ export function useAlarmController() {
     getReminderTimesForMedicine,
     logMedicineTaken,
     logMedicineSkipped,
+    logMedicineMissed,
     dismissAlarm,
     settings,
     createSnooze,
@@ -775,29 +776,97 @@ export function useAlarmController() {
     closeAlarmScreen();
   };
 
-  // v2.0.1 (Qwen 3.8 Max): Klinik Güvenlik & Pil Koruma Kalkanı — Auto-Snooze (3 Dakika)
-  // Kullanıcı 3 dakika boyunca telefona dokunmazsa alarm sonsuza dek çalarak pili bitirmez;
-  // otomatik ertelemeye (snooze) geçer veya maksimum snooze sonrası güvenle kapanır.
+  // Timer tetiklendigi anda GUNCEL degerleri okumasi gerekiyor, ama bu
+  // degerleri deps'e koymak sayaci her render'da SIFIRLARDI:
+  //   - `handleSnooze` useCallback DEGIL (asagida, duz `async () => {}`) →
+  //     her render yeni kimlik
+  //   - `scheduledTime` route'ta yoksa her render yeniden uretilen bir
+  //     varsayilan (yukarida `= new Date().toISOString()`)
+  //   - `canSnooze` store'daki `snoozes`'dan turetiliyor → degisebilir
+  // Deps'e eklemek 3 dakikalik geri sayimi surekli bastan baslatir ve
+  // auto-snooze HIC tetiklenmez; eklememek ise v2.0.1'deki bayat closure
+  // hatasini korur. Cozum "latest ref": sayac bir kez kurulur, tetiklendiginde
+  // ref uzerinden guncel degerleri okur. (Ayni desen WheelDatePicker.tsx:85.)
+  const autoSnoozeState = {
+    canSnooze,
+    handleSnooze,
+    logMedicineMissed,
+    stopAlarmAudio,
+    clearAlarmNotifications,
+    dismissAlarm,
+    reminderTimeId,
+    scheduledTime,
+    medicineId,
+  };
+  const autoSnoozeRef = useRef(autoSnoozeState);
+  autoSnoozeRef.current = autoSnoozeState;
+
+  // Klinik Güvenlik & Pil Koruma Kalkanı — Auto-Snooze (3 Dakika)
+  // Kullanıcı 3 dakika boyunca telefona dokunmazsa alarm sonsuza dek çalarak
+  // pili bitirmez; erteleme hakkı varsa otomatik erteler, hakkı bittiyse dozu
+  // `missed` olarak KAYDEDİP kapanır.
   useEffect(() => {
     if (isTestMode) return;
     const AUTO_SNOOZE_TIMEOUT_MS = 180_000; // 3 dakika klinik çalma sınırı
 
     const autoSnoozeTimer = setTimeout(() => {
       if (isStoppedRef.current || isSnoozingRef.current) return;
-      log.info('Auto-snooze tetiklendi: 3 dakika boyunca kullanici tarafindan aksiyon alinmadi');
-      if (canSnooze) {
-        void handleSnooze();
-      } else {
-        stopAlarmAudio();
-        void withTimeout(clearAlarmNotifications(), 'autoSnooze.clearAlarmNotifications', 2500);
-        dismissAlarm();
+
+      const {
+        canSnooze: canSnoozeNow,
+        handleSnooze: snooze,
+        logMedicineMissed: logMissed,
+        stopAlarmAudio: stopAudio,
+        clearAlarmNotifications: clearNotifications,
+        dismissAlarm: dismiss,
+        reminderTimeId: rtId,
+        scheduledTime: schedTime,
+        medicineId: medId,
+      } = autoSnoozeRef.current;
+
+      log.info('Auto-snooze tetiklendi: 3 dakika boyunca kullanici tarafindan aksiyon alinmadi', {
+        canSnooze: canSnoozeNow,
+      });
+
+      if (canSnoozeNow) {
+        void snooze();
+        return;
       }
+
+      // ⚠️ Erteleme hakki bitti ve kullanici 3 dakikadir yanit vermedi.
+      //
+      // Iki invariant arasindaki gerilim ve cozumu:
+      //   - v1.7.7 (yukarida, "SESSIZ ATLAMA KALDIRILDI"): `skipped`
+      //     YALNIZCA kullanici acikca secerse yazilir; o doktora giden uyum
+      //     raporuna giren KLINIK BIR KARARDIR. Bu yuzden burada
+      //     `logMedicineSkipped` CAGRILMAZ.
+      //   - v2.0.1: alarm sonsuza dek calip pili bitirmemeli.
+      //
+      // v2.0.1'in ilk hali bu iki kaygiyi "hicbir sey yazmadan kapat" ile
+      // cozmeye calisiyordu; sonuc SESSIZ KACIRILAN DOZ oldu — yerel kayit
+      // yok, bulut kaydi yok, bakici uyarisi yok. Ustelik sonradan da
+      // onarilamiyordu: `markMissedReminders` yalnizca BUGUNU ve 60 dk grace
+      // ile dolduruyor, uygulama ayni gun bir daha acilmazsa doz hic
+      // kaydedilmiyordu (utils/missedReminders.ts).
+      //
+      // `missed` bir KARAR degil BIR SONUCTUR ("hasta bu dozu yanitlamadi")
+      // ve bu kod tabaninda zaten otomatik yaziliyor. Boylece ne sahte bir
+      // klinik karar uretilir, ne doz kayitsiz kaybolur, ne bakici karanlikta
+      // kalir, ne de pil tuketilir.
+      logMissed(rtId, schedTime, medId);
+
+      stopAudio();
+      void withTimeout(clearNotifications(), 'autoSnooze.clearAlarmNotifications', 2500);
+      dismiss();
     }, AUTO_SNOOZE_TIMEOUT_MS);
 
     return () => {
       clearTimeout(autoSnoozeTimer);
     };
-  }, [canSnooze, isTestMode]);
+    // Deps bilerek dar: tum degerler autoSnoozeRef uzerinden okunuyor (bkz.
+    // yukaridaki gerekce), dolayisiyla sayac yalnizca test-modu kimligi
+    // degistiginde yeniden kurulur ve geri sayim kesintiye ugramaz.
+  }, [isTestMode]);
 
   const [missedDoseModalVisible, setMissedDoseModalVisible] = useState(false);
 

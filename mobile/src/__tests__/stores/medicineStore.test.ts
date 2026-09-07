@@ -576,6 +576,109 @@ describe('MedicineStore', () => {
     });
   });
 
+  /**
+   * logMedicineMissed — alarm erteleme haklari tukendiginde ve kullanici
+   * yanit vermediginde dozun KAYITSIZ kapanmasini engeller.
+   *
+   * Bu blogun var olma nedeni bir regresyon: v2.0.1'in auto-snooze'u haklar
+   * bitince alarmi HICBIR KAYIT YAZMADAN kapatyordu (sessiz kacirilan doz —
+   * yerel kayit yok, bulut yok, bakici uyarisi yok). Duzeltme `missed` yazmak.
+   *
+   * Kritik ayrim: `missed` bir SONUCTUR, `skipped` hastanin KLINIK KARARIDIR
+   * (v1.7.7 invarianti: skipped yalnizca kullanici acikca secerse yazilir).
+   * Bu yuzden asagidaki "kullanicinin kararinin uzerine yazma" testleri
+   * bu aksiyonun en onemli garantisi.
+   */
+  describe('logMedicineMissed', () => {
+    let reminderTimeId: string;
+
+    beforeEach(() => {
+      const store = useMedicineStore.getState();
+      const medicineId = store.addMedicine({
+        name: 'Missed Test',
+        dosage: '100mg',
+        frequency: 1,
+        color: MEDICINE_COLORS[0],
+        startDate: '2024-01-01',
+      });
+
+      const { reminderTimes } = useMedicineStore.getState();
+      reminderTimeId = reminderTimes.find(rt => rt.medicineId === medicineId)!.id;
+    });
+
+    it('should create a missed log', () => {
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, '2024-01-15T08:00:00');
+
+      const { medicineLogs } = useMedicineStore.getState();
+      expect(medicineLogs).toHaveLength(1);
+      expect(medicineLogs[0].status).toBe('missed');
+      expect(medicineLogs[0].reminderTimeId).toBe(reminderTimeId);
+    });
+
+    it('should not set takenAt for missed logs', () => {
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, '2024-01-15T08:00:00');
+
+      const { medicineLogs } = useMedicineStore.getState();
+      expect(medicineLogs[0].takenAt).toBeUndefined();
+    });
+
+    it('⚠️ hastanin ALDIM kararının üzerine YAZMAZ', () => {
+      const scheduledTime = '2024-01-15T08:00:00';
+
+      useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+
+      const logs = useMedicineStore.getState().medicineLogs;
+      expect(logs).toHaveLength(1);
+      // Uyum raporunda "aldım" denmiş doz "kaçırdı" görünmemeli.
+      expect(logs[0].status).toBe('taken');
+    });
+
+    it('⚠️ hastanın ATLADIM kararının üzerine YAZMAZ', () => {
+      const scheduledTime = '2024-01-15T08:00:00';
+
+      useMedicineStore.getState().logMedicineSkipped(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+
+      const logs = useMedicineStore.getState().medicineLogs;
+      expect(logs).toHaveLength(1);
+      // `skipped` klinik bir karardır; otomatik `missed` onun yerini alamaz.
+      expect(logs[0].status).toBe('skipped');
+    });
+
+    it('aynı doz iki kez kaçırılırsa tek kayıt kalır (yan etkiler tekrarlanmaz)', () => {
+      const scheduledTime = '2024-01-15T08:00:00';
+
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+
+      expect(
+        useMedicineStore.getState().medicineLogs.filter(l => l.status === 'missed')
+      ).toHaveLength(1);
+    });
+
+    it('FARKLI dozlar birbirini engellemez', () => {
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, '2024-01-15T08:00:00');
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, '2024-01-16T08:00:00');
+
+      expect(
+        useMedicineStore.getState().medicineLogs.filter(l => l.status === 'missed')
+      ).toHaveLength(2);
+    });
+
+    it('kaçırıldı → alındı geçişi hâlâ çalışır', () => {
+      const scheduledTime = '2024-01-15T08:00:00';
+
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+
+      const logs = useMedicineStore.getState().medicineLogs;
+      expect(logs).toHaveLength(1);
+      expect(logs[0].status).toBe('taken');
+    });
+  });
+
   describe('updateSettings', () => {
     it('should update individual settings', () => {
       const store = useMedicineStore.getState();
