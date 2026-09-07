@@ -105,6 +105,16 @@ short-node-modules/
 _dogrulama/
 mobile/scripts/_tmp_*
 
+# v2.4.0 — kok dizine dusen cihaz dogrulama artıklari. Yukaridaki v1.8.7
+# kurali bunlari `_dogrulama/` altinda bekliyordu; ama ADB akisi
+# (screencap / uiautomator dump) dosyalari dogrudan kok dizine yaziyor.
+# Kok dizinde izlenen hic PNG/XML yok, dolayisiyla bu kaliplar genis
+# tutulabilir — yalnizca kok seviyesini kapsarlar (alt dizinlerdeki
+# gorsel/manifest dosyalarini ETKILEMEZ).
+/*.png
+/dump_*.xml
+/window_dump.xml
+
 # Claude Code oturum dosyalari
 .claude/
 
