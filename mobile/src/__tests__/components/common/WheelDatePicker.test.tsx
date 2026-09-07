@@ -168,4 +168,124 @@ describe('WheelDatePicker & WheelDatePickerModal', () => {
       expect(onCancel).not.toHaveBeenCalled();
     });
   });
+
+  /**
+   * YENİ-2 regresyon kapısı — doğum tarihinin sessizce kayması.
+   *
+   * Kusur: `WheelDatePicker.handleSelect` doğru aksiyonu reducer ile
+   * HESAPLIYOR ama ardından `dispatch({ type: 'reset', parts })` yapıyordu.
+   * `case 'reset'` ise `lastExplicitDay: action.parts.day` yazıyor — yani
+   * HALİHAZIRDA KIRPILMIŞ günü. Oysa `case 'setMonth'` onu koruyor.
+   *
+   * Sonuç: 31 Ocak 1975 → Şubat → geri Ocak = 1975-01-28, ÜÇ GÜN YANLIŞ
+   * doğum tarihi ve hiçbir uyarı yok. Yaş `calculateAge` üzerinden doz/yaş
+   * bazlı karar desteğini ve acil tıbbi kimlik rozetini beslediği için bu bir
+   * klinik veri bozulması.
+   *
+   * `wheelDateModel.test.ts` bunu yakalamıyordu çünkü `setMonth`'i DOĞRUDAN
+   * dispatch ediyor — bileşenin `reset` üzerinden atladığı yol hiç test
+   * edilmiyordu. Bu blok tam olarak o bileşen yolunu sürüyor.
+   */
+  describe('WheelDatePicker — gün koruma (YENİ-2)', () => {
+    /**
+     * Çark öğelerini HAM ağaçtan bulur.
+     *
+     * `getByText` KULLANILAMAZ: `WheelItem`, v2.1.0'ın "sütun başına tek
+     * `accessibilityRole="adjustable"` düğümü" TalkBack kuralı gereği
+     * `accessibilityElementsHidden` + `importantForAccessibility="no-hide-descendants"`
+     * taşıyor ve RNTL sorguları a11y ağacından gizlenmiş öğeleri eler.
+     * Öğeler görsel olarak var (160 metin render oluyor) ama sorgulanabilir
+     * değiller — bu yüzden `root.findAll` ile iniliyor.
+     */
+    const findItem = (root: ReturnType<typeof render>['root'], label: string) => {
+      const collectText = (node: unknown): string => {
+        if (node == null) return '';
+        if (typeof node === 'string') return node;
+        if (Array.isArray(node)) return node.map(collectText).join('');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return collectText((node as any).children);
+      };
+      const matches = root.findAll(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (node: any) => node.type === 'TouchableOpacity' && collectText(node.children) === label,
+        { deep: true }
+      );
+      if (matches.length === 0) {
+        throw new Error(`Çark öğesi bulunamadı: "${label}"`);
+      }
+      return matches[0];
+    };
+
+    const renderPicker = (value: string) => {
+      const onChange = jest.fn();
+      const utils = render(
+        <WheelDatePicker
+          value={value}
+          onChange={onChange}
+          colors={dummyColors}
+          isDark={true}
+          isTr={true}
+        />
+      );
+      return { onChange, root: utils.root };
+    };
+
+    it('31 Oca → Şub → Oca kaydırması günü 31 olarak KORUR', () => {
+      const { onChange, root } = renderPicker('1975-01-31');
+
+      // Şubat'a kaydır: 31 → 28'e kırpılması DOĞRU davranış (1975 artık yıl değil).
+      fireEvent.press(findItem(root, 'Şub'));
+      expect(onChange).toHaveBeenLastCalledWith('1975-02-28', {
+        year: 1975,
+        month: 2,
+        day: 28,
+      });
+
+      // Geri Ocak'a kaydır: `lastExplicitDay` korunduysa 31'e dönmeli.
+      // Eski kusurda buradan '1975-01-28' dönüyordu — ÜÇ GÜN YANLIŞ doğum tarihi.
+      fireEvent.press(findItem(root, 'Oca'));
+      expect(onChange).toHaveBeenLastCalledWith('1975-01-31', {
+        year: 1975,
+        month: 1,
+        day: 31,
+      });
+    });
+
+    it('artık yılda 29 Şub → Oca kaydırması 29 günü KORUR', () => {
+      const { onChange, root } = renderPicker('1980-02-29');
+
+      // 1980 artık yıl; Ocak'a kaydırınca açık gün (29) korunmalı.
+      fireEvent.press(findItem(root, 'Oca'));
+      expect(onChange).toHaveBeenLastCalledWith('1980-01-29', {
+        year: 1980,
+        month: 1,
+        day: 29,
+      });
+    });
+
+    it('kullanıcının hiç açıkça seçmediği gün korunmaz (28 Şub 1975 → Oca = 28)', () => {
+      const { onChange, root } = renderPicker('1975-02-28');
+
+      // 1975 artık yıl değil; giriş zaten 28. Ocak 31 gün ama kullanıcı 31'i
+      // HİÇ açıkça seçmedi, dolayısıyla lastExplicitDay 28 kalmalı.
+      // Bu test korumanın "sihirli 31" değil GERÇEK kullanıcı seçimi olduğunu kanıtlar.
+      fireEvent.press(findItem(root, 'Oca'));
+      expect(onChange).toHaveBeenLastCalledWith('1975-01-28', {
+        year: 1975,
+        month: 1,
+        day: 28,
+      });
+    });
+
+    it('yıl kaydırması açık günü korur (31 Ara 1975 → 1976)', () => {
+      const { onChange, root } = renderPicker('1975-12-31');
+
+      fireEvent.press(findItem(root, '1976'));
+      expect(onChange).toHaveBeenLastCalledWith('1976-12-31', {
+        year: 1976,
+        month: 12,
+        day: 31,
+      });
+    });
+  });
 });

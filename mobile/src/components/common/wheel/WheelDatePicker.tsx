@@ -8,6 +8,7 @@ import {
   makeDateRange,
   type DateRange,
   type WheelColumnId,
+  type WheelDateAction,
   type WheelDateState,
 } from '../../../domain/wheelDateModel';
 import { SELECTION_LINE_TOP_1, SELECTION_LINE_TOP_2, WHEEL_CONTAINER_HEIGHT } from './constants';
@@ -87,16 +88,32 @@ export const WheelDatePicker = React.memo(function WheelDatePicker({
   const handleSelect = useCallback(
     (id: WheelColumnId, index: number) => {
       const currentState = stateRef.current;
-      let nextState: WheelDateState;
-      if (id === 'day') {
-        nextState = reducer(currentState, { type: 'setDay', day: index + 1 });
-      } else if (id === 'month') {
-        nextState = reducer(currentState, { type: 'setMonth', month: index + 1 });
-      } else {
-        const year = resolvedRange.min.year + index;
-        nextState = reducer(currentState, { type: 'setYear', year });
-      }
-      dispatch({ type: 'reset', parts: nextState.parts });
+
+      const action: WheelDateAction =
+        id === 'day'
+          ? { type: 'setDay', day: index + 1 }
+          : id === 'month'
+            ? { type: 'setMonth', month: index + 1 }
+            : { type: 'setYear', year: resolvedRange.min.year + index };
+
+      // ⚠️ Hesaplanan aksiyonun KENDİSİ dispatch edilmeli, `reset` DEĞİL.
+      //
+      // Eskiden burada `dispatch({ type: 'reset', parts: nextState.parts })`
+      // vardı. `case 'reset'` ise `lastExplicitDay: action.parts.day` yazıyor
+      // — yani HALİHAZIRDA KIRPILMIŞ günü. Oysa `case 'setMonth'` ve
+      // `case 'setYear'` `lastExplicitDay: state.lastExplicitDay` ile koruyor.
+      //
+      // Sonuç: koruma her sütun kaydırmasında çöpe gidiyordu.
+      //   31 Ocak 1975 → ayı Şubat yap → gün 28'e kırpılır VE lastExplicitDay
+      //   28 olur → ayı geri Ocak yap → resolveDay(1975, 1, 28) = 28.
+      //   Kaydedilen doğum tarihi 1975-01-28, yani ÜÇ GÜN YANLIŞ ve uyarısız.
+      //
+      // Bu bir klinik veri bozulması: yaş `calculateAge` üzerinden doz/yaş
+      // bazlı karar desteğini ve acil tıbbi kimlik rozetini besliyor.
+      // `wheelDateModel.test.ts` kusuru yakalamıyordu çünkü `setMonth`'i
+      // DOĞRUDAN dispatch ediyor; bu bileşen yolu hiç test edilmiyordu.
+      const nextState = reducer(currentState, action);
+      dispatch(action);
       onChange(partsToIso(nextState.parts), nextState.parts);
     },
     [reducer, resolvedRange.min.year, onChange]

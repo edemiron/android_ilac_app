@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.facebook.react.HeadlessJsTaskService
 import com.facebook.react.bridge.Arguments
@@ -15,12 +17,66 @@ import com.facebook.react.jstasks.HeadlessJsTaskConfig
 /**
  * HeadlessJS Task Service for re-registering alarms after boot/timezone changes.
  * Runs in the background without UI.
+ *
+ * ⚠️ KLİNİK ÖNEM: bu servis, reboot / saat dilimi değişikliği / uygulama
+ * güncellemesi SONRASI alarmları yeniden kaydeden JS yolunun taşıyıcısıdır.
+ * Burada yaşanan bir ANR veya erken ölüm, hastanın doz alarmlarının sessizce
+ * kaybolması demektir. (Native DE re-arm bu servisten ÖNCE çalıştığı için
+ * aynalanmış alarmlar çalmaya devam eder; ama erteleme ve ertesi gün
+ * sürekliliği bu JS yoluna bağlıdır.)
  */
 class BootTaskService : HeadlessJsTaskService() {
     companion object {
         private const val TAG = "BootTaskService"
         private const val CHANNEL_ID = "boot-task-channel"
         private const val NOTIFICATION_ID = 9999
+
+        /**
+         * Android 14+ `foregroundServiceType="shortService"` tavanı.
+         * Resmî dokümana göre 3 dakika, ve saat `Service.startForeground()`
+         * çağrısından — yani buradaki `onCreate`'ten — itibaren işler.
+         */
+        private const val SHORT_SERVICE_LIMIT_MS = 180_000L
+
+        /**
+         * HeadlessJS görev bütçesi.
+         *
+         * ⚠️ Eski değer 180000 idi — shortService tavanına TAM EŞİT. Üstelik
+         * görev saati `onCreate`'teki `startForeground`'dan DAHA GEÇ
+         * başladığı için tavan her zaman görevden ÖNCE doluyordu. Görev
+         * bütçesinin tamamını kullanan bir cihazda ANR kaçınılmazdı.
+         *
+         * 120 s hâlâ çok cömert: görev saklı alarmları yeniden kaydediyor,
+         * pratikte saniyeler sürüyor.
+         */
+        private const val TASK_TIMEOUT_MS = 120_000
+
+        /**
+         * Emniyet supabı. Görev kendi bütçesinde bitmezse servisi
+         * shortService tavanından (180 s) ÖNCE durdurur.
+         *
+         * Neden `onTimeout()` override etmek yerine bu:
+         *   - `Service.onTimeout()` API 34'te eklendi; override'ı derlemek
+         *     androidx `@RequiresApi` veya lint bastırması gerektirir ve bu
+         *     projede hiçbir Kotlin dosyası androidx.annotation kullanmıyor.
+         *     Derleme doğrulaması yapılamadan API-34'e özgü kod eklemek
+         *     boot yolunda körlemesine risk almak olurdu.
+         *   - Bu yaklaşım RN'in görev-zaman-aşımı yolunun
+         *     `onHeadlessJsTaskFinish`'i çağırıp çağırmadığından BAĞIMSIZ.
+         *   - Tüm API seviyelerinde çalışır (24+); ANR kaygısı 34+ ama
+         *     başıboş foreground servisi her sürümde kötü.
+         */
+        private const val HARD_STOP_MS = 150_000L
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @Volatile
+    private var isShutDown = false
+
+    private val hardStopRunnable = Runnable {
+        Log.w(TAG, "Hard stop: shortService tavani ($SHORT_SERVICE_LIMIT_MS ms) yaklasiyor")
+        shutdown("hardStop")
     }
 
     override fun onCreate() {
@@ -35,6 +91,36 @@ class BootTaskService : HeadlessJsTaskService() {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start foreground", e)
             }
+        }
+
+        // shortService saati startForeground ile başladı; emniyet supabını
+        // aynı referans noktasından kur.
+        mainHandler.postDelayed(hardStopRunnable, HARD_STOP_MS)
+    }
+
+    /**
+     * Servisi tek bir yerden, idempotent şekilde kapatır.
+     *
+     * Hem `onHeadlessJsTaskFinish` (normal bitiş) hem `hardStopRunnable`
+     * (emniyet supabı) buradan geçer; ikisi de yarışsa bile foreground
+     * bildirimi sızamaz ve `stopSelf` iki kez çağrılamaz.
+     */
+    private fun shutdown(reason: String) {
+        if (isShutDown) {
+            return
+        }
+        isShutDown = true
+        mainHandler.removeCallbacks(hardStopRunnable)
+        Log.d(TAG, "shutdown: $reason")
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(NOTIFICATION_ID)
+            stopSelf()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping service ($reason)", e)
         }
     }
 
@@ -88,7 +174,7 @@ class BootTaskService : HeadlessJsTaskService() {
         return HeadlessJsTaskConfig(
             "ReRegisterAlarmsTask",
             Arguments.fromBundle(extras),
-            180000,  // 180 second timeout - daha uzun süre
+            TASK_TIMEOUT_MS,
             true    // Allow in foreground
         )
     }
@@ -98,8 +184,12 @@ class BootTaskService : HeadlessJsTaskService() {
      * edilirse (JS bundle yuklenemedi, sistem servisi oldurdu, getTaskConfig
      * yolunda erken stopSelf) foreground bildirimi gorunur kalirdi. Burada
      * hem stopForeground hem de acik cancel cagrilir; ikisi de idempotent.
+     *
+     * Emniyet supabi callback'i de burada geri aliniyor — aksi halde servis
+     * öldükten sonra tetiklenen bir Runnable main looper'da sızardı.
      */
     override fun onDestroy() {
+        mainHandler.removeCallbacks(hardStopRunnable)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -115,15 +205,6 @@ class BootTaskService : HeadlessJsTaskService() {
     override fun onHeadlessJsTaskFinish(taskId: Int) {
         super.onHeadlessJsTaskFinish(taskId)
         Log.d(TAG, "HeadlessJS task finished: $taskId")
-
-        // Stop foreground service
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-            }
-            stopSelf()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error stopping service", e)
-        }
+        shutdown("taskFinish")
     }
 }
