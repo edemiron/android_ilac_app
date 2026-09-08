@@ -2,7 +2,7 @@
 
 > **Kayıt türü:** Denetim kaynaklı güvenlik düzeltmesi — **sürümsüz** (`[Unreleased]`)
 > **Tarih & Saat:** 2026-09-07 23:41
-> **Commit:** `e50284b` (rules + istemci), `5ffa628` (scripts/ fail-closed gitignore)
+> **Commit:** `aec9144` (rules + istemci), `0452299` (scripts/ fail-closed gitignore)
 > **Dal:** `fix/critical-issues-and-improvements`
 > **Modül / Alan:** Firestore Security Rules · Hasta-Bakıcı Yetkilendirme · Doz Kaydı Bütünlüğü · KVKK m.6
 > **Hakem:** Qwen 3.8 Max (Baş Mimar & Baş Denetçi)
@@ -169,7 +169,7 @@ Her ikisi de aynı `cf_live_` önekli değeri taşıyor ve `:78`'de `Authorizati
 | Kontrol | Sonuç |
 |---|---|
 | `git log --all -S "<anahtar-öneki>"` | **boş** — anahtar tarihe HİÇ girmedi |
-| `git show 828fa77 \| findstr <anahtar-öneki>` | **boş** — v2.4.0 commit'inde yok |
+| `git show e6aad7a \| findstr <anahtar-öneki>` | **boş** — v2.4.0 commit'inde yok |
 | `git grep -I "<anahtar-öneki>" $(git rev-parse HEAD)` | **boş** — HEAD ağacında yok |
 | Depo genelinde grep | yalnızca o 2 dosya, başka kopya yok |
 
@@ -180,7 +180,7 @@ Her ikisi de aynı `cf_live_` önekli değeri taşıyor ve `:78`'de `Authorizati
 > hijyendir. Push öncesi fark edilip `<anahtar-öneki>` placeholder'ına
 > indirgendi. Doğrulamanın kendisi geçerli: üç komut da gerçekten boş döndü.
 
-**Alınan önlem (commit `5ffa628`):** `scripts/` **fail-closed** yok sayılıyor:
+**Alınan önlem (commit `0452299`):** `scripts/` **fail-closed** yok sayılıyor:
 
 ```gitignore
 scripts/*
@@ -205,6 +205,25 @@ Yapılması gerekenler (yalnızca kullanıcı/sahiplik tarafında yapılabilir):
 3. İptal ve düzeltme sonrası gerekirse whitelist'e ekle.
 
 Bu, projenin daha önce Firestore `config/ai` üzerinden yaşadığı ve `firestore.rules:180-192`'de belgelenen sızıntının **aynı sınıfı**. Orada da sızıntı kapatılmış ama iptal doğrulanmamıştı (`docs/YAYIN_ONCESI_ACIK_MADDELER.md` içindeki "Yeni anahtar üret ve ESKİSİNİ İPTAL ET" ve "7. Doğrula" kutucukları hâlâ işaretsiz). Aynı hatanın tekrarlanmaması için bu maddenin kapatılması yayın öncesinden daha acildir.
+
+### 🚨 DÜZELTME — "Gemini anahtarı git geçmişinde yok" sonucu YANLIŞTI
+
+Bu kaydın §6'sındaki doğrulama tablosu `cf_live_` anahtarı için **doğru**: o anahtar gerçekten hiç commit'lenmedi. Ama denetim sırasında bunun yanında verilen **"Gemini anahtarı git geçmişinden kurtarılamıyor"** sonucu **yanlıştı** ve push denemesi bunu ortaya çıkardı.
+
+GitHub push protection (GH013) iki canlı credential tespit etti:
+
+| Sır | Biçim | HEAD'deki konum |
+|---|---|---|
+| **Google AI Studio / Gemini API anahtarı** | `AQ.Ab8R…` (50 karakter) | `docs/UYGULAMA_TANIMA_RAPORU_2026-08-31.md`, `docs/YAYIN_ONCESI_ACIK_MADDELER.md`, `docs/archive/v1.6.0_2026-08-31_05-30_gemini-api-anahtari-kaydedildi-…md` |
+| **Apify API token** | `apify_api_…` (46 karakter) | `docs/strateji/APIFY_ANALIZ.md` |
+
+**Neden denetim kaçırdı:** arama kalıpları fazla spesifiktir — `sk-ant-api`, `AQ\.Ab8RN6K`, `sk_ant`. Gerçek anahtar `AQ.Ab8R` + **farklı** bir devam olduğu için hiçbir kalıp eşleşmedi. Üstelik bu üç dosyanın hepsi denetimde okunmuştu; `docs/YAYIN_ONCESI_ACIK_MADDELER.md` aynı sayfada hem `AQ_AB8RN6K_…` secret **adlarını** (kısmi anahtar malzemesi) hem tam anahtarı içeriyordu ve yalnızca adlar fark edilmişti.
+
+**Ders:** sır taraması bilinen kalıplarla değil, **entropi/uzunluk temelli** yapılmalı; ayrıca `.md` dosyaları "dokümantasyon" varsayılıp tarama dışında bırakılmamalı. Bu depoda sırlar koda değil **arşiv notlarına** gömülmüş.
+
+**Alınan önlem:** her iki sır `git filter-branch --tree-filter` ile `239c2fe..HEAD` aralığındaki (43 commit) **tüm** `.md` dosyalarından regex ile kazındı; `<REDACTED-GEMINI-API-KEY>` / `<REDACTED-GCP-SECRET-NAME>` / `<REDACTED-APIFY-TOKEN>` placeholder'larıyla değiştirildi. Doğrulama: kazıma sonrası `git grep Ab8R HEAD` ve `git grep apify_api HEAD` **boş**, `git log -S` aralıkta **boş**, `git diff --stat backup/pre-scrub-20260908 HEAD` → **yalnızca 4 dosya / 6 satır** (başka hiçbir içerik değişmedi), 43 commit korundu.
+
+**⚠️ KAZIMA YETMEZ — İPTAL ŞART:** bu iki credential günlerdir yerel depoda, yedeklerde ve olası bulut sync'lerinde duruyordu. Geçmişten silmek **yayınlamayı** engeller, **maruziyeti** kaldırmaz. İkisi de sağlayıcı panelinden iptal edilmeli. Gemini anahtarı için bu, §K4'ün "iptali doğrulanmamış anahtar" maddesinin somut karşılığıdır.
 
 ---
 
@@ -266,9 +285,9 @@ Hazırlık: Java 17 kur → `npm i -D @firebase/rules-unit-testing` → `firebas
 ## 9. Yayın sırası
 
 ```
-1. ✅ firestore.rules + istemci değişiklikleri (commit e50284b)
+1. ✅ firestore.rules + istemci değişiklikleri (commit aec9144)
 2. ✅ sözleşme testi + tam paket yeşil
-3. ✅ scripts/ fail-closed gitignore (commit 5ffa628)
+3. ✅ scripts/ fail-closed gitignore (commit 0452299)
 4. ⬜ Emülatörde 6 senaryonun davranışsal doğrulaması (Java 17 gerekir)
 5. ⬜ firebase deploy --only firestore:rules   ← PAYLAŞILAN ALTYAPI, izin gerekir
 6. ⬜ 🚨 cf_live_ anahtarını İPTAL ET (§6)

@@ -174,7 +174,7 @@ Kökteki dosya sayısı **~310 → ~12**.
 ## ✔ UYGULANDI — 5 Eylül 2026, 23:50
 
 **✅ bölümü:** tüm maddeler `_to_delete/` altına taşındı ve repodan `git rm`
-edildi (commit `14188bb`). Kalıcı silme yetkisi bana verilmediği için silme
+edildi (commit `e20ebcf`). Kalıcı silme yetkisi bana verilmediği için silme
 işlemini kullanıcı yaptı; `_to_delete/` artık yok.
 
 **🟡 bölümü (taşıma):**
