@@ -214,16 +214,25 @@ GitHub push protection (GH013) iki canlı credential tespit etti:
 
 | Sır | Biçim | HEAD'deki konum |
 |---|---|---|
-| **Google AI Studio / Gemini API anahtarı** | `AQ.Ab8R…` (50 karakter) | `docs/UYGULAMA_TANIMA_RAPORU_2026-08-31.md`, `docs/YAYIN_ONCESI_ACIK_MADDELER.md`, `docs/archive/v1.6.0_2026-08-31_05-30_gemini-api-anahtari-kaydedildi-…md` |
-| **Apify API token** | `apify_api_…` (46 karakter) | `docs/strateji/APIFY_ANALIZ.md` |
+| **Google AI Studio / Gemini API anahtarı** | `AQ.` öneki + toplam 50 karakter *(anahtar malzemesi redakte)* | `docs/UYGULAMA_TANIMA_RAPORU_2026-08-31.md`, `docs/YAYIN_ONCESI_ACIK_MADDELER.md`, `docs/archive/v1.6.0_2026-08-31_05-30_gemini-api-anahtari-kaydedildi-…md` |
+| **Apify API token** | Apify'nin standart token öneki + toplam 46 karakter *(ön ek redakte)* | `docs/strateji/APIFY_ANALIZ.md` |
 
-**Neden denetim kaçırdı:** arama kalıpları fazla spesifiktir — `sk-ant-api`, `AQ\.Ab8RN6K`, `sk_ant`. Gerçek anahtar `AQ.Ab8R` + **farklı** bir devam olduğu için hiçbir kalıp eşleşmedi. Üstelik bu üç dosyanın hepsi denetimde okunmuştu; `docs/YAYIN_ONCESI_ACIK_MADDELER.md` aynı sayfada hem `AQ_AB8RN6K_…` secret **adlarını** (kısmi anahtar malzemesi) hem tam anahtarı içeriyordu ve yalnızca adlar fark edilmişti.
+> 🔒 **Redaksiyon notu (ikinci tur):** bu tablo ilk halinde iki sırrın da önek
+> parçalarını **olduğu gibi** içeriyordu — `cf_live_` vakasında yapılan hatanın
+> aynısı. Ürün önekleri herkese açık biçim bilgisidir ve tek başına sır
+> değildir, ama öneki izleyen karakterler anahtar malzemesidir ve dokümana
+> yazılmamalıdır. Kazıma komutlarında kullanılan arama terimleri de aynı
+> gerekçeyle `<anahtar-öneki>` placeholder'ına indirgendi.
 
-**Ders:** sır taraması bilinen kalıplarla değil, **entropi/uzunluk temelli** yapılmalı; ayrıca `.md` dosyaları "dokümantasyon" varsayılıp tarama dışında bırakılmamalı. Bu depoda sırlar koda değil **arşiv notlarına** gömülmüş.
+**Neden denetim kaçırdı:** arama kalıpları fazla spesifiktir — `sk-ant-api`, `AQ\.<anahtar-öneki>`, `sk_ant`. Gerçek anahtar `AQ.` öneki + **farklı** bir devam olduğu için hiçbir kalıp eşleşmedi. Üstelik bu üç dosyanın hepsi denetimde okunmuştu; `docs/YAYIN_ONCESI_ACIK_MADDELER.md` aynı sayfada hem kısmi anahtar malzemesi taşıyan Secret Manager **adlarını** hem tam anahtarı içeriyordu ve yalnızca adlar fark edilmişti.
 
-**Alınan önlem:** her iki sır `git filter-branch --tree-filter` ile `239c2fe..HEAD` aralığındaki (43 commit) **tüm** `.md` dosyalarından regex ile kazındı; `<REDACTED-GEMINI-API-KEY>` / `<REDACTED-GCP-SECRET-NAME>` / `<REDACTED-APIFY-TOKEN>` placeholder'larıyla değiştirildi. Doğrulama: kazıma sonrası `git grep Ab8R HEAD` ve `git grep apify_api HEAD` **boş**, `git log -S` aralıkta **boş**, `git diff --stat backup/pre-scrub-20260908 HEAD` → **yalnızca 4 dosya / 6 satır** (başka hiçbir içerik değişmedi), 43 commit korundu.
+**Ders:** sır taraması bilinen kalıplarla değil, **entropi/uzunluk temelli** yapılmalı; ayrıca `.md` dosyaları "dokümantasyon" varsayılıp tarama dışında bırakılmamalı. Bu depoda sırlar koda değil **arşiv notlarına** gömülmüş. Ve bir sırrı *belgeleyen* metin de sır taşıyabilir — bu notun kendisi iki kez aynı hatayı yaptı.
+
+**Alınan önlem:** her iki sır `git filter-branch --tree-filter` ile `239c2fe..HEAD` aralığındaki (43 commit) **tüm** `.md` dosyalarından regex ile kazındı; `<REDACTED-GEMINI-API-KEY>` / `<REDACTED-GCP-SECRET-NAME>` / `<REDACTED-APIFY-TOKEN>` placeholder'larıyla değiştirildi. Doğrulama: kazıma sonrası `git grep <anahtar-öneki> HEAD` ve Apify öneki için aynı tarama **boş**, `git log -S` aralıkta **boş**, `git diff --stat backup/pre-scrub-20260908 HEAD` → **yalnızca 4 dosya / 6 satır** (başka hiçbir içerik değişmedi), 43 commit korundu. Yedek ref'ler (`backup/*` tag'leri ve `refs/original/`) push doğrulandıktan sonra silindi, reflog süresi dolduruldu ve `git gc --prune=now` çalıştırıldı; `.git` 203 MB → 177 MB.
 
 **⚠️ KAZIMA YETMEZ — İPTAL ŞART:** bu iki credential günlerdir yerel depoda, yedeklerde ve olası bulut sync'lerinde duruyordu. Geçmişten silmek **yayınlamayı** engeller, **maruziyeti** kaldırmaz. İkisi de sağlayıcı panelinden iptal edilmeli. Gemini anahtarı için bu, §K4'ün "iptali doğrulanmamış anahtar" maddesinin somut karşılığıdır.
+
+**Olumlu sonuç:** her iki push denemesi de reddedildiği için (GH001 ve GH013) sırlar uzak depoya **hiç ulaşmadı**; başarılı push yalnızca kazınmış tarihi içeriyordu.
 
 ---
 
