@@ -74,6 +74,31 @@ class BootTaskService : HeadlessJsTaskService() {
          *     başıboş foreground servisi her sürümde kötü.
          */
         private const val HARD_STOP_MS = 150_000L
+
+        /**
+         * ⚠️ ÖLÇÜLMÜŞ MARJ UYARISI (2026-09-08, API 36 emülatör, x86_64 TV imajı).
+         *
+         * Gerçek reboot ile doğrulandı: `Service onCreate` 23:43:28.421 →
+         * `HeadlessJS task finished: 1` 23:45:50.009, yani **~142 saniye**.
+         * Görev `shutdown: taskFinish` ile TEMİZ kapandı, ANR yok,
+         * `SecurityException` yok (`Background started FGS: Allowed`), ve ikinci
+         * görev bittiğinde `isShutDown` guard'ı ikinci shutdown'ı bastırdı.
+         *
+         * Ama 142 sn, bu sabitin 150 sn'lik değerine yalnızca **8 sn** kala.
+         * Sürenin büyük kısmı GÖREV değil **RN bundle yükleme + R8 sınıf
+         * doğrulama** (logcat'te yüzlerce "Verification of ... took Xms").
+         * Önemli sonuç: HeadlessJS görev saati bundle hazır olduktan SONRA
+         * başlıyor, oysa shortService tavanı ve bu emniyet supabı
+         * `startForeground`'dan (onCreate) başlıyor — aradaki farkı bundle
+         * yükleme tüketiyor. Yavaş bir cihazda bu fark 150 sn'yi aşabilir.
+         *
+         * Bu kabul edilebilir çünkü kritik alarmlar bu servise BAĞIMLI DEĞİL:
+         * `DirectBootAlarmHelper.reArmAllAlarms` servisten ÖNCE, saf native
+         * olarak çalışıyor (logcat: "0 alarms re-armed in DE mode") ve
+         * uygulama bir sonraki açılışta `reRegisterAllAlarms('app_startup')`
+         * ile telafi ediyor. Yine de 165_000L'ye yükseltmek (tavandan 15 sn
+         * önce) yavaş cihazlara alan açar — ölçüm bu yönde veri sağlıyor.
+         */
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
