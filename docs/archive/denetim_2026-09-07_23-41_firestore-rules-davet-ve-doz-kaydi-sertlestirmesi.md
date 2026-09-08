@@ -2,7 +2,7 @@
 
 > **Kayıt türü:** Denetim kaynaklı güvenlik düzeltmesi — **sürümsüz** (`[Unreleased]`)
 > **Tarih & Saat:** 2026-09-07 23:41
-> **Commit:** `8f99f3a` (rules + istemci), `979da7e` (scripts/ fail-closed gitignore)
+> **Commit:** `e50284b` (rules + istemci), `5ffa628` (scripts/ fail-closed gitignore)
 > **Dal:** `fix/critical-issues-and-improvements`
 > **Modül / Alan:** Firestore Security Rules · Hasta-Bakıcı Yetkilendirme · Doz Kaydı Bütünlüğü · KVKK m.6
 > **Hakem:** Qwen 3.8 Max (Baş Mimar & Baş Denetçi)
@@ -169,7 +169,7 @@ Her ikisi de aynı `cf_live_` önekli değeri taşıyor ve `:78`'de `Authorizati
 | Kontrol | Sonuç |
 |---|---|
 | `git log --all -S "<anahtar-öneki>"` | **boş** — anahtar tarihe HİÇ girmedi |
-| `git show 5d31581 \| findstr <anahtar-öneki>` | **boş** — v2.4.0 commit'inde yok |
+| `git show 828fa77 \| findstr <anahtar-öneki>` | **boş** — v2.4.0 commit'inde yok |
 | `git grep -I "<anahtar-öneki>" $(git rev-parse HEAD)` | **boş** — HEAD ağacında yok |
 | Depo genelinde grep | yalnızca o 2 dosya, başka kopya yok |
 
@@ -180,7 +180,7 @@ Her ikisi de aynı `cf_live_` önekli değeri taşıyor ve `:78`'de `Authorizati
 > hijyendir. Push öncesi fark edilip `<anahtar-öneki>` placeholder'ına
 > indirgendi. Doğrulamanın kendisi geçerli: üç komut da gerçekten boş döndü.
 
-**Alınan önlem (commit `979da7e`):** `scripts/` **fail-closed** yok sayılıyor:
+**Alınan önlem (commit `5ffa628`):** `scripts/` **fail-closed** yok sayılıyor:
 
 ```gitignore
 scripts/*
@@ -266,9 +266,9 @@ Hazırlık: Java 17 kur → `npm i -D @firebase/rules-unit-testing` → `firebas
 ## 9. Yayın sırası
 
 ```
-1. ✅ firestore.rules + istemci değişiklikleri (commit 8f99f3a)
+1. ✅ firestore.rules + istemci değişiklikleri (commit e50284b)
 2. ✅ sözleşme testi + tam paket yeşil
-3. ✅ scripts/ fail-closed gitignore (commit 979da7e)
+3. ✅ scripts/ fail-closed gitignore (commit 5ffa628)
 4. ⬜ Emülatörde 6 senaryonun davranışsal doğrulaması (Java 17 gerekir)
 5. ⬜ firebase deploy --only firestore:rules   ← PAYLAŞILAN ALTYAPI, izin gerekir
 6. ⬜ 🚨 cf_live_ anahtarını İPTAL ET (§6)
