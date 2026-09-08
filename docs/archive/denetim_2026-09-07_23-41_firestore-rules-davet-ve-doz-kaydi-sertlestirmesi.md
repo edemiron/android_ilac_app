@@ -168,10 +168,17 @@ Her ikisi de aynı `cf_live_` önekli değeri taşıyor ve `:78`'de `Authorizati
 
 | Kontrol | Sonuç |
 |---|---|
-| `git log --all -S "cf_live_7bslk"` | **boş** — anahtar tarihe HİÇ girmedi |
-| `git show 5d31581 \| findstr cf_live_7bslk…` | **boş** — v2.4.0 commit'inde yok |
-| `git grep -I "cf_live_7bslk" $(git rev-parse HEAD)` | **boş** — HEAD ağacında yok |
+| `git log --all -S "<anahtar-öneki>"` | **boş** — anahtar tarihe HİÇ girmedi |
+| `git show 5d31581 \| findstr <anahtar-öneki>` | **boş** — v2.4.0 commit'inde yok |
+| `git grep -I "<anahtar-öneki>" $(git rev-parse HEAD)` | **boş** — HEAD ağacında yok |
 | Depo genelinde grep | yalnızca o 2 dosya, başka kopya yok |
+
+> 🔒 **Redaksiyon notu:** bu tablo ilk halinde arama komutlarını anahtarın ilk
+> karakterleriyle **olduğu gibi** içeriyordu. Kullanılabilir bir credential
+> değildi (anahtarın yalnızca başlangıcı, kalanı bilinmiyor) ama canlı bir
+> anahtarın herhangi bir parçasını depoya — dolayısıyla uzağa — yazmak kötü
+> hijyendir. Push öncesi fark edilip `<anahtar-öneki>` placeholder'ına
+> indirgendi. Doğrulamanın kendisi geçerli: üç komut da gerçekten boş döndü.
 
 **Alınan önlem (commit `979da7e`):** `scripts/` **fail-closed** yok sayılıyor:
 
