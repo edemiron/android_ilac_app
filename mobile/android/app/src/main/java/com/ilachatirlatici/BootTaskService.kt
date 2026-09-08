@@ -48,8 +48,15 @@ class BootTaskService : HeadlessJsTaskService() {
          *
          * 120 s hâlâ çok cömert: görev saklı alarmları yeniden kaydediyor,
          * pratikte saniyeler sürüyor.
+         *
+         * ⚠️ Sondaki `L` ZORUNLU. Kotlin tamsayı LİTERALLERİNDE örtük
+         * Int→Long dönüşümüne izin verir ama TİPLİ sabitlerde vermez;
+         * `HeadlessJsTaskConfig` timeout parametresi Long bekliyor. `L`
+         * silinirse derleme şu hatayla kırılır:
+         *   Argument type mismatch: actual type is 'Int', but 'Long' was expected.
+         * (Bu hata gerçekten yaşandı — `:app:compileReleaseKotlin` ile yakalandı.)
          */
-        private const val TASK_TIMEOUT_MS = 120_000
+        private const val TASK_TIMEOUT_MS = 120_000L
 
         /**
          * Emniyet supabı. Görev kendi bütçesinde bitmezse servisi

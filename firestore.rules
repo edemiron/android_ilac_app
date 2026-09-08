@@ -222,9 +222,32 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
       }
 
-      // Diğer tüm alt koleksiyonlar: yalnızca sahibi
+      // Diğer tüm alt koleksiyonlar: yalnızca sahibi.
+      //
+      // ⚠️ `subscription` BİLİNÇLİ OLARAK HARİÇ — ve bu satır bir güvenlik
+      // düzeltmesidir, kozmetik değil.
+      //
+      // Firestore kuralları eşleşen TÜM `allow` ifadelerini OR'lar: daha
+      // GENİŞ bir kural, daha dar bir `allow write: if false`'u GEÇERSİZ
+      // KILAR. `users/{uid}/subscription/current` yolu hem
+      // `match /subscription/{subscriptionId}` hem de bu recursive catch-all
+      // ile eşleşiyor. Catch-all `isOwner(userId)` ile yazmaya izin verdiği
+      // için `allow write: if false` tek başına HİÇBİR ŞEYİ ENGELLEMİYORDU —
+      // hasta kendi dokümanına `tier:'premium'` yazıp ödemesiz Premium
+      // açabiliyordu. Yani v1.7.4'te "kapatıldı" diye belgelenen açık
+      // (bkz. yukarıdaki ABONELİK yorumu) gerçekte hiç kapanmamıştı.
+      //
+      // Bu, emülatörde DAVRANIŞSAL testle yakalandı: sözleşme testi
+      // (`firestoreRules.contract.test.ts`) `allow write: if false` metnini
+      // görüp GEÇTİĞİ halde gerçek yazma isteği başarılı oluyordu.
+      // Ders: şekil kapısı davranışı kanıtlamaz.
+      //
+      // `allSubcollections[0]`, `users/{userId}` altındaki İLK segmenttir;
+      // recursive wildcard en az bir segment eşleştirdiği için indeks güvenlidir.
+      // Okuma etkilenmez: `match /subscription/...` içindeki
+      // `allow read: if isOwner(userId)` hâlâ geçerli.
       match /{allSubcollections=**} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if isOwner(userId) && allSubcollections[0] != 'subscription';
       }
     }
 
