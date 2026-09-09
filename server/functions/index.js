@@ -233,6 +233,23 @@ exports.geminiGenerate = onCall({ secrets: [geminiApiKey] }, async (request) => 
 exports.deleteMyAccount = require('./deleteMyAccount').deleteMyAccount;
 
 /**
+ * ⚡ BAKICI DAVETİ — sunucu otoritesi (K1 kök nedeni).
+ *
+ * Davet kodu istemcide `Math.random()` ile 6 hane üretiliyordu (≈1.29×10⁹) ve
+ * `firestore.rules`'taki açık `allow get` sayesinde kod uzayı `getDoc`
+ * döngüsüyle taranabiliyordu. Artık kod SUNUCUDA CSPRNG ile 12 hane
+ * (≈1.67×10¹⁸, ölçülmüş 60.53 bit) üretiliyor ve kabul rate-limit + ATOMIK
+ * transaction ile işleniyor (tekrar oynatma yapısal olarak kapanıyor).
+ *
+ * ⚠️ Bu tek başına brute-force'u BİTİRMEZ: enumeration `getDoc` üzerinden
+ * yapılır ve ona callable değil firestore.rules karar verir. Kademeli yayın
+ * planı `inviteService.js` dosya başında — son adım `allow get`'i sahibiyle
+ * sınırlamak ve bu istemci yayılmadan YAPILMAMALI.
+ */
+exports.createCaregiverInvite = require('./caregiverInvites').createCaregiverInvite;
+exports.redeemCaregiverInvite = require('./caregiverInvites').redeemCaregiverInvite;
+
+/**
  * ⚡ OTOMATİK CLOUD TRIGGER: Hasta İlaç Aldığında/Atladığında Bakıcıya Anında FCM Gönder
  * Hem Topic (`patient_{userId}`) hem Direct Token ile çift hat üzerinden garanti iletim.
  */
