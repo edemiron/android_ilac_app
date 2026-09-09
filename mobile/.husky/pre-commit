@@ -1,4 +1,25 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
+# ⚠️ Bu dosyada BİLEREK shebang ve `. "$(dirname "$0")/_/husky.sh"` satırları YOK.
+#
+# Neden: git `core.hooksPath=mobile/.husky/_` üzerinden önce SARMALAYICIYI
+# çalıştırıyor (`_/pre-commit` → `_/h`). `_/h` bu dosyayı zaten
+#
+#     sh -e "$s" "$@"
+#
+# ile çalıştırıyor — yani shebang gereksiz ve errexit (-e) zaten aktif.
+#
+# `_/husky.sh` ise husky 9.1.7'de YALNIZCA deprecation uyarısı basan boş bir
+# dosya; husky 10'da TAMAMEN SİLİNİYOR. `sh -e` altında var olmayan bir
+# dosyayı source etmek hata verdiği için, o satır durursa v10'a geçildiği an
+# hook patlar ve TÜM commit'ler bloklanır. Uyarının "WILL FAIL in v10.0.0"
+# demesinin sebebi bu.
+#
+# Bu biçim hem husky 9 hem husky 10 ile çalışır.
+#
+# ── `cd mobile` NEDEN ZORUNLU (kaldırmayın) ───────────────────────────────
+# Git hook'ları depo KÖKÜNDE çalıştırır. `_/h` PATH'e göreli olarak
+# `node_modules/.bin` ekliyor ama kökte node_modules YOK (proje mobile/
+# altında). lint-staged yapılandırması da `mobile/package.json`'da. Bu yüzden
+# hem `npx`'in doğru node_modules'ü çözmesi hem de lint-staged'in kendi
+# yapılandırmasını bulması için önce mobile/'e geçmek gerekiyor.
 
 cd mobile && npx lint-staged
