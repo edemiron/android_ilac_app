@@ -14,6 +14,8 @@ import messaging from '@react-native-firebase/messaging';
 import notifee, { AndroidImportance } from '@notifee/react-native';
 import { createScopedLogger } from '../utils/logger';
 import { updateCaregiverFcmToken } from './caregiverService';
+// K5 — bakıcı uyarısı yazılamazsa KALICI kuyruğa al.
+import { enqueueOutbox } from '../utils/outboxStore';
 
 const log = createScopedLogger('CaregiverNotifications');
 
@@ -474,24 +476,48 @@ export async function notifyCaregiversAboutMedicineStatus(
 
       // Ayrıca bakıcının /users/{caregiverId}/caregiverAlerts koleksiyonuna anında yaz!
       if (caregiver.caregiverId) {
+        const alertId = `${patientId}_${Date.now()}`;
+        const alertData = {
+          id: alertId,
+          patientId,
+          patientName: caregiver.patientName || resolvedPatientName || 'Hastanız',
+          medicineName,
+          scheduledTime,
+          status,
+          createdAt: new Date().toISOString(),
+          seen: false,
+        };
         try {
-          const alertId = `${patientId}_${Date.now()}`;
-          await setDoc(doc(db, 'users', caregiver.caregiverId, 'caregiverAlerts', alertId), {
-            id: alertId,
-            patientId,
-            patientName: caregiver.patientName || resolvedPatientName || 'Hastanız',
-            medicineName,
-            scheduledTime,
-            status,
-            createdAt: new Date().toISOString(),
-            seen: false,
-          });
+          await setDoc(
+            doc(db, 'users', caregiver.caregiverId, 'caregiverAlerts', alertId),
+            alertData
+          );
           log.info('caregiverAlerts kaydı oluşturuldu', {
             caregiverId: caregiver.caregiverId,
             alertId,
           });
         } catch (alertErr) {
-          log.warn('caregiverAlerts yazma uyarısı', alertErr);
+          // ⚠️ K5 — eski davranış burada yalnızca `log.warn` yapıyordu.
+          // Sonuç: telefon çekmeyen bir ortamda atlanan/kaçırılan doz
+          // BAKICIYA ASLA ULAŞMIYORDU. Doz logu yerelde kalıp bir sonraki
+          // başarılı syncToCloud ile buluta gidiyordu ama bu ANLIK uyarı geri
+          // gelmiyordu — uygulamanın birincil güvenlik vaadi (refakatçi
+          // takibi) tam da en ihtiyaç duyulan senaryoda sessizce düşüyordu.
+          //
+          // Outbox anahtarı `alertId__caregiverId`: döngü birden çok bakıcı
+          // için aynı milisaniyede aynı `alertId`'yi üretebilir ve outbox
+          // dedup'ı id+kind üzerinden çalışıyor. Firestore doküman kimliği
+          // DEĞİŞTİRİLMEDİ (yalnızca kuyruk anahtarı ayrıştırıldı), böylece
+          // mevcut uyarılarla biçim uyumu korunuyor.
+          await enqueueOutbox('caregiverAlert', `${alertId}__${caregiver.caregiverId}`, {
+            caregiverId: caregiver.caregiverId,
+            alertId,
+            alertData,
+          });
+          log.warn(
+            "caregiverAlerts yazılamadı, outbox'a alındı — bağlantı gelince iletilecek",
+            alertErr
+          );
         }
       }
 

@@ -129,6 +129,10 @@ import {
 import { DEFAULT_USER_SETTINGS } from '../utils/defaultSettings';
 import { migrateMedicineStoreState, SETTINGS_STORAGE_VERSION } from '../utils/settingsStorage';
 import { recordDiagnosticEvent } from '../utils/diagnosticTelemetry';
+// K5 — başarısız bulut yazımlarını KALICI kuyruğa alan sarmalayıcı.
+// Döngüsel import yok: outboxFlusher yalnızca firestoreSync + firebase
+// config'e bağımlı, medicineStore'a değil.
+import { persistWriteOrEnqueue } from '../utils/outboxFlusher';
 
 // Sprint 4: pure helper'lar ./helpers/* modullerine tasindi.
 // medicineStore.ts — store olusturma + action dispatch + selector'lara odaklanir.
@@ -1269,8 +1273,21 @@ export const useMedicineStore = create<MedicineState>()(
 
         // 9. Cloud save (mevcut kod)
         if (userId) {
-          saveMedicineLogToCloud(userId, medicineLog).catch(err =>
-            log.error('Failed to save log to cloud', err)
+          // ⚠️ K5 — başarısız bulut yazımı KALICI kuyruğa gider.
+          // Eski desen `.catch(err => log.error('Failed to save log to cloud'))`
+          // idi: hata yalnızca loglanıyor, yazım KALICI OLARAK KAYBOLUYORDU.
+          // `memoryLocalCache()` yüzünden Firestore'un kendi offline kuyruğu da
+          // yok; yani çevrimdışı atlanan bir doz buluta hiç gitmiyordu.
+          // Artık NetInfo bağlantı döndüğünde veya uygulama ön plana
+          // geldiğinde teslim ediliyor (bkz. utils/outboxFlusher.ts).
+          // İdempotent: hedef doküman kimliği `medicineLog.id`, yeniden
+          // teslim çift kayıt üretmez.
+          persistWriteOrEnqueue(
+            'medicineLog',
+            medicineLog.id,
+            { userId, medicineLog },
+            () => saveMedicineLogToCloud(userId, medicineLog),
+            'Doz logu buluta yazılamadı'
           );
         }
 
@@ -1376,8 +1393,21 @@ export const useMedicineStore = create<MedicineState>()(
         });
 
         if (userId) {
-          saveMedicineLogToCloud(userId, medicineLog).catch(err =>
-            log.error('Failed to save log to cloud', err)
+          // ⚠️ K5 — başarısız bulut yazımı KALICI kuyruğa gider.
+          // Eski desen `.catch(err => log.error('Failed to save log to cloud'))`
+          // idi: hata yalnızca loglanıyor, yazım KALICI OLARAK KAYBOLUYORDU.
+          // `memoryLocalCache()` yüzünden Firestore'un kendi offline kuyruğu da
+          // yok; yani çevrimdışı atlanan bir doz buluta hiç gitmiyordu.
+          // Artık NetInfo bağlantı döndüğünde veya uygulama ön plana
+          // geldiğinde teslim ediliyor (bkz. utils/outboxFlusher.ts).
+          // İdempotent: hedef doküman kimliği `medicineLog.id`, yeniden
+          // teslim çift kayıt üretmez.
+          persistWriteOrEnqueue(
+            'medicineLog',
+            medicineLog.id,
+            { userId, medicineLog },
+            () => saveMedicineLogToCloud(userId, medicineLog),
+            'Doz logu buluta yazılamadı'
           );
         }
 
@@ -1475,8 +1505,17 @@ export const useMedicineStore = create<MedicineState>()(
         });
 
         if (userId) {
-          saveMedicineLogToCloud(userId, medicineLog).catch(err =>
-            log.error('Failed to save missed log to cloud', err)
+          // K5 — auto-snooze'un yazdığı `missed` kaydı da kalıcı kuyruğa
+          // gider. Bu yol özellikle kritik: erteleme hakları bitip alarm
+          // yanıtsız kapandığında yazılan TEK kayıt budur. Bağlantı yokken
+          // kaybolursa hem bulutta iz kalmaz hem de bakıcı hiç haberdar
+          // olmaz — yani sessiz kaçırılan doz geri gelmiş olur.
+          persistWriteOrEnqueue(
+            'medicineLog',
+            medicineLog.id,
+            { userId, medicineLog },
+            () => saveMedicineLogToCloud(userId, medicineLog),
+            'Kaçırılan doz logu buluta yazılamadı'
           );
         }
 
@@ -1505,8 +1544,16 @@ export const useMedicineStore = create<MedicineState>()(
 
           if (userId) {
             for (const missedLog of missedLogs) {
-              saveMedicineLogToCloud(userId, missedLog).catch(err =>
-                log.error('Failed to save missed log to cloud', err)
+              // K5 — toplu `missed` doldurması da kalıcı kuyruğa gider.
+              // NOT: bu yol yalnızca BUGÜNÜ dolduruyor (`missedReminders.ts`
+              // `startsWith(today)` — O2 hâlâ açık), ama en azından yazdığı
+              // kayıtlar artık bağlantı yokken kaybolmuyor.
+              persistWriteOrEnqueue(
+                'medicineLog',
+                missedLog.id,
+                { userId, medicineLog: missedLog },
+                () => saveMedicineLogToCloud(userId, missedLog),
+                'Kaçırılan doz logu buluta yazılamadı'
               );
 
               // Sprint 32: pure helper'a delege edildi (findMedicineById)

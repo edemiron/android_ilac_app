@@ -95,6 +95,8 @@ import {
   buildSnoozeNotificationId as buildSnoozeNotificationIdWithSnoozeId,
 } from './src/utils/notifications/ids';
 import { reRegisterAllAlarms } from './src/utils/bootHandler';
+// K5 — kalıcı yazma kuyruğu flush koordinatörü (NetInfo + AppState).
+import { startOutboxFlusher } from './src/utils/outboxFlusher';
 // "Bu doz bugun zaten alindi mi?" ve "bugun" gun anahtari icin TEK KAYNAK.
 // Bu dosyada iki kopya predicate ve UTC gun oneki vardi; ayrintili gerekce
 // src/domain/doseLog.ts dosya basinda.
@@ -924,6 +926,16 @@ function AppContent() {
           const result = await reRegisterAllAlarms('app_startup');
           appLog.debug('Startup alarm re-register done', { ...result });
         }
+
+        // K5 — kalıcı yazma kuyruğunu başlat.
+        //
+        // Alarmlardan SONRA başlatılıyor: açılışta öncelik doz alarmlarının
+        // yeniden planlanması (klinik olarak zaman-kritik), kuyruk ise
+        // gecikmeye toleranslı. `startOutboxFlusher` tekrar çağrılırsa no-op
+        // ve dört tetikleyici kurar: açılış, NetInfo bağlantı dönüşü,
+        // AppState `active`, ve kuyrukta iş kaldığı sürece kendini
+        // zamanlayan yeniden deneme (polling değil — boşalınca durur).
+        startOutboxFlusher();
 
         // v1.7.1: boot recovery sonucunu BURADA okumuyoruz.
         //

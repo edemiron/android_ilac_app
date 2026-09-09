@@ -29,6 +29,11 @@ module.exports = {
   moduleNameMapper: {
     '^react-native-svg$': '<rootDir>/__mocks__/react-native-svg.js',
     '\\.woff2$': '<rootDir>/__mocks__/fileMock.js',
+    // K5: outbox flusher NetInfo'ya bagimli; native modul (RNCNetInfo) test
+    // ortaminda yok ve paketin kendi jest mock klasoru bu surumde bulunmuyor.
+    // Eslenmezse medicineStore'u import eden TUM suite'ler calisamiyor.
+    '^@react-native-community/netinfo$':
+      '<rootDir>/__mocks__/@react-native-community/netinfo.js',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testMatch: [

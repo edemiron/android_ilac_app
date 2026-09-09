@@ -2,6 +2,11 @@ import { AISearchResult } from '../types';
 import { getApp } from 'firebase/app';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createScopedLogger } from '../utils/logger';
+// K6 — AI çıktısının şema doğrulaması. Zod projede daha önce YALNIZCA
+// `utils/syncDataValidator.ts` içinde kullanılıyordu ve bu akışa hiç bağlı
+// değildi; Gemini çıktısı ham `JSON.parse` + tek bir `typeof` kontrolüyle
+// hastaya gösteriliyordu.
+import { z } from 'zod';
 // Sprint 7.1 + 8.1: Pure prompt + response helper'lari inline tanimlar silindi.
 // Eski API adlari alias olarak kullaniliyor (backward compat).
 import {
@@ -374,6 +379,85 @@ Sadece geçerli bir JSON formatında liste döndür:
 
 // ============ KLİNİK & GIDA ETKİLEŞİMİ AI ANALİZİ ============
 
+/**
+ * K6 — Gemini çıktısının şema doğrulaması.
+ *
+ * ── Neden ─────────────────────────────────────────────────────────────────
+ * AI'ın ürettiği klinik tavsiye (etkileşim uyarıları, "güvenlik skoru",
+ * besin kuralları) doğrulanmadan hastaya gösteriliyordu. Eski kod:
+ *
+ *   overallSafetyScore: typeof parsed.overallSafetyScore === 'number'
+ *     ? parsed.overallSafetyScore : 85,          // ← SKOR UYDURULUYORDU
+ *   criticalAlerts: Array.isArray(...) ? ... : [], // ← ELEMAN ŞEKLİ YOK
+ *
+ * Yani: skor 0-100 dışına çıkabiliyordu (ör. 999 veya -5, renk ve eşik
+ * mantığını bozar), skor YOKSA 85 uyduruluyordu, ve dizi elemanları hiç
+ * doğrulanmıyordu — `fw.timingRule`/`fw.severity` ham okunuyordu. Halüsinasyon
+ * olmuş bir "sütü 4 saat kes" talimatı veya yanlış bir "yüksek risk" uyarısı
+ * hekim talimatı sanılabilirdi; prompt modeli "klinik farmakolog ve tıp
+ * doktoru" olarak sunmaya yönlendiriyordu.
+ *
+ * ── Politika ──────────────────────────────────────────────────────────────
+ * - **Skor zorunlu ve 0-100.** Yoksa veya aralık dışındaysa rapor BAŞARISIZ
+ *   sayılır; asla bir varsayılan skor UYDURULMAZ. Uydurma bir skor, hastanın
+ *   güvenini kalibre edilemez hale getirir.
+ * - **Dizi elemanları tek tek doğrulanır, bozuk olan DÜŞÜRÜLÜR.** Tek bir
+ *   hatalı besin önerisi tüm raporu çöpe atmamalı; ama bozuk eleman da
+ *   hastaya gösterilmemeli. Kaç elemanın düştüğü loglanır (sessiz değil).
+ * - **Uzunluk sınırları** var: AI çok uzun veya sonsuz dizi döndürürse UI
+ *   kilitlenmesin.
+ */
+const foodDrinkWarningSchema = z.object({
+  food: z.string().min(1).max(120),
+  affectedMedicine: z.string().min(1).max(120),
+  warning: z.string().min(1).max(600),
+  // timingRule AI tarafından atlanabiliyor; kart zaten koşullu render ediyor.
+  timingRule: z.string().max(300).optional(),
+  // Kart `fw.severity || 'moderate'` ile zaten varsayılıyor; şema da
+  // aynı varsayılana sabitliyor ki renk mantığı tanımsız görmesin.
+  severity: z.enum(['high', 'moderate', 'low']).optional(),
+});
+
+/** 0-100 aralığına ZORUNLU olarak kıstırılmış güvenlik skoru. */
+const safetyScoreSchema = z.number().min(0).max(100);
+
+const stringAlertSchema = z.string().min(1).max(600);
+
+const MAX_LIST_ITEMS = 20;
+
+/**
+ * Bir diziyi ELEMAN ELEMAN doğrular; bozuk elemanları düşürür, tavan uygular.
+ *
+ * Neden tüm diziyi birden doğrulamak yerine eleman eleman: tek bir hatalı
+ * besin önerisi tüm raporu çöpe atmamalı, ama bozuk eleman da hastaya
+ * gösterilmemeli. Düşürme SESSİZ DEĞİL — adet loglanır.
+ */
+function validateList<T>(
+  raw: unknown,
+  schema: z.ZodType<T>,
+  label: string
+): { items: T[]; dropped: number } {
+  if (!Array.isArray(raw)) return { items: [], dropped: 0 };
+
+  const capped = raw.slice(0, MAX_LIST_ITEMS);
+  const items: T[] = [];
+  let dropped = raw.length - capped.length;
+
+  for (const entry of capped) {
+    const result = schema.safeParse(entry);
+    if (result.success) {
+      items.push(result.data);
+    } else {
+      dropped += 1;
+    }
+  }
+
+  if (dropped > 0) {
+    log.warn('AI klinik raporu: geçersiz elemanlar DÜŞÜRÜLDÜ', { list: label, dropped });
+  }
+  return { items, dropped };
+}
+
 export interface ClinicalInteractionAIReport {
   success: boolean;
   overallSafetyScore: number; // 0-100 (100 = En Güvenli)
@@ -465,12 +549,15 @@ Tüm metinleri ${language === 'tr' ? 'Türkçe' : 'İngilizce'} yaz. JSON dış�
     if (!textResponse) {
       return {
         success: false,
-        overallSafetyScore: 80,
+        // ⚠️ Eski değer 80 idi: AI'dan HİÇ YANIT GELMEDİĞİ halde hastaya
+        // "80/100 güvenli" gösteriliyordu. Yanıt yoksa skor da yoktur.
+        overallSafetyScore: 0,
         summary: language === 'tr' ? 'Yanıt alınamadı.' : 'No response from AI.',
         criticalAlerts: [],
         foodDrinkWarnings: [],
         lifestyleTips: [],
         analyzedMedicines: medicines.map(m => m.name),
+        error: language === 'tr' ? 'AI yanıt döndürmedi' : 'AI returned no response',
       };
     }
 
@@ -484,23 +571,72 @@ Tüm metinleri ${language === 'tr' ? 'Türkçe' : 'İngilizce'} yaz. JSON dış�
     const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleanJson);
 
+    // ── K6: skor ZORUNLU ve 0-100. UYDURMA YOK. ──────────────────────────
+    const scoreResult = safetyScoreSchema.safeParse(parsed?.overallSafetyScore);
+    if (!scoreResult.success) {
+      // Eski kod burada `typeof === 'number' ? ... : 85` ile SKOR UYDURUYORDU
+      // ve `AIClinicalShieldCard` `success`'i hiç okumadığı için bu sayı
+      // hastaya GEÇERLİ BİR KLİNİK HÜKÜM olarak gösteriliyordu.
+      log.warn('AI klinik raporu: overallSafetyScore geçersiz → rapor BAŞARISIZ', {
+        received: parsed?.overallSafetyScore,
+      });
+      return {
+        success: false,
+        // ⚠️ 0 bir "skor" değil, "skor YOK" işaretidir. Kart `success:false`
+        // iken skoru RENDER ETMEZ (bkz. AIClinicalShieldCard.tsx).
+        overallSafetyScore: 0,
+        summary:
+          language === 'tr'
+            ? 'AI klinik analizi doğrulanamadı. Lütfen tekrar deneyin.'
+            : 'AI clinical analysis could not be validated. Please try again.',
+        criticalAlerts: [],
+        foodDrinkWarnings: [],
+        lifestyleTips: [],
+        analyzedMedicines: medicines.map(m => m.name),
+        error: 'overallSafetyScore eksik veya 0-100 aralığı dışında',
+      };
+    }
+
+    const alerts = validateList(parsed?.criticalAlerts, stringAlertSchema, 'criticalAlerts');
+    const warnings = validateList(
+      parsed?.foodDrinkWarnings,
+      foodDrinkWarningSchema,
+      'foodDrinkWarnings'
+    );
+    const tips = validateList(parsed?.lifestyleTips, stringAlertSchema, 'lifestyleTips');
+    const summaryResult = z.string().max(2000).safeParse(parsed?.summary);
+
     return {
       success: true,
-      overallSafetyScore:
-        typeof parsed.overallSafetyScore === 'number' ? parsed.overallSafetyScore : 85,
-      summary:
-        parsed.summary ||
-        (language === 'tr' ? 'Klinik analiz tamamlandı.' : 'Clinical analysis complete.'),
-      criticalAlerts: Array.isArray(parsed.criticalAlerts) ? parsed.criticalAlerts : [],
-      foodDrinkWarnings: Array.isArray(parsed.foodDrinkWarnings) ? parsed.foodDrinkWarnings : [],
-      lifestyleTips: Array.isArray(parsed.lifestyleTips) ? parsed.lifestyleTips : [],
+      overallSafetyScore: scoreResult.data,
+      summary: summaryResult.success
+        ? summaryResult.data
+        : language === 'tr'
+          ? 'Klinik analiz tamamlandı.'
+          : 'Clinical analysis complete.',
+      criticalAlerts: alerts.items,
+      // Şema `timingRule`/`severity`'yi opsiyonel doğruluyor (AI atlayabilir);
+      // arayüz tipi bunları zorunlu beklediği için burada varsayılana
+      // sabitleniyor. Kart zaten `fw.severity || 'moderate'` kullanıyordu —
+      // aynı varsayılan, ama artık TİP düzeyinde garanti.
+      foodDrinkWarnings: warnings.items.map(w => ({
+        food: w.food,
+        affectedMedicine: w.affectedMedicine,
+        warning: w.warning,
+        timingRule: w.timingRule ?? '',
+        severity: w.severity ?? 'moderate',
+      })),
+      lifestyleTips: tips.items,
       analyzedMedicines: medicines.map(m => m.name),
     };
   } catch (error: unknown) {
     log.error('analyzeClinicalAndFoodInteractionsWithAI error', error);
     return {
       success: false,
-      overallSafetyScore: 80,
+      // ⚠️ Eski değer 80 idi: analiz TAMAMEN BAŞARISIZ olduğu halde hastaya
+      // "80/100 güvenli" gösteriliyordu. Bu, güveni kalibre edilemez hale
+      // getiren bir uydurma skordu. Artık 0 = "skor yok" ve kart render etmiyor.
+      overallSafetyScore: 0,
       summary: language === 'tr' ? 'Analiz sırasında hata oluştu.' : 'Error during analysis.',
       criticalAlerts: [],
       foodDrinkWarnings: [],

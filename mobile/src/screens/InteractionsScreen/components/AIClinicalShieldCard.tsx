@@ -57,6 +57,22 @@ export const AIClinicalShieldCard: React.FC<AIClinicalShieldCardProps> = ({
             onPress={onRefresh}
             disabled={isLoading}
             activeOpacity={0.8}
+            // K6/O20 — ikon + metin karışımı buton: TalkBack yalnızca
+            // "Analiz Et" okuyordu, butonun ne yaptığı ve yapay zeka
+            // kullandığı anlaşılmıyordu. Denetimde bu butonda
+            // accessibilityLabel/accessibilityRole OLMADIĞI kaydedilmişti.
+            accessibilityRole="button"
+            accessibilityLabel={
+              isTr
+                ? 'Yapay zeka ile klinik güvenlik analizi başlat'
+                : 'Start AI clinical safety analysis'
+            }
+            accessibilityHint={
+              isTr
+                ? 'İlaçlarınızı yapay zeka ile çapraz analiz eder. Sonuç tıbbi tavsiye değildir.'
+                : 'Cross-analyzes your medicines with AI. The result is not medical advice.'
+            }
+            accessibilityState={{ disabled: isLoading, busy: isLoading }}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -89,46 +105,73 @@ export const AIClinicalShieldCard: React.FC<AIClinicalShieldCardProps> = ({
       ) : report ? (
         <View style={styles.reportContainer}>
           {/* Güvenlik Skoru & Özet */}
-          <View style={[styles.scoreCard, { backgroundColor: colors.card }]}>
-            <View style={styles.scoreRow}>
-              <View
-                style={[
-                  styles.scoreBadge,
-                  { backgroundColor: getScoreColor(report.overallSafetyScore) + '20' },
-                ]}
-              >
-                <Text
-                  style={[styles.scoreNumber, { color: getScoreColor(report.overallSafetyScore) }]}
+          {/* ⚠️ K6 — skor YALNIZCA analiz başarılıysa gösterilir.
+              Eski kod `report ?` ile kapı kuruyordu ve `report.success` HİÇ
+              okunmuyordu; yani başarısız bir analiz servis katmanının ürettiği
+              yedek skorla (eskiden 80/85) hastaya GEÇERLİ BİR KLİNİK HÜKÜM
+              olarak render ediliyordu. Artık servis başarısızlıkta skor
+              üretmiyor (0 = "skor yok") ve kart burada hiç çizmiyor. */}
+          {report.success ? (
+            <View style={[styles.scoreCard, { backgroundColor: colors.card }]}>
+              <View style={styles.scoreRow}>
+                <View
+                  style={[
+                    styles.scoreBadge,
+                    { backgroundColor: getScoreColor(report.overallSafetyScore) + '20' },
+                  ]}
                 >
-                  {report.overallSafetyScore}
-                </Text>
-                <Text
-                  style={[styles.scoreLabel, { color: getScoreColor(report.overallSafetyScore) }]}
-                >
-                  /100
-                </Text>
-              </View>
+                  <Text
+                    style={[
+                      styles.scoreNumber,
+                      { color: getScoreColor(report.overallSafetyScore) },
+                    ]}
+                  >
+                    {report.overallSafetyScore}
+                  </Text>
+                  <Text
+                    style={[styles.scoreLabel, { color: getScoreColor(report.overallSafetyScore) }]}
+                  >
+                    /100
+                  </Text>
+                </View>
 
-              <View style={styles.summaryContainer}>
-                <Text style={[styles.summaryTitle, { color: colors.text }]}>
-                  {report.overallSafetyScore >= 80
-                    ? isTr
-                      ? '✅ Güvenli Kombinasyon'
-                      : '✅ Safe Combination'
-                    : report.overallSafetyScore >= 60
+                <View style={styles.summaryContainer}>
+                  <Text style={[styles.summaryTitle, { color: colors.text }]}>
+                    {report.overallSafetyScore >= 80
                       ? isTr
-                        ? '⚠️ Dikkat Edilmeli'
-                        : '⚠️ Caution Advised'
-                      : isTr
-                        ? '🚨 Yüksek Klinik Risk'
-                        : '🚨 High Clinical Risk'}
-                </Text>
-                <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
-                  {report.summary}
-                </Text>
+                        ? '✅ Güvenli Kombinasyon'
+                        : '✅ Safe Combination'
+                      : report.overallSafetyScore >= 60
+                        ? isTr
+                          ? '⚠️ Dikkat Edilmeli'
+                          : '⚠️ Caution Advised'
+                        : isTr
+                          ? '🚨 Yüksek Klinik Risk'
+                          : '🚨 High Clinical Risk'}
+                  </Text>
+                  <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
+                    {report.summary}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
+          ) : (
+            <View
+              style={[styles.scoreCard, { backgroundColor: colors.card, borderColor: '#FF980050' }]}
+            >
+              <Text style={[styles.summaryTitle, { color: colors.text }]}>
+                {isTr ? '⚠️ Klinik analiz tamamlanamadı' : '⚠️ Clinical analysis unavailable'}
+              </Text>
+              <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
+                {report.summary}
+              </Text>
+              <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
+                {isTr
+                  ? 'Bu bir güvenlik değerlendirmesi DEĞİLDİR. İlaçlarınızın etkileşimini eczacınıza veya hekiminize danışın.'
+                  : 'This is NOT a safety assessment. Ask your pharmacist or doctor about your medicine interactions.'}
+              </Text>
+            </View>
+          )}
 
           {/* Kritik Uyarılar */}
           {report.criticalAlerts && report.criticalAlerts.length > 0 ? (
@@ -217,6 +260,37 @@ export const AIClinicalShieldCard: React.FC<AIClinicalShieldCardProps> = ({
               ))}
             </View>
           ) : null}
+
+          {/* ⚠️ K6 — ZORUNLU FERAGAT METNİ.
+              Denetimde bu kartta HİÇBİR "hekime/eczacıya danışın" veya
+              "tıbbi tavsiye değildir" ibaresi yoktu (grep ile doğrulanmıştı);
+              tek AI işareti "🤖 Gemini 3.6 Flash" rozetiydi. Oysa kart
+              "🚨 Kritik Etkileşim Uyarıları", ⏰ zamanlama kuralları
+              ("ilaç saatinden 2 saat önce süt almayınız") ve 0-100 bir
+              "güvenlik skoru" gösteriyor — ve prompt modeli "klinik
+              farmakolog ve tıp doktoru" olarak sunmaya yönlendiriyor.
+              Yaşlı bir kullanıcı halüsinasyon olmuş bir talimatı hekim
+              talimatı sanabilir. Feragat, analiz BAŞARILI olsa bile her
+              zaman görünür. */}
+          <View
+            style={{
+              marginTop: 16,
+              padding: 12,
+              borderRadius: 10,
+              backgroundColor: '#FF980015',
+              borderWidth: 1,
+              borderColor: '#FF980040',
+            }}
+          >
+            <Text
+              style={{ color: colors.text, fontSize: 14, lineHeight: 20 }}
+              accessibilityRole="text"
+            >
+              {isTr
+                ? '⚕️ Bu rapor yapay zeka tarafından üretilmiştir ve TIBBİ TAVSİYE DEĞİLDİR. Yapay zeka hatalı veya eksik bilgi üretebilir. İlaçlarınızla, dozlarınızla veya beslenmenizle ilgili herhangi bir değişiklik yapmadan ÖNCE hekiminize veya eczacınıza danışın.'
+                : '⚕️ This report is generated by artificial intelligence and is NOT MEDICAL ADVICE. AI can produce incorrect or incomplete information. BEFORE making any change to your medicines, doses or diet, consult your doctor or pharmacist.'}
+            </Text>
+          </View>
         </View>
       ) : null}
     </View>

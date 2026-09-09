@@ -8,6 +8,9 @@
 import type { AlarmState, MedicineLog, UserSettings } from '../../types';
 import type { RescheduledSnoozeNotification } from './reschedule';
 import { nowISO } from './dateTime';
+// K5: kalıcı yazma kuyruğunun AsyncStorage anahtarı — hesap silme listesinde
+// tek kaynaktan referans veriliyor (bkz. MEDICINE_STORE_STORAGE_KEYS).
+import { OUTBOX_STORAGE_KEY } from '../../utils/outboxStore';
 
 // =====================================================================
 // BUILDER HELPERS
@@ -222,6 +225,12 @@ export const MEDICINE_STORE_STORAGE_KEYS = [
   'ilac_medical_id_v1',
   'ilac_symptom_logs_v1',
   '@ilachatirlatici_prescriptions_v1',
+  // K5: kalıcı yazma kuyruğu. ⚠️ Bu anahtar SAĞLIK VERİSİ taşır (doz kayıtları
+  // ve bakıcı uyarıları) — "tüm verileri temizle" / hesap silme akışında
+  // temizlenmezse hasta hesabını sildikten sonra verisi cihazda kalır
+  // (KVKK m.7 / GDPR Art. 17). Anahtar literal olarak değil `outboxStore`'dan
+  // import ediliyor ki iki yerde ayrı yazılıp ayrışamasın.
+  OUTBOX_STORAGE_KEY,
 ] as const;
 
 /**
