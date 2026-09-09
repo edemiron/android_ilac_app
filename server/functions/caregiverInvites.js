@@ -232,6 +232,17 @@ const redeemCaregiverInvite = onCall(async (request) => {
         return { ok: false, reason: 'malformed-invite' };
       }
 
+      // Kendi davetini kabul etme engeli — SUNUCUDA, çünkü istemcideki kontrol
+      // (`invite.patientId === caregiverId`) SDK'yı doğrudan kullanan biri
+      // için hiçbir şey ifade etmiyordu ve firestore.rules'ta da karşılığı
+      // YOK: dal (2) yalnızca `caregiverId == auth.uid` ve
+      // `invite.patientId == data.patientId` istiyor, yani hasta kendi kodunu
+      // verip `uid__uid` ilişkisi kurabiliyor ve kendisinin "aktif bakıcısı"
+      // olabiliyordu.
+      if (patientId === caregiverId) {
+        return { ok: false, reason: 'self-invite' };
+      }
+
       const relationshipId = `${patientId}__${caregiverId}`;
       const relRef = db.collection('caregiverRelationships').doc(relationshipId);
 
@@ -278,6 +289,20 @@ const redeemCaregiverInvite = onCall(async (request) => {
   }
 
   if (!outcome.ok) {
+    // Self-invite istisnası DIŞINDA her başarısızlık aynı generic mesajı
+    // döner — "bulunamadı / süresi dolmuş / zaten kullanılmış" ayrımı bir
+    // enumeration oracle'i olurdu. Self-invite mesajı güvenlidir çünkü
+    // yalnızca kodun ÇAĞIRANA ait olduğunu söyler, başkalarının kodları
+    // hakkında hiçbir bilgi vermez; üstelik kullanıcı için gerçekten
+    // yol gösterici (kodunu paylaşması gerektiğini anlatıyor).
+    if (outcome.reason === 'self-invite') {
+      console.warn(`[redeemCaregiverInvite] Self-invite reddedildi: uid=${caregiverId}`);
+      throw new HttpsError(
+        'failed-precondition',
+        'Kendi oluşturduğunuz davet kodunu kullanamazsınız. Bu kodu yakınınız ile paylaşmalısınız.'
+      );
+    }
+
     // Gerçek neden YALNIZCA loga — istemciye generic mesaj (oracle engeli).
     console.warn(`[redeemCaregiverInvite] Reddedildi: uid=${caregiverId} reason=${outcome.reason}`);
     throw new HttpsError('failed-precondition', GENERIC_REDEEM_FAILURE);

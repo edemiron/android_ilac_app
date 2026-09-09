@@ -58,8 +58,16 @@ describe('isValidInviteCode', () => {
     expect(isValidInviteCode('ABC12')).toBe(false);
   });
 
+  it('accepts server-generated 12-char code (K1 üst sınırı)', () => {
+    // Sunucu artık 12 hane üretiyor (CSPRNG, ~60 bit). Eski `{6,8}` kalıbı
+    // bunların hepsini reddederdi — sunucu tarafı düzeltme tek başına tüm
+    // kabul akışını kırardı.
+    expect(isValidInviteCode('ABC123456789')).toBe(true);
+    expect(isValidInviteCode('A1B2C3D4E5F6')).toBe(true);
+  });
+
   it('rejects too long', () => {
-    expect(isValidInviteCode('ABC123456789')).toBe(false);
+    expect(isValidInviteCode('ABC1234567890')).toBe(false); // 13 chars
   });
 
   it('rejects lowercase (case-sensitive)', () => {

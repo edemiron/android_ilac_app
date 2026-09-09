@@ -8,11 +8,29 @@
 
 /** I, O, Q cikarilmis karakter seti (karisiklik onleme). */
 export const INVITE_CODE_CHARS = '0123456789ABCDEFGHJKLMNPRSTUVWXYZ';
+
+/**
+ * @deprecated Yalnızca geriye dönük referans. Sunucu artık 12 hane üretiyor
+ * (`server/functions/inviteService.js` → `INVITE_CODE_LENGTH = 12`).
+ */
 export const INVITE_CODE_LENGTH = 6;
 
 /**
- * 6 haneli rastgele invite code uretici.
- * Tum olasi harf karisikliklari onlenmis karakter seti kullanir.
+ * @deprecated K1 — davet kodu ARTIK SUNUCUDA üretiliyor.
+ *
+ * `createCaregiverInvite` callable'ı `crypto.randomBytes` + rejection sampling
+ * ile 12 hane üretiyor (200.000 örnekle ölçüldü: χ²=43.15 df=32 → tekdüze,
+ * 5.0444 bit/karakter = teorik maksimum, toplam 60.53 bit, uzay 1.67×10¹⁸).
+ *
+ * Bu fonksiyonun iki kusuru vardı:
+ *   - 6 hane × 33 alfabe ≈ 1.29×10⁹ — sunucunun uzayından ~1.3 milyar kat küçük
+ *   - `Math.random()` CSPRNG DEĞİL; V8 xorshift128+ durumu birkaç çıktıdan
+ *     kurtarılabilir, yani gerçek entropy 39 bitin de altında olabilir
+ *
+ * Silinmek yerine `@deprecated` bırakıldı çünkü üç test dosyası hâlâ
+ * karakter-seti/benzersizlik davranışını bunun üzerinden doğruluyor.
+ * **Üretim kodunda çağrılması yasak** — bu, kaynak-tarama kapısıyla
+ * kilitleniyor: `__tests__/security/inviteFlow.contract.test.ts`.
  */
 export function generateInviteCode(length: number = INVITE_CODE_LENGTH): string {
   let code = '';
@@ -23,12 +41,24 @@ export function generateInviteCode(length: number = INVITE_CODE_LENGTH): string 
 }
 
 /**
- * Invite code validasyonu — 6 haneli sadece alfanumerik (buyuk harf + rakam).
- * I, O, Q harfleri set'te olmadigi icin otomatik reject edilir.
+ * Invite code validasyonu — büyük harf + rakam, 6-12 hane.
+ *
+ * Üst sınır 12'ye GENİŞLETİLDİ: sunucu artık 12 hane üretiyor ve eski
+ * `{6,8}` kalıbı bunların hepsini reddederdi — yani sunucu tarafı düzeltme
+ * tek başına kabul akışını tamamen kırardı. (İki tarafın birlikte değişmesi
+ * gereken bir örnek.)
+ *
+ * Alt sınır 6 KORUNDU: sahada v2.4.0 ve öncesinden kalma 6-8 haneli kodlar
+ * dolaşıyor; onları reddetmek bekleyen davetleri geçersiz kılardı.
+ *
+ * I, O, Q üretim alfabesinde yok ama doğrulamada bilerek engellenmiyor:
+ * kullanıcı kodu elle yazarken O/0 veya I/1 karıştırabilir ve sunucudaki
+ * gerçek kod bu harfleri zaten içermiyor — yanlış harf sunucuda "geçersiz"
+ * olarak düşer. İstemcide ek red yalnızca hata mesajını belirsizleştirirdi.
  */
 export function isValidInviteCode(code: string): boolean {
   if (!code || typeof code !== 'string') return false;
-  return /^[A-Z0-9]{6,8}$/.test(code);
+  return /^[A-Z0-9]{6,12}$/.test(code);
 }
 
 /**

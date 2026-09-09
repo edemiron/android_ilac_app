@@ -25,6 +25,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
+import { callFunction } from './cloudFunctions';
 import { generateId } from '../utils/idGenerator';
 import { createScopedLogger } from '../utils/logger';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -134,44 +135,36 @@ export async function createCaregiverInvite(
       }
     }
 
-    // Yeni davet kodu oluştur (benzersiz olmalı)
-    let inviteCode: string | undefined;
-    let isUnique = false;
-    let attempts = 0;
-
-    while (!isUnique && attempts < 10) {
-      inviteCode = generateInviteCode();
-      const inviteRef = doc(db, INVITES_COLLECTION, inviteCode);
-      const inviteSnap = await getDoc(inviteRef);
-
-      if (!inviteSnap.exists()) {
-        isUnique = true;
-      }
-      attempts++;
-    }
-
-    if (!isUnique || !inviteCode) {
-      return {
-        success: false,
-        error: 'Davet kodu oluşturulamadı. Lütfen tekrar deneyin.',
-      };
-    }
-
-    // Davet bitiş tarihi
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + INVITE_EXPIRY_DAYS);
-
-    // Daveti kaydet
-    const invite: CaregiverInvite = cleanUndefined({
-      id: inviteCode,
-      patientId,
+    // ⚠️ K1 — davet kodu artık SUNUCUDA CSPRNG ile üretiliyor.
+    //
+    // ESKİ akış (bu bloktaydı): istemcide `generateInviteCode()` — 6 hane ×
+    // 33'lük alfabe ≈ 1.29×10⁹ olasılık ve `Math.random()`, yani CSPRNG
+    // DEĞİL (V8 xorshift128+ durumu birkaç çıktıdan kurtarılabilir). Üstüne
+    // 10 turlu bir `getDoc` benzersizlik döngüsü ve `setDoc`. Kodun
+    // entropisi tamamen istemcinin insafındaydı.
+    //
+    // YENİ akış: `createCaregiverInvite` callable'ı 12 hane üretiyor
+    // (200.000 örnekle ölçüldü: χ²=43.15 df=32 → tekdüze, 5.0444 bit/karakter
+    // = teorik maksimum, toplam 60.53 bit, uzay 1.67×10¹⁸, 0 çakışma) ve
+    // benzersizliği Admin SDK ile kendi tarafında garanti ediyor. Naif
+    // `bytes[i] % 33` kullanılsaydı χ²=7719 çıkacaktı; rejection sampling şart.
+    //
+    // `patientId` GÖNDERİLMİYOR: sunucu `request.auth.uid` kullanıyor, yani
+    // kullanıcı kendi adına davet oluşturabilir ama başkası adına oluşturamaz.
+    const created = await callFunction<
+      {
+        patientName: string;
+        caregiverEmail: string;
+        permissions: {
+          canViewSchedule: boolean;
+          canViewHistory: boolean;
+          canReceiveAlerts: boolean;
+        };
+      },
+      { inviteCode?: string; expiresAtMs?: number }
+    >('createCaregiverInvite', {
       patientName: patientName || 'Hasta',
-      caregiverEmail: (caregiverEmail || '').toLowerCase(),
-      status: 'pending',
-      expiresAt: expiresAt.toISOString(),
-      // K2: kuralın tip-güvenli süre dolumu kontrolü (inviteNotExpired).
-      expiresAtMs: expiresAt.getTime(),
-      createdAt: new Date().toISOString(),
+      caregiverEmail: normalizedEmail,
       permissions: {
         canViewSchedule: permissions?.canViewSchedule ?? true,
         canViewHistory: permissions?.canViewHistory ?? true,
@@ -179,9 +172,23 @@ export async function createCaregiverInvite(
       },
     });
 
-    await setDoc(doc(db, INVITES_COLLECTION, inviteCode), invite);
+    const inviteCode = created?.inviteCode;
+    if (typeof inviteCode !== 'string' || !inviteCode) {
+      log.error('createCaregiverInvite kod dondurmedi', { created });
+      return {
+        success: false,
+        error: 'Davet kodu oluşturulamadı. Lütfen tekrar deneyin.',
+      };
+    }
 
-    log.info('Bakıcı daveti oluşturuldu', { inviteCode, caregiverEmail });
+    // ⚠️ Kodun KENDİSİ loglanmıyor — davet kodu bir sırdır ve onu bilen
+    // hastanın tüm ilaç listesine/Doz geçmişine aktif bakıcı olur. Eski kod
+    // `log.info(..., { inviteCode })` ile düz metin yazıyordu; yalnızca
+    // uzunluk loglanıyor (teşhis için yeterli).
+    log.info('Bakıcı daveti oluşturuldu', {
+      inviteCodeLength: inviteCode.length,
+      caregiverEmail: normalizedEmail,
+    });
 
     return { success: true, inviteCode };
   } catch (error: any) {
@@ -216,128 +223,132 @@ export async function acceptCaregiverInvite(
   caregiverFcmToken?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    if (!isValidInviteCode(inviteCode)) {
+    const normalizedCode = (inviteCode || '').trim().toUpperCase();
+
+    if (!isValidInviteCode(normalizedCode)) {
       return {
         success: false,
         error: 'Geçersiz davet kodu.',
       };
     }
 
-    // Daveti al
-    const inviteRef = doc(db, INVITES_COLLECTION, inviteCode);
-    const inviteSnap = await getDoc(inviteRef);
-
-    if (!inviteSnap.exists()) {
-      return {
-        success: false,
-        error: 'Davet bulunamadı veya süresi dolmuş.',
-      };
-    }
-
-    const invite = inviteSnap.data() as CaregiverInvite;
-
-    // Kendi oluşturduğu daveti kabul etmeyi engelle
-    if (invite.patientId === caregiverId) {
-      return {
-        success: false,
-        error:
-          'Kendi oluşturduğunuz davet kodunu kullanamazsınız. Bu kodu yakınınız ile paylaşmalısınız.',
-      };
-    }
-
-    // Davet durumunu kontrol et
-    if (invite.status !== 'pending') {
-      return {
-        success: false,
-        error: 'Bu davet zaten kullanılmış.',
-      };
-    }
-
-    // Süre kontrolü.
-    // NOT: eskiden burada daveti `expired` durumuna çeken bir updateDoc vardı.
-    // Kaldırıldı: bu çağrıyı yapan kişi daveti kabul etmekte olan BAKICI ve
-    // firestore.rules artık bakıcının davet güncellemesini yalnızca
-    // `pending → accepted` geçişiyle ve sabit alan kümesiyle sınırlıyor.
-    // Dolayısıyla o yazım her zaman permission-denied alıp dış catch'e düşerek
-    // "Davet süresi dolmuş" mesajını genel bir hataya çeviriyordu.
-    // Süre dolumu zaten kuralda bağlayıcı (inviteNotExpired) — süresi dolmuş
-    // bir davet `pending` kalsa bile bir daha kabul edilemez.
-    if (new Date(invite.expiresAt) < new Date()) {
-      return {
-        success: false,
-        error: 'Davet süresi dolmuş.',
-      };
-    }
-
-    // İlişki oluştur.
-    // v1.7.4: kimlik DETERMİNİSTİK — `{patientId}__{caregiverId}`.
-    // Firestore kuralları erişimi bu dokümana `get()` ile bakarak
-    // doğruluyor (kurallarda query yapılamaz), bu yüzden rastgele UUID
-    // kullanılamaz. Aynı çift için ikinci bir ilişki dokümanı da oluşmaz.
-    const relationshipId = buildRelationshipId(invite.patientId, caregiverId);
-    const relationship: CaregiverRelationship = cleanUndefined({
-      id: relationshipId,
-      patientId: invite.patientId,
-      patientName: invite.patientName || 'Hasta',
-      caregiverId,
-      caregiverEmail: invite.caregiverEmail || '',
+    // ⚠️ K1/K2 — kabul artık SUNUCUDA, tek Firestore transaction'ında.
+    //
+    // ESKİ akış bu fonksiyonun gövdesindeydi ve üç kusuru vardı:
+    //
+    //   1. `getDoc(inviteRef)` — enumeration'ın geçtiği yer. firestore.rules
+    //      `allow get: if isNotAnonymous()` ile açık olduğu için saldırgan
+    //      kod uzayını `getDoc` döngüsüyle tarayabiliyordu. Kuralın
+    //      daraltılması istemci YAYILIMINA kapılı (bkz. inviteService.js).
+    //   2. İlişki `setDoc` + davet `updateDoc` AYRI iki yazımdı ve ikincinin
+    //      başarısızlığı TOLERE ediliyordu ("Davet durumu accepted olarak
+    //      güncellenemedi ama ilişki başarıyla kuruldu"). Kullanılmış davet
+    //      `pending`'de kalıp FARKLI bir bakıcı tarafından tekrar
+    //      kullanılabiliyordu — ilişki kimlikleri çift-başına olduğu için
+    //      hiçbir şey çakışmıyordu.
+    //   3. Kendi davetini kabul engeli YALNIZCA istemcideydi. Kurallarda
+    //      karşılığı yok: dal (2) sadece `caregiverId == auth.uid` ve
+    //      `invite.patientId == data.patientId` istiyor, yani hasta kendi
+    //      kodunu verip `uid__uid` ilişkisi kurabiliyor ve kendisinin
+    //      "aktif bakıcısı" olabiliyordu.
+    //
+    // Üçü de artık sunucuda: `redeemCaregiverInvite` → rate-limit (saatte 10
+    // / günde 30; kota DOĞRULAMADAN ÖNCE tüketiliyor, yoksa saldırgan geçerli
+    // kodu bulana kadar ücretsiz denerdi) + TEK transaction (davet dokümanı
+    // okunduğu için onun üzerinde serileşir → eşzamanlı iki kabulden yalnızca
+    // biri kazanır) + self-invite reddi.
+    //
+    // `caregiverId` parametresi korunuyor (çağıranlar geçiriyor) ama sunucu
+    // onu KULLANMIYOR — `request.auth.uid` esas. İstemcinin iddia ettiği
+    // kimlik değil, kanıtlanmış kimlik bağlayıcı.
+    const result = await callFunction<
+      { inviteCode: string; caregiverName: string; caregiverFcmToken?: string },
+      {
+        success?: boolean;
+        patientId?: string;
+        patientName?: string;
+        relationshipId?: string;
+      }
+    >('redeemCaregiverInvite', {
+      inviteCode: normalizedCode,
       caregiverName: caregiverName || 'Bakıcı',
-      // Kuralın istediği davet kanıtı: bu kod olmadan `create` reddedilir.
-      inviteCode,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      canViewSchedule: invite.permissions?.canViewSchedule ?? true,
-      canViewHistory: invite.permissions?.canViewHistory ?? true,
-      canReceiveAlerts: invite.permissions?.canReceiveAlerts ?? true,
       caregiverFcmToken: caregiverFcmToken || '',
     });
 
-    await setDoc(doc(db, RELATIONSHIPS_COLLECTION, relationshipId), relationship);
-
-    try {
-      await updateDoc(
-        inviteRef,
-        cleanUndefined({
-          status: 'accepted',
-          caregiverId,
-          caregiverName: caregiverName || 'Bakıcı',
-          acceptedAt: new Date().toISOString(),
-        })
-      );
-    } catch (updateErr) {
-      log.warn(
-        'Davet durumu accepted olarak güncellenemedi ama ilişki başarıyla kuruldu',
-        updateErr
-      );
+    if (
+      caregiverId &&
+      result?.relationshipId &&
+      !result.relationshipId.endsWith(`__${caregiverId}`)
+    ) {
+      // Beklenmemeli: sunucu auth.uid kullanıyor. Fark görülürse çağıranın
+      // varsaydığı kimlik ile oturum kimliği uyuşmuyor demektir.
+      log.warn('Kabul edilen iliski kimligi beklenen caregiverId ile bitmiyor', {
+        caregiverId,
+        relationshipId: result.relationshipId,
+      });
     }
 
-    log.info('Bakıcı daveti kabul edildi', { inviteCode, caregiverId, relationshipId });
+    // ⚠️ Davet kodu loglanMIYOR — kod bir sırdır; onu bilen hastanın tüm
+    // ilaç listesine ve doz geçmişine aktif bakıcı olur. Eski kod
+    // `log.info(..., { inviteCode })` ile düz metin yazıyordu.
+    log.info('Bakıcı daveti kabul edildi', {
+      relationshipId: result?.relationshipId,
+      patientId: result?.patientId,
+    });
 
     return { success: true };
   } catch (error: any) {
     log.error('Davet kabul hatası', error);
-    const errorCode = error?.code || '';
-    const errorMsg = error?.message || '';
+    const errorCode: string = error?.code || '';
+    const errorMsg: string = error?.message || '';
+
+    // Kota aşımı — sunucu enumeration'ı ekonomik olarak anlamsız kılmak için
+    // saatte 10 / günde 30 deneme sınırlıyor. Kullanıcıya ne zaman tekrar
+    // deneyebileceğini söylemek generic "geçersiz kod" mesajından yararlı ve
+    // enumeration'a da yardım etmiyor.
+    if (errorCode.includes('resource-exhausted')) {
+      return {
+        success: false,
+        error:
+          errorMsg ||
+          'Çok fazla davet kodu denemesi yaptınız. Lütfen bir saat sonra tekrar deneyin.',
+      };
+    }
+    if (errorCode.includes('unauthenticated')) {
+      return {
+        success: false,
+        error: 'Daveti kabul etmek için lütfen giriş yapın.',
+      };
+    }
     if (
       errorCode.includes('permission-denied') ||
       errorMsg.includes('permission-denied') ||
       errorMsg.includes('permissions')
     ) {
+      // Sunucu anonim sağlayıcıyı da bu kodla reddediyor. Mesaj olarak
+      // SUNUCUNUNKİ değil istemcinin sabit Türkçe metni kullanılıyor: bu kod
+      // Firestore katmanından da gelebilir ve o durumda mesaj teknik/İngilizce
+      // olur ("Missing or insufficient permissions") — kullanıcıya gösterilmez.
       return {
         success: false,
         error: 'Yetkisiz erişim. Lütfen Google veya E-posta ile giriş yaptığınızdan emin olun.',
       };
     }
-    if (errorCode.includes('unavailable')) {
+    if (errorCode.includes('unavailable') || errorCode.includes('internal')) {
       return {
         success: false,
         error: 'Sunucuya ulaşılamadı. Lütfen internet bağlantınızı kontrol edin.',
       };
     }
+
+    // `failed-precondition` dahil geri kalanı: sunucu zaten kullanıcıya
+    // gösterilebilir bir mesaj döndürüyor — ya generic ("Davet kodu geçersiz
+    // veya artık kullanılamıyor") ya da self-invite istisnası. İstemci
+    // tarafında ayrıntı ÜRETMEK enumeration oracle'ı yaratır: "bulunamadı"
+    // ile "süresi dolmuş" ayrımı saldırgana hangi kodların var olduğunu söyler.
     return {
       success: false,
-      error: error?.message || 'Bir hata oluştu. Lütfen tekrar deneyin.',
+      error: errorMsg || 'Davet kodu geçersiz veya artık kullanılamıyor.',
     };
   }
 }
@@ -833,7 +844,16 @@ export async function cancelInvite(
   try {
     await deleteDoc(doc(db, INVITES_COLLECTION, inviteCode));
 
-    log.info('Davet iptal edildi', { inviteCode });
+    // ⚠️ Davet kodu loglanmıyor — kod bir SIRDIR: onu bilen kişi hastanın tüm
+    // ilaç listesine ve doz geçmişine aktif bakıcı olarak erişebilir. Logları
+    // okuyabilen herkes (crash raporu, logcat, CI çıktısı) aynı yetkiyi alır.
+    // Yalnızca uzunluk bırakıldı; teşhis için yeterli.
+    //
+    // Bu satır `inviteFlow.contract.test.ts` tarafından bulundu: kapı bu
+    // dosyadaki TÜM log çağrılarını tarıyor ve kodun düz metin geçmesini
+    // engelliyor. Yani aynı sınıf bir sızıntı başka bir fonksiyonda yeniden
+    // ortaya çıkarsa CI kırılır.
+    log.info('Davet iptal edildi', { inviteCodeLength: inviteCode.length });
 
     return { success: true };
   } catch (error: unknown) {
