@@ -1,0 +1,407 @@
+/**
+ * useStatisticsController — StatisticsScreen Presenter Hook
+ *
+ * Design Pattern: Presenter / Controller
+ * İstatistik, grafik veri hesaplama, tarih aralıkları ve PDF rapor
+ * yönetimini UI bileşeninden izole eder.
+ */
+
+import { useState, useMemo, useCallback } from 'react';
+import { format, subDays, eachDayOfInterval, isWithinInterval } from 'date-fns';
+import { tr, enUS } from 'date-fns/locale';
+import { useTheme } from '../../../contexts/ThemeContext';
+import { useLanguage } from '../../../contexts/LanguageContext';
+import { useMedicineStore } from '../../../stores/medicineStore';
+import { useSymptomStore } from '../../../stores/symptomStore';
+import { useAlert } from '../../../contexts/AlertContext';
+import {
+  generatePDFReport,
+  sharePDFReport,
+  prepareReportData,
+  ReportOptions,
+} from '../../../services/pdfReportService';
+import { createScopedLogger } from '../../../utils/logger';
+import type { Period } from '../helpers';
+// Uyum hesabinin TEK KAYNAGI (payda = PLANLANAN doz; veri yoksa null).
+import { summarizeAdherence } from '../../../domain/adherence';
+import { findTopMissedTimes } from '../chartHelpers';
+
+const log = createScopedLogger('StatisticsController');
+
+export interface DailyStatItem {
+  date: Date;
+  taken: number;
+  skipped: number;
+  missed: number;
+  /** PLANLANAN doz sayisi (taken + skipped + missed) — mevcut log sayisi DEGIL. */
+  total: number;
+  /**
+   * v1.7.7: veri olup olmadigi ARTIK ACIKCA tasiniyor. `adherenceRate`
+   * veri yokken 0 gelir ve GOSTERILMEMELIDIR — arayuz "—" gosterir.
+   */
+  hasData: boolean;
+  adherenceRate: number;
+}
+
+export interface MedicineBreakdownItem {
+  medicineId: string;
+  name: string;
+  dosage?: string;
+  form?: string;
+  color?: string;
+  taken: number;
+  skipped: number;
+  missed: number;
+  total: number;
+  adherenceRate: number;
+}
+
+export interface OverallStats {
+  taken: number;
+  skipped: number;
+  missed: number;
+  /** PLANLANAN doz sayisi — mevcut log sayisi DEGIL (bkz. domain/adherence.ts). */
+  total: number;
+  /** Veri yoksa `adherenceRate` gosterilmemeli. */
+  hasData: boolean;
+  adherenceRate: number;
+  currentStreak: number;
+  bestStreak: number;
+}
+
+export function useStatisticsController() {
+  const { colors, isDark } = useTheme();
+  const { t, language } = useLanguage();
+  const { showAlert, showError } = useAlert();
+
+  const medicineLogs = useMedicineStore(state => state.medicineLogs);
+  const medicines = useMedicineStore(state => state.medicines);
+  const reminderTimes = useMedicineStore(state => state.reminderTimes);
+  const settings = useMedicineStore(state => state.settings);
+  const getAdherenceRate = useMedicineStore(state => state.getAdherenceRate);
+  const getCurrentStreak = useMedicineStore(state => state.getCurrentStreak);
+
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>('weekly');
+  const [activeStatsTab, setActiveStatsTab] = useState<'overview' | 'calendar'>('overview');
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  const dateLocale = language === 'tr' ? tr : enUS;
+
+  const dateRange = useMemo(() => {
+    const end = new Date();
+    const start = selectedPeriod === 'weekly' ? subDays(end, 6) : subDays(end, 29);
+    return { start, end };
+  }, [selectedPeriod]);
+
+  const dailyStats: DailyStatItem[] = useMemo(() => {
+    const days = eachDayOfInterval(dateRange);
+
+    return days.map(day => {
+      const dayStr = format(day, 'yyyy-MM-dd');
+      const dayLogs = medicineLogs.filter(l => l.scheduledTime.startsWith(dayStr));
+
+      // ⚠️ v1.7.7 — hesap `domain/adherence.ts`te (TEK KAYNAK).
+      // Eskiden burada `total = dayLogs.length` ve
+      // `total > 0 ? ... : 100` vardi. Iki hata: (1) payda MEVCUT LOG
+      // sayisiydi — islenmeyen doz hic log uretmedigi icin paydaya girmiyor,
+      // yani dozu gormezden gelmek skoru YUKSELTIYORDU; (2) veri yokken
+      // %100 uyduruluyordu (ayni ekranin baska karti ayni durumda %0
+      // gosteriyordu).
+      const summary = summarizeAdherence(dayLogs);
+
+      return {
+        date: day,
+        taken: summary.taken,
+        skipped: summary.skipped,
+        missed: summary.missed,
+        total: summary.planned,
+        hasData: summary.hasData,
+        // Arayuz `hasData` false iken "—" gosterir; buradaki 0 yalnizca
+        // tip uyumu icin — GOSTERILECEK bir deger degil.
+        adherenceRate: summary.rate ?? 0,
+      };
+    });
+  }, [dateRange, medicineLogs]);
+
+  const overallStats: OverallStats = useMemo(() => {
+    const logs = medicineLogs.filter(l => isWithinInterval(new Date(l.scheduledTime), dateRange));
+
+    // Hesap `domain/adherence.ts`te — bkz. yukaridaki gerekce.
+    const summary = summarizeAdherence(logs);
+    const { taken, skipped, missed } = summary;
+    const total = summary.planned;
+
+    let currentStreak = 0;
+    let bestStreak = 0;
+    let tempStreak = 0;
+
+    for (let i = dailyStats.length - 1; i >= 0; i--) {
+      // Seri (streak) yalnizca VERISI OLAN tam uyum gununde artar.
+      // `hasData` olmadan, kayit girilmemis gunler %100 sayilip seriyi
+      // uyduruyordu.
+      if (dailyStats[i].hasData && dailyStats[i].taken === dailyStats[i].total) {
+        tempStreak++;
+        if (i === dailyStats.length - 1) {
+          currentStreak = tempStreak;
+        }
+      } else if (dailyStats[i].hasData) {
+        bestStreak = Math.max(bestStreak, tempStreak);
+        tempStreak = 0;
+      }
+    }
+    bestStreak = Math.max(bestStreak, tempStreak);
+
+    return {
+      taken,
+      skipped,
+      missed,
+      total,
+      hasData: summary.hasData,
+      adherenceRate: summary.rate ?? 0,
+      currentStreak,
+      bestStreak,
+    };
+  }, [dateRange, medicineLogs, dailyStats]);
+
+  // İnsani & Klinik Motivasyon Cümlesi
+  const healthInsight = useMemo(() => {
+    const rate = overallStats.adherenceRate;
+    const total = overallStats.total;
+    const taken = overallStats.taken;
+    const isTr = language === 'tr';
+
+    if (total === 0) {
+      return isTr
+        ? 'Bu dönemde henüz kaydedilmiş ilaç kullanım verisi bulunmuyor.'
+        : 'No medication logs recorded for this period yet.';
+    }
+
+    if (rate >= 90) {
+      return isTr
+        ? `Mükemmel bir disiplin! ${total} dozun ${taken}'ini zamanında aldınız. Tedaviniz tam koruma altında.`
+        : `Excellent discipline! You took ${taken} out of ${total} doses on time. Your treatment is fully on track.`;
+    }
+    if (rate >= 75) {
+      return isTr
+        ? `İyi bir uyum seviyesi (%${rate}). Atlanan birkaç doza dikkat ederek %100 koruma sağlayabilirsiniz.`
+        : `Good adherence level (${rate}%). Pay attention to a few missed doses to achieve 100% protection.`;
+    }
+    return isTr
+      ? `Tedavi aksamaları tespit edildi (%${rate} uyum). Dozlarınızı düzenli almanız sağlığınız için kritiktir.`
+      : `Treatment gaps detected (${rate}% adherence). Taking your medications regularly is critical for your health.`;
+  }, [overallStats, language]);
+
+  // İlaç Bazlı Başarı Analizi (Yalnızca Sistemde Kayıtlı İlaçlar)
+  const medicineBreakdown: MedicineBreakdownItem[] = useMemo(() => {
+    const logs = medicineLogs.filter(l => isWithinInterval(new Date(l.scheduledTime), dateRange));
+
+    const list: MedicineBreakdownItem[] = [];
+
+    medicines.forEach(med => {
+      const medLogs = logs.filter(l => l.medicineId === med.id);
+      const taken = medLogs.filter(l => l.status === 'taken').length;
+      const skipped = medLogs.filter(l => l.status === 'skipped').length;
+      const missed = medLogs.filter(l => l.status === 'missed').length;
+      const total = medLogs.length;
+
+      // İlaç aktifse veya bu dönemde log kaydı varsa listeye dahil et
+      if (med.isActive || total > 0) {
+        const rate = total > 0 ? Math.round((taken / total) * 100) : 100;
+        list.push({
+          medicineId: med.id,
+          name: med.name,
+          dosage: med.dosage,
+          form: med.form,
+          color: med.color,
+          taken,
+          skipped,
+          missed,
+          total,
+          adherenceRate: rate,
+        });
+      }
+    });
+
+    return list.sort((a, b) => b.total - a.total);
+  }, [medicineLogs, dateRange, medicines]);
+
+  const suggestions = useMemo(() => {
+    const logs = medicineLogs.filter(l => isWithinInterval(new Date(l.scheduledTime), dateRange));
+    return findTopMissedTimes(logs, 2);
+  }, [medicineLogs, dateRange]);
+
+  const chartData = useMemo(() => {
+    const labels =
+      selectedPeriod === 'weekly'
+        ? dailyStats.map(d => format(d.date, 'EE', { locale: dateLocale }))
+        : dailyStats
+            .filter((_, i) => i % 5 === 0)
+            .map(d => format(d.date, 'd', { locale: dateLocale }));
+
+    const data =
+      selectedPeriod === 'weekly'
+        ? dailyStats.map(d => d.adherenceRate)
+        : dailyStats.filter((_, i) => i % 5 === 0).map(d => d.adherenceRate);
+
+    return { labels, data };
+  }, [dailyStats, selectedPeriod, dateLocale]);
+
+  const chartConfig = useMemo(
+    () => ({
+      backgroundGradientFrom: colors.card,
+      backgroundGradientTo: colors.card,
+      color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
+      strokeWidth: 2,
+      barPercentage: 0.5,
+      useShadowColorFromDataset: false,
+      decimalPlaces: 0,
+      labelColor: () => colors.textSecondary,
+      propsForLabels: {
+        fontSize: 9,
+      },
+    }),
+    [colors]
+  );
+
+  const handleGeneratePDF = useCallback(
+    async (days: 7 | 30 | 90) => {
+      try {
+        setIsGeneratingPDF(true);
+
+        const reportData = prepareReportData(
+          medicines,
+          medicineLogs,
+          settings,
+          getAdherenceRate(days),
+          getCurrentStreak(),
+          days
+        );
+
+        reportData.symptomLogs = useSymptomStore.getState().getRecentLogs(30);
+
+        const options: ReportOptions = {
+          days,
+          includeDetails: true,
+          language: language as 'tr' | 'en',
+        };
+
+        const filePath = await generatePDFReport(reportData, options);
+
+        if (filePath) {
+          await sharePDFReport(filePath);
+        } else {
+          showError(
+            language === 'tr' ? 'Hata' : 'Error',
+            language === 'tr' ? 'PDF oluşturulamadı' : 'Could not generate PDF'
+          );
+        }
+      } catch (error) {
+        log.error('PDF error', error);
+        showError(
+          language === 'tr' ? 'Hata' : 'Error',
+          language === 'tr' ? 'PDF oluşturulurken bir hata oluştu' : 'Error generating PDF'
+        );
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    },
+    [medicines, medicineLogs, settings, getAdherenceRate, getCurrentStreak, language, showError]
+  );
+
+  const showPDFOptions = useCallback(() => {
+    showAlert({
+      type: 'info',
+      title: language === 'tr' ? 'Rapor Oluştur' : 'Generate Report',
+      message:
+        language === 'tr'
+          ? 'Hangi dönem için rapor oluşturmak istiyorsunuz?'
+          : 'Which period do you want to report?',
+      buttons: [
+        {
+          text: language === 'tr' ? 'Son 7 Gün' : 'Last 7 Days',
+          onPress: () => handleGeneratePDF(7),
+        },
+        {
+          text: language === 'tr' ? 'Son 30 Gün' : 'Last 30 Days',
+          onPress: () => handleGeneratePDF(30),
+        },
+        {
+          text: language === 'tr' ? 'Son 90 Gün' : 'Last 90 Days',
+          onPress: () => handleGeneratePDF(90),
+        },
+        { text: language === 'tr' ? 'İptal' : 'Cancel', style: 'cancel' },
+      ],
+    });
+  }, [language, showAlert, handleGeneratePDF]);
+
+  const handleShareWhatsAppSummary = useCallback(async () => {
+    try {
+      const isTr = language === 'tr';
+      const periodName =
+        selectedPeriod === 'weekly'
+          ? isTr
+            ? 'Son 7 Gün'
+            : 'Last 7 Days'
+          : isTr
+            ? 'Son 30 Gün'
+            : 'Last 30 Days';
+
+      const medListText = medicineBreakdown
+        .slice(0, 5)
+        .map(m => `• ${m.name}: %${m.adherenceRate} (${m.taken}/${m.total})`)
+        .join('\n');
+
+      const message = isTr
+        ? `📊 *İlaç Hatırlatıcı — Sağlık & Tedavi Karnesi*\n\n` +
+          `🗓️ *Dönem:* ${periodName}\n` +
+          `🎯 *Genel İlaç Uyumu:* %${overallStats.adherenceRate}\n` +
+          `✅ *Alınan Dozlar:* ${overallStats.taken} / ${overallStats.total}\n` +
+          `⚠️ *Atlanan / Kaçırılan:* ${overallStats.missed + overallStats.skipped}\n` +
+          `🔥 *Düzenli Kullanım Serisi:* ${overallStats.currentStreak} gün\n\n` +
+          (medListText ? `🩺 *İlaç Bazlı Başarı:*\n${medListText}\n\n` : '') +
+          `_İlaç Hatırlatıcı & Refakatçi Takip Sistemi ile güvenle oluşturuldu._`
+        : `📊 *Medication Adherence Scorecard*\n\n` +
+          `🗓️ *Period:* ${periodName}\n` +
+          `🎯 *Overall Adherence:* ${overallStats.adherenceRate}%\n` +
+          `✅ *Taken:* ${overallStats.taken} / ${overallStats.total}\n` +
+          `⚠️ *Missed/Skipped:* ${overallStats.missed + overallStats.skipped}\n` +
+          `🔥 *Current Streak:* ${overallStats.currentStreak} days\n\n` +
+          (medListText ? `🩺 *Medication Breakdown:*\n${medListText}\n\n` : '') +
+          `_Generated securely by Medicine Reminder & Caregiver App._`;
+
+      const { Share } = require('react-native');
+      await Share.share({
+        message,
+        title: isTr ? 'İlaç Tedavi Karnesi' : 'Medication Scorecard',
+      });
+    } catch (err) {
+      log.error('handleShareWhatsAppSummary error', err);
+    }
+  }, [language, selectedPeriod, overallStats, medicineBreakdown]);
+
+  return {
+    colors,
+    isDark,
+    t,
+    language,
+    dateLocale,
+    selectedPeriod,
+    setSelectedPeriod,
+    activeStatsTab,
+    setActiveStatsTab,
+    isGeneratingPDF,
+    dailyStats,
+    overallStats,
+    suggestions,
+    chartData,
+    chartConfig,
+    medicines,
+    reminderTimes,
+    medicineLogs,
+    healthInsight,
+    medicineBreakdown,
+    handleGeneratePDF,
+    showPDFOptions,
+    handleShareWhatsAppSummary,
+  };
+}

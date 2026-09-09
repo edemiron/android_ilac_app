@@ -12,11 +12,30 @@ jest.mock('react-native', () => ({
     flatten: <T,>(styles: T): T => styles,
   },
   Platform: { OS: 'android' },
+  NativeModules: {
+    WidgetDataModule: {
+      setWidgetData: jest.fn(),
+    },
+  },
   View: 'View',
   Text: 'Text',
+  TouchableOpacity: 'TouchableOpacity',
   ScrollView: 'ScrollView',
   KeyboardAvoidingView: 'KeyboardAvoidingView',
+  LayoutAnimation: {
+    configureNext: jest.fn(),
+    Presets: { easeInEaseOut: {} },
+  },
+  UIManager: {
+    setLayoutAnimationEnabledExperimental: jest.fn(),
+  },
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
+}));
+
+jest.mock('../../stores/medicineStore', () => ({
+  useMedicineStore: jest.fn((selector?: (state: { medicines: unknown[] }) => unknown) =>
+    selector ? selector({ medicines: [] }) : { medicines: [] }
+  ),
 }));
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -81,6 +100,12 @@ jest.mock('../../hooks/useAddMedicine', () => ({
     handleCancel: jest.fn(),
     handleSave: mockHandleSave,
     handleScanBarcode: mockHandleScanBarcode,
+    celebrationState: { visible: false, medicineName: '' },
+    handleDismissCelebration: jest.fn(),
+    voiceModalVisible: false,
+    setVoiceModalVisible: jest.fn(),
+    handleApplyVoiceMedicine: jest.fn(),
+    handleRemovePhoto: jest.fn(),
   }),
 }));
 
@@ -96,6 +121,14 @@ jest.mock('../../components/addMedicine', () => ({
   ExpirySection: () => null,
   ImagePickerSection: () => null,
   AdvancedSettingsSection: () => null,
+  ScheduleSelector: () => null,
+  DrugInteractionWarningBanner: () => null,
+  MedicineAddedCelebrationModal: () => null,
+  VoiceAddMedicineModal: () => null,
+  MedicinePhotoChip: () => null,
+  FoodInteractionBadgeList: () => null,
+  DuplicateTherapyBanner: () => null,
+  EReceteImportModal: () => null,
 }));
 
 jest.mock('../../utils/logger', () => ({

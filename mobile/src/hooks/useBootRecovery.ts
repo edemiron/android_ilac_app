@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react';
-import notifee from '@notifee/react-native';
 
-import { useMedicineStore } from '../stores/medicineStore';
 import { createScopedLogger } from '../utils/logger';
 import {
   getBootRecoveryResult,
   clearBootRecoveryResult,
-  reRegisterAllAlarms,
   type BootRecoveryResult,
 } from '../utils/bootHandler';
 
@@ -18,70 +15,58 @@ export interface UseBootRecoveryResult {
 }
 
 /**
- * App startup'ta notification cleanup + alarm re-register + boot recovery
- * result hook'u. App.tsx'ten birebir kopyalanan davranış:
+ * Cihaz yeniden baslatildiktan sonra `BootReceiver`in birakti kurtarma
+ * sonucunu okur ve kullaniciya gosterilmek uzere state'e aktarir.
  *
- * - Mount'ta (boş dependency array) bir kez çalışır
- * - Displayed notifications'dan handled alarm/non-alarm'ları temizler
- * - Alarm re-register (reRegisterAllAlarms) çağrılır
- * - Boot recovery result varsa state'e aktarır
+ * ── v1.7.1 sadelestirme ───────────────────────────────────────────────────
+ * Bu hook eskiden App.tsx'teki `performStartupCleanup` ile AYNI isi de
+ * yapiyordu: goruntulenen bildirimleri temizlemek ve
+ * `reRegisterAllAlarms('app_startup')` cagirmak. Sonuc:
  *
- * Davranış değişikliği YOK — sadece yapısal taşıma.
+ *   1. Her acilista IKI tam iptal+yeniden planlama firtinasi. Cihaz
+ *      logcat'inde ayni bildirim kimliklerinin 2-4 kez iptal edildigi
+ *      olculdu; tam ekran alarm anahtari degistiginde iki firtina ic ice
+ *      gecip ayar KAPALI iken 11 bekleyen native alarm birakmisti.
+ *   2. `clearBootRecoveryResult()` iki yerden cagriliyordu — hangisi once
+ *      calisirsa sonucu siliyordu, dolayisiyla kurtarma bildirimi
+ *      kullaniciya hic gorunmeyebiliyordu.
  *
- * NOT: `isAlarmHandled` ve `cleanupOrphanNotifications` sprint 3'te
- * notifications.ts modüler bölündüğünde eklenecek.
+ * Artik gorev dagilimi net:
+ *   - App.tsx  → kanallar, bildirim temizligi, orphan/stale temizligi,
+ *                `reRegisterAllAlarms` (TEK cagri)
+ *   - bu hook  → yalnizca boot recovery sonucunu okumak ve tuketmek
  */
 export function useBootRecovery(): UseBootRecoveryResult {
   const [bootRecovery, setBootRecovery] = useState<BootRecoveryResult | null>(null);
 
   useEffect(() => {
-    const performStartupCleanup = async () => {
+    let cancelled = false;
+
+    const readBootRecovery = async () => {
       try {
-        // Eski displayed bildirimleri temizle
-        // Sadece non-alarm bildirimleri ve zaten handle edilmiş alarmları temizle
-        const displayedNotifications = await notifee.getDisplayedNotifications();
-        const today = new Date().toISOString().split('T')[0];
-
-        for (const notification of displayedNotifications) {
-          const id = notification.notification.id;
-          const data = notification.notification.data;
-          if (!id) continue;
-
-          // Non-alarm bildirimleri temizle
-          if (!id.startsWith('alarm-') && !id.startsWith('snooze-')) {
-            await notifee.cancelDisplayedNotification(id);
-            continue;
-          }
-
-          // Alarm bildirimi — handled ise temizle
-          // NOT: isAlarmHandled kontrolü sprint 3'te eklenecek
-          if (data?.medicineId && data?.reminderTimeId) {
-            const key = `${data.medicineId}-${data.reminderTimeId}-${today}`;
-            void key;
-          }
-        }
-
-        const storeState = useMedicineStore.getState();
-        const medicines = storeState.medicines;
-        const validMedicineIds = medicines.map(m => m.id);
-
-        // Alarmları yeniden planla (orphan cleanup + re-register)
-        if (validMedicineIds.length > 0) {
-          const result = await reRegisterAllAlarms('app_startup');
-          log.debug('Startup alarm re-register done', { ...result });
-        }
-
         const recovery = await getBootRecoveryResult();
-        if (recovery && (recovery.reminders > 0 || recovery.snoozes > 0)) {
-          setBootRecovery(recovery);
+        if (!recovery) return;
+        if (recovery.reminders <= 0 && recovery.snoozes <= 0) {
+          // Gosterilecek bir sey yok; yine de tuketip temizle.
           await clearBootRecoveryResult();
+          return;
         }
+
+        if (!cancelled) {
+          setBootRecovery(recovery);
+        }
+        await clearBootRecoveryResult();
+        log.debug('Boot recovery sonucu okundu', { ...recovery });
       } catch (error) {
-        log.error('Startup cleanup failed', error);
+        log.error('Boot recovery sonucu okunamadi', error);
       }
     };
 
-    performStartupCleanup();
+    void readBootRecovery();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return {

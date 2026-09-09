@@ -8,6 +8,9 @@
 import type { AlarmState, MedicineLog, UserSettings } from '../../types';
 import type { RescheduledSnoozeNotification } from './reschedule';
 import { nowISO } from './dateTime';
+// K5: kalıcı yazma kuyruğunun AsyncStorage anahtarı — hesap silme listesinde
+// tek kaynaktan referans veriliyor (bkz. MEDICINE_STORE_STORAGE_KEYS).
+import { OUTBOX_STORAGE_KEY } from '../../utils/outboxStore';
 
 // =====================================================================
 // BUILDER HELPERS
@@ -89,25 +92,30 @@ export function buildMedicineLogBase(
   medicineId: string,
   reminderTimeId: string,
   scheduledTime: string,
-  status: 'taken' | 'skipped',
-  note?: string
+  status: MedicineLog['status'],
+  note?: string,
+  medicineName?: string
 ): Omit<MedicineLog, 'takenAt'> {
   return {
     id: '',
     medicineId,
+    medicineName,
     reminderTimeId,
     scheduledTime,
     status,
     note,
+    createdAt: nowISO(),
   };
 }
 
 /**
  * 'taken' durumunda takenAt ekler; diger statusler icin base'i doner.
+ * `missed` ve `pending` icin de base aynen doner — takenAt yalnizca hastanin
+ * dozu aldigi ANLAMINA gelir, kacirilan/bekleyen doza yazilmaz.
  */
 export function withTakenAt<T extends object>(
   base: T,
-  status: 'taken' | 'skipped',
+  status: MedicineLog['status'],
   now: string = nowISO()
 ): T & { takenAt?: string } {
   return status === 'taken' ? { ...base, takenAt: now } : (base as T & { takenAt?: string });
@@ -194,12 +202,35 @@ export function countWhere<T>(items: T[], predicate: (item: T) => boolean): numb
 }
 
 /**
- * AsyncStorage key listesi — clearAllData icin gerekli 3 storage key.
+ * `clearAllData`'nin silmesi gereken AsyncStorage anahtarlari.
+ *
+ * ⚠️ v1.8.0 — SLICE STORE ANAHTARLARI DA BURADA.
+ * v1'de ayni veri BES ayri `persist` altinda tutuluyordu; slice store'lar
+ * uretimde HIC OKUNMUYOR ama yaziliyordu (ilac listesi ve doz kayitlari
+ * diskte iki kopya). Slice'lar v1.8.0'da silindi, ancak yukseltilen
+ * kurulumlarda o anahtarlar AsyncStorage'da DURUYOR ve yer kapliyor.
+ * Buraya eklendiler ki "tum verileri temizle" gercekten temizlesin.
  */
 export const MEDICINE_STORE_STORAGE_KEYS = [
+  'medicine-storage',
   'medicine-store',
   'medicine-store-sync-queue',
   '@medicine_storage',
+  // v1.8.0'da kaldirilan slice store'larin yetim anahtarlari:
+  'ilac-app-medicines-storage',
+  'ilac-app-logs-storage',
+  'ilac-app-snoozes-storage',
+  'ilac-app-settings-storage',
+  // v2.0.1: KVKK & Tam Temizlik — yetim kalabilecek bağımsız store/servis anahtarları:
+  'ilac_medical_id_v1',
+  'ilac_symptom_logs_v1',
+  '@ilachatirlatici_prescriptions_v1',
+  // K5: kalıcı yazma kuyruğu. ⚠️ Bu anahtar SAĞLIK VERİSİ taşır (doz kayıtları
+  // ve bakıcı uyarıları) — "tüm verileri temizle" / hesap silme akışında
+  // temizlenmezse hasta hesabını sildikten sonra verisi cihazda kalır
+  // (KVKK m.7 / GDPR Art. 17). Anahtar literal olarak değil `outboxStore`'dan
+  // import ediliyor ki iki yerde ayrı yazılıp ayrışamasın.
+  OUTBOX_STORAGE_KEY,
 ] as const;
 
 /**

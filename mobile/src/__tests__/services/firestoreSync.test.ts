@@ -10,8 +10,11 @@ import {
   uploadAllDataToCloud,
   downloadAllDataFromCloud,
   deleteAllUserData,
+  getSettingsFromCloud,
+  syncSettingsToCloud,
 } from '../../services/firestoreSync';
 import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../../types';
+import { DEVICE_LOCAL_SETTING_KEYS } from '../../domain/settingsScope';
 
 // Mock Firebase
 const mockBatch = {
@@ -28,6 +31,9 @@ const mockSetDoc = jest.fn().mockResolvedValue(undefined);
 const mockDeleteDoc = jest.fn().mockResolvedValue(undefined);
 const mockWriteBatch = jest.fn().mockReturnValue(mockBatch);
 
+/** `deleteField()` yerine kullanilan sentinel — bkz. mock icindeki aciklama. */
+const DELETE_FIELD_SENTINEL = { __deleteField: true } as const;
+
 jest.mock('firebase/firestore', () => ({
   collection: (...args: unknown[]) => mockCollection(...args),
   doc: (...args: unknown[]) => mockDoc(...args),
@@ -35,6 +41,10 @@ jest.mock('firebase/firestore', () => ({
   getDoc: (...args: unknown[]) => mockGetDoc(...args),
   getDocs: (...args: unknown[]) => mockGetDocs(...args),
   deleteDoc: (...args: unknown[]) => mockDeleteDoc(...args),
+  // v1.7.9: `syncSettingsToCloud` cihaza ozel alanlari (PIN hash'i vb.)
+  // ESKI dokumanlardan da temizliyor. Sentinel bir nesne donduruyoruz ki
+  // testler yukte hangi alanin silinmek uzere isaretlendigini gorebilsin.
+  deleteField: () => DELETE_FIELD_SENTINEL,
   writeBatch: () => mockWriteBatch(),
   Timestamp: { now: () => ({ seconds: Date.now() / 1000, nanoseconds: 0 }) },
 }));
@@ -55,6 +65,15 @@ jest.mock('../../utils/logger', () => ({
 
 describe('Firestore Sync Service', () => {
   const userId = 'test-user-123';
+
+  /** Yukleme testleri icin minimal ayar nesnesi. */
+  const mockSettingsForUpload = {
+    wakeUpTime: '08:00',
+    sleepTime: '23:00',
+    language: 'tr',
+    vibrationEnabled: true,
+    alarmModeEnabled: true,
+  } as UserSettings;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -113,7 +132,33 @@ describe('Firestore Sync Service', () => {
       expect(mockBatch.delete).not.toHaveBeenCalled();
     });
 
-    it('should delete medicines that no longer exist locally', async () => {
+    it('⚠️ Y1: tombstone OLMADAN buluttaki ilacı SİLMEMELİ (bayat cihaz koruması)', async () => {
+      // Bulutta bu cihazın HİÇ GÖRMEDİĞİ bir ilaç var (ör. tablet ekledi).
+      const cloudOnlyId = 'med-other-device';
+      const existingDoc = {
+        id: cloudOnlyId,
+        ref: { id: cloudOnlyId },
+        data: () => ({ id: cloudOnlyId, name: 'Tabletin eklediği ilaç' }),
+      };
+
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [existingDoc],
+        forEach: function (cb: Function) {
+          cb(existingDoc);
+        },
+      });
+
+      // Bu cihaz `cloudOnlyId`'yi bilmiyor ve tombstone'u da YOK.
+      //   ESKİ davranış: sil → başka cihazın ilacı BULUTTAN KAYBOLUR.
+      //   YENİ davranış: dokunma → bir sonraki syncFromCloud bu cihaza getirir.
+      // Silme kararı "local'de yok" tahminine değil, KASITLI silme kaydına
+      // (domain/deletions.ts tombstone) dayanmak zorunda.
+      await syncMedicinesToCloud(userId, [mockMedicine]);
+
+      expect(mockBatch.delete).not.toHaveBeenCalled();
+    });
+
+    it('⚠️ Y1: tombstone VARSA kasıtlı silme buluta yansıtılmalı', async () => {
       const deletedMedicineId = 'med-deleted';
       const existingDoc = {
         id: deletedMedicineId,
@@ -128,10 +173,12 @@ describe('Firestore Sync Service', () => {
         },
       });
 
-      // Send only med-1, not the deleted one
-      await syncMedicinesToCloud(userId, [mockMedicine]);
+      // Tombstone verildiğinde silme GERÇEKLEŞMELİ — aksi halde diğer cihaz
+      // silinen ilacı geri diriltir (v1.7.8'de çözülen hayalet-alarm kusuru).
+      await syncMedicinesToCloud(userId, [mockMedicine], {
+        [deletedMedicineId]: new Date().toISOString(),
+      });
 
-      // Should delete the one not in local array
       expect(mockBatch.delete).toHaveBeenCalledTimes(1);
       expect(mockBatch.commit).toHaveBeenCalled();
     });
@@ -215,6 +262,51 @@ describe('Firestore Sync Service', () => {
       // Should only set the recent log
       expect(mockBatch.set).toHaveBeenCalledTimes(1);
     });
+
+    it('⚠️ Y2: 30 günden eski BULUT loglarını SİLMEMELİ (arşiv koruması)', async () => {
+      // Bulutta 60 günlük bir doz kaydı var; yerel listede YOK (cihaz
+      // değişmiş, veri temizlenmiş veya uygulama yeniden kurulmuş olabilir).
+      const archivedId = 'log-archived';
+      const archivedDoc = {
+        id: archivedId,
+        ref: { id: archivedId },
+        data: () => ({
+          id: archivedId,
+          medicineId: 'med-1',
+          status: 'taken',
+          scheduledTime: new Date(Date.now() - 60 * 86_400_000).toISOString(),
+        }),
+      };
+
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [archivedDoc],
+        forEach: function (cb: Function) {
+          cb(archivedDoc);
+        },
+      });
+      mockDoc.mockReturnValue({ id: 'log-recent' });
+
+      const recentLog: MedicineLog = {
+        ...mockLog,
+        id: 'log-recent',
+        scheduledTime: new Date().toISOString(),
+      };
+      await syncMedicineLogsToCloud(userId, [recentLog]);
+
+      // ESKİ davranış: `newIds` yalnızca 30 GÜNLÜK filtreli setten kuruluyor
+      // ve onda olmayan HER bulut logu siliniyordu → her full-sync 31+ günlük
+      // tüm doz geçmişini KALICI olarak yok ediyordu. Cihaz değişiminde
+      // adherans istatistikleri ve PDF hekim raporu için gereken veri
+      // kayboluyordu; yerel `medicineLogs` sınırsız büyürken bulut
+      // kopyasının budanması asimetrik ve belgelenmemiş bir veri kaybıydı.
+      expect(mockBatch.delete).not.toHaveBeenCalled();
+
+      // Güncel log yine yüklenmeli — 30 günlük YÜKLEME filtresi korundu.
+      // Silme kalktığı için bulut zamanla tüm geçmişi BİRİKTİRİR: her sync o
+      // anki pencereyi yükler, önceki pencereler kalır. Yani arşiv kendiliğinden
+      // oluşur ve ilk-sync hacmi şişmez.
+      expect(mockBatch.set).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('uploadAllDataToCloud', () => {
@@ -275,21 +367,231 @@ describe('Firestore Sync Service', () => {
       expect(result).toBeNull();
     });
 
-    it('should return data with default settings if none exist', async () => {
+    /**
+     * v1.7.1 — C4: ayar dokumani yoksa artik BOS nesne doner.
+     *
+     * Eskiden `DEFAULT_SETTINGS` donuyordu; birlestirmede bu varsayilanlar
+     * kullanicinin YEREL ayarlarini eziyordu (ornegin ttsVolume 35 → 80).
+     * Yerel ayarlarin korunmasi icin bulutta olmayan alan hic donmemeli.
+     */
+    it('bulutta ayar dokumani yoksa BOS ayar doner (yerel korunur)', async () => {
       mockGetDocs.mockResolvedValue({
-        docs: [],
-        forEach: () => {},
+        docs: [
+          {
+            id: 'med-1',
+            ref: { id: 'med-1' },
+            data: () => ({ id: 'med-1', name: 'X' }),
+          },
+        ],
+        forEach: function (cb: (doc: unknown) => void) {
+          cb({ id: 'med-1', ref: { id: 'med-1' }, data: () => ({ id: 'med-1', name: 'X' }) });
+        },
       });
 
-      mockGetDoc.mockResolvedValue({
-        exists: () => false,
-      });
+      mockGetDoc.mockResolvedValue({ exists: () => false });
 
       const result = await downloadAllDataFromCloud(userId);
 
-      if (result) {
-        expect(result.settings.language).toBe('tr');
-        expect(result.settings.wakeUpTime).toBe('08:00');
+      expect(result).not.toBeNull();
+      expect(result?.settings).toEqual({});
+    });
+  });
+
+  /**
+   * v1.7.1 — C4. `getSettingsFromCloud` alanlari TEK TEK sayiyordu ve
+   * listede 13 ayar YOKTU (guvenlik, TTS, kalici bildirim): buluta
+   * yukleniyor ama GERI INDIRILMIYORDU. Ayrica her alan `?? varsayilan`
+   * ile donduruldugu icin bulut KOSULSUZ kaziniyordu.
+   */
+  describe('getSettingsFromCloud', () => {
+    it('bulutta yazili TUM alanlari dondurur (TTS / guvenlik / kalici bildirim dahil)', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          wakeUpTime: '06:30',
+          ttsVolume: 35,
+          ttsRepeatCount: 3,
+          securityEnabled: true,
+          securityType: 'pin',
+          lockTimeout: 120,
+          persistentNotificationEnabled: false,
+          persistentNotificationDuration: 30,
+          settingsUpdatedAt: '2026-05-02T09:00:00.000Z',
+        }),
+      });
+
+      const settings = await getSettingsFromCloud(userId);
+
+      expect(settings).toEqual({
+        wakeUpTime: '06:30',
+        ttsVolume: 35,
+        ttsRepeatCount: 3,
+        securityEnabled: true,
+        securityType: 'pin',
+        lockTimeout: 120,
+        persistentNotificationEnabled: false,
+        persistentNotificationDuration: 30,
+        settingsUpdatedAt: '2026-05-02T09:00:00.000Z',
+      });
+    });
+
+    it('dokumanda OLMAYAN alani VARSAYILANLA doldurmaz', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({ wakeUpTime: '06:30' }),
+      });
+
+      const settings = await getSettingsFromCloud(userId);
+
+      // Eskiden burada 15 alan + varsayilanlar donuyordu.
+      expect(Object.keys(settings ?? {})).toEqual(['wakeUpTime']);
+      expect(settings?.ttsVolume).toBeUndefined();
+    });
+
+    it('settingsUpdatedAt yoksa Firestore updatedAt damgasina duser', async () => {
+      const date = new Date('2026-05-02T09:00:00.000Z');
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          wakeUpTime: '06:30',
+          updatedAt: { toDate: () => date },
+        }),
+      });
+
+      const settings = await getSettingsFromCloud(userId);
+
+      expect(settings?.settingsUpdatedAt).toBe(date.toISOString());
+      // `updatedAt` bir UserSettings alani DEGIL; sizdirilmamali.
+      expect((settings as Record<string, unknown>)?.updatedAt).toBeUndefined();
+    });
+
+    it('dokuman yoksa null doner', async () => {
+      mockGetDoc.mockResolvedValue({ exists: () => false });
+
+      await expect(getSettingsFromCloud(userId)).resolves.toBeNull();
+    });
+  });
+
+  describe('syncSettingsToCloud', () => {
+    it('son-yazan-kazanir damgasini buluta yazar', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, {
+        ...mockSettingsForUpload,
+        settingsUpdatedAt: '2026-05-02T09:00:00.000Z',
+      });
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      expect(written.settingsUpdatedAt).toBe('2026-05-02T09:00:00.000Z');
+    });
+
+    it('damga yoksa yukleme aninda uretir', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, mockSettingsForUpload);
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      expect(typeof written.settingsUpdatedAt).toBe('string');
+      expect(Number.isNaN(Date.parse(written.settingsUpdatedAt as string))).toBe(false);
+    });
+
+    /**
+     * v1.7.2 — korlemesine tam dokuman yazimi kaldirildi.
+     *
+     * Indirme yalnizca uygulama acilisinda yapildigi icin bir cihaz gunlerce
+     * bayat kalabiliyor. Eskiden o cihazda TEK bir ayar degistirmek
+     * dokumanin TAMAMINI yaziyor ve diger cihazin yeni degerlerini buluttan
+     * SILIYORDU. Bu kayip alan bazli damgayla cozulmez: bayat deger taze
+     * damgayla yazilir. Bu yuzden yazim artik kismi + merge.
+     */
+    it('merge: true ile yazar (degismeyen alanlar dokumanda kalir)', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, { alarmVolume: 100 });
+
+      expect(mockSetDoc).toHaveBeenCalledTimes(1);
+      expect(mockSetDoc.mock.calls[0][2]).toEqual({ merge: true });
+    });
+
+    it('YALNIZCA verilen alanlari yazar — digerlerine dokunmaz', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, { quietHoursEnabled: true });
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+
+      // Yalnizca degisen alan + iki damga DEGER olarak yazilir. `alarmVolume`
+      // GONDERILMEMELI: gonderilse bayat deger diger cihazin yeni degerini
+      // ezerdi.
+      const valueKeys = Object.keys(written)
+        .filter(key => !DEVICE_LOCAL_SETTING_KEYS.includes(key as never))
+        .sort();
+      expect(valueKeys).toEqual(['quietHoursEnabled', 'settingsUpdatedAt', 'updatedAt'].sort());
+      expect(written.alarmVolume).toBeUndefined();
+      expect(written.wakeUpTime).toBeUndefined();
+    });
+
+    /**
+     * ⚠️ v1.7.9 — PIN HASH'I BULUTA GITMEZ, ESKI DOKUMANDAN DA SILINIR.
+     *
+     * `updateSettings` degisen alanlari kosulsuz buraya veriyordu; guvenlik
+     * alanlari da buluta ve oradan DIGER CIHAZA yaziliyordu (telefonda PIN
+     * kuran kullanicinin tableti de ayni PIN ile kilitleniyordu).
+     */
+    it('cihaza ozel alanlar DEGER olarak YAZILMAZ', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, {
+        wakeUpTime: '09:00',
+        securityPin: 'sha256-gizli',
+        securityType: 'pin',
+        biometricsEnabled: true,
+        lockTimeout: 5,
+      } as never);
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      expect(written.wakeUpTime).toBe('09:00');
+      // Deger olarak DEGIL, silme isaretcisi olarak bulunmalilar.
+      expect(written.securityPin).toEqual({ __deleteField: true });
+      expect(written.securityType).toEqual({ __deleteField: true });
+      expect(written.biometricsEnabled).toEqual({ __deleteField: true });
+      expect(written.lockTimeout).toEqual({ __deleteField: true });
+    });
+
+    it('ESKI dokumanlardaki cihaza ozel alanlar acikca SILINIR', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, { wakeUpTime: '09:00' });
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      for (const key of DEVICE_LOCAL_SETTING_KEYS) {
+        expect(written[key]).toEqual({ __deleteField: true });
+      }
+    });
+
+    it('tanimsiz alanlari atlar (Firestore undefined kabul etmez)', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, {
+        alarmVolume: 90,
+        quietHoursStart: undefined,
+      });
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      expect(written.alarmVolume).toBe(90);
+      expect('quietHoursStart' in written).toBe(false);
+    });
+
+    it('ilk tam yukleme hala TUM alanlari yazar', async () => {
+      mockDoc.mockReturnValue({ id: 'settings' });
+
+      await syncSettingsToCloud(userId, mockSettingsForUpload);
+
+      const written = mockSetDoc.mock.calls[0][1] as Record<string, unknown>;
+      for (const key of Object.keys(mockSettingsForUpload)) {
+        expect(written[key]).toBe(
+          (mockSettingsForUpload as unknown as Record<string, unknown>)[key]
+        );
       }
     });
   });

@@ -37,8 +37,8 @@ export function createQRCodeData(inviteCode: string): string {
  */
 export function extractInviteCodeFromUrl(url: string): string | null {
   try {
-    // Format: ilachatirlatici://caregiver/invite/CODE
-    const pattern = /ilachatirlatici:\/\/caregiver\/invite\/([A-Z0-9]{6})/i;
+    // Format: ilachatirlatici://caregiver/invite/CODE (6-8 karakter)
+    const pattern = /ilachatirlatici:\/\/caregiver\/invite\/([A-Z0-9]{6,8})/i;
     const match = url.match(pattern);
 
     if (match && match[1]) {

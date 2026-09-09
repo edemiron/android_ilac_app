@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+
+<html lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Eczane &amp; Bakıcı</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-container": "#f4fffc",
+                        "on-surface-variant": "#3d4947",
+                        "missed-bg": "#FEE2E2",
+                        "surface-variant": "#d3e4fe",
+                        "primary-container": "#008378",
+                        "background": "#f8f9ff",
+                        "secondary-container": "#dc2c4f",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#ffdbce",
+                        "secondary": "#b90538",
+                        "on-primary-fixed": "#00201d",
+                        "taken-bg": "#D1FAE5",
+                        "error": "#ba1a1a",
+                        "taken": "#10B981",
+                        "skipped-bg": "#FEF3C7",
+                        "surface-tint": "#006a61",
+                        "surface-container-high": "#dce9ff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#005049",
+                        "on-secondary-fixed": "#40000d",
+                        "inverse-surface": "#213145",
+                        "tertiary": "#924628",
+                        "secondary-fixed-dim": "#ffb2b7",
+                        "on-error": "#ffffff",
+                        "primary": "#00685f",
+                        "on-tertiary-container": "#fffbff",
+                        "on-tertiary-fixed-variant": "#773215",
+                        "error-container": "#ffdad6",
+                        "on-background": "#0b1c30",
+                        "bg-dark": "#0F172A",
+                        "surface-bright": "#f8f9ff",
+                        "on-secondary-fixed-variant": "#92002a",
+                        "outline": "#6d7a77",
+                        "surface-container-highest": "#d3e4fe",
+                        "inverse-on-surface": "#eaf1ff",
+                        "primary-fixed-dim": "#6bd8cb",
+                        "on-secondary-container": "#fffbff",
+                        "outline-variant": "#bcc9c6",
+                        "on-tertiary-fixed": "#370e00",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#b05e3d",
+                        "inverse-primary": "#6bd8cb",
+                        "surface-dark": "#1E293B",
+                        "skipped": "#F59E0B",
+                        "surface-dim": "#cbdbf5",
+                        "surface-container": "#e5eeff",
+                        "tertiary-fixed-dim": "#ffb59a",
+                        "surface": "#f8f9ff",
+                        "on-surface": "#0b1c30",
+                        "missed": "#EF4444",
+                        "primary-fixed": "#89f5e7",
+                        "surface-container-low": "#eff4ff",
+                        "secondary-fixed": "#ffdadb",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "24px",
+                        "touch-target": "48px",
+                        "card-padding": "16px",
+                        "gutter": "12px",
+                        "base": "4px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "body-lg-med": ["Inter"],
+                        "headline-screen": ["Plus Jakarta Sans"],
+                        "display-hero": ["Plus Jakarta Sans"],
+                        "headline-card": ["Plus Jakarta Sans"],
+                        "body-regular": ["Inter"],
+                        "time-display": ["Inter"],
+                        "label-badge": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg-med": ["16px", { "lineHeight": "22px", "fontWeight": "600" }],
+                        "headline-screen": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "display-hero": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-card": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-regular": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "time-display": ["30px", { "lineHeight": "36px", "fontWeight": "700" }],
+                        "label-badge": ["12px", { "lineHeight": "16px", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .soft-shadow {
+            box-shadow: 0 4px 6px -1px rgb(0 104 95 / 0.1), 0 2px 4px -2px rgb(0 104 95 / 0.1);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen pb-[100px]">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-background z-40 flex justify-between items-center px-margin-mobile py-4 shadow-[0_2px_4px_-1px_rgba(0,104,95,0.05)]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high overflow-hidden shrink-0 flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a mature woman smiling softly. The lighting is bright and soft, creating a warm, approachable look. The background is a clean, out-of-focus light gray. The image feels reassuring and human-centric, aligning with a modern healthcare app aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuABGG7UaNJ8g5-JWn7oTWyRPoSNWEkr67ijNuKIU9aIZR_PKexvOCsRO6UG5Vu2BalksP7oXigrXGJ_oxCQhJ5YUrbVIuYPbByv4gFFwcnfQCAHRAv0dq_B6evpT2gxD-fV_uF6WCut1fesbNyfj_RvnP98mIi096HWmdg0BWKgI6HSLjzLRacT2KAK7x_7H2HUuSB6wm5fGDLN8_DQ8wlzd9Usi0W43GSnezvaezTlTrLQUtX--EJk2g"/>
+</div>
+<h1 class="font-headline-screen text-headline-screen text-primary">Good Morning</h1>
+</div>
+<button class="w-touch-target h-touch-target flex items-center justify-center text-primary rounded-full hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+</header>
+<main class="px-margin-mobile pt-6 space-y-8 max-w-2xl mx-auto">
+<!-- Caregiver Status Section -->
+<section>
+<h2 class="font-headline-card text-headline-card text-on-background mb-4">Bakılan Kişiler</h2>
+<div class="bg-surface-container-lowest rounded-xl p-card-padding soft-shadow border border-outline-variant/30 flex items-center gap-4">
+<div class="w-14 h-14 rounded-full bg-surface-variant flex items-center justify-center shrink-0 border-2 border-primary overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="A portrait of an elderly woman looking peaceful and well-cared for. She has silver hair and is wearing a soft pastel cardigan. The background is a gentle, blurred home environment with bright, natural daylight. The color palette is calming, dominated by soft whites and subtle teal accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbqZva5Bg2i36vSV1O0r7NU1c5PhdCFCllSVEdeGkIy-SDFuD49k-6y6gInSrV7Dp2xetV45jGLxBxD9iEzQvO8yESLRGzuvW00HcYMm1Zu7qDJ1CbV1diwV1DzbSyWuASlXw_X3tEIsWAY-lCJ3WIqtBALrbDA6eI4VrzFZjh_f8rOlOXyjJWSQV426UOakmw0uLVuut509MgqUY-HFv0OhX7IyJhAksN70IzRoALeTVFjOC7uq1dYA"/>
+<div class="absolute bottom-0 right-0 w-4 h-4 bg-taken border-2 border-surface-container-lowest rounded-full"></div>
+</div>
+<div class="flex-1">
+<h3 class="font-body-lg-med text-body-lg-med text-on-background">Anne</h3>
+<div class="flex items-center gap-1.5 mt-1">
+<span class="material-symbols-outlined text-[16px] text-taken" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="font-body-regular text-body-regular text-on-surface-variant">İlacını Aldı: 09:15</p>
+</div>
+</div>
+<button class="w-10 h-10 rounded-full bg-surface-container-low text-primary flex items-center justify-center hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</section>
+<!-- Duty Pharmacy Section -->
+<section>
+<div class="flex justify-between items-center mb-4">
+<h2 class="font-headline-card text-headline-card text-on-background">Nöbetçi Eczaneler</h2>
+<button class="text-primary font-body-lg-med text-[14px] hover:opacity-80">Tümünü Gör</button>
+</div>
+<div class="space-y-4">
+<!-- Pharmacy Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-card-padding soft-shadow border border-outline-variant/30">
+<div class="flex justify-between items-start mb-4">
+<div class="flex gap-3">
+<div class="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">local_pharmacy</span>
+</div>
+<div>
+<h3 class="font-body-lg-med text-body-lg-med text-on-background">Merkez Eczanesi</h3>
+<p class="font-body-regular text-body-regular text-on-surface-variant mt-0.5 line-clamp-1">Atatürk Bulvarı No:45, Şişli</p>
+<div class="flex items-center gap-3 mt-2">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-taken-bg text-taken font-label-badge text-label-badge border border-taken/20">
+                                        Açık
+                                    </span>
+<span class="flex items-center text-on-surface-variant font-label-badge text-label-badge">
+<span class="material-symbols-outlined text-[14px] mr-1">location_on</span>
+                                        0.8 km
+                                    </span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-3 pt-3 border-t border-outline-variant/20">
+<button class="flex-1 flex items-center justify-center gap-2 h-touch-target rounded-lg border border-primary text-primary font-body-lg-med text-body-lg-med hover:bg-primary/5 transition-colors">
+<span class="material-symbols-outlined text-[20px]">call</span>
+                            Hemen Ara
+                        </button>
+<button class="flex-1 flex items-center justify-center gap-2 h-touch-target rounded-lg bg-primary text-on-primary font-body-lg-med text-body-lg-med hover:opacity-90 transition-opacity shadow-[0_2px_4px_-1px_rgba(0,104,95,0.4)]">
+<span class="material-symbols-outlined text-[20px]">directions</span>
+                            Yol Tarifi
+                        </button>
+</div>
+</div>
+<!-- Pharmacy Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-card-padding soft-shadow border border-outline-variant/30">
+<div class="flex justify-between items-start mb-4">
+<div class="flex gap-3">
+<div class="w-12 h-12 rounded-lg bg-surface-container-low flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">local_pharmacy</span>
+</div>
+<div>
+<h3 class="font-body-lg-med text-body-lg-med text-on-background">Umut Eczanesi</h3>
+<p class="font-body-regular text-body-regular text-on-surface-variant mt-0.5 line-clamp-1">Millet Caddesi No:12, Fatih</p>
+<div class="flex items-center gap-3 mt-2">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-taken-bg text-taken font-label-badge text-label-badge border border-taken/20">
+                                        Açık
+                                    </span>
+<span class="flex items-center text-on-surface-variant font-label-badge text-label-badge">
+<span class="material-symbols-outlined text-[14px] mr-1">location_on</span>
+                                        2.1 km
+                                    </span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-3 pt-3 border-t border-outline-variant/20">
+<button class="flex-1 flex items-center justify-center gap-2 h-touch-target rounded-lg border border-primary text-primary font-body-lg-med text-body-lg-med hover:bg-primary/5 transition-colors">
+<span class="material-symbols-outlined text-[20px]">call</span>
+                            Hemen Ara
+                        </button>
+<button class="flex-1 flex items-center justify-center gap-2 h-touch-target rounded-lg bg-primary text-on-primary font-body-lg-med text-body-lg-med hover:opacity-90 transition-opacity shadow-[0_2px_4px_-1px_rgba(0,104,95,0.4)]">
+<span class="material-symbols-outlined text-[20px]">directions</span>
+                            Yol Tarifi
+                        </button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 shadow-[0_-4px_6px_-1px_rgba(0,106,97,0.1)] bg-surface-container-lowest rounded-t-xl md:hidden">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:bg-surface-variant/50 rounded-full transition-all duration-200 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined text-[24px]">home</span>
+<span class="font-label-badge text-label-badge mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:bg-surface-variant/50 rounded-full transition-all duration-200 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined text-[24px]">add_circle</span>
+<span class="font-label-badge text-label-badge mt-1">Add</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:bg-surface-variant/50 rounded-full transition-all duration-200 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined text-[24px]">calendar_month</span>
+<span class="font-label-badge text-label-badge mt-1">Calendar</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 transition-all duration-200 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">group</span>
+<span class="font-label-badge text-label-badge mt-1">Care</span>
+</a>
+</nav>
+</body></html>

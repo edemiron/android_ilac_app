@@ -36,6 +36,7 @@ const mockSaveMedicineToCloud = jest.fn();
 const mockDeleteMedicineFromCloud = jest.fn();
 const mockSaveMedicineLogToCloud = jest.fn();
 const mockSyncSettingsToCloud = jest.fn();
+const mockSyncDeletionsToCloud = jest.fn();
 
 jest.mock('../../services/firestoreSync', () => ({
   uploadAllDataToCloud: (...args: unknown[]) => mockUploadAllDataToCloud(...args),
@@ -44,6 +45,7 @@ jest.mock('../../services/firestoreSync', () => ({
   deleteMedicineFromCloud: (...args: unknown[]) => mockDeleteMedicineFromCloud(...args),
   saveMedicineLogToCloud: (...args: unknown[]) => mockSaveMedicineLogToCloud(...args),
   syncSettingsToCloud: (...args: unknown[]) => mockSyncSettingsToCloud(...args),
+  syncDeletionsToCloud: (...args: unknown[]) => mockSyncDeletionsToCloud(...args),
 }));
 
 // Mock date-fns format
@@ -58,6 +60,7 @@ jest.mock('date-fns', () => ({
 // Import after mocks
 import { useMedicineStore, MEDICINE_COLORS } from '../../stores/medicineStore';
 import { Medicine, ReminderTime } from '../../types';
+import { getLocalDateKey } from '../../domain/doseLog';
 
 describe('MedicineStore', () => {
   // Reset store state before each test
@@ -68,6 +71,7 @@ describe('MedicineStore', () => {
     mockDownloadAllDataFromCloud.mockResolvedValue(null);
     mockSaveMedicineLogToCloud.mockResolvedValue(undefined);
     mockSyncSettingsToCloud.mockResolvedValue(undefined);
+    mockSyncDeletionsToCloud.mockResolvedValue(undefined);
 
     // Reset store to initial state
     const store = useMedicineStore.getState();
@@ -431,6 +435,109 @@ describe('MedicineStore', () => {
       const { medicineLogs } = useMedicineStore.getState();
       expect(medicineLogs.length).toBe(0);
     });
+
+    /**
+     * ⚠️ v1.7.6 — IDEMPOTENCY.
+     *
+     * Doz TABLOSU zaten `normalizeMedicineLogsBySlot` ile teklilestiriliyordu,
+     * ama fonksiyonun DIGER yan etkileri kosulsuz calisiyordu: `decrementStock`,
+     * `saveMedicineLogToCloud` ve bakici bildirimi. Onarilan sonsuz dongu
+     * hatasinda tam ekran alarm 20+ kez acildi ve kullanici her seferinde
+     * "Simdi Al"a basti — gercek bir ilacta bu, STOKTAN 20 HAP dusmesi ve
+     * bakiciya 20 bildirim gitmesi demekti. Bir daha boyle bir dongu olsa bile
+     * VERI bozulmamali.
+     */
+    // NOT: bu blokta `setUserId` BILEREK cagrilmaz. userId doluyken
+    // `logMedicineTaken` bakici bildirimi icin DINAMIK `import()` yapiyor ve
+    // Jest'in CJS ortami bunu ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG ile
+    // patlatiyor (jest.mock bunu cozmuyor; babel `import()`i oldugu gibi
+    // biraliyor). Idempotency'nin en yikici sonucu olan STOK dususu userId'den
+    // bagimsiz oldugu icin buradan dogrulanabiliyor.
+    describe('ayni doz icin ikinci cagri (idempotency)', () => {
+      it('doz tablosuna tek satir yazar', () => {
+        const scheduledTime = '2024-01-15T08:00:00';
+
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+
+        const { medicineLogs } = useMedicineStore.getState();
+        expect(medicineLogs.filter(l => l.status === 'taken').length).toBe(1);
+      });
+
+      it('STOKTAN yalnizca bir kez duser', () => {
+        // `decrementStock` yalnizca `stockEnabled` ilaclarda calisir; bu yuzden
+        // stok takibi acik AYRI bir ilac kurulur. `stockThreshold` dusuk
+        // tutulur: "az kaldi" dali dinamik `import('@notifee/react-native')`
+        // yapiyor ve Jest'in CJS ortami dinamik import'u kaldirmiyor.
+        const stockMedicineId = useMedicineStore.getState().addMedicine({
+          name: 'Stok Test',
+          dosage: '100mg',
+          frequency: 1,
+          color: MEDICINE_COLORS[0],
+          startDate: '2024-01-01',
+          stockEnabled: true,
+          stockCount: 10,
+          stockThreshold: 1,
+        });
+        const stockReminderTimeId = useMedicineStore
+          .getState()
+          .reminderTimes.find(rt => rt.medicineId === stockMedicineId)!.id;
+        const scheduledTime = '2024-01-15T08:00:00';
+
+        const stockOf = () =>
+          useMedicineStore.getState().medicines.find(m => m.id === stockMedicineId)!.stockCount;
+
+        expect(stockOf()).toBe(10);
+
+        useMedicineStore.getState().logMedicineTaken(stockReminderTimeId, scheduledTime);
+        const afterFirst = stockOf();
+
+        useMedicineStore.getState().logMedicineTaken(stockReminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineTaken(stockReminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineTaken(stockReminderTimeId, scheduledTime);
+        const afterMany = stockOf();
+
+        expect(afterFirst).toBe(9);
+        // ⚠️ ASIL IDDIA: 4 basis = 1 hap. Eskiden 4 hap dusuyordu.
+        expect(afterMany).toBe(9);
+      });
+
+      it('atlandi -> alindi GECISI hala calisir (ayni duruma ikinci gecis engellenir)', () => {
+        const scheduledTime = '2024-01-15T08:00:00';
+
+        useMedicineStore.getState().logMedicineSkipped(reminderTimeId, scheduledTime);
+        expect(
+          useMedicineStore.getState().medicineLogs.find(l => l.reminderTimeId === reminderTimeId)!
+            .status
+        ).toBe('skipped');
+
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+        const logs = useMedicineStore.getState().medicineLogs;
+        expect(logs.length).toBe(1);
+        expect(logs[0].status).toBe('taken');
+      });
+
+      it('ayni doz iki kez ATLANIRSA da tek satir kalir', () => {
+        const scheduledTime = '2024-01-15T08:00:00';
+
+        useMedicineStore.getState().logMedicineSkipped(reminderTimeId, scheduledTime);
+        useMedicineStore.getState().logMedicineSkipped(reminderTimeId, scheduledTime);
+
+        expect(
+          useMedicineStore.getState().medicineLogs.filter(l => l.status === 'skipped').length
+        ).toBe(1);
+      });
+
+      it('FARKLI dozlar birbirini engellemez', () => {
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, '2024-01-15T08:00:00');
+        useMedicineStore.getState().logMedicineTaken(reminderTimeId, '2024-01-16T08:00:00');
+
+        expect(
+          useMedicineStore.getState().medicineLogs.filter(l => l.status === 'taken').length
+        ).toBe(2);
+      });
+    });
   });
 
   describe('logMedicineSkipped', () => {
@@ -466,6 +573,109 @@ describe('MedicineStore', () => {
 
       const { medicineLogs } = useMedicineStore.getState();
       expect(medicineLogs[0].takenAt).toBeUndefined();
+    });
+  });
+
+  /**
+   * logMedicineMissed — alarm erteleme haklari tukendiginde ve kullanici
+   * yanit vermediginde dozun KAYITSIZ kapanmasini engeller.
+   *
+   * Bu blogun var olma nedeni bir regresyon: v2.0.1'in auto-snooze'u haklar
+   * bitince alarmi HICBIR KAYIT YAZMADAN kapatyordu (sessiz kacirilan doz —
+   * yerel kayit yok, bulut yok, bakici uyarisi yok). Duzeltme `missed` yazmak.
+   *
+   * Kritik ayrim: `missed` bir SONUCTUR, `skipped` hastanin KLINIK KARARIDIR
+   * (v1.7.7 invarianti: skipped yalnizca kullanici acikca secerse yazilir).
+   * Bu yuzden asagidaki "kullanicinin kararinin uzerine yazma" testleri
+   * bu aksiyonun en onemli garantisi.
+   */
+  describe('logMedicineMissed', () => {
+    let reminderTimeId: string;
+
+    beforeEach(() => {
+      const store = useMedicineStore.getState();
+      const medicineId = store.addMedicine({
+        name: 'Missed Test',
+        dosage: '100mg',
+        frequency: 1,
+        color: MEDICINE_COLORS[0],
+        startDate: '2024-01-01',
+      });
+
+      const { reminderTimes } = useMedicineStore.getState();
+      reminderTimeId = reminderTimes.find(rt => rt.medicineId === medicineId)!.id;
+    });
+
+    it('should create a missed log', () => {
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, '2024-01-15T08:00:00');
+
+      const { medicineLogs } = useMedicineStore.getState();
+      expect(medicineLogs).toHaveLength(1);
+      expect(medicineLogs[0].status).toBe('missed');
+      expect(medicineLogs[0].reminderTimeId).toBe(reminderTimeId);
+    });
+
+    it('should not set takenAt for missed logs', () => {
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, '2024-01-15T08:00:00');
+
+      const { medicineLogs } = useMedicineStore.getState();
+      expect(medicineLogs[0].takenAt).toBeUndefined();
+    });
+
+    it('⚠️ hastanin ALDIM kararının üzerine YAZMAZ', () => {
+      const scheduledTime = '2024-01-15T08:00:00';
+
+      useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+
+      const logs = useMedicineStore.getState().medicineLogs;
+      expect(logs).toHaveLength(1);
+      // Uyum raporunda "aldım" denmiş doz "kaçırdı" görünmemeli.
+      expect(logs[0].status).toBe('taken');
+    });
+
+    it('⚠️ hastanın ATLADIM kararının üzerine YAZMAZ', () => {
+      const scheduledTime = '2024-01-15T08:00:00';
+
+      useMedicineStore.getState().logMedicineSkipped(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+
+      const logs = useMedicineStore.getState().medicineLogs;
+      expect(logs).toHaveLength(1);
+      // `skipped` klinik bir karardır; otomatik `missed` onun yerini alamaz.
+      expect(logs[0].status).toBe('skipped');
+    });
+
+    it('aynı doz iki kez kaçırılırsa tek kayıt kalır (yan etkiler tekrarlanmaz)', () => {
+      const scheduledTime = '2024-01-15T08:00:00';
+
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+
+      expect(
+        useMedicineStore.getState().medicineLogs.filter(l => l.status === 'missed')
+      ).toHaveLength(1);
+    });
+
+    it('FARKLI dozlar birbirini engellemez', () => {
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, '2024-01-15T08:00:00');
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, '2024-01-16T08:00:00');
+
+      expect(
+        useMedicineStore.getState().medicineLogs.filter(l => l.status === 'missed')
+      ).toHaveLength(2);
+    });
+
+    it('kaçırıldı → alındı geçişi hâlâ çalışır', () => {
+      const scheduledTime = '2024-01-15T08:00:00';
+
+      useMedicineStore.getState().logMedicineMissed(reminderTimeId, scheduledTime);
+      useMedicineStore.getState().logMedicineTaken(reminderTimeId, scheduledTime);
+
+      const logs = useMedicineStore.getState().medicineLogs;
+      expect(logs).toHaveLength(1);
+      expect(logs[0].status).toBe('taken');
     });
   });
 
@@ -653,7 +863,7 @@ describe('MedicineStore', () => {
           dosage: '500mg',
           frequency: 1,
           color: '#FF6B6B',
-          startDate: new Date().toISOString().split('T')[0],
+          startDate: getLocalDateKey(new Date()),
         });
 
         const { reminderTimes } = useMedicineStore.getState();
@@ -827,6 +1037,198 @@ describe('MedicineStore', () => {
 
       expect(mockUploadAllDataToCloud).toHaveBeenCalled();
     });
+
+    /**
+     * v1.7.1 — C4. Bulut birlestirmesi eskiden KOSULSUZ kazaniyordu ve ayar
+     * yan etkileri (uyanma/uyku penceresi degisince hatirlatma saatlerinin
+     * yeniden uretilmesi) sync yolunda HIC calismiyordu.
+     */
+    describe('ayar birlestirme ve yan etkiler (C4)', () => {
+      const cloudBase = {
+        medicines: [],
+        reminderTimes: [],
+        medicineLogs: [],
+      };
+
+      it('YEREL degisiklik daha yeni ise bulut ayarlarini EZMEZ', async () => {
+        const store = useMedicineStore.getState();
+        store.setUserId('test-user-123');
+
+        // Yerel: kullanici tam ekran alarmi KAPATTI (damgalanir).
+        store.updateSettings({ fullScreenAlarmEnabled: false });
+        const localStamp = useMedicineStore.getState().settings.settingsUpdatedAt;
+        expect(localStamp).toBeTruthy();
+
+        // Bulut: DAHA ESKI bir dokuman, ayar hala acik.
+        mockDownloadAllDataFromCloud.mockResolvedValue({
+          ...cloudBase,
+          settings: {
+            fullScreenAlarmEnabled: true,
+            settingsUpdatedAt: new Date(Date.parse(localStamp!) - 60_000).toISOString(),
+          },
+        });
+
+        await useMedicineStore.getState().syncFromCloud();
+
+        // Eskiden burada `true` donuyordu: kullanicinin kararı sessizce
+        // geri aliniyordu (cihazda kanitlandi).
+        expect(useMedicineStore.getState().settings.fullScreenAlarmEnabled).toBe(false);
+      });
+
+      it('BULUT daha yeni ise yerel ayarin uzerine yazar', async () => {
+        const store = useMedicineStore.getState();
+        store.setUserId('test-user-123');
+        store.updateSettings({ fullScreenAlarmEnabled: false });
+        const localStamp = useMedicineStore.getState().settings.settingsUpdatedAt;
+
+        mockDownloadAllDataFromCloud.mockResolvedValue({
+          ...cloudBase,
+          settings: {
+            fullScreenAlarmEnabled: true,
+            settingsUpdatedAt: new Date(Date.parse(localStamp!) + 60_000).toISOString(),
+          },
+        });
+
+        await useMedicineStore.getState().syncFromCloud();
+
+        expect(useMedicineStore.getState().settings.fullScreenAlarmEnabled).toBe(true);
+      });
+
+      it('bulut ayarlarinda OLMAYAN alanlar yerelde korunur', async () => {
+        const store = useMedicineStore.getState();
+        store.setUserId('test-user-123');
+        store.updateSettings({ ttsVolume: 35 });
+
+        // Eski bir bulut dokumani TTS alanlarini hic icermiyor.
+        mockDownloadAllDataFromCloud.mockResolvedValue({
+          ...cloudBase,
+          settings: { wakeUpTime: '07:00' },
+        });
+
+        await useMedicineStore.getState().syncFromCloud();
+
+        const { settings } = useMedicineStore.getState();
+        expect(settings.wakeUpTime).toBe('07:00');
+        // Eskiden `getSettingsFromCloud` eksik alanlari VARSAYILANLA
+        // dolduruyordu ve bu deger 80'e donuyordu.
+        expect(settings.ttsVolume).toBe(35);
+      });
+
+      it('bulut uyanma/uyku penceresi degisince hatirlatma saatleri yenilenir', async () => {
+        const store = useMedicineStore.getState();
+        store.setUserId('test-user-123');
+        store.addMedicine({
+          name: 'Gunde 2 Doz',
+          dosage: '100mg',
+          frequency: 2,
+          color: MEDICINE_COLORS[0],
+          startDate: '2024-01-01',
+        });
+
+        const before = useMedicineStore
+          .getState()
+          .reminderTimes.map(rt => rt.time)
+          .sort();
+        expect(before.length).toBeGreaterThan(0);
+
+        mockDownloadAllDataFromCloud.mockResolvedValue({
+          ...cloudBase,
+          settings: {
+            wakeUpTime: '05:00',
+            sleepTime: '19:00',
+            settingsUpdatedAt: new Date(Date.now() + 60_000).toISOString(),
+          },
+        });
+
+        await useMedicineStore.getState().syncFromCloud();
+
+        const after = useMedicineStore
+          .getState()
+          .reminderTimes.map(rt => rt.time)
+          .sort();
+
+        expect(useMedicineStore.getState().settings.wakeUpTime).toBe('05:00');
+        // Eskiden saatler ESKI pencereye gore kaliyordu.
+        expect(after).not.toEqual(before);
+      });
+    });
+  });
+
+  /**
+   * v1.7.2 — C4 devami. Buluta YALNIZCA degisen alanlar yazilir.
+   *
+   * Eskiden `updateSettings` tum `nextSettings`i gonderiyor ve
+   * `syncSettingsToCloud` dokumani `setDoc` ile komple eziyordu. Indirme
+   * sadece uygulama acilisinda yapildigi icin bayat kalmis bir cihazda TEK
+   * bir ayar degistirmek, diger cihazin yeni degerlerini buluttan SILIYORDU.
+   */
+  describe('updateSettings — buluta kismi yazim (C4)', () => {
+    it('buluta YALNIZCA degisen alani gonderir', () => {
+      const store = useMedicineStore.getState();
+      store.setUserId('test-user-123');
+      mockSyncSettingsToCloud.mockClear();
+
+      useMedicineStore.getState().updateSettings({ alarmVolume: 100 });
+
+      expect(mockSyncSettingsToCloud).toHaveBeenCalledTimes(1);
+      const [, payload] = mockSyncSettingsToCloud.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+      ];
+
+      expect(Object.keys(payload).sort()).toEqual(['alarmVolume', 'settingsUpdatedAt']);
+      expect(payload.alarmVolume).toBe(100);
+      // Degismemis alanlar gonderilmemeli: gonderilse bayat deger diger
+      // cihazin yeni degerini buluttan silerdi.
+      expect(payload.wakeUpTime).toBeUndefined();
+      expect(payload.quietHoursEnabled).toBeUndefined();
+    });
+
+    it('birden fazla alan degistiyse hepsini ama SADECE onlari gonderir', () => {
+      const store = useMedicineStore.getState();
+      store.setUserId('test-user-123');
+      mockSyncSettingsToCloud.mockClear();
+
+      useMedicineStore.getState().updateSettings({
+        quietHoursEnabled: true,
+        quietHoursStart: '22:30',
+      });
+
+      const [, payload] = mockSyncSettingsToCloud.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+      ];
+      expect(Object.keys(payload).sort()).toEqual(
+        ['quietHoursEnabled', 'quietHoursStart', 'settingsUpdatedAt'].sort()
+      );
+    });
+
+    it('damgayi her zaman ekler (son-yazan-kazanir icin gerekli)', () => {
+      const store = useMedicineStore.getState();
+      store.setUserId('test-user-123');
+      mockSyncSettingsToCloud.mockClear();
+
+      useMedicineStore.getState().updateSettings({ vibrationEnabled: false });
+
+      const [, payload] = mockSyncSettingsToCloud.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+      ];
+      expect(payload.settingsUpdatedAt).toBe(
+        useMedicineStore.getState().settings.settingsUpdatedAt
+      );
+      expect(Number.isNaN(Date.parse(payload.settingsUpdatedAt as string))).toBe(false);
+    });
+
+    it('skipCloudSync ile hic yazmaz', () => {
+      const store = useMedicineStore.getState();
+      store.setUserId('test-user-123');
+      mockSyncSettingsToCloud.mockClear();
+
+      useMedicineStore.getState().updateSettings({ alarmVolume: 55 }, { skipCloudSync: true });
+
+      expect(mockSyncSettingsToCloud).not.toHaveBeenCalled();
+    });
   });
 
   describe('clearAllData', () => {
@@ -864,5 +1266,179 @@ describe('MedicineStore', () => {
         expect(color).toMatch(hexColorRegex);
       });
     });
+  });
+});
+
+/**
+ * ⚠️ v1.7.8 — "SILINEN ILAC GERI GELIYOR" REGRESYONU
+ *
+ * `mergeMedicinesByUpdatedAt` / `mergeReminderTimesById` bir BIRLESIM (union)
+ * ve silme icin hicbir temsil YOKTU. Zincir:
+ *   telefonda sil -> tablette yerelde kalir -> tablet buluta yazar ->
+ *   telefona ALARMLARIYLA geri gelir.
+ * Yani doktorun biraktirdigi ilaci silen hasta onu geri aliyordu.
+ */
+describe('silme senkronu (tombstone)', () => {
+  const CLOUD_MED = {
+    id: 'med-cloud',
+    name: 'Buluttan Gelen',
+    dosage: '1',
+    isActive: true,
+    color: MEDICINE_COLORS[0],
+    startDate: '2024-01-01',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+  } as unknown as Medicine;
+
+  // ⚠️ Tarihler GORELI olmali: `pruneDeletions` 90 gunden eski tombstone'lari
+  // atiyor (uzun sure kapali kalan cihazin dirilmesini onlemek icin tutulan
+  // makul bir saklama suresi). Sabit 2024 tarihi kullanmak testi sessizce
+  // yanlis yapardi.
+  const gunOnce = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+
+  beforeEach(async () => {
+    const store = useMedicineStore.getState();
+    await store.clearAllData();
+    jest.clearAllMocks();
+    mockUploadAllDataToCloud.mockResolvedValue(undefined);
+    mockSyncDeletionsToCloud.mockResolvedValue(undefined);
+    mockDeleteMedicineFromCloud.mockResolvedValue(undefined);
+  });
+
+  it('deleteMedicine SILME KAYDI yazar (ilac + hatirlatma saatleri)', () => {
+    const store = useMedicineStore.getState();
+    const medicineId = store.addMedicine({
+      name: 'Silinecek',
+      dosage: '1',
+      frequency: 1,
+      color: MEDICINE_COLORS[0],
+      startDate: '2024-01-01',
+    });
+    const reminderIds = useMedicineStore
+      .getState()
+      .reminderTimes.filter(rt => rt.medicineId === medicineId)
+      .map(rt => rt.id);
+    expect(reminderIds.length).toBeGreaterThan(0);
+
+    useMedicineStore.getState().deleteMedicine(medicineId);
+
+    const { deletions, medicines } = useMedicineStore.getState();
+    expect(medicines.find(m => m.id === medicineId)).toBeUndefined();
+    expect(deletions.medicines[medicineId]).toBeDefined();
+    for (const rtId of reminderIds) {
+      expect(deletions.reminderTimes[rtId]).toBeDefined();
+    }
+  });
+
+  it('ASIL REGRESYON: silinen ilac buluttan GERI GELMEZ', async () => {
+    const store = useMedicineStore.getState();
+    store.setUserId('user-1');
+
+    const medicineId = store.addMedicine({
+      name: 'Biraktirilan Ilac',
+      dosage: '1',
+      frequency: 1,
+      color: MEDICINE_COLORS[0],
+      startDate: '2024-01-01',
+    });
+    const silinen = useMedicineStore.getState().medicines.find(m => m.id === medicineId)!;
+
+    useMedicineStore.getState().deleteMedicine(medicineId);
+    expect(useMedicineStore.getState().medicines).toHaveLength(0);
+
+    // Diger cihaz bu ilaci HALA yerelinde tutuyordu ve buluta geri yazdi.
+    mockDownloadAllDataFromCloud.mockResolvedValue({
+      medicines: [silinen],
+      reminderTimes: [],
+      medicineLogs: [],
+      settings: {},
+      deletions: { medicines: {}, reminderTimes: {} },
+    });
+
+    await useMedicineStore.getState().syncFromCloud();
+
+    // ⚠️ Eskiden burada ilac GERI GELIYORDU (union merge).
+    expect(useMedicineStore.getState().medicines.find(m => m.id === medicineId)).toBeUndefined();
+  });
+
+  it('BULUTTAN gelen silme kaydi YEREL ilaci kaldirir', async () => {
+    const store = useMedicineStore.getState();
+    store.setUserId('user-1');
+
+    // Yerelde bulut ilaci var (onceki senkrondan).
+    useMedicineStore.setState({ medicines: [CLOUD_MED] });
+
+    // Diger cihaz sildi: bulut dokumani yok, ama SILME KAYDI var.
+    const silmeZamani = gunOnce(2);
+    mockDownloadAllDataFromCloud.mockResolvedValue({
+      medicines: [],
+      reminderTimes: [],
+      medicineLogs: [],
+      settings: {},
+      deletions: {
+        medicines: { 'med-cloud': silmeZamani },
+        reminderTimes: {},
+      },
+    });
+
+    await useMedicineStore.getState().syncFromCloud();
+
+    const state = useMedicineStore.getState();
+    expect(state.medicines.find(m => m.id === 'med-cloud')).toBeUndefined();
+    expect(state.deletions.medicines['med-cloud']).toBe(silmeZamani);
+  });
+
+  it('SILMEDEN SONRA duzenlenen kayit DIRILIR (son yazan kazanir)', async () => {
+    const store = useMedicineStore.getState();
+    store.setUserId('user-1');
+
+    useMedicineStore.setState({
+      medicines: [],
+      deletions: {
+        medicines: { 'med-cloud': gunOnce(5) },
+        reminderTimes: {},
+      },
+    });
+
+    // Kullanici baska cihazda ilaci silmeden SONRA duzenledi.
+    mockDownloadAllDataFromCloud.mockResolvedValue({
+      medicines: [{ ...CLOUD_MED, updatedAt: gunOnce(1) }],
+      reminderTimes: [],
+      medicineLogs: [],
+      settings: {},
+      deletions: { medicines: {}, reminderTimes: {} },
+    });
+
+    await useMedicineStore.getState().syncFromCloud();
+
+    expect(useMedicineStore.getState().medicines.find(m => m.id === 'med-cloud')).toBeDefined();
+  });
+
+  it('silme kaydi buluta da YAZILIR', async () => {
+    const store = useMedicineStore.getState();
+    store.setUserId('user-1');
+
+    const medicineId = store.addMedicine({
+      name: 'Silinecek',
+      dosage: '1',
+      frequency: 1,
+      color: MEDICINE_COLORS[0],
+      startDate: '2024-01-01',
+    });
+
+    useMedicineStore.getState().deleteMedicine(medicineId);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(mockSyncDeletionsToCloud).toHaveBeenCalled();
+  });
+
+  it('clearAllData silme kayitlarini sifirlar', async () => {
+    useMedicineStore.setState({
+      deletions: { medicines: { a: new Date().toISOString() }, reminderTimes: {} },
+    });
+
+    await useMedicineStore.getState().clearAllData();
+
+    expect(useMedicineStore.getState().deletions).toEqual({ medicines: {}, reminderTimes: {} });
   });
 });

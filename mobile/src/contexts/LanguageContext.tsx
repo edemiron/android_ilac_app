@@ -30,7 +30,7 @@ const tr = {
   // Tab bar
   tab_home: 'Ana Sayfa',
   tab_medicines: 'İlaçlarım',
-  tab_statistics: 'İstatistikler',
+  tab_statistics: 'Gelişim',
   tab_settings: 'Ayarlar',
 
   // Ana sayfa
@@ -41,8 +41,7 @@ const tr = {
   home_next_reminder: 'Sonraki hatırlatma',
   home_adherence: 'Uyum Oranı',
   home_taken: 'Alındı',
-  home_mark_taken: 'Aldım',
-  home_pending: 'Bekliyor',
+  // Sprint 105.4: orphan i18n keys silindi (home_section_today_doses / home_mark_taken / home_pending / home_bulk_*)
   home_skipped: 'Atlandı',
   home_missed: 'Kaçırıldı',
 
@@ -170,6 +169,9 @@ const tr = {
 
   // Hata mesajları
   error_required_field: 'Bu alan zorunludur',
+  error_medicine_name_required: 'Lütfen ilacınızın adını giriniz (Örn: Parol, Aspirin).',
+  error_medicine_name_required_title: 'İlaç Adı Gerekli',
+  error_reminder_times_required: 'Lütfen en az bir hatırlatma saati ekleyiniz.',
   error_invalid_time: 'Geçersiz zaman formatı',
   error_network: 'Bağlantı hatası',
   error_unknown: 'Bilinmeyen hata',
@@ -214,7 +216,7 @@ const en: typeof tr = {
   // Tab bar
   tab_home: 'Home',
   tab_medicines: 'Medicines',
-  tab_statistics: 'Statistics',
+  tab_statistics: 'Progress',
   tab_settings: 'Settings',
 
   // Home screen
@@ -225,8 +227,8 @@ const en: typeof tr = {
   home_next_reminder: 'Next reminder',
   home_adherence: 'Adherence Rate',
   home_taken: 'Taken',
-  home_mark_taken: 'Take',
-  home_pending: 'Pending',
+  // Sprint 105.4: home_section_today_doses / home_mark_taken / home_pending / home_bulk_* orphan silindi
+  // (HomeScreen + StatisticsScreen t() ile çağırmıyordu, hardcoded ternary kullanıyordu)
   home_skipped: 'Skipped',
   home_missed: 'Missed',
 
@@ -354,6 +356,9 @@ const en: typeof tr = {
 
   // Error messages
   error_required_field: 'This field is required',
+  error_medicine_name_required: 'Please enter the medicine name (e.g. Parol, Aspirin).',
+  error_medicine_name_required_title: 'Medicine Name Required',
+  error_reminder_times_required: 'Please add at least one reminder time.',
   error_invalid_time: 'Invalid time format',
   error_network: 'Network error',
   error_unknown: 'Unknown error',

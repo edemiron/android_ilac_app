@@ -17,6 +17,7 @@ import {
   INVITE_CODE_CHARS,
   INVITE_CODE_LENGTH,
 } from '../../services/caregiverHelpers';
+import { hasEmoji } from '../helpers/emoji';
 
 describe('generateInviteCode', () => {
   it('returns 6-character code by default', () => {
@@ -48,12 +49,25 @@ describe('isValidInviteCode', () => {
     expect(isValidInviteCode('XYZ789')).toBe(true);
   });
 
+  it('accepts valid 8-char code', () => {
+    expect(isValidInviteCode('ABC12345')).toBe(true);
+    expect(isValidInviteCode('12345678')).toBe(true);
+  });
+
   it('rejects too short', () => {
     expect(isValidInviteCode('ABC12')).toBe(false);
   });
 
+  it('accepts server-generated 12-char code (K1 üst sınırı)', () => {
+    // Sunucu artık 12 hane üretiyor (CSPRNG, ~60 bit). Eski `{6,8}` kalıbı
+    // bunların hepsini reddederdi — sunucu tarafı düzeltme tek başına tüm
+    // kabul akışını kırardı.
+    expect(isValidInviteCode('ABC123456789')).toBe(true);
+    expect(isValidInviteCode('A1B2C3D4E5F6')).toBe(true);
+  });
+
   it('rejects too long', () => {
-    expect(isValidInviteCode('ABC1234')).toBe(false);
+    expect(isValidInviteCode('ABC1234567890')).toBe(false); // 13 chars
   });
 
   it('rejects lowercase (case-sensitive)', () => {
@@ -208,7 +222,11 @@ describe('hasCaregiverPermission', () => {
 describe('Sprint 12.4: formatCaregiverNotification', () => {
   it('formats missed notification in TR', () => {
     const result = formatCaregiverNotification('missed', 'Aspirin', 'tr');
-    expect(result.title).toBe('⏰ İlaç zamanı geçti');
+    // v1.8.2: Bu iddia eskiden basligi emojisiyle birlikte SABITLIYORDU
+    // ('⏰ İlaç zamanı geçti'). Emojiyi kaldirmak davranissal bir gerileme
+    // olmadigi halde testi kirdi — yani test yanlis seyi kilitlemisti.
+    // Artik dogrulanan sey basligin ANLAMI; suslemesi degil.
+    expect(result.title).toContain('zamanı geçti');
     expect(result.body).toContain('Aspirin');
     expect(result.body).toContain('zamanında almadı');
     expect(result.type).toBe('missed');
@@ -216,9 +234,30 @@ describe('Sprint 12.4: formatCaregiverNotification', () => {
 
   it('formats missed notification in EN', () => {
     const result = formatCaregiverNotification('missed', 'Aspirin', 'en');
-    expect(result.title).toBe('⏰ Medication missed');
+    expect(result.title).toContain('Medication missed');
     expect(result.body).toContain('Aspirin');
     expect(result.body).toContain('did not take');
+  });
+
+  // v1.8.2 — Emoji kapisi. Bakici bildirimleri bir saglik olayini haber
+  // veriyor; TalkBack emojiyi baslikla birlikte okuyor ve bazi OEM bildirim
+  // golgelerinde emoji kirpilip bos kutuya donuyor. Bu test emojinin geri
+  // sizmasini engelliyor.
+  it('hicbir bakici bildirim basligi emoji icermiyor', () => {
+    const types = ['missed', 'skipped', 'taken', 'snoozed'] as const;
+    const languages = ['tr', 'en'] as const;
+    // Emoji + dingbat + variation selector araliklari.
+
+    const offenders: string[] = [];
+    for (const language of languages) {
+      for (const type of types) {
+        const { title, body } = formatCaregiverNotification(type, 'Aspirin', language);
+        if (hasEmoji(title)) offenders.push(`${language}/${type}/title: ${title}`);
+        if (hasEmoji(body)) offenders.push(`${language}/${type}/body: ${body}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 
   it('formats taken notification', () => {

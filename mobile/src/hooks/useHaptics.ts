@@ -7,9 +7,9 @@
  * Plan: react-native-haptic-feedback Sprint 19'dan kurulu, yeni dep yok.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useContext } from 'react';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
-import { useUserProfile } from './useUserProfile';
+import { UserProfileContext } from './useUserProfile';
 import { createScopedLogger } from '../utils/logger';
 
 const log = createScopedLogger('useHaptics');
@@ -20,6 +20,8 @@ const HAPTIC_OPTIONS = {
 };
 
 type HapticType = 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'warning' | 'error';
+
+export type { HapticType };
 
 const HAPTIC_TYPE_MAP: Record<HapticType, string> = {
   light: 'impactLight',
@@ -32,11 +34,12 @@ const HAPTIC_TYPE_MAP: Record<HapticType, string> = {
 };
 
 export function useHaptics() {
-  const { profile } = useUserProfile();
+  const profileCtx = useContext(UserProfileContext);
+  const hapticsEnabled = profileCtx?.profile?.hapticsEnabled ?? true;
 
   const trigger = useCallback(
     (type: HapticType = 'light') => {
-      if (!profile.hapticsEnabled) return;
+      if (!hapticsEnabled) return;
       try {
         const nativeType = HAPTIC_TYPE_MAP[type] as
           | 'impactLight'
@@ -52,7 +55,7 @@ export function useHaptics() {
         log.warn(`Haptic tetiklenemedi: ${type}`, error);
       }
     },
-    [profile.hapticsEnabled]
+    [hapticsEnabled]
   );
 
   return {

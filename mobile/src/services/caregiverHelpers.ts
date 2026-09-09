@@ -8,11 +8,29 @@
 
 /** I, O, Q cikarilmis karakter seti (karisiklik onleme). */
 export const INVITE_CODE_CHARS = '0123456789ABCDEFGHJKLMNPRSTUVWXYZ';
+
+/**
+ * @deprecated Yalnızca geriye dönük referans. Sunucu artık 12 hane üretiyor
+ * (`server/functions/inviteService.js` → `INVITE_CODE_LENGTH = 12`).
+ */
 export const INVITE_CODE_LENGTH = 6;
 
 /**
- * 6 haneli rastgele invite code uretici.
- * Tum olasi harf karisikliklari onlenmis karakter seti kullanir.
+ * @deprecated K1 — davet kodu ARTIK SUNUCUDA üretiliyor.
+ *
+ * `createCaregiverInvite` callable'ı `crypto.randomBytes` + rejection sampling
+ * ile 12 hane üretiyor (200.000 örnekle ölçüldü: χ²=43.15 df=32 → tekdüze,
+ * 5.0444 bit/karakter = teorik maksimum, toplam 60.53 bit, uzay 1.67×10¹⁸).
+ *
+ * Bu fonksiyonun iki kusuru vardı:
+ *   - 6 hane × 33 alfabe ≈ 1.29×10⁹ — sunucunun uzayından ~1.3 milyar kat küçük
+ *   - `Math.random()` CSPRNG DEĞİL; V8 xorshift128+ durumu birkaç çıktıdan
+ *     kurtarılabilir, yani gerçek entropy 39 bitin de altında olabilir
+ *
+ * Silinmek yerine `@deprecated` bırakıldı çünkü üç test dosyası hâlâ
+ * karakter-seti/benzersizlik davranışını bunun üzerinden doğruluyor.
+ * **Üretim kodunda çağrılması yasak** — bu, kaynak-tarama kapısıyla
+ * kilitleniyor: `__tests__/security/inviteFlow.contract.test.ts`.
  */
 export function generateInviteCode(length: number = INVITE_CODE_LENGTH): string {
   let code = '';
@@ -23,11 +41,24 @@ export function generateInviteCode(length: number = INVITE_CODE_LENGTH): string 
 }
 
 /**
- * Invite code validasyonu — 6 haneli sadece alfanumerik (buyuk harf + rakam).
- * I, O, Q harfleri set'te olmadigi icin otomatik reject edilir.
+ * Invite code validasyonu — büyük harf + rakam, 6-12 hane.
+ *
+ * Üst sınır 12'ye GENİŞLETİLDİ: sunucu artık 12 hane üretiyor ve eski
+ * `{6,8}` kalıbı bunların hepsini reddederdi — yani sunucu tarafı düzeltme
+ * tek başına kabul akışını tamamen kırardı. (İki tarafın birlikte değişmesi
+ * gereken bir örnek.)
+ *
+ * Alt sınır 6 KORUNDU: sahada v2.4.0 ve öncesinden kalma 6-8 haneli kodlar
+ * dolaşıyor; onları reddetmek bekleyen davetleri geçersiz kılardı.
+ *
+ * I, O, Q üretim alfabesinde yok ama doğrulamada bilerek engellenmiyor:
+ * kullanıcı kodu elle yazarken O/0 veya I/1 karıştırabilir ve sunucudaki
+ * gerçek kod bu harfleri zaten içermiyor — yanlış harf sunucuda "geçersiz"
+ * olarak düşer. İstemcide ek red yalnızca hata mesajını belirsizleştirirdi.
  */
 export function isValidInviteCode(code: string): boolean {
-  return /^[A-Z0-9]{6}$/.test(code);
+  if (!code || typeof code !== 'string') return false;
+  return /^[A-Z0-9]{6,12}$/.test(code);
 }
 
 /**
@@ -66,18 +97,23 @@ export interface CaregiverNotificationContent {
   type: 'missed' | 'skipped' | 'taken' | 'snoozed';
 }
 
+// v1.8.2: Basliklardaki emoji kaldirildi. Bakici bildirimleri de bir saglik
+// olayini haber veriyor ve TalkBack emojiyi ("alarm saati", "ileri atlama
+// dugmesi") baslikla birlikte okuyor. Ayrica dort durumun ikisi (atlandi /
+// zamani gecti) kotu haber; emoji bu tonu tasiyamiyor, yalnizca gurultu
+// ekliyor. Ayirt edicilik artik metnin kendisinde.
 const NOTIFICATION_TEMPLATES = {
   tr: {
-    missed: { title: '⏰ İlaç zamanı geçti', bodySuffix: 'ilacını zamanında almadı.' },
-    skipped: { title: '⏭️ İlaç atlandı', bodySuffix: 'ilacını atladı.' },
-    taken: { title: '✅ İlaç alındı', bodySuffix: 'ilacını aldı.' },
-    snoozed: { title: '⏸️ İlaç ertelendi', bodySuffix: 'ilacını erteledi.' },
+    missed: { title: 'İlaç zamanı geçti', bodySuffix: 'ilacını zamanında almadı.' },
+    skipped: { title: 'İlaç atlandı', bodySuffix: 'ilacını atladı.' },
+    taken: { title: 'İlaç alındı', bodySuffix: 'ilacını aldı.' },
+    snoozed: { title: 'İlaç ertelendi', bodySuffix: 'ilacını erteledi.' },
   },
   en: {
-    missed: { title: '⏰ Medication missed', bodySuffix: 'did not take their medication on time.' },
-    skipped: { title: '⏭️ Medication skipped', bodySuffix: 'skipped their medication.' },
-    taken: { title: '✅ Medication taken', bodySuffix: 'took their medication.' },
-    snoozed: { title: '⏸️ Medication snoozed', bodySuffix: 'snoozed their medication.' },
+    missed: { title: 'Medication missed', bodySuffix: 'did not take their medication on time.' },
+    skipped: { title: 'Medication skipped', bodySuffix: 'skipped their medication.' },
+    taken: { title: 'Medication taken', bodySuffix: 'took their medication.' },
+    snoozed: { title: 'Medication snoozed', bodySuffix: 'snoozed their medication.' },
   },
 } as const;
 
@@ -98,14 +134,18 @@ export function formatCaregiverNotification(
 }
 
 /**
- * Validate FCM token.
- * Firebase Cloud Messaging token'lar uzun alfanumerik string'lerdir.
- * Minimum uzunluk 50, max 250 (FCM spec).
+ * Validate FCM / Expo Push token.
+ * Expo Push Token: ExponentPushToken[...] veya ExpoPushToken[...] (~40 karakter)
+ * FCM / APNs Token: 15-250 karakter
  */
 export function isValidFcmToken(token: string | null | undefined): boolean {
   if (typeof token !== 'string') return false;
-  if (token.length < 50 || token.length > 250) return false;
-  return /^[A-Za-z0-9_\-:]+$/.test(token);
+  const trimmed = token.trim();
+  if (trimmed.length < 15 || trimmed.length > 250) return false;
+  if (/^Expo(nent)?PushToken\[[-A-Za-z0-9_]+\]$/.test(trimmed)) {
+    return true;
+  }
+  return /^[-A-Za-z0-9_:]+$/.test(trimmed);
 }
 
 /**

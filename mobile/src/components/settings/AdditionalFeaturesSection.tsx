@@ -8,6 +8,7 @@ interface AdditionalFeaturesSectionProps {
   onSecurityPress: () => void;
   onTtsPress: () => void;
   onCaregiverPress?: () => void;
+  onDutyPharmacyPress?: () => void;
   onResetLowStockPress?: () => void;
   ttsEnabled: boolean;
 }
@@ -17,6 +18,7 @@ export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps>
   onSecurityPress,
   onTtsPress,
   onCaregiverPress,
+  onDutyPharmacyPress,
   onResetLowStockPress,
   ttsEnabled,
 }) => {
@@ -48,6 +50,19 @@ export const AdditionalFeaturesSection: React.FC<AdditionalFeaturesSectionProps>
               : 'Share your medication schedule'
           }
           onPress={onCaregiverPress}
+          showChevron
+        />
+      )}
+      {onDutyPharmacyPress && (
+        <SettingRow
+          icon={{ name: 'medical-outline', color: '#10B981' }}
+          label={language === 'tr' ? 'Nöbetçi Eczaneler' : 'Duty Pharmacies'}
+          description={
+            language === 'tr'
+              ? 'Konumunuza en yakın nöbetçi eczaneleri bulun'
+              : 'Find on-duty pharmacies near your location'
+          }
+          onPress={onDutyPharmacyPress}
           showChevron
         />
       )}

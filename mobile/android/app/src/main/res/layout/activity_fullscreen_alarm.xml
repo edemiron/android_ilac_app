@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp"
+    android:background="@android:color/holo_red_light">
+
+    <TextView
+        android:id="@+id/alarmTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="💊 İLAÇ HATIRLATMA"
+        android:textSize="32sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:layout_marginBottom="32dp" />
+
+    <TextView
+        android:id="@+id/medicineName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Parol"
+        android:textSize="48sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/medicineDosage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="500mg"
+        android:textSize="24sp"
+        android:textColor="@android:color/white"
+        android:layout_marginBottom="48dp" />
+
+    <Button
+        android:id="@+id/btnTake"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="✓ İLACI ALDIM"
+        android:textSize="20sp"
+        android:padding="20dp"
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="@android:color/holo_green_dark" />
+
+    <Button
+        android:id="@+id/btnSnooze"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⏰ 10 DK ERTELE"
+        android:textSize="18sp"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="@android:color/holo_orange_dark" />
+
+    <Button
+        android:id="@+id/btnDismiss"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="KAPAT"
+        android:textSize="16sp"
+        android:padding="12dp"
+        android:backgroundTint="@android:color/darker_gray" />
+
+</LinearLayout>

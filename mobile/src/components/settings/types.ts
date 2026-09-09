@@ -5,8 +5,9 @@ import { Language, TranslationKey } from '../../contexts/LanguageContext';
 
 export interface SettingIconProps {
   name: string;
-  color: string;
+  color?: string;
   size?: number;
+  backgroundColor?: string;
 }
 
 export interface SettingRowProps {
@@ -70,6 +71,7 @@ export interface Settings {
   ttsEnabled?: boolean;
   ttsVolume?: number;
   ttsRepeatCount?: number;
+  ttsSpeechRate?: number;
   ttsSpeakMedicineName?: boolean;
   ttsSpeakDosage?: boolean;
   ttsSpeakInstructions?: boolean;

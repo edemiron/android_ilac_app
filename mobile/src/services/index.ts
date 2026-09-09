@@ -1,4 +1,6 @@
 export * from './drugInteraction';
+export * from './foodDrugInteractions';
+export * from './titckProspectusService';
 export * from './turkishMedicineService';
 export * from './caregiverService';
 export * from './qrCodeService';

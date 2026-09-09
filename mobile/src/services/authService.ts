@@ -6,11 +6,15 @@ import {
   User,
   updateProfile,
   sendPasswordResetEmail,
-  deleteUser,
+  // v1.8.4: `deleteUser` import'u KALDIRILDI. Auth kaydini istemciden silmek,
+  // Firestore'daki saglik verisini ULASILAMAZ halde birakiyordu (bkz.
+  // asagidaki deleteAccount yorumu). Silme artik sunucuda.
   GoogleAuthProvider,
   signInWithCredential,
+  signInAnonymously,
 } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
 import {
   GoogleSignin,
   statusCodes,
@@ -18,6 +22,70 @@ import {
   isErrorWithCode,
 } from '@react-native-google-signin/google-signin';
 import Config from 'react-native-config';
+// v1.8.6: Google web client ID'nin dogru degeri app.json'da; bkz. asagidaki
+// blok. Elle yazilmis varsayilan YANLIS PROJEYE isaret ediyordu.
+import Constants from 'expo-constants';
+// Hesap silmenin TEK kapisi (bkz. deleteAccount yorumu).
+import { requestServerAccountDeletion } from './accountDeletionService';
+
+/**
+ * Google Sign-In web client ID.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⚠️ v1.8.6 — GOOGLE ILE GIRIS ÇALIŞMIYORDU
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Buradaki varsayılan şu değerdi:
+ *
+ *     '708668760763-2ta9pf3rrtn8cg7ihf16tsct42e06mq6.apps.googleusercontent.com'
+ *
+ * Baştaki sayı GCP **proje numarasıdır** ve bu projenin Firebase projesi
+ * `506876057044` (bkz. `android/app/google-services.json` →
+ * `project_info.project_number`). Yani varsayılan, **başka bir Google Cloud
+ * projesine** ait bir client ID'ydi.
+ *
+ * Sonuç: `GoogleSignin` o client ID ile bir kimlik belirteci (ID token)
+ * alıyor, belirtecin `aud` alanı o YABANCI projeyi gösteriyor, ardından
+ * `signInWithCredential` bu belirteci `506876057044` projesine sunuyor ve
+ * Firebase audience uyuşmazlığı nedeniyle reddediyor. "Google ile devam et"
+ * düğmesi hiçbir zaman çalışmamış olmalı.
+ *
+ * Varsayılanın hiç kullanılmadığı da varsayılamaz: değer
+ * `Config.GOOGLE_WEB_CLIENT_ID || DEFAULT` şeklinde okunuyor ve
+ * `react-native-config`in okuduğu `mobile/.env` dosyası **BOŞ**
+ * (dosya var, içinde tek bir `KEY=value` satırı yok). Yani gerçekte
+ * her zaman bu yanlış varsayılan kullanılıyordu.
+ *
+ * ── DOĞRU DEĞER NEREDE ────────────────────────────────────────────────────
+ * `google-services.json` içindeki `oauth_client` listesinde
+ * `client_type: 3` (web) olan giriş:
+ *   506876057044-a1dse18hnemqnceocge898ejfp6q8sra.apps.googleusercontent.com
+ * `app.json` → `extra.google.webClientId` de zaten bu değeri taşıyordu.
+ * Yani doğru değer depoda İKİ YERDE duruyordu; kod üçüncü, yanlış bir
+ * kopyayı kullanıyordu.
+ *
+ * Bu yüzden artık `app.json`daki değer okunuyor ve
+ * `src/__tests__/config/googleSignIn.test.ts` onun `google-services.json`
+ * ile eşleştiğini doğruluyor. Elle yazılmış varsayılan KALDIRILDI: yanlış
+ * bir varsayılan, hiç varsayılan olmamasından kötü — sessizce yanlış
+ * projeye gidiyor.
+ */
+const WEB_CLIENT_ID_FROM_APP_CONFIG = (
+  Constants.expoConfig?.extra as { google?: { webClientId?: string } } | undefined
+)?.google?.webClientId;
+
+function resolveWebClientId(): string {
+  const fromEnv = Config.GOOGLE_WEB_CLIENT_ID;
+  if (typeof fromEnv === 'string' && fromEnv.trim()) return fromEnv.trim();
+
+  if (WEB_CLIENT_ID_FROM_APP_CONFIG) return WEB_CLIENT_ID_FROM_APP_CONFIG;
+
+  // Buraya dusmek yapilandirma hatasidir. SESSIZ kalmiyoruz: eskiden yanlis
+  // bir sabit devreye girip girisi sessizce bozuyordu.
+  throw new Error(
+    'Google web client ID bulunamadi: ne GOOGLE_WEB_CLIENT_ID ne app.json extra.google.webClientId tanimli'
+  );
+}
 
 // Google Sign-In yapılandırması
 let isGoogleConfigured = false;
@@ -26,16 +94,31 @@ export function configureGoogleSignIn(): void {
   if (isGoogleConfigured) return;
 
   GoogleSignin.configure({
-    webClientId: Config.GOOGLE_WEB_CLIENT_ID || '',
+    webClientId: resolveWebClientId(),
     offlineAccess: true,
   });
   isGoogleConfigured = true;
 }
 
-// Google OAuth Client IDs - .env dosyasından okunur
+/**
+ * Google OAuth Client ID'leri.
+ *
+ * NOT: `androidClientId` eskiden `DEFAULT_GOOGLE_WEB_CLIENT_ID`e (yani bir
+ * WEB client ID'ye, hem de yanlis projenin) dusuyordu. Android client ID ile
+ * web client ID ayri seylerdir; Android olanini `google-services.json`
+ * `client_type: 1` girisi tasiyor. Android tarafinda `GoogleSignin` yalnizca
+ * `webClientId` istiyor, bu yuzden `androidClientId` yalnizca app.json'dan
+ * okunuyor ve yoksa bos kaliyor — uydurma bir deger vermek yerine.
+ */
 export const GOOGLE_CLIENT_ID = {
-  androidClientId: Config.GOOGLE_ANDROID_CLIENT_ID || '',
-  webClientId: Config.GOOGLE_WEB_CLIENT_ID || '',
+  androidClientId:
+    Config.GOOGLE_ANDROID_CLIENT_ID ||
+    (Constants.expoConfig?.extra as { google?: { androidClientId?: string } } | undefined)?.google
+      ?.androidClientId ||
+    '',
+  get webClientId(): string {
+    return resolveWebClientId();
+  },
 };
 
 export interface AuthUser {
@@ -92,6 +175,72 @@ export async function loginWithEmail(email: string, password: string): Promise<A
   }
 }
 
+// Kullanıcı adını (displayName) güncelle
+export async function updateUserDisplayName(displayName: string): Promise<AuthUser> {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('Oturum açmış kullanıcı bulunamadı.');
+    }
+
+    const trimmed = displayName.trim();
+    if (!trimmed) {
+      throw new Error('Kullanıcı adı boş olamaz.');
+    }
+
+    // 1. Firebase Auth profilini güncelle
+    await updateProfile(currentUser, { displayName: trimmed });
+    await currentUser.reload();
+
+    // 2. Firestore users koleksiyonunu güncelle (varsa)
+    try {
+      const userRef = doc(db, 'users', currentUser.uid);
+      await setDoc(
+        userRef,
+        {
+          displayName: trimmed,
+          name: trimmed,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (_firestoreErr) {
+      // Offline or error - ignore
+    }
+
+    return {
+      uid: currentUser.uid,
+      email: currentUser.email,
+      displayName: trimmed,
+      photoURL: currentUser.photoURL,
+    };
+  } catch (error: unknown) {
+    const authError = error as { code?: string; message?: string };
+    if (authError.code) {
+      throw translateAuthError(authError.code);
+    }
+    throw error;
+  }
+}
+
+// Misafir / Anonim Giriş
+export async function loginAnonymously(): Promise<AuthUser> {
+  try {
+    const userCredential = await signInAnonymously(auth);
+    const user = userCredential.user;
+
+    return {
+      uid: user.uid,
+      email: null,
+      displayName: 'Misafir Kullanıcı',
+      photoURL: null,
+    };
+  } catch (error: unknown) {
+    const authError = error as { code?: string };
+    throw translateAuthError(authError.code || 'unknown');
+  }
+}
+
 // Çıkış yap
 export async function logout(): Promise<void> {
   try {
@@ -112,17 +261,29 @@ export async function resetPassword(email: string): Promise<void> {
   }
 }
 
-// Hesap silme
+/**
+ * Hesap silme.
+ *
+ * ⚠️ v1.8.4 — BU FONKSİYON YALNIZCA AUTH KAYDINI SİLİYORDU ve hiçbir yerden
+ * çağrılmıyordu. Çağrılsaydı Firestore'daki `users/{uid}` alt ağacı yerinde
+ * kalacaktı; kurallar erişimi `request.auth.uid`e bağladığı için o sağlık
+ * verisi bir daha HİÇ KİMSE tarafından okunamaz ve silinemez hâle gelecekti.
+ *
+ * Artık silme işi tek bir yerden yürüyor: sunucudaki `deleteMyAccount`
+ * çağrılabilir fonksiyonu (bkz. `services/accountDeletionService.ts` ve
+ * `server/functions/deleteMyAccount.js`). O fonksiyon Auth kaydını EN SON
+ * siler, böylece herhangi bir adımda kesinti olsa bile kullanıcı hâlâ giriş
+ * yapıp yeniden deneyebilir.
+ *
+ * Bu sarmalayıcı geriye dönük uyumluluk için duruyor ve doğrudan
+ * `deleteUser` çağırmıyor.
+ */
 export async function deleteAccount(): Promise<void> {
-  try {
-    const user = auth.currentUser;
-    if (user) {
-      await deleteUser(user);
-    }
-  } catch (error: unknown) {
-    const authError = error as { code?: string };
-    throw translateAuthError(authError.code || 'unknown');
-  }
+  // STATIK import: dinamik `import()` babel tarafindan oldugu gibi
+  // birakiliyor ve jest onu araya girip mock'layamiyor
+  // (ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG). Bu yol test edilmek
+  // ZORUNDA, o yuzden statik.
+  await requestServerAccountDeletion();
 }
 
 // Mevcut kullanıcıyı al

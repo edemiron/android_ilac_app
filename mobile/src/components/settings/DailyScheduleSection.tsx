@@ -1,9 +1,9 @@
 import React from 'react';
-import { Platform } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SettingsSection } from './SettingsSection';
 import { SettingRow } from './SettingRow';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { WheelTimePickerModal } from '../common/WheelTimePickerModal';
 
 interface DailyScheduleSectionProps {
   wakeUpTime: string;
@@ -27,7 +27,6 @@ export const DailyScheduleSection: React.FC<DailyScheduleSectionProps> = ({
   onSleepPress,
   onWakeUpChange,
   onSleepChange,
-  parseTimeToDate,
   formatTimeDisplay,
 }) => {
   const { language, t } = useLanguage();
@@ -61,25 +60,45 @@ export const DailyScheduleSection: React.FC<DailyScheduleSectionProps> = ({
         />
       </SettingsSection>
 
-      {showWakeUpPicker && (
-        <DateTimePicker
-          value={parseTimeToDate(wakeUpTime)}
-          mode="time"
-          is24Hour={true}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onWakeUpChange}
-        />
-      )}
+      <WheelTimePickerModal
+        visible={showWakeUpPicker}
+        initialTime={wakeUpTime}
+        title={t('settings_wake_time')}
+        onConfirm={(timeStr, h, m) => {
+          const d = new Date();
+          d.setHours(h, m, 0, 0);
+          onWakeUpChange(
+            {
+              type: 'set',
+              nativeEvent: { timestamp: d.getTime() },
+            } as unknown as DateTimePickerEvent,
+            d
+          );
+        }}
+        onCancel={() =>
+          onWakeUpChange({ type: 'dismissed', nativeEvent: {} } as unknown as DateTimePickerEvent)
+        }
+      />
 
-      {showSleepPicker && (
-        <DateTimePicker
-          value={parseTimeToDate(sleepTime)}
-          mode="time"
-          is24Hour={true}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onSleepChange}
-        />
-      )}
+      <WheelTimePickerModal
+        visible={showSleepPicker}
+        initialTime={sleepTime}
+        title={t('settings_sleep_time')}
+        onConfirm={(timeStr, h, m) => {
+          const d = new Date();
+          d.setHours(h, m, 0, 0);
+          onSleepChange(
+            {
+              type: 'set',
+              nativeEvent: { timestamp: d.getTime() },
+            } as unknown as DateTimePickerEvent,
+            d
+          );
+        }}
+        onCancel={() =>
+          onSleepChange({ type: 'dismissed', nativeEvent: {} } as unknown as DateTimePickerEvent)
+        }
+      />
     </>
   );
 };

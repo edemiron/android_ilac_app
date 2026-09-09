@@ -1,4 +1,3 @@
-
 import { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 
 type StyleDefinition = Record<string, ViewStyle | TextStyle | ImageStyle>;
@@ -56,11 +55,11 @@ jest.mock('../../../contexts/LanguageContext', () => ({
   }),
 }));
 
-jest.mock('@expo/vector-icons', () => ({
-  Ionicons: 'Ionicons',
-  MaterialCommunityIcons: 'MaterialCommunityIcons',
-}));
-
+// v1.8.1: '@expo/vector-icons' mock'u buradaydi ama uygulamada o paket hic
+// kullanilmiyordu — ikonlar 'react-native-vector-icons' uzerinden geliyor ve o
+// da jest.setup.js'te mock'lu. Var olmayan bir modulu mock'lamak, paketin
+// bagimlilik listesinde tutulmasini hakli gosteren tek referanstiydi (~ikon
+// fontlari + JS ile APK'da olu yuk). Paket kaldirildi, mock da kaldirildi.
 jest.mock('@react-native-community/datetimepicker', () => 'DateTimePicker');
 
 describe('SettingRow Component', () => {

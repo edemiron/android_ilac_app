@@ -5,12 +5,27 @@ import {
   type AlarmNavigationData,
   type AlarmNavigationDependencies,
   type AlarmNavigationStore,
+  type AlarmScreenNavigationParams,
 } from '../utils/alarmNavigation';
 import { createScopedLogger } from '../utils/logger';
+// Giris tekillestirmesinin TEK KAYNAGI. Hook artik kendi Set + setTimeout
+// mekanizmasini tutmuyor: kayit zaman damgasina dayanir ve alarm cozumlendiginde
+// (alindi/atlandi/kapatildi) AlarmScreen tarafindan acikca birakilir.
+// Gerekce: utils/notifications/alarmDedup.ts dosya basi.
+import {
+  isAlarmIngressDuplicate,
+  markAlarmIngressNavigated,
+} from '../utils/notifications/alarmDedup';
 
 /**
- * Alarm navigation icin gelen bildirim verisi.
- * AlarmScreen route parametreleriyle birebir ayni forma sahip.
+ * Bildirimden GELEN alarm verisi. Tum alanlar STRING'dir cunku notifee/FCM
+ * payload'i string tasir.
+ *
+ * ⚠️ Bu tip AlarmScreen route parametreleriyle AYNI DEGILDIR: route tarafinda
+ * `snoozeCount` number, `isSnooze` boolean. Eskiden ikisi ayni tip sanilip
+ * `as PendingAlarmData` ile cast ediliyordu; App.tsx de sayiya `parseInt`
+ * uyguluyordu (JS'te tesadufen calisiyordu). Navigation parametreleri artik
+ * `AlarmScreenNavigationParams` ile tasiniyor.
  */
 export interface PendingAlarmData {
   medicineId: string;
@@ -46,6 +61,11 @@ export interface UseAlarmNavigationOptions {
   /** NavigationContainerRef — App.tsx'ten gelir */
   isNavigationReady: () => boolean;
   /**
+   * v1.7.4 — Alarm ekrani ŞU AN bu doz icin acik mi? (KESIN yinelenme guard'i)
+   * App.tsx navigationRef'ten okur. Verilmezse kontrol atlanir.
+   */
+  isAlarmScreenOpenFor?: (medicineId: string, reminderTimeId: string) => boolean;
+  /**
    * External handled check (App.tsx'te isAlarmHandled AsyncStorage'a erişir).
    * Async kabul edilir.
    */
@@ -55,7 +75,7 @@ export interface UseAlarmNavigationOptions {
     scheduledTime: string
   ) => boolean | Promise<boolean>;
   /** Alarm screen'e navigate eder (App.tsx'ten navigation callback) */
-  navigateToAlarmScreen: (params: PendingAlarmData) => void;
+  navigateToAlarmScreen: (params: AlarmScreenNavigationParams) => void;
   /** Tum notification'lari cancel eder */
   cancelMedicineNotifications: (medicineId: string) => void;
 }
@@ -71,8 +91,6 @@ export interface UseAlarmNavigationResult {
    */
   handleIncomingAlarm: (data: PendingAlarmData) => Promise<void>;
 }
-
-const ALARM_KEY_DEDUP_WINDOW_MS = 60_000;
 
 const log = createScopedLogger('useAlarmNavigation');
 
@@ -91,18 +109,25 @@ const log = createScopedLogger('useAlarmNavigation');
 export function useAlarmNavigation(options: UseAlarmNavigationOptions): UseAlarmNavigationResult {
   const [pendingAlarm, setPendingAlarm] = useState<PendingAlarmData | null>(null);
 
-  // Ayni alarm key icin duplicate guard (60s pencere)
-  const recentAlarmKeysRef = useRef<Set<string>>(new Set());
-  const alarmKeyCleanupTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-
-  const clearAlarmKey = useCallback((alarmKey: string) => {
-    recentAlarmKeysRef.current.delete(alarmKey);
-    const timer = alarmKeyCleanupTimersRef.current.get(alarmKey);
-    if (timer) {
-      clearTimeout(timer);
-      alarmKeyCleanupTimersRef.current.delete(alarmKey);
-    }
-  }, []);
+  /**
+   * `handleIncomingAlarmNavigation` hâlâ bir `Set` arayüzü bekliyor (pure
+   * fonksiyon, kendi durumunu tutmuyor). Set'i `alarmDedup` modülüne
+   * bağlayan ince bir adaptör veriyoruz: `has` → pencere kontrolü,
+   * `add` → kayıt. Böylece kayıt hook'un yaşam döngüsünden bağımsız yaşar
+   * ve AlarmScreen alarmı çözümlediğinde serbest bırakabilir.
+   *
+   * Eskiden burada bir `useRef<Set>` + her anahtar için bir `setTimeout`
+   * vardı; hook yeniden kurulduğunda (veya Activity yeniden yaratıldığında)
+   * kayıt kayboluyor, zamanlayıcılar ise sızabiliyordu.
+   */
+  const dedupSetAdapterRef = useRef<Set<string>>({
+    has: (key: string) => isAlarmIngressDuplicate(key),
+    add: (key: string) => {
+      markAlarmIngressNavigated(key);
+      return dedupSetAdapterRef.current;
+    },
+    delete: () => true,
+  } as unknown as Set<string>);
 
   const handleIncomingAlarm = useCallback(
     async (data: PendingAlarmData) => {
@@ -124,21 +149,15 @@ export function useAlarmNavigation(options: UseAlarmNavigationOptions): UseAlarm
           );
         },
         navigationReady: options.isNavigationReady(),
+        isAlarmScreenOpenFor: incoming =>
+          options.isAlarmScreenOpenFor?.(incoming.medicineId, incoming.reminderTimeId) ?? false,
         setPendingAlarm: data => setPendingAlarm(data as PendingAlarmData | null),
-        activeAlarmKeys: recentAlarmKeysRef.current,
-        scheduleAlarmKeyCleanup: (alarmKey: string) => {
-          // Hook'un kendi 60s timer mekanizması — pure function'a
-          // timer yönetimini devretmeden sadece key'in Set'e eklenmesini
-          // ve cleanup zamanlamasını bildiriyoruz.
-          const existing = alarmKeyCleanupTimersRef.current.get(alarmKey);
-          if (existing) {
-            clearTimeout(existing);
-          }
-          const timer = setTimeout(() => clearAlarmKey(alarmKey), ALARM_KEY_DEDUP_WINDOW_MS);
-          alarmKeyCleanupTimersRef.current.set(alarmKey, timer);
-        },
+        activeAlarmKeys: dedupSetAdapterRef.current,
+        // Kayıt zaman damgasına dayandığı için ayrı bir temizleme zamanlayıcısı
+        // gerekmiyor; `alarmDedup` eskimiş kayıtları kendi budar.
+        scheduleAlarmKeyCleanup: () => undefined,
         navigateToAlarmScreen: params => {
-          options.navigateToAlarmScreen(params as PendingAlarmData);
+          options.navigateToAlarmScreen(params);
         },
         cancelMedicineNotifications: options.cancelMedicineNotifications,
         storeState: {
@@ -161,7 +180,7 @@ export function useAlarmNavigation(options: UseAlarmNavigationOptions): UseAlarm
         log.error('handleIncomingAlarmNavigation failed', error);
       }
     },
-    [options, clearAlarmKey]
+    [options]
   );
 
   // Pending alarm hazir oldugunda navigate et
@@ -171,15 +190,6 @@ export function useAlarmNavigation(options: UseAlarmNavigationOptions): UseAlarm
       setPendingAlarm(null);
     }
   }, [pendingAlarm, options, handleIncomingAlarm]);
-
-  // Component unmount'ta tum timer'lari temizle
-  useEffect(() => {
-    const timers = alarmKeyCleanupTimersRef.current;
-    return () => {
-      timers.forEach(timer => clearTimeout(timer));
-      timers.clear();
-    };
-  }, []);
 
   return {
     pendingAlarm,

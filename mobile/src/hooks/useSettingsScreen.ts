@@ -10,9 +10,9 @@ import notifee from '@notifee/react-native';
 import {
   sendTestNotification,
   requestNotificationPermissions,
-  scheduleTestAlarmNotification,
   scheduleMedicineNotification,
 } from '../utils/notifications';
+import { runLockScreenAlarmTest } from '../utils/notifications/testAlarm';
 import { checkMultipleInteractions, getSeverityIcon } from '../services/drugInteraction';
 import { useAlert } from '../contexts/AlertContext';
 import { speak } from '../utils/speech';
@@ -21,7 +21,8 @@ import { useLanguage, Language } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { createScopedLogger } from '../utils/logger';
-import { CHANNELS } from '../constants';
+// Kanal kimliklerinin tek kaynagi (eskiden `constants.ts` → olu `CHANNELS`).
+import { ALARM_CHANNEL_ID } from '../utils/notifications/channels';
 
 // Sprint 5.2: Test data + pure helpers ./useSettingsHelpers.ts'e tasindi.
 import {
@@ -59,8 +60,10 @@ export function useSettingsScreen() {
     deleteMedicine,
     medicines,
     reminderTimes,
+    // v1.8.4: "Tum verileri sil" satiri sahteydi ve bu eylem zaten vardi.
+    clearAllData,
   } = useMedicineStore();
-  const { user, logout } = useAuth();
+  const { user, logout, updateDisplayName } = useAuth();
   const { isPremium, remainingDays } = useSubscription();
 
   const [pickerState, setPickerState] = useState({
@@ -72,6 +75,7 @@ export function useSettingsScreen() {
     showSnoozePicker: false,
     showSnoozeCountPicker: false,
     showVolumePicker: false,
+    showSoundPicker: false,
     showQuietStartPicker: false,
     showQuietEndPicker: false,
     showConflictIntervalPicker: false,
@@ -187,7 +191,11 @@ export function useSettingsScreen() {
       }
 
       try {
-        await scheduleTestAlarmNotification(minutes, language);
+        // Tek kaynak: ayarlar motor tarafından store'dan okunur.
+        await runLockScreenAlarmTest({
+          seconds: Math.max(1, Math.round(minutes * 60)),
+          language: language === 'tr' ? 'tr' : 'en',
+        });
         const scheduledTime = new Date(Date.now() + minutes * 60 * 1000);
         const timeStr = format(scheduledTime, 'HH:mm:ss');
 
@@ -514,10 +522,10 @@ export function useSettingsScreen() {
           {
             id: notifId,
             title: `💊 ${medicine.name}`,
-            subtitle: notifTimeStr,
-            body: `${medicine.dosage} almanin zamani!\n⏰ ${notifTimeStr}`,
+            subtitle: `${notifTimeStr} • İlaç Vakti`,
+            body: `${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.\n⏰ Saat: ${notifTimeStr}`,
             android: {
-              channelId: CHANNELS.ALARM,
+              channelId: ALARM_CHANNEL_ID,
               category: 'alarm' as never,
               importance: 4, // HIGH
               visibility: 1, // PUBLIC
@@ -530,14 +538,16 @@ export function useSettingsScreen() {
                 launchActivity: 'com.ilachatirlatici.MainActivity',
               },
               pressAction: { id: 'default', launchActivity: 'com.ilachatirlatici.MainActivity' },
-              smallIcon: 'ic_launcher',
-              color: '#2196F3',
+              smallIcon: 'ic_notification',
+              largeIcon: 'ic_launcher',
+              color: '#0D9488',
               colorized: true,
               sound: 'alarm',
               vibrationPattern: [500, 1000, 500, 1000, 500, 1000],
               actions: [
-                { title: '😴 Ertele', pressAction: { id: 'snooze' } },
                 { title: '✅ Aldım', pressAction: { id: 'take' } },
+                { title: '⏰ Ertele', pressAction: { id: 'snooze' } },
+                { title: '❌ Atla', pressAction: { id: 'skip' } },
               ],
             },
             data: {
@@ -629,15 +639,51 @@ export function useSettingsScreen() {
     }
   }, [medicines, reminderTimes, language, showInfo, showError]);
 
-  // Tüm verileri temizle (Firebase ve local)
+  /**
+   * Tüm verileri temizle (yerel + bulut).
+   *
+   * ⚠️ v1.8.4 — Bu satır SAHTEYDİ. Eski hâli hiçbir şey silmiyor, yalnızca
+   * şunu yazıyordu: *"Bu özellik yakında aktif olacak. Lütfen Firebase
+   * Console üzerinden manuel temizlik yapın."* Oysa `medicineStore`'da
+   * çalışan bir `clearAllData({ deleteFromCloud })` zaten VARDI. Yani
+   * kullanıcıya (geliştirici bölümünde de olsa) yapmadığı bir işi yapacakmış
+   * gibi görünen bir düğme gösteriliyordu — denetimin "sahte özellik"
+   * başlığındaki STT ve IAP ile aynı sınıf.
+   *
+   * Artık gerçekten siliyor ve yıkıcı olduğu için onay istiyor.
+   * NOT: Bu, hesabı SİLMEZ; hesap silme ayrı ve sunucu tarafında
+   * (bkz. `useAccountDeletion`).
+   */
   const handleClearAllData = useCallback(() => {
-    showInfo(
-      language === 'tr' ? 'ℹ️ Bilgi' : 'ℹ️ Info',
+    showConfirm(
+      language === 'tr' ? 'Tüm Verileri Sil' : 'Delete All Data',
       language === 'tr'
-        ? 'Bu özellik yakında aktif olacak. Lütfen Firebase Console üzerinden manuel temizlik yapın.'
-        : 'This feature will be available soon. Please clean manually via Firebase Console.'
+        ? 'İlaçlarınız, hatırlatma saatleriniz ve tüm doz geçmişiniz hem bu cihazdan hem buluttan silinecek. Bu işlem GERİ ALINAMAZ.\n\nHesabınız açık kalır.'
+        : 'Your medicines, reminder times and full dose history will be deleted from this device and from the cloud. This CANNOT be undone.\n\nYour account stays open.',
+      async () => {
+        try {
+          await clearAllData({ deleteFromCloud: true });
+          showInfo(
+            language === 'tr' ? 'Silindi' : 'Deleted',
+            language === 'tr' ? 'Tüm veriler silindi.' : 'All data has been deleted.'
+          );
+        } catch (error) {
+          log.error('clearAllData hatasi', error);
+          showError(
+            language === 'tr' ? 'Silinemedi' : 'Could not delete',
+            language === 'tr'
+              ? 'Veriler silinemedi. İnternet bağlantınızı kontrol edip tekrar deneyin.'
+              : 'Data could not be deleted. Check your connection and try again.'
+          );
+        }
+      },
+      {
+        confirmText: language === 'tr' ? 'Evet, Hepsini Sil' : 'Delete Everything',
+        cancelText: t('cancel'),
+        destructive: true,
+      }
     );
-  }, [showInfo, language]);
+  }, [showConfirm, showInfo, showError, language, t, clearAllData]);
 
   const handleLogout = useCallback(() => {
     showConfirm(
@@ -694,6 +740,7 @@ export function useSettingsScreen() {
     settings,
     updateSettings,
     isSyncing,
+    lastSyncAt,
     user,
     isPremium,
     remainingDays,
@@ -713,6 +760,15 @@ export function useSettingsScreen() {
     handleClearAllData,
     handleSync,
     handleLogout,
+    // v1.8.4: Ham `logout` da disari veriliyor. Sebep: hesap silme akisi
+    // bittiginde onay diyalogu OLMADAN oturum kapatilmali (`handleLogout`
+    // "Cikis yapmak istediginize emin misiniz?" soruyor ve hesap zaten
+    // silinmisken bu soru sacma olurdu). Alternatif SettingsScreen'e
+    // `useAuth` import etmekti; o da ekrani "salt gorunum katmani"
+    // olmaktan cikariyor ve testine native Google Sign-In mock'u
+    // gerektiriyordu.
+    logout,
+    updateDisplayName,
     formatLastSync,
     formatTimeDisplay,
     getThemeLabel,

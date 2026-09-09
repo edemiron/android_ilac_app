@@ -25,6 +25,7 @@ jest.mock('@notifee/react-native', () => ({
   AndroidImportance: { HIGH: 4 },
   AndroidVisibility: { PRIVATE: 0 },
   AndroidCategory: { ALARM: 4 },
+  AndroidStyle: { BIGTEXT: 1, BIGPICTURE: 2, INBOX: 3, MESSAGING: 4 },
 }));
 
 jest.mock('../../utils/logger', () => ({
@@ -45,6 +46,7 @@ import {
   scheduleMedicineNotification,
 } from '../../utils/notifications/schedule';
 import type { ScheduleSnoozeParams } from '../../utils/notifications/schedule';
+import { findEmoji } from '../helpers/emoji';
 
 const baseMedicine = {
   id: 'med-1',
@@ -186,7 +188,8 @@ describe('scheduleTestAlarmNotification', () => {
   it('uses English title when language=en', async () => {
     await scheduleTestAlarmNotification(5, 'en');
     const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
-    expect(call[0].title).toContain('Test Medicine');
+    expect(call[0].title).toContain('TEST ALARM');
+    expect(call[0].title).toContain('not a real dose');
   });
 
   it('enforces minimum 5 seconds delay', async () => {
@@ -292,5 +295,107 @@ describe('scheduleMedicineNotification', () => {
     (notifee.createTriggerNotification as jest.Mock).mockRejectedValueOnce(new Error('fail'));
     const result = await scheduleMedicineNotification(mockMedicine, mockReminder);
     expect(result).toBeNull();
+  });
+});
+
+/**
+ * v1.8.7 — BILDIRIM METNI EMOJI KAPISI (DAVRANISSAL).
+ *
+ * Neden bu test var: v1.8.2 emojiyi `content.ts` ureticilerinden kaldirdi ve
+ * kapiyi da orada kurdu (`notifications.content.test.ts`). Ama `schedule.ts`
+ * test-alarm metinlerini KENDI ICINDE uretiyor ve o kapiya hic ugramiyordu.
+ * Sonuc: test alarminin govdesinde `⏰ 19:01` aylarca ayakta kaldi ve
+ * ancak cihazda `dumpsys notification` okunarak fark edildi.
+ *
+ * Bu yuzden kapi artik URETICIYE degil, notifee'ye GIDEN YUKE bakiyor:
+ * hangi modulun yazdigi onemli degil, `createTriggerNotification`'a giden
+ * title/subtitle/body ve BIGTEXT alanlari denetlenir.
+ *
+ * TEK BILINCLI ISTISNA: test alarminin baslgindaki `\u{1F9EA}` isareti. Orada
+ * amac suslemek degil, kullanicinin bunu GERCEK bir doz sanmasini onlemek;
+ * gorsel isaret kasitli. Baska hicbir alanda emoji kabul edilmez.
+ */
+describe('bildirim yuku — emoji kapisi (schedule.ts)', () => {
+  const ALLOWED_TEST_MARKER = '\u{1F9EA}';
+
+  const reminder = { id: 'rt-1', medicineId: 'med-1', time: '08:00', isEnabled: true };
+
+  /** Bir cagridaki tum kullaniciya gorunen metin alanlari. */
+  function visibleTexts(call: unknown[]): string[] {
+    const cfg = call[0] as {
+      title?: string;
+      subtitle?: string;
+      body?: string;
+      android?: { style?: { text?: string; title?: string; summary?: string } };
+    };
+    const style = cfg.android?.style ?? {};
+    return [cfg.title, cfg.subtitle, cfg.body, style.text, style.title, style.summary].filter(
+      (t): t is string => typeof t === 'string' && t.length > 0
+    );
+  }
+
+  function offendersFor(texts: string[]): string[] {
+    return texts.flatMap(text => {
+      const hits = findEmoji(text);
+      return hits.filter(hit => hit !== ALLOWED_TEST_MARKER);
+    });
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it.each(['tr', 'en'] as const)('test alarmi (%s) yalnizca izinli isareti tasir', async lang => {
+    await scheduleTestAlarmNotification(5, lang);
+    const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
+    const texts = visibleTexts(call);
+
+    expect(texts.length).toBeGreaterThan(3);
+    expect(offendersFor(texts)).toEqual([]);
+  });
+
+  it('test alarmi govdesinde saat TEKRAR ETMEZ (subtitle zaten gosteriyor)', async () => {
+    await scheduleTestAlarmNotification(5, 'tr');
+    const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
+    const cfg = call[0] as { subtitle?: string; body?: string };
+
+    // Saat bilgisi TEK yerde: subtitle. Govde onu tekrarlamaz.
+    expect(cfg.subtitle).toMatch(/^\d{2}:\d{2} /);
+    expect(cfg.body).not.toMatch(/\d{2}:\d{2}/);
+  });
+
+  it('gercek ilac alarmi hic emoji tasimaz', async () => {
+    await scheduleMedicineNotification(baseMedicine, reminder);
+    const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
+    const texts = visibleTexts(call);
+
+    expect(texts.length).toBeGreaterThan(1);
+    expect(texts.flatMap(t => findEmoji(t))).toEqual([]);
+  });
+
+  it('erteleme bildirimi hic emoji tasimaz', async () => {
+    await scheduleSnoozeNotification({
+      medicine: baseMedicine,
+      reminderTime: reminder,
+      snoozeId: 'snooze-1',
+      originalScheduledTime: '2024-06-25T08:00:00Z',
+      snoozeCount: 2,
+    });
+    const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
+    const texts = visibleTexts(call);
+
+    expect(texts.length).toBeGreaterThan(1);
+    expect(texts.flatMap(t => findEmoji(t))).toEqual([]);
+  });
+
+  it('son kullanma tarihi bildirimi hic emoji tasimaz', async () => {
+    const future = new Date();
+    future.setDate(future.getDate() + 60);
+    await scheduleExpiryReminder(baseMedicine, future.toISOString(), 7);
+    const call = (notifee.createTriggerNotification as jest.Mock).mock.calls[0];
+    const texts = visibleTexts(call);
+
+    expect(texts.length).toBeGreaterThan(1);
+    expect(texts.flatMap(t => findEmoji(t))).toEqual([]);
   });
 });

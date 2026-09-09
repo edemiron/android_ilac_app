@@ -2,6 +2,7 @@
  * chartHelpers testleri (Sprint 15.4).
  */
 
+import { getLocalDateKey } from '../../domain/doseLog';
 import {
   buildChartData,
   buildPieData,
@@ -35,7 +36,9 @@ describe('buildChartData', () => {
   });
 
   it('uses formatLabel for labels', () => {
-    const result = buildChartData(sampleDaily, 'weekly', d => d.toISOString().split('T')[0]);
+    // YEREL gun anahtari (bkz. domain/doseLog.ts): etiket uretimi de
+    // uretimle ayni gun tanimini kullanmali.
+    const result = buildChartData(sampleDaily, 'weekly', d => getLocalDateKey(d));
     expect(result.labels[0]).toBe('2026-07-01');
   });
 });

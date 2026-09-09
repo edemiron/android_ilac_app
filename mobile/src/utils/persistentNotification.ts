@@ -12,12 +12,13 @@ import notifee, {
 } from '@notifee/react-native';
 import { Platform } from 'react-native';
 import { Medicine, ReminderTime, MedicineLog } from '../types';
+// Doz cozumlenmis mi karari icin TEK KAYNAK (bkz. domain/doseLog.ts).
+import { isDoseLogged } from '../domain/doseLog';
 import { createScopedLogger } from './logger';
-import { CHANNELS } from '../constants';
+// Kanal kimliklerinin tek kaynagi (eskiden `constants.ts` → olu `CHANNELS`).
+import { PERSISTENT_CHANNEL_ID } from './notifications/channels';
 
 const log = createScopedLogger('PersistentNotification');
-
-const PERSISTENT_CHANNEL_ID = CHANNELS.PERSISTENT;
 // eslint-disable-next-line unused-imports/no-unused-vars
 const PERSISTENT_NOTIFICATION_TAG = 'medicine-pending';
 
@@ -35,12 +36,13 @@ export async function createPersistentNotificationChannel(): Promise<void> {
       description: 'İlaç alınana kadar ekranda kalıcı bildirimler',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
-      sound: 'default',
+      sound: 'sound_crystal_bell',
       vibration: true,
       lights: true,
       lightColor: '#FF6B6B',
       badge: true,
-      bypassDnd: true,
+      // bypassDnd KALDIRILDI: manifest'te ACCESS_NOTIFICATION_POLICY yok,
+      // Android bu istegi sessizce yok sayiyor. Bkz. channels.ts notu.
     });
     log.debug('Kalıcı bildirim kanalı oluşturuldu');
   } catch (error) {
@@ -107,8 +109,9 @@ export async function showPersistentMedicineNotification(
           },
         ],
         // Görsel ayarlar
-        smallIcon: 'ic_launcher',
-        color: '#FF6B6B',
+        smallIcon: 'ic_notification',
+        largeIcon: 'ic_launcher',
+        color: '#0D9488',
         colorized: true,
         badgeIconType: AndroidBadgeIconType.LARGE,
         // Sessiz modda bile göster (channel zaten bypassDnd: true ile oluşturuldu)
@@ -184,8 +187,9 @@ export async function showPersistentGroupNotification(
           launchActivity: 'com.ilachatirlatici.MainActivity',
         },
         actions: [{ title: '📱 Uygulamayı Aç', pressAction: { id: 'open-app' } }],
-        smallIcon: 'ic_launcher',
-        color: '#FF6B6B',
+        smallIcon: 'ic_notification',
+        largeIcon: 'ic_launcher',
+        color: '#0D9488',
         colorized: true,
         groupId: 'medicine-reminders',
         groupAlertBehavior: AndroidGroupAlertBehavior.CHILDREN,
@@ -272,8 +276,6 @@ export async function checkAndShowPersistentNotifications(
       const medicine = medicines.find(m => m.id === reminderTime.medicineId);
       if (!medicine || !medicine.isActive || !reminderTime.isEnabled) continue;
 
-      // Bugün bu saatte alınmış mı kontrol et
-      const today = new Date().toISOString().split('T')[0];
       const reminderHour = parseInt(reminderTime.time.split(':')[0]);
       const reminderMinute = parseInt(reminderTime.time.split(':')[1]);
 
@@ -284,15 +286,21 @@ export async function checkAndShowPersistentNotifications(
       const hoursPassed = (now.getTime() - scheduledTime.getTime()) / (1000 * 60 * 60);
 
       if (hoursPassed >= 0 && hoursPassed <= 2) {
-        // Bugün için log kontrolü
-        const isTaken = logs.some(
-          log =>
-            log.medicineId === medicine.id &&
-            log.scheduledTime.startsWith(today) &&
-            log.status === 'taken'
+        // ⚠️ v1.7.4 — DOZ bazli kontrol.
+        // Eskiden yalnizca `log.medicineId === medicine.id` bakiliyordu:
+        // ilacin SABAH dozu alinmis olan kullanici AKSAM dozu icin kalici
+        // hatirlatma bildirimi hic gormuyordu. Artik dozun kimligi
+        // (`reminderTimeId`) esas; karar `domain/doseLog.ts`te.
+        // `atlandi` da cozumlenmis sayilir — kullanici bilincli atladigi
+        // dozu tekrar hatirlatilmak istemez (eskiden yalnizca 'taken'
+        // sayiliyor, atlanan doz icin bildirim israrla geri geliyordu).
+        const isResolved = isDoseLogged(
+          logs,
+          { reminderTimeId: reminderTime.id, medicineId: medicine.id },
+          now
         );
 
-        if (!isTaken) {
+        if (!isResolved) {
           pendingMedicines.push({
             medicine,
             reminderTime,

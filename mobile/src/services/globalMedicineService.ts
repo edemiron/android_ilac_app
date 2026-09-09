@@ -57,10 +57,12 @@ export async function getMedicineByBarcode(barcode: string): Promise<GlobalMedic
   return searchByBarcode(barcode);
 }
 
+import { searchTITCKAutocomplete } from './turkishMedicineService';
+
 // ============ İSİM İLE ARAMA (OTOMATİK TAMAMLAMA) ============
 
 /**
- * İlaç adına göre otomatik tamamlama önerileri
+ * İlaç adına göre otomatik tamamlama önerileri (TİTCK 18.088 İlaç + Firebase)
  */
 export async function autocomplete(
   searchQuery: string,
@@ -68,59 +70,69 @@ export async function autocomplete(
   maxResults: number = 10
 ): Promise<MedicineAutocompleteResult[]> {
   try {
-    if (!searchQuery || searchQuery.length < 2) {
+    if (!searchQuery || searchQuery.trim().length < 2) {
       return [];
     }
 
-    const searchLower = searchQuery.toLowerCase();
-    const medicinesRef = getGlobalMedicinesRef();
-    
-    // Firebase'de prefix araması için
-    // Not: Gerçek uygulamada Algolia veya ElasticSearch kullanılmalı
-    const q = query(
-      medicinesRef,
-      where('country', '==', country),
-      orderBy('searchCount', 'desc'),
-      limit(50) // Daha fazla çekip client-side filtrele
-    );
+    const trimmedQuery = searchQuery.trim();
 
-    const snapshot = await getDocs(q);
-    
-    const results: MedicineAutocompleteResult[] = [];
+    // 1. Önce Hızlı Çevrimdışı TİTCK Veri Tabanı Taraması (0 ms)
+    const localResults = await searchTITCKAutocomplete(trimmedQuery, maxResults);
 
-    snapshot.docs.forEach((doc) => {
-      const data = doc.data() as GlobalMedicine;
-      const nameLower = data.name.toLowerCase();
-      
-      // İsim eşleşmesi kontrol et
-      if (nameLower.includes(searchLower) || nameLower.startsWith(searchLower)) {
-        // Match score hesapla
-        let matchScore = 0;
-        if (nameLower === searchLower) {
-          matchScore = 100;
-        } else if (nameLower.startsWith(searchLower)) {
-          matchScore = 80;
-        } else {
-          matchScore = 50;
+    // Yeterli yerel sonuç varsa direkt dön
+    if (localResults.length >= maxResults) {
+      return localResults.slice(0, maxResults);
+    }
+
+    // 2. Firebase Firestore Taraması (Varsa birleştir)
+    const resultsMap = new Map<string, MedicineAutocompleteResult>();
+    localResults.forEach(r => resultsMap.set(r.name.toLowerCase(), r));
+
+    try {
+      const searchLower = trimmedQuery.toLowerCase();
+      const medicinesRef = getGlobalMedicinesRef();
+
+      const q = query(
+        medicinesRef,
+        where('country', '==', country),
+        orderBy('searchCount', 'desc'),
+        limit(20)
+      );
+
+      const snapshot = await getDocs(q);
+
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data() as GlobalMedicine;
+        const nameLower = data.name.toLowerCase();
+
+        if (nameLower.includes(searchLower) || nameLower.startsWith(searchLower)) {
+          let matchScore = 0;
+          if (nameLower === searchLower) matchScore = 100;
+          else if (nameLower.startsWith(searchLower)) matchScore = 85;
+          else matchScore = 60;
+
+          if (data.isVerified) matchScore += 10;
+
+          if (!resultsMap.has(nameLower)) {
+            resultsMap.set(nameLower, {
+              id: docSnap.id,
+              barcode: data.barcode,
+              name: data.name,
+              dosage: data.dosage || '',
+              form: data.form,
+              manufacturer: data.manufacturer || 'Bilinmiyor',
+              genericName: data.genericName,
+              atcCode: data.atcCode,
+              matchScore,
+            });
+          }
         }
+      });
+    } catch {
+      // Firebase offline ise sessizce yerel sonuçları dön
+    }
 
-        // Doğrulanmış ilaçlara bonus
-        if (data.isVerified) {
-          matchScore += 10;
-        }
-
-        results.push({
-          id: doc.id,
-          name: data.name,
-          dosage: data.dosage,
-          manufacturer: data.manufacturer,
-          matchScore,
-        });
-      }
-    });
-
-    // Score'a göre sırala ve limitle
-    return results
+    return Array.from(resultsMap.values())
       .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, maxResults);
   } catch (error) {
@@ -156,7 +168,10 @@ export async function getMedicineById(id: string): Promise<GlobalMedicine | null
  * Yeni ilaç ekle (AI veya kullanıcı tarafından)
  */
 export async function addMedicine(
-  medicine: Omit<GlobalMedicine, 'id' | 'createdAt' | 'updatedAt' | 'searchCount' | 'isVerified' | 'addedBy' | 'addedByUserId'>,
+  medicine: Omit<
+    GlobalMedicine,
+    'id' | 'createdAt' | 'updatedAt' | 'searchCount' | 'isVerified' | 'addedBy' | 'addedByUserId'
+  >,
   addedBy: 'ai' | 'user' | 'admin',
   userId?: string
 ): Promise<string> {
@@ -188,10 +203,7 @@ export async function addMedicine(
 /**
  * İlaç bilgilerini güncelle (admin)
  */
-export async function updateMedicine(
-  id: string,
-  updates: Partial<GlobalMedicine>
-): Promise<void> {
+export async function updateMedicine(id: string, updates: Partial<GlobalMedicine>): Promise<void> {
   try {
     const docRef = doc(db, GLOBAL_MEDICINES_COLLECTION, id);
     await updateDoc(docRef, {
@@ -258,7 +270,7 @@ export async function getPopularMedicines(
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({
+    return snapshot.docs.map(doc => ({
       ...doc.data(),
       id: doc.id,
     })) as GlobalMedicine[];

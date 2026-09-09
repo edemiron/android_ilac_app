@@ -1,10 +1,11 @@
 /**
- * HomeScreenLayoutA — Sprint 69: Layout A (Detaylı / Compact).
+ * HomeScreenLayoutA — Sprint 69: Layout A (Sade / Compact).
  *
- * Sprint 57'de sade "Tek bilgi" idi. Sprint 69'da kullanıcının "Detaylı"
- * beklentisini karşılamak için: CircularProgress + compact stat + streak
- * eklendi. Layout B/C'den farkı: daha kompakt (boş alan az, kart yok, sadece
- * minimal hero + remaining + plan).
+ * Sprint 57'de sade "Tek bilgi" idi. Sprint 69'da kompakt hero eklendi.
+ * Sprint 79: Bugünün Planı default expanded (collapsed → expanded);
+ *   inline summary satırı eklendi (Bugün X doz · Y alındı · Z bekleyen).
+ *
+ * Mevcut sürüm: Sade görünüm — minimal hero + Şu An + Bugünün Planı (default açık).
  *
  * Kullanim:
  *   <HomeScreenLayoutA
@@ -12,6 +13,8 @@
  *     adherence={75}
  *     streak={4}
  *     remainingCount={3}
+ *     completedCount={2}
+ *     totalCount={7}
  *     onTake={...}
  *     onSnooze={...}
  *     onSkip={...}
@@ -57,7 +60,7 @@ export function HomeScreenLayoutA({
 }: LayoutAProps) {
   const { colors, isDark } = useTheme();
   const { language } = useLanguage();
-  const [showPlan, setShowPlan] = useState(false);
+  const [showPlan, setShowPlan] = useState(true); // Sprint 79A: default expanded
   const tr = language === 'tr';
 
   if (!reminder && reminders.length === 0) {
@@ -123,12 +126,24 @@ export function HomeScreenLayoutA({
         </View>
       )}
 
+      {/* Sprint 79B: Inline summary — Bugün X doz · Y alındı · Z bekleyen */}
+      {totalCount > 0 && (
+        <View style={[styles.summaryRow, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
+            {tr
+              ? `Bugün ${totalCount} doz · ${completedCount} alındı · ${remainingCount} bekleyen`
+              : `Today ${totalCount} doses · ${completedCount} taken · ${remainingCount} pending`}
+          </Text>
+        </View>
+      )}
+
       {/* Section 1: Şu Anki İlaç (Primary CTA) */}
       <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
         {tr ? 'Şu An' : 'Now'}
       </Text>
       {reminder ? (
         <CurrentDoseCard
+          key={`current-reminder-${reminder.reminderTime.id}`}
           reminder={reminder}
           colors={colors}
           isDark={isDark}
@@ -198,7 +213,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -228,7 +243,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   heroLabel: {
-    fontSize: 13,
+    fontSize: 14,
     marginLeft: 8,
     fontWeight: '500',
   },
@@ -242,9 +257,19 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   heroStatText: {
-    fontSize: 13,
+    fontSize: 14,
     marginLeft: 4,
     fontWeight: '600',
+  },
+  // Sprint 79B: inline summary satırı
+  summaryRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  summaryText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   noCurrentContainer: {
     alignItems: 'center',
@@ -261,7 +286,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   noCurrentSubtext: {
-    fontSize: 13,
+    fontSize: 14,
     marginTop: 4,
   },
   planHeader: {

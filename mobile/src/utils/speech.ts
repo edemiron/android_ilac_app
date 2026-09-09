@@ -6,12 +6,12 @@ const log = createScopedLogger('Speech');
 // TTS başlatma
 let isInitialized = false;
 
-async function initTts(): Promise<void> {
+async function initTts(rate: number = 1.1): Promise<void> {
   if (isInitialized) return;
 
   try {
     await Tts.setDefaultLanguage('tr-TR');
-    await Tts.setDefaultRate(0.5);
+    await Tts.setDefaultRate(rate, true);
     await Tts.setDefaultPitch(1.0);
     isInitialized = true;
   } catch (error) {
@@ -24,9 +24,10 @@ export async function speakMedicineReminder(
   medicineName: string,
   dosage: string,
   instruction?: string,
-  language: 'tr' | 'en' = 'tr'
+  language: 'tr' | 'en' = 'tr',
+  speechRate: number = 1.1
 ): Promise<void> {
-  await initTts();
+  await initTts(speechRate);
 
   try {
     await Tts.stop();
@@ -34,7 +35,12 @@ export async function speakMedicineReminder(
     // Ignore if not speaking
   }
 
-  await Tts.setDefaultLanguage(language === 'tr' ? 'tr-TR' : 'en-US');
+  try {
+    await Tts.setDefaultLanguage(language === 'tr' ? 'tr-TR' : 'en-US');
+    await Tts.setDefaultRate(speechRate);
+  } catch (e) {
+    log.debug('TTS set rate error', e);
+  }
 
   let message: string;
 

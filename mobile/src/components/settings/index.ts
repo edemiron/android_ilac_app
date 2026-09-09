@@ -1,17 +1,19 @@
-export { SettingIcon } from './SettingIcon';
+﻿export { SettingIcon } from './SettingIcon';
 export { SettingRow } from './SettingRow';
 export { SettingsSection } from './SettingsSection';
 export { OptionPicker } from './OptionPicker';
 export { PremiumCard } from './PremiumCard';
+export { ProfileHeaderCard } from './ProfileHeaderCard';
 export { DailyScheduleSection } from './DailyScheduleSection';
 export { AppearanceSection } from './AppearanceSection';
 export { AccentColorSection } from './AccentColorSection';
-export { NotificationSection } from './NotificationSection';
 export { DevTestSection } from './DevTestSection';
 export { QuietHoursSection } from './QuietHoursSection';
 export { AdditionalFeaturesSection } from './AdditionalFeaturesSection';
 export { AccountSection } from './AccountSection';
 export { AboutSection } from './AboutSection';
+export { CaregiverSection } from './CaregiverSection'; // Sprint 90
+export { BackupRestoreSection } from './BackupRestoreSection';
 
 export { createSettingsStyles } from './styles';
 export type { SettingsStyles } from './styles';

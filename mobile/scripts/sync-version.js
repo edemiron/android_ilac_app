@@ -17,6 +17,10 @@ const rootDir = path.join(__dirname, '..');
 const versionConfigPath = path.join(rootDir, 'src/config/version.ts');
 const appJsonPath = path.join(rootDir, 'app.json');
 const packageJsonPath = path.join(rootDir, 'package.json');
+// v1.7.1: build.gradle bu script'in kapsaminda DEGILDI; sonuc olarak store'a
+// giden versiyon (build.gradle 1.7.1/49) ile uygulama icinde gosterilen
+// versiyon (version.ts 1.6.0) ayristi. Artik burasi da senkronize ediliyor.
+const buildGradlePath = path.join(rootDir, 'android/app/build.gradle');
 
 /**
  * version.ts dosyasından versiyon bilgisini okur
@@ -58,13 +62,25 @@ function updateAppJson(versionInfo) {
   // Expo version
   appJson.expo.version = versionInfo.version;
 
-  // Android versionCode
+  // v1.7.1: Expo'nun GERCEKTEN okudugu alanlar `expo.android.versionCode` ve
+  // `expo.ios.buildNumber`. Eskiden yalnizca kok seviyedeki `android`/`ios`
+  // guncelleniyordu, bu yuzden `expo.android.versionCode` 45'te takili kalmisti.
+  if (!appJson.expo.android) {
+    appJson.expo.android = {};
+  }
+  appJson.expo.android.versionCode = versionInfo.androidCode;
+
+  if (!appJson.expo.ios) {
+    appJson.expo.ios = {};
+  }
+  appJson.expo.ios.buildNumber = versionInfo.iosBuild;
+
+  // Kok seviyedeki kopyalar (bazi tool'lar bunlari okuyor)
   if (!appJson.android) {
     appJson.android = {};
   }
   appJson.android.versionCode = versionInfo.androidCode;
 
-  // iOS buildNumber
   if (!appJson.ios) {
     appJson.ios = {};
   }
@@ -96,6 +112,42 @@ function updatePackageJson(versionInfo) {
 }
 
 /**
+ * android/app/build.gradle dosyasını günceller.
+ *
+ * Gradle tarafında JSON/TS okumaya çalışmak daha önce sorun çıkardığı için
+ * (bkz. arşiv: v1.4.7 build-gradle-jsonslurper) dosya build zamanında
+ * ayrıştırılmıyor; bunun yerine bu script metni yerinde değiştiriyor.
+ */
+function updateBuildGradle(versionInfo) {
+  if (!fs.existsSync(buildGradlePath)) {
+    console.warn('⚠️ build.gradle bulunamadı, atlanıyor...');
+    return;
+  }
+
+  const content = fs.readFileSync(buildGradlePath, 'utf-8');
+
+  // Bu projede Groovy dosyasinda atama sozdizimi kullaniliyor:
+  //   versionCode = 49
+  //   versionName = "1.7.1"
+  // Bosluklu klasik sozdizimi (`versionName "1.7.1"`) de desteklenir.
+  const nameRe = /(versionName\s*=?\s*")([^"]+)(")/;
+  const codeRe = /(versionCode\s*=?\s*)(\d+)/;
+
+  if (!nameRe.test(content) || !codeRe.test(content)) {
+    throw new Error('build.gradle içinde versionName/versionCode bulunamadı!');
+  }
+
+  const updated = content
+    .replace(nameRe, `$1${versionInfo.version}$3`)
+    .replace(codeRe, `$1${versionInfo.androidCode}`);
+
+  fs.writeFileSync(buildGradlePath, updated);
+  console.log(
+    `✅ build.gradle güncellendi: ${versionInfo.version} (${versionInfo.androidCode})`
+  );
+}
+
+/**
  * Ana fonksiyon
  */
 function main() {
@@ -109,6 +161,7 @@ function main() {
 
     updateAppJson(versionInfo);
     updatePackageJson(versionInfo);
+    updateBuildGradle(versionInfo);
 
     console.log('\n✨ Tüm versiyon bilgileri senkronize edildi!');
     console.log('💡 İpucu: Versiyon değiştirmek için src/config/version.ts dosyasını düzenleyin.\n');

@@ -62,6 +62,7 @@ export const FORM_LABELS_TR: Record<MedicineForm, string> = {
   injection: 'enjeksiyon',
   cream: 'krem',
   spray: 'sprey',
+  inhaler: 'püskürtme', // v1.7.1: MedicineForm'a 'inhaler' eklendi
   patch: 'bant',
   suppository: 'fitil',
   powder: 'sayet',

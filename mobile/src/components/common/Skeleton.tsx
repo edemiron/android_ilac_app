@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { Animated, DimensionValue, StyleSheet, View, ViewStyle } from 'react-native';
+import { Animated, DimensionValue, View, ViewStyle } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export type SkeletonVariant = 'rect' | 'circle' | 'text';
@@ -110,5 +110,3 @@ export function Skeleton({
     />
   );
 }
-
-const styles = StyleSheet.create({});

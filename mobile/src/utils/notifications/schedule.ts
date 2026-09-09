@@ -12,14 +12,25 @@ import notifee, {
   AndroidImportance,
   AndroidVisibility,
   AndroidCategory,
+  AndroidStyle,
 } from '@notifee/react-native';
 import { addMinutes } from 'date-fns';
 import { createScopedLogger } from '../logger';
 import { REMINDER_CHANNEL_ID } from './channels';
 import { ALARM_ACTIONS, FULL_SCREEN_ACTION, PRESS_ACTION } from './config';
+import {
+  buildAlarmTitle,
+  buildAlarmSubtitle,
+  buildAlarmBody,
+  buildSnoozeTitle,
+  buildSnoozeBody,
+} from './content';
 import { cancelNotification } from './cancel';
 import { createNotificationChannels } from './channels';
-import { buildSnoozeNotificationId } from './ids';
+import { buildSnoozeNotificationId, TEST_ALARM_TARGET } from './ids';
+// Native AlarmModule'e TEK KOPRU. Argument sayisi bridge tarafinda KATI
+// dogrulandigi icin dagilmis `NativeModules.AlarmModule.*` cagrilari yasak.
+import { scheduleNativeAlarm, ALARM_KIND_MAIN, ALARM_KIND_SNOOZE } from './nativeAlarm';
 import { resolveNotificationBehavior, type NotificationSettingsInput } from './behavior';
 import { recordDiagnosticEvent } from '../diagnosticTelemetry';
 import { isMIUIDevice } from '../miuiHelper';
@@ -67,10 +78,11 @@ export async function scheduleExpiryReminder(
       },
     };
 
+    // v1.8.2: Emoji kaldirildi (bkz. content.ts).
     const title =
       language === 'tr'
-        ? `⚠️ ${medicine.name} - Son Kullanma Tarihi Yaklaşıyor`
-        : `⚠️ ${medicine.name} - Expiry Date Approaching`;
+        ? `${medicine.name} - Son Kullanma Tarihi Yaklaşıyor`
+        : `${medicine.name} - Expiry Date Approaching`;
 
     const body =
       language === 'tr'
@@ -86,8 +98,10 @@ export async function scheduleExpiryReminder(
           channelId: REMINDER_CHANNEL_ID,
           importance: AndroidImportance.HIGH,
           pressAction: PRESS_ACTION,
-          smallIcon: 'ic_launcher',
+          smallIcon: 'ic_notification',
+          largeIcon: 'ic_launcher',
           color: '#FF6B6B',
+          colorized: true,
         },
         data: {
           medicineId: medicine.id,
@@ -174,33 +188,51 @@ export async function scheduleSnoozeNotification(
       minute: '2-digit',
     });
 
+    const snoozeTitle = buildSnoozeTitle(medicine.name, snoozeCount);
+    const snoozeSubtitle = `${timeStr} • Erteleme`;
+    const snoozeBody = buildSnoozeBody(
+      medicine.dosage ? `${medicine.dosage} dozu` : 'İlaç hatırlatması',
+      timeStr
+    );
+
     await notifee.createTriggerNotification(
       {
         id: notificationId,
-        title: `?? ${medicine.name} (Ertelendi${snoozeCount > 1 ? ` x${snoozeCount}` : ''})`,
-        subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!
-? ${timeStr}`,
+        title: snoozeTitle,
+        subtitle: snoozeSubtitle,
+        body: snoozeBody,
         android: {
           channelId: behavior.channelId,
           category: AndroidCategory.ALARM,
           importance: AndroidImportance.HIGH,
-          visibility: AndroidVisibility.PRIVATE,
+          visibility: AndroidVisibility.PUBLIC,
           ongoing: behavior.fullScreenAlarm,
           autoCancel: !behavior.fullScreenAlarm,
-          loopSound: behavior.fullScreenAlarm,
+          // v2.0.1 (Qwen 3.8 Max): Çift ses (double sound) yankılanmasını önle.
+          // Tam ekran alarm açıkken ses döngüsünü AlarmScreen (audio owner) yönetir.
+          loopSound: false,
           fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
           pressAction: PRESS_ACTION,
-          smallIcon: 'ic_launcher',
-          color: '#FF6B6B',
+          smallIcon: 'ic_notification',
+          largeIcon: 'ic_launcher',
+          color: medicine.color || '#FF6B6B',
           colorized: true,
           sound: behavior.sound,
           vibrationPattern: behavior.vibrationPattern,
           lights: ['#FF0000', 500, 500] as [string, number, number],
           actions: ALARM_ACTIONS,
+          style: {
+            type: AndroidStyle.BIGTEXT,
+            text: snoozeBody,
+            title: snoozeTitle,
+            summary: snoozeSubtitle,
+          },
         },
         data: {
           medicineId: medicine.id,
+          // v1.8.2: Ad artik `data` ile tasiniyor. Arka plan erteleme
+          // isleyicisi bunu BASLIKTAN ayristiriyordu; bkz. content.ts.
+          medicineName: medicine.name,
           reminderTimeId: reminderTime.id,
           scheduledTime: triggerTime.toISOString(),
           originalScheduledTime,
@@ -220,6 +252,31 @@ export async function scheduleSnoozeNotification(
       snoozeCount,
       quietHoursActive: behavior.quietHoursActive,
     });
+
+    // KRİTİK: Native AlarmManager alarmı YALNIZCA tam ekran alarm etkinken
+    // kurulur. Eskiden koşulsuz kuruluyordu; bu yüzden kullanıcı "Kilit
+    // ekranında tam ekran alarm" ayarını kapatsa (veya sessiz saatler aktif
+    // olsa) bile AlarmReceiver yolu tam ekran alarmı yine açıyordu — yani
+    // ayar gerçekte hiçbir şeyi kapatmıyordu.
+    if (behavior.fullScreenAlarm) {
+      // KIND_SNOOZE: erteleme alarmi ANA alarmdan AYRI bir requestCode alir.
+      // Eskiden ayni cift kullanildigi icin 5 dakikalik bir erteleme, ayni
+      // hatirlatmanin bir sonraki gunku native alarmini SILIYORDU.
+      const armed = await scheduleNativeAlarm(
+        triggerTime.getTime(),
+        { medicineId: medicine.id, reminderTimeId: reminderTime.id },
+        ALARM_KIND_SNOOZE
+      );
+      if (armed) {
+        log.debug('Native AlarmManager snooze alarm kuruldu');
+      }
+    } else {
+      log.debug('Tam ekran alarm kapali — snooze icin native alarm kurulmadi', {
+        fullScreenAlarmEnabled: behavior.fullScreenAlarmSettingEnabled,
+        quietHoursActive: behavior.quietHoursActive,
+      });
+    }
+
     return { notificationId, triggerTime };
   } catch (error) {
     log.error('Erteleme bildirimi planlanirken hata', error);
@@ -240,8 +297,8 @@ export async function scheduleTestAlarmNotification(
   const behavior = resolveNotificationBehavior(
     {
       id: 'test-medicine',
-      name: language === 'tr' ? 'Test Ilaci' : 'Test Medicine',
-      dosage: '500mg',
+      name: language === 'tr' ? 'TEST ALARMI' : 'TEST ALARM',
+      dosage: language === 'tr' ? 'gerçek doz değil' : 'not a real dose',
       frequency: 1,
       color: '#2196F3',
       isActive: true,
@@ -267,8 +324,9 @@ export async function scheduleTestAlarmNotification(
   const testReminderId = 'test-reminder';
   const notifId = `alarm-${testMedicineId}-${testReminderId}`;
 
-  // Onceki test alarmini iptal et
-  await cancelNotification(notifId);
+  // Onceki test alarmini iptal et — kimlikler acikca gecirilir (bildirim
+  // id'si tire ile bolunerek cozumlenemez, bkz. parseAlarmNotificationId).
+  await cancelNotification(notifId, TEST_ALARM_TARGET);
 
   // Saat formati
   const timeStr = scheduledTime.toLocaleTimeString('tr-TR', {
@@ -276,32 +334,47 @@ export async function scheduleTestAlarmNotification(
     minute: '2-digit',
   });
 
+  // Bildirim AÇIKÇA test olarak etiketlenir: kullanıcı bunu gerçek bir doz
+  // hatırlatması sanmamalı (eskiden "💊 Test İlacı (500mg)" + "Aspirin 500mg
+  // almanın zamanı geldi" yazıyordu ve gerçek alarmdan ayırt edilemiyordu).
+  const titleText =
+    language === 'tr' ? '🧪 TEST ALARMI — gerçek doz değil' : '🧪 TEST ALARM — not a real dose';
+  const subtitleText = `${timeStr} • ${language === 'tr' ? 'Kilit ekranı testi' : 'Lock screen test'}`;
+  const bodyText =
+    language === 'tr'
+      ? `Bu bir TEST'tir, ilaç almanız gerekmiyor.\nAlarmın kilit ekranında açıldığını doğrulamak için kuruldu.`
+      : `This is a TEST, no medication is due.\nArmed to verify the alarm opens on the lock screen.`;
+
   const notificationConfig = {
     id: notifId,
-    title: language === 'tr' ? '💊 Test Ilaci' : '💊 Test Medicine',
-    subtitle: timeStr,
-    body:
-      language === 'tr'
-        ? `Aspirin 500mg almanin zamani!\n⏰ ${timeStr}`
-        : `Time to take Aspirin 500mg!\n⏰ ${timeStr}`,
+    title: titleText,
+    subtitle: subtitleText,
+    body: bodyText,
     android: {
       channelId: behavior.channelId,
       category: AndroidCategory.ALARM,
       importance: AndroidImportance.HIGH,
-      visibility: AndroidVisibility.PRIVATE,
+      visibility: AndroidVisibility.PUBLIC,
       ongoing: behavior.fullScreenAlarm,
       autoCancel: !behavior.fullScreenAlarm,
       onlyAlertOnce: false,
       loopSound: behavior.fullScreenAlarm,
       fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
       pressAction: PRESS_ACTION,
-      smallIcon: 'ic_launcher',
-      color: '#2196F3',
+      smallIcon: 'ic_notification',
+      largeIcon: 'ic_launcher',
+      color: '#0D9488',
       colorized: true,
       sound: behavior.sound,
       vibrationPattern: behavior.vibrationPattern,
-      lights: ['#2196F3', 500, 500] as [string, number, number],
+      lights: ['#0D9488', 500, 500] as [string, number, number],
       actions: ALARM_ACTIONS,
+      style: {
+        type: AndroidStyle.BIGTEXT as never,
+        text: bodyText,
+        title: titleText,
+        summary: subtitleText,
+      },
     },
     data: {
       medicineId: testMedicineId,
@@ -336,6 +409,29 @@ export async function scheduleTestAlarmNotification(
 
     const notificationId = await notifee.createTriggerNotification(notificationConfig, trigger);
 
+    // KRİTİK: Native AlarmManager alarmı YALNIZCA tam ekran alarm etkinken
+    // kurulur. Eskiden koşulsuz kuruluyordu; bu yüzden kullanıcı "Kilit
+    // ekranında tam ekran alarm" ayarını kapatsa (veya sessiz saatler aktif
+    // olsa) bile AlarmReceiver yolu tam ekran alarmı yine açıyordu — yani
+    // ayar gerçekte hiçbir şeyi kapatmıyordu.
+    // Test alarmı da gerçek davranışı yansıtır: ayar kapalıysa test de tam
+    // ekran açmaz (yoksa test gerçeği yanlış gösterir).
+    if (behavior.fullScreenAlarm) {
+      const armed = await scheduleNativeAlarm(
+        adjustedTime.getTime(),
+        { medicineId: testMedicineId, reminderTimeId: testReminderId },
+        ALARM_KIND_MAIN
+      );
+      if (armed) {
+        log.debug('Native AlarmManager alarm kuruldu');
+      }
+    } else {
+      log.debug('Tam ekran alarm kapali — test icin native alarm kurulmadi', {
+        fullScreenAlarmEnabled: behavior.fullScreenAlarmSettingEnabled,
+        quietHoursActive: behavior.quietHoursActive,
+      });
+    }
+
     log.debug('Test alarm basariyla planlandi', { notificationId });
 
     // Planlanan bildirimleri kontrol et
@@ -352,7 +448,13 @@ export async function scheduleMedicineNotification(
   medicine: Medicine,
   reminderTime: ReminderTime,
   settingsOrFullScreen: UserSettings | boolean = true,
-  bypassBuffer: boolean = false
+  bypassBuffer: boolean = false,
+  /**
+   * v1.7.6 — Bu doz ZATEN cozumlendi; sonraki calma YARIN olmali.
+   * Doz saatinden once alindiginda ("Erken Al") bugunun saati henuz
+   * gecmemis oluyor ve alinmis doz ayni gun tekrar caliyordu.
+   */
+  forceNextDay: boolean = false
 ): Promise<string | null> {
   if (!medicine?.id || !reminderTime?.id || !reminderTime?.time) {
     log.warn('scheduleMedicineNotification: Gecersiz parametre, bildirim planlanmadi', {
@@ -365,10 +467,38 @@ export async function scheduleMedicineNotification(
   }
 
   try {
-    await cancelNotification(`alarm-${medicine.id}-${reminderTime.id}`);
+    await cancelNotification(`alarm-${medicine.id}-${reminderTime.id}`, {
+      medicineId: medicine.id,
+      reminderTimeId: reminderTime.id,
+    });
 
     const now = new Date();
-    const triggerDate = resolveReminderTriggerDate(reminderTime, bypassBuffer, now);
+    // ⚠️ v1.7.7 — `medicine` GECIRILIYOR. Bu olmadan gun kurallari
+    // (scheduleType / specificDays / intervalDays / cycle / endDate) hic
+    // uygulanmiyor ve alarm HER GUN kuruluyordu. Ayrintili gerekce:
+    // `resolveReminderTriggerDate` dosya ici aciklamasi.
+    const triggerDate = resolveReminderTriggerDate(
+      reminderTime,
+      bypassBuffer,
+      now,
+      forceNextDay,
+      medicine
+    );
+
+    // Planlanacak gun yok: tedavi bitti (`endDate` gecti) ya da ilac artik
+    // etkin degil. Yukarida bu doza ait bildirim ZATEN iptal edildi; burada
+    // yeni bir alarm KURULMAZ. Eskiden bu durum hic kontrol edilmiyor ve
+    // biten tedavinin alarmi calmaya devam ediyordu.
+    if (!triggerDate) {
+      log.warn('Bu ilac icin planlanacak gun yok, alarm kurulmadi', {
+        name: medicine.name,
+        time: reminderTime.time,
+        scheduleType: medicine.scheduleType || 'daily',
+        endDate: medicine.endDate,
+        isActive: medicine.isActive,
+      });
+      return null;
+    }
 
     const behavior = resolveNotificationBehavior(medicine, settingsOrFullScreen, triggerDate);
 
@@ -393,34 +523,82 @@ export async function scheduleMedicineNotification(
 
     const timeStr = triggerDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
+    const getInstructionLabel = (inst?: string): string => {
+      switch (inst) {
+        case 'before_meal':
+          return 'Aç Karnına • ';
+        case 'after_meal':
+          return 'Tok Karnına • ';
+        case 'with_meal':
+          return 'Yemekle Birlikte • ';
+        case 'before_sleep':
+          return 'Gece / Uykudan Önce • ';
+        case 'empty_stomach':
+          return 'Aç Karnına • ';
+        case 'any_time':
+        default:
+          return '';
+      }
+    };
+
+    const instructionStr = getInstructionLabel(medicine.instructions);
+    // v1.8.2: Metin artik `content.ts` icinde kuruluyor (emoji yok, klinik
+    // dil, ve baslik bicimi arka plan isleyicisiyle yazili olmayan bir
+    // sozlesme olmaktan cikti). Bkz. o dosyanin bas yorumu.
+    const resolvedStock =
+      typeof medicine.stockCount === 'number'
+        ? medicine.stockCount
+        : typeof (medicine as any).stock === 'number'
+          ? ((medicine as any).stock as number)
+          : undefined;
+    const titleText = buildAlarmTitle(medicine.name, medicine.dosage);
+    const subtitleText = buildAlarmSubtitle(timeStr);
+    const bodyText = buildAlarmBody({
+      medicineName: medicine.name,
+      dosage: medicine.dosage,
+      instructionLabel: instructionStr,
+      stockCount: resolvedStock,
+      timeLabel: timeStr,
+    });
+
     const notificationId = await notifee.createTriggerNotification(
       {
         id: getAlarmNotificationId(medicine.id, reminderTime.id),
-        title: `?? ${medicine.name}`,
-        subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!
-? ${timeStr}`,
+        title: titleText,
+        subtitle: subtitleText,
+        body: bodyText,
         android: {
           channelId: behavior.channelId,
           category: AndroidCategory.ALARM,
           importance: AndroidImportance.HIGH,
-          visibility: AndroidVisibility.PRIVATE,
+          visibility: AndroidVisibility.PUBLIC,
           ongoing: behavior.fullScreenAlarm,
           autoCancel: !behavior.fullScreenAlarm,
           onlyAlertOnce: false,
-          loopSound: behavior.fullScreenAlarm,
+          // v2.0.1 (Qwen 3.8 Max): Çift ses (double sound) yankılanmasını önle.
+          // Tam ekran alarm açıkken ses döngüsünü AlarmScreen (audio owner) yönetir.
+          loopSound: false,
           fullScreenAction: behavior.fullScreenAlarm ? FULL_SCREEN_ACTION : undefined,
           pressAction: PRESS_ACTION,
-          smallIcon: 'ic_launcher',
-          color: '#2196F3',
+          smallIcon: 'ic_notification',
+          largeIcon: 'ic_launcher',
+          color: medicine.color || '#0D9488',
           colorized: true,
           sound: behavior.sound,
           vibrationPattern: behavior.vibrationPattern,
-          lights: ['#2196F3', 500, 500] as [string, number, number],
+          lights: [medicine.color || '#0D9488', 500, 500] as [string, number, number],
           actions: ALARM_ACTIONS,
+          style: {
+            type: AndroidStyle.BIGTEXT,
+            text: bodyText,
+            title: titleText,
+            summary: subtitleText,
+          },
         },
         data: {
           medicineId: medicine.id,
+          // v1.8.2: Ad artik `data` ile tasiniyor (bkz. content.ts).
+          medicineName: medicine.name,
           reminderTimeId: reminderTime.id,
           scheduledTime: triggerDate.toISOString(),
           fullScreenAlarm: behavior.fullScreenAlarm ? 'true' : 'false',
@@ -438,6 +616,28 @@ export async function scheduleMedicineNotification(
 
     const triggers = await notifee.getTriggerNotificationIds();
     log.debug('Aktif trigger sayisi', { count: triggers.length });
+
+    // KRİTİK: Native AlarmManager alarmı YALNIZCA tam ekran alarm etkinken
+    // kurulur. Eskiden koşulsuz kuruluyordu; bu yüzden kullanıcı "Kilit
+    // ekranında tam ekran alarm" ayarını kapatsa (veya sessiz saatler aktif
+    // olsa) bile AlarmReceiver yolu tam ekran alarmı yine açıyordu — yani
+    // ayar gerçekte hiçbir şeyi kapatmıyordu.
+    if (behavior.fullScreenAlarm) {
+      const armed = await scheduleNativeAlarm(
+        triggerDate.getTime(),
+        { medicineId: medicine.id, reminderTimeId: reminderTime.id },
+        ALARM_KIND_MAIN
+      );
+      if (armed) {
+        log.debug('Native AlarmManager scheduleNativeAlarm basariyla kuruldu');
+      }
+    } else {
+      log.debug('Tam ekran alarm kapali — native alarm kurulmadi', {
+        medicineId: medicine.id,
+        fullScreenAlarmEnabled: behavior.fullScreenAlarmSettingEnabled,
+        quietHoursActive: behavior.quietHoursActive,
+      });
+    }
 
     return notificationId;
   } catch (error) {

@@ -15,3 +15,5 @@ export { default as SecurityScreen } from './SecurityScreen';
 export { default as TtsSettingsScreen } from './TtsSettingsScreen';
 export { default as CaregiverScreen } from './CaregiverScreen';
 export { default as CaregiverInviteScreen } from './CaregiverInviteScreen';
+export { default as DutyPharmacyScreen } from './DutyPharmacyScreen';
+export { NotificationCenterScreen } from './NotificationCenterScreen';

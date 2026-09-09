@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.facebook.react.HeadlessJsTaskService
 import com.facebook.react.bridge.Arguments
@@ -15,12 +17,98 @@ import com.facebook.react.jstasks.HeadlessJsTaskConfig
 /**
  * HeadlessJS Task Service for re-registering alarms after boot/timezone changes.
  * Runs in the background without UI.
+ *
+ * ⚠️ KLİNİK ÖNEM: bu servis, reboot / saat dilimi değişikliği / uygulama
+ * güncellemesi SONRASI alarmları yeniden kaydeden JS yolunun taşıyıcısıdır.
+ * Burada yaşanan bir ANR veya erken ölüm, hastanın doz alarmlarının sessizce
+ * kaybolması demektir. (Native DE re-arm bu servisten ÖNCE çalıştığı için
+ * aynalanmış alarmlar çalmaya devam eder; ama erteleme ve ertesi gün
+ * sürekliliği bu JS yoluna bağlıdır.)
  */
 class BootTaskService : HeadlessJsTaskService() {
     companion object {
         private const val TAG = "BootTaskService"
         private const val CHANNEL_ID = "boot-task-channel"
         private const val NOTIFICATION_ID = 9999
+
+        /**
+         * Android 14+ `foregroundServiceType="shortService"` tavanı.
+         * Resmî dokümana göre 3 dakika, ve saat `Service.startForeground()`
+         * çağrısından — yani buradaki `onCreate`'ten — itibaren işler.
+         */
+        private const val SHORT_SERVICE_LIMIT_MS = 180_000L
+
+        /**
+         * HeadlessJS görev bütçesi.
+         *
+         * ⚠️ Eski değer 180000 idi — shortService tavanına TAM EŞİT. Üstelik
+         * görev saati `onCreate`'teki `startForeground`'dan DAHA GEÇ
+         * başladığı için tavan her zaman görevden ÖNCE doluyordu. Görev
+         * bütçesinin tamamını kullanan bir cihazda ANR kaçınılmazdı.
+         *
+         * 120 s hâlâ çok cömert: görev saklı alarmları yeniden kaydediyor,
+         * pratikte saniyeler sürüyor.
+         *
+         * ⚠️ Sondaki `L` ZORUNLU. Kotlin tamsayı LİTERALLERİNDE örtük
+         * Int→Long dönüşümüne izin verir ama TİPLİ sabitlerde vermez;
+         * `HeadlessJsTaskConfig` timeout parametresi Long bekliyor. `L`
+         * silinirse derleme şu hatayla kırılır:
+         *   Argument type mismatch: actual type is 'Int', but 'Long' was expected.
+         * (Bu hata gerçekten yaşandı — `:app:compileReleaseKotlin` ile yakalandı.)
+         */
+        private const val TASK_TIMEOUT_MS = 120_000L
+
+        /**
+         * Emniyet supabı. Görev kendi bütçesinde bitmezse servisi
+         * shortService tavanından (180 s) ÖNCE durdurur.
+         *
+         * Neden `onTimeout()` override etmek yerine bu:
+         *   - `Service.onTimeout()` API 34'te eklendi; override'ı derlemek
+         *     androidx `@RequiresApi` veya lint bastırması gerektirir ve bu
+         *     projede hiçbir Kotlin dosyası androidx.annotation kullanmıyor.
+         *     Derleme doğrulaması yapılamadan API-34'e özgü kod eklemek
+         *     boot yolunda körlemesine risk almak olurdu.
+         *   - Bu yaklaşım RN'in görev-zaman-aşımı yolunun
+         *     `onHeadlessJsTaskFinish`'i çağırıp çağırmadığından BAĞIMSIZ.
+         *   - Tüm API seviyelerinde çalışır (24+); ANR kaygısı 34+ ama
+         *     başıboş foreground servisi her sürümde kötü.
+         */
+        private const val HARD_STOP_MS = 150_000L
+
+        /**
+         * ⚠️ ÖLÇÜLMÜŞ MARJ UYARISI (2026-09-08, API 36 emülatör, x86_64 TV imajı).
+         *
+         * Gerçek reboot ile doğrulandı: `Service onCreate` 23:43:28.421 →
+         * `HeadlessJS task finished: 1` 23:45:50.009, yani **~142 saniye**.
+         * Görev `shutdown: taskFinish` ile TEMİZ kapandı, ANR yok,
+         * `SecurityException` yok (`Background started FGS: Allowed`), ve ikinci
+         * görev bittiğinde `isShutDown` guard'ı ikinci shutdown'ı bastırdı.
+         *
+         * Ama 142 sn, bu sabitin 150 sn'lik değerine yalnızca **8 sn** kala.
+         * Sürenin büyük kısmı GÖREV değil **RN bundle yükleme + R8 sınıf
+         * doğrulama** (logcat'te yüzlerce "Verification of ... took Xms").
+         * Önemli sonuç: HeadlessJS görev saati bundle hazır olduktan SONRA
+         * başlıyor, oysa shortService tavanı ve bu emniyet supabı
+         * `startForeground`'dan (onCreate) başlıyor — aradaki farkı bundle
+         * yükleme tüketiyor. Yavaş bir cihazda bu fark 150 sn'yi aşabilir.
+         *
+         * Bu kabul edilebilir çünkü kritik alarmlar bu servise BAĞIMLI DEĞİL:
+         * `DirectBootAlarmHelper.reArmAllAlarms` servisten ÖNCE, saf native
+         * olarak çalışıyor (logcat: "0 alarms re-armed in DE mode") ve
+         * uygulama bir sonraki açılışta `reRegisterAllAlarms('app_startup')`
+         * ile telafi ediyor. Yine de 165_000L'ye yükseltmek (tavandan 15 sn
+         * önce) yavaş cihazlara alan açar — ölçüm bu yönde veri sağlıyor.
+         */
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @Volatile
+    private var isShutDown = false
+
+    private val hardStopRunnable = Runnable {
+        Log.w(TAG, "Hard stop: shortService tavani ($SHORT_SERVICE_LIMIT_MS ms) yaklasiyor")
+        shutdown("hardStop")
     }
 
     override fun onCreate() {
@@ -35,6 +123,36 @@ class BootTaskService : HeadlessJsTaskService() {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start foreground", e)
             }
+        }
+
+        // shortService saati startForeground ile başladı; emniyet supabını
+        // aynı referans noktasından kur.
+        mainHandler.postDelayed(hardStopRunnable, HARD_STOP_MS)
+    }
+
+    /**
+     * Servisi tek bir yerden, idempotent şekilde kapatır.
+     *
+     * Hem `onHeadlessJsTaskFinish` (normal bitiş) hem `hardStopRunnable`
+     * (emniyet supabı) buradan geçer; ikisi de yarışsa bile foreground
+     * bildirimi sızamaz ve `stopSelf` iki kez çağrılamaz.
+     */
+    private fun shutdown(reason: String) {
+        if (isShutDown) {
+            return
+        }
+        isShutDown = true
+        mainHandler.removeCallbacks(hardStopRunnable)
+        Log.d(TAG, "shutdown: $reason")
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(NOTIFICATION_ID)
+            stopSelf()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping service ($reason)", e)
         }
     }
 
@@ -88,23 +206,37 @@ class BootTaskService : HeadlessJsTaskService() {
         return HeadlessJsTaskConfig(
             "ReRegisterAlarmsTask",
             Arguments.fromBundle(extras),
-            180000,  // 180 second timeout - daha uzun süre
+            TASK_TIMEOUT_MS,
             true    // Allow in foreground
         )
+    }
+
+    /**
+     * Son guvenlik agi: onHeadlessJsTaskFinish hic cagrilmadan servis yok
+     * edilirse (JS bundle yuklenemedi, sistem servisi oldurdu, getTaskConfig
+     * yolunda erken stopSelf) foreground bildirimi gorunur kalirdi. Burada
+     * hem stopForeground hem de acik cancel cagrilir; ikisi de idempotent.
+     *
+     * Emniyet supabi callback'i de burada geri aliniyor — aksi halde servis
+     * öldükten sonra tetiklenen bir Runnable main looper'da sızardı.
+     */
+    override fun onDestroy() {
+        mainHandler.removeCallbacks(hardStopRunnable)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(NOTIFICATION_ID)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing foreground notification on destroy", e)
+        }
+        super.onDestroy()
     }
 
     override fun onHeadlessJsTaskFinish(taskId: Int) {
         super.onHeadlessJsTaskFinish(taskId)
         Log.d(TAG, "HeadlessJS task finished: $taskId")
-
-        // Stop foreground service
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-            }
-            stopSelf()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error stopping service", e)
-        }
+        shutdown("taskFinish")
     }
 }

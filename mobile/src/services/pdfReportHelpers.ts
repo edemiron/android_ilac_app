@@ -5,6 +5,8 @@
  * pure modulde — I/O bagimliligi olmadan test edilebilir.
  */
 
+import { getLocalDateKey } from '../domain/doseLog';
+
 /**
  * Unicode escape sequence'lari decode et (\\u00fc -> u).
  */
@@ -119,7 +121,10 @@ export function buildReportFilename(
   language: 'tr' | 'en' = 'tr'
 ): string {
   const safeName = sanitizeFilename(medicineName);
-  const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  // ⚠️ v1.7.10 — YEREL gun. Rapor dosya adi/tarihi UTC gunuyle
+  // uretilirse TR'de gece yarisina yakin saatlerde bir onceki gunu
+  // gosterir (bkz. domain/doseLog.ts).
+  const date = getLocalDateKey(new Date());
   if (language === 'tr') {
     return `${safeName}-rapor-${days}gun-${date}.pdf`;
   }

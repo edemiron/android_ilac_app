@@ -24,6 +24,23 @@ export interface InteractionCheckResult {
   source?: 'local' | 'api';
 }
 
+/**
+ * RxNav API çağrısının sonucu.
+ *
+ * `ok`, `hasInteractions`'tan AYRI ve HAYATİ bir alan:
+ *   ok=false → ağ/sunucu/HTTP hatası; "etkileşim YOK" ANLAMINA GELMEZ
+ *   ok=true  → API gerçekten yanıt verdi; boş liste güvenilirdir
+ *
+ * Bu ayrım olmadan çağıran taraf ağ hatasını "etkileşim bulunamadı" sanıp
+ * yerel veritabanı fallback'ini atlıyordu: çevrimdışı veya kötü ağda
+ * kullanıcı, aspirin+varfarin gibi YEREL DB'de kayıtlı yüksek riskli bir
+ * çift için bile "etkileşim yok" görüyordu. Klinik güvenlik ekranının en
+ * tehlikeli sessiz başarısızlık modu buydu.
+ */
+export interface ApiInteractionCheckResult extends InteractionCheckResult {
+  ok: boolean;
+}
+
 // Bilinen ilaç etkileşimleri veritabanı (örnek)
 // Gerçek uygulamada API'den çekilmeli
 const KNOWN_INTERACTIONS: Omit<DrugInteraction, 'id'>[] = [
@@ -287,6 +304,43 @@ export function checkInteractionLocal(drug1: string, drug2: string): DrugInterac
   return null;
 }
 
+export interface ActiveInteractionCheckItem {
+  severity: 'low' | 'moderate' | 'high';
+  description: string;
+  sourceMedicineName: string;
+  targetMedicineName: string;
+  action: string;
+}
+
+/**
+ * Mevcut ilaçlar ile yeni/düzenlenen ilaç arasındaki olası etkileşimleri kontrol eder.
+ */
+export function checkInteractions(
+  newMedicineName: string,
+  existingMedicines: { name: string; isActive?: boolean }[]
+): ActiveInteractionCheckItem[] {
+  const interactions: ActiveInteractionCheckItem[] = [];
+  if (!newMedicineName || !existingMedicines || existingMedicines.length === 0) return interactions;
+
+  for (const med of existingMedicines) {
+    if (med.isActive === false) continue;
+    if (med.name.trim().toLowerCase() === newMedicineName.trim().toLowerCase()) continue;
+
+    const localMatch = checkInteractionLocal(newMedicineName, med.name);
+    if (localMatch) {
+      interactions.push({
+        severity: localMatch.severity,
+        description: localMatch.description,
+        sourceMedicineName: newMedicineName,
+        targetMedicineName: med.name,
+        action: localMatch.recommendation || 'Doktorunuza danışınız.',
+      });
+    }
+  }
+
+  return interactions;
+}
+
 // İki ilaç arasındaki etkileşimi kontrol et (async wrapper).
 // Sprint 4 (skip testleri geri ekleme): `drugInteraction.test.ts` bu fonksiyonu
 // import ediyor. Önce local DB'den kontrol et, yoksa API'ye düş.
@@ -374,7 +428,13 @@ export async function checkMultipleInteractions(
       if (apiResult.interactions.length > 0) {
         interactions.push(...apiResult.interactions);
       }
-      apiSuccess = true; // API başarılı çalıştı (sonuç boş dönse bile)
+      // ⚠️ `ok` bayrağı, `hasInteractions`'tan AYRI okunmalı.
+      // ok=false → API'ye ulaşılamadı (ağ/HTTP/parse hatası); bu "etkileşim
+      // yok" demek DEĞİL ve aşağıdaki yerel fallback MUTLAKA çalışmalı.
+      // Eskiden burada koşulsuz `apiSuccess = true` vardı: tüm ilaçlar
+      // RxCUI'ye çevrilmişse ve API ağ hatası verdiyse yerel veritabanı hiç
+      // sorgulanmıyordu → sessiz false-negative.
+      apiSuccess = apiResult.ok;
     }
 
     // 3. API bulamadı veya etken maddeye çeviremediğimiz ilaçlar varsa
@@ -463,12 +523,31 @@ export async function getRxCuiForDrug(drugName: string): Promise<string | null> 
 export async function checkInteractionsFromAPI(
   rxcuis: string[],
   originalDrugNames: string[]
-): Promise<InteractionCheckResult> {
+): Promise<ApiInteractionCheckResult> {
   try {
     // https://rxnav.nlm.nih.gov/InteractionAPIs.html
     const url = `https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis=${rxcuis.join('+')}`;
 
     const response = await fetch(url);
+
+    // ⚠️ HTTP hata durumu da BİR BAŞARISIZLIKTIR, "etkileşim yok" değildir.
+    // Eskiden response.ok hiç kontrol edilmiyordu: 500 / 429 / bir HTML hata
+    // sayfası ya response.json()'ı fırlatıp catch'e düşüyor ya da
+    // `data.fullInteractionTypeGroup` tanımsız kaldığı için sessizce
+    // hasInteractions:false üretiyordu. İkisi de çağıran tarafa "API başarılı,
+    // etkileşim yok" gibi görünüyordu.
+    if (!response.ok) {
+      log.warn('RxNav API HTTP hatasi — yerel veritabanina dusulecek', {
+        status: response.status,
+      });
+      return {
+        ok: false,
+        hasInteractions: false,
+        interactions: [],
+        checkedAt: new Date().toISOString(),
+      };
+    }
+
     const data = await response.json();
 
     const interactions: DrugInteraction[] = [];
@@ -504,14 +583,18 @@ export async function checkInteractionsFromAPI(
     }
 
     return {
+      ok: true,
       hasInteractions: interactions.length > 0,
       interactions,
       checkedAt: new Date().toISOString(),
     };
   } catch (error) {
     log.error('API etkilesim kontrolu hatasi', error);
-    // API başarısız olursa yerel veritabanını kullan
+    // ⚠️ ok:false — bu "etkileşim yok" DEĞİL, "API'ye ulaşılamadı" demek.
+    // Çağıran taraf bu bayrağı görüp yerel veritabanına düşmek ZORUNDA;
+    // aksi halde ağ hatası sessiz bir false-negative'e dönüşür.
     return {
+      ok: false,
       hasInteractions: false,
       interactions: [],
       checkedAt: new Date().toISOString(),

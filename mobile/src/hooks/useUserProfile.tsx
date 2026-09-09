@@ -1,11 +1,13 @@
 /**
- * useUserProfile — Sprint 58 + 63 + 64.
+ * useUserProfile — Sprint 58 + 63 + 64 + 77.
  *
  * Kullanıcı deneyim seviyesi (A: sade / B: detaylı), accent palette, haptics.
  * AsyncStorage'da saklanır, ThemeContext pattern'i uygulanır.
  *
  * Sprint 63: accentColor + version migration (v1 → v2).
  * Sprint 64: hapticsEnabled + version migration (v2 → v3).
+ * Sprint 77: Layout 3 varyanttan 2'ye indirildi ('A' Sade, 'B' Detaylı).
+ *   Eski 'C' değeri 'A' (sade) olarak migrate edilir.
  */
 
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
@@ -16,11 +18,15 @@ import { DEFAULT_ACCENT, AccentId, ACCENT_PALETTES } from '../theme/palettes';
 const log = createScopedLogger('useUserProfile');
 
 /**
- * Layout varyasyonu. preferredLayout (A/B) ile eşleşir.
- * - A: Sade / Minimal (default, yaşlılar için)
- * - B: Detaylı (Kart + Adherence, gençler için)
+ * Layout varyasyonu. preferredLayout ile eşleşir.
+ * - A: Detaylı (CircularProgress + stat tile + streak + collapsed plan)
+ * - B: Sade (kompakt hero + bugünün planı)
  */
-export type LayoutVariant = 'A' | 'B' | 'C';
+export type LayoutVariant = 'A' | 'B';
+
+function normalizeLayout(value: unknown): LayoutVariant {
+  return value === 'B' ? 'B' : 'A';
+}
 
 export interface UserProfile {
   layout: LayoutVariant;
@@ -49,7 +55,7 @@ interface UserProfileContextValue {
   isLoading: boolean;
 }
 
-const UserProfileContext = createContext<UserProfileContextValue | undefined>(undefined);
+export const UserProfileContext = createContext<UserProfileContextValue | undefined>(undefined);
 
 interface ProviderProps {
   children: ReactNode;
@@ -67,6 +73,7 @@ function migrateProfile(
     return {
       ...DEFAULT_PROFILE,
       ...parsed,
+      layout: normalizeLayout(parsed.layout),
       accentColor: DEFAULT_ACCENT,
       hapticsEnabled: true,
       version: PROFILE_VERSION,
@@ -77,17 +84,19 @@ function migrateProfile(
     return {
       ...DEFAULT_PROFILE,
       ...parsed,
+      layout: normalizeLayout(parsed.layout),
       hapticsEnabled: parsed.hapticsEnabled ?? true,
       version: PROFILE_VERSION,
     } as UserProfile;
   }
-  // v3+ — accent + haptics validation
+  // v3+ — accent + haptics validation + Sprint 77 layout normalize
   const accent = parsed.accentColor;
   const validAccent: AccentId =
     accent && accent in ACCENT_PALETTES ? (accent as AccentId) : DEFAULT_ACCENT;
   return {
     ...DEFAULT_PROFILE,
     ...parsed,
+    layout: normalizeLayout(parsed.layout),
     accentColor: validAccent,
     hapticsEnabled: parsed.hapticsEnabled ?? true,
     version: PROFILE_VERSION,

@@ -7,16 +7,23 @@ import notifee, {
   AndroidCategory,
   AndroidImportance,
   AndroidVisibility,
+  AndroidStyle,
 } from '@notifee/react-native';
 import { createScopedLogger } from './logger';
 import { scheduleMedicineNotification } from './notifications';
+import { ALARM_ACTIONS } from './notifications/config';
 import { Medicine, ReminderTime } from '../types';
-import { STORAGE_KEYS, CHANNELS, NOTIFICATION_IDS } from '../constants';
+import { STORAGE_KEYS, NOTIFICATION_IDS } from '../constants';
+// Kanal kimliklerinin tek kaynagi. Eskiden `constants.ts` icindeki olu `CHANNELS`
+// sabitinden geliyordu ve boot bildirimleri ESKI `-v4` kanallarina dusuyordu
+// (cihaz logcat'inde dogrulandi: alarm-sync-notification → medicine-reminders-v4).
+import { ALARM_CHANNEL_ID, SYNC_STATUS_CHANNEL_ID } from './notifications/channels';
+// Native AlarmModule'e TEK KOPRU (bkz. notifications/nativeAlarm.ts).
+import { scheduleNativeAlarm, ALARM_KIND_SNOOZE } from './notifications/nativeAlarm';
+// Bildirim kimliklerinin tek kaynagi — 'alarm-' literal'i burada uretilmez.
+import { getAlarmNotificationId } from './notifications/ids';
 
 const log = createScopedLogger('BootHandler');
-
-const ALARM_CHANNEL_ID = CHANNELS.ALARM;
-const REMINDER_CHANNEL_ID = CHANNELS.REMINDER;
 const BOOT_RECOVERY_KEY = STORAGE_KEYS.BOOT_RECOVERY;
 const SYNC_NOTIFICATION_ID = NOTIFICATION_IDS.ALARM_SYNC;
 
@@ -71,17 +78,21 @@ async function scheduleActiveSnooze(
     timestamp: triggerTime.getTime(),
     alarmManager: {
       allowWhileIdle: true,
-      type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE,
+      type: AlarmType.SET_ALARM_CLOCK,
     },
   };
 
   try {
+    const title = `💊 ${medicine.name} (Ertelendi${snooze.snoozeCount > 1 ? ` x${snooze.snoozeCount}` : ''})`;
+    const subtitle = `${timeStr} • Erteleme`;
+    const body = `${medicine.dosage ? `${medicine.dosage} ` : ''}almanın zamanı geldi.\n⏰ Yeni Hatırlatma: ${timeStr}`;
+
     const notificationId = await notifee.createTriggerNotification(
       {
         id: snooze.notificationId,
-        title: `🔔 ${medicine.name} (Ertelendi${snooze.snoozeCount > 1 ? ` x${snooze.snoozeCount}` : ''})`,
-        subtitle: timeStr,
-        body: `${medicine.dosage} almanin zamani!\n⏰ ${timeStr}`,
+        title,
+        subtitle,
+        body,
         android: {
           channelId: ALARM_CHANNEL_ID,
           category: AndroidCategory.ALARM,
@@ -98,15 +109,19 @@ async function scheduleActiveSnooze(
             id: 'default',
             launchActivity: 'com.ilachatirlatici.MainActivity',
           },
-          smallIcon: 'ic_launcher',
-          color: '#FF6B6B',
+          smallIcon: 'ic_notification',
+          largeIcon: 'ic_launcher',
+          color: '#0D9488',
           colorized: true,
           sound: 'alarm',
           vibrationPattern: [500, 200, 500, 200, 500, 200],
-          actions: [
-            { title: '😴 Ertele', pressAction: { id: 'snooze' } },
-            { title: '✅ Aldım', pressAction: { id: 'take' } },
-          ],
+          actions: ALARM_ACTIONS,
+          style: {
+            type: AndroidStyle?.BIGTEXT ?? 1,
+            text: body,
+            title,
+            summary: subtitle,
+          },
         },
         data: {
           medicineId: snooze.medicineId,
@@ -120,6 +135,15 @@ async function scheduleActiveSnooze(
         },
       },
       trigger
+    );
+
+    // Native AlarmManager.setAlarmClock ile de donanımsal garantile.
+    // KIND_SNOOZE zorunlu: boot sonrasi geri yuklenen erteleme, ayni
+    // hatirlatmanin ANA alarminin requestCode'unu ezmemeli.
+    await scheduleNativeAlarm(
+      triggerTime.getTime(),
+      { medicineId: snooze.medicineId, reminderTimeId: snooze.reminderTimeId },
+      ALARM_KIND_SNOOZE
     );
 
     return notificationId;
@@ -136,28 +160,66 @@ export interface BootRecoveryResult {
   timestamp: string;
 }
 
+/**
+ * Bu tetikleyici GERÇEK bir cihaz yeniden başlatması mı?
+ *
+ * v1.7.4 (Faz 1.2): "Alarmlar Senkronize Edildi" bildirimi eskiden HER
+ * `reRegisterAllAlarms` sonunda gösteriliyordu — yani uygulamanın her
+ * açılışında ve `AlarmCheckWorker` ile **15 dakikada bir**. İki sonucu vardı:
+ *   1. Bildirim spam'i (kullanıcı için anlamsız bir teknik mesaj),
+ *   2. SESLİ hatırlatma kanalından gittiği için ilaç alarmıyla aynı anda
+ *      çalıp "aynı melodi, iki farklı ses seviyesi" etkisi yaratıyordu.
+ * Mesaj yalnızca gerçek yeniden başlatmadan sonra anlamlıdır: orada kullanıcı
+ * "alarmlarım hâlâ kurulu mu?" diye haklı bir kaygı taşır.
+ */
+function isRealDeviceBoot(trigger: string): boolean {
+  return trigger.includes('BOOT_COMPLETED');
+}
+
 async function showRecoveryNotification(result: BootRecoveryResult): Promise<void> {
   const total = result.reminders + result.snoozes;
   if (total === 0) return;
+
+  if (!isRealDeviceBoot(result.trigger)) {
+    log.debug('Durum bildirimi atlandi (gercek yeniden baslatma degil)', {
+      trigger: result.trigger,
+    });
+    return;
+  }
 
   try {
     // Önce varolan bildirimi iptal et (duplicate önleme)
     await notifee.cancelNotification(SYNC_NOTIFICATION_ID);
 
+    const title = '✅ Alarmlar Senkronize Edildi';
+    const subtitle = 'İlaç Hatırlatıcı';
+    const body = `${result.reminders} hatırlatma${result.snoozes > 0 ? ` ve ${result.snoozes} erteleme` : ''} başarıyla yeniden planlandı.`;
+
     await notifee.displayNotification({
       id: SYNC_NOTIFICATION_ID, // Sabit ID ile aynı bildirimi günceller
-      title: '✅ Alarmlar Senkronize Edildi',
-      body: `${result.reminders} hatirlatma${result.snoozes > 0 ? ` ve ${result.snoozes} erteleme` : ''} yeniden planlandi.`,
+      title,
+      subtitle,
+      body,
       android: {
-        channelId: REMINDER_CHANNEL_ID,
-        importance: AndroidImportance.DEFAULT,
+        // v1.7.4: SESLİ hatırlatma kanalı yerine sessiz durum kanalı.
+        // Eskiden ilaç alarmıyla aynı anda çalıp çift ses üretiyordu.
+        channelId: SYNC_STATUS_CHANNEL_ID,
+        importance: AndroidImportance.LOW,
         visibility: AndroidVisibility.PUBLIC,
         autoCancel: true,
-        smallIcon: 'ic_launcher',
-        color: '#4ECDC4',
+        smallIcon: 'ic_notification',
+        largeIcon: 'ic_launcher',
+        color: '#0D9488',
+        colorized: true,
         timestamp: Date.now(),
         showTimestamp: true,
         pressAction: { id: 'default' },
+        style: {
+          type: AndroidStyle?.BIGTEXT ?? 1,
+          text: body,
+          title,
+          summary: subtitle,
+        },
       },
     });
     log.debug('Recovery notification shown', { ...result });
@@ -217,6 +279,28 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
     const activeMedicines = medicines.filter(m => m.isActive);
     const medicineMap = new Map(activeMedicines.map(m => [m.id, m]));
 
+    // ⚠️ v1.7.7 — O ANDA CALAN ALARMA DOKUNMA.
+    //
+    // `scheduleMedicineNotification` her cagrida ONCE `cancelNotification`
+    // yapiyor. Bu yeniden kayit turu calan bir alarma denk gelirse kullanicinin
+    // ekranindaki/bildirim cubugundaki alarmi DUSURUYORDU — doz hatirlatmasi
+    // sessizce kayboluyor. Cihazda olculdu: 15 alarm 8 saniyede uc kez iptal
+    // edilip yeniden kuruldu.
+    //
+    // Halihazirda GOSTERILEN bildirimler atlanir: onlar zaten gorevini
+    // yapiyor ve kullanici onlara yanit verdiginde kendi yollari temizliyor.
+    let displayedAlarmIds = new Set<string>();
+    try {
+      const displayed = await notifee.getDisplayedNotifications();
+      displayedAlarmIds = new Set(
+        displayed
+          .map(item => item.notification?.id || item.id)
+          .filter((id): id is string => typeof id === 'string')
+      );
+    } catch (error) {
+      log.debug('Gosterilen bildirimler okunamadi, hepsi yeniden kurulacak', { error });
+    }
+
     // Her alarm scheduleMedicineNotification içinde kendi eski bildirimini iptal eder
     // cancelAllNotifications çağırmıyoruz - race condition ve kayıp alarm riski var
     log.debug('Re-registering alarms for active medicines', { count: activeMedicines.length });
@@ -226,6 +310,14 @@ export async function reRegisterAllAlarms(trigger: string = 'manual'): Promise<B
 
       const medicine = medicineMap.get(reminderTime.medicineId);
       if (!medicine) continue;
+
+      // Bu doz SU AN caliyorsa yeniden kurma (yukaridaki gerekce).
+      const alarmId = getAlarmNotificationId(medicine.id, reminderTime.id);
+      if (displayedAlarmIds.has(alarmId)) {
+        log.debug('Alarm su an gosteriliyor, yeniden kurulmadi', { alarmId });
+        registeredReminders++;
+        continue;
+      }
 
       // notifications.ts'deki fonksiyonu kullan - bypassBuffer=false ile buffer uygula
       const notificationId = await scheduleMedicineNotification(

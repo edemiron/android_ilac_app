@@ -28,14 +28,10 @@ export const STORAGE_KEYS = {
 } as const;
 
 // ===== NOTIFICATION CHANNEL IDS =====
-export const CHANNELS = {
-  /** Tam ekran alarm kanalı (native MainApplication.kt ile eşleşmeli) */
-  ALARM: 'medicine-alarms-v4',
-  /** Normal hatırlatma kanalı */
-  REMINDER: 'medicine-reminders-v4',
-  /** Kalıcı bildirim kanalı */
-  PERSISTENT: 'persistent-medicine-reminders',
-} as const;
+// KALDIRILDI (v1.7.1): burada eski `-v4` kimliklerini tasiyan olu bir `CHANNELS`
+// sabiti vardi; hicbir yerde kullanilmiyordu ama yanlis kanala bildirim gonderme
+// tuzagiydi. Kanal kimliklerinin TEK KAYNAGI:
+//   src/utils/notifications/channels.ts
 
 // ===== NOTIFICATION IDS =====
 export const NOTIFICATION_IDS = {

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Cleartext (http) trafiğini tüm uygulama için kapat, HTTPS'i zorla -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Expo Localhost Geliştirme Ortamı İstisnası (Sadece debug buildlerde çalışır) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <!-- Expo dev sunucusu IP'lerini buraya ekleyebilirsiniz eğer gerekiyorsa -->
+    </domain-config>
+</network-security-config>

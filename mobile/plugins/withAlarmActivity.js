@@ -60,6 +60,14 @@ function withMainActivityCode(config) {
         }
       }
 
+      // MainActivity.kt zaten elle yonetilen applyAlarmWindow() akisina sahipse
+      // hicbir sey enjekte etme. (Bkz. MainActivity.applyAlarmWindow — keyguard
+      // dismiss BILEREK kullanilmaz; buraya geri eklenmesi kilit ekrani bug'ini geri getirir.)
+      if (contents.includes('applyAlarmWindow')) {
+        config.modResults.contents = contents;
+        return config;
+      }
+
       // enableLockScreenVisibility fonksiyonunu ekle (eger yoksa)
       if (!contents.includes('enableLockScreenVisibility')) {
         const functionCode = `
@@ -72,17 +80,14 @@ function withMainActivityCode(config) {
       // Android 8.1+ (API 27+) - Modern approach
       setShowWhenLocked(true)
       setTurnScreenOn(true)
-
-      // Request to dismiss keyguard (lock screen)
-      val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-      keyguardManager.requestDismissKeyguard(this, null)
+      // NOT: requestDismissKeyguard() BILEREK cagrilmaz. Guvenli kilitte (PIN/parola)
+      // sistem parola ekranini alarmin ustune koyar ve kullanici alarmi goremez.
     } else {
       // Legacy approach for older Android versions
       @Suppress("DEPRECATION")
       window.addFlags(
         WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
       )
     }
 

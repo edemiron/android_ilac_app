@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Daily Medication Hub</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-container": "#f4fffc",
+                        "on-surface-variant": "#3d4947",
+                        "missed-bg": "#FEE2E2",
+                        "surface-variant": "#d3e4fe",
+                        "primary-container": "#008378",
+                        "background": "#f8f9ff",
+                        "secondary-container": "#dc2c4f",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#ffdbce",
+                        "secondary": "#b90538",
+                        "on-primary-fixed": "#00201d",
+                        "taken-bg": "#D1FAE5",
+                        "error": "#ba1a1a",
+                        "taken": "#10B981",
+                        "skipped-bg": "#FEF3C7",
+                        "surface-tint": "#006a61",
+                        "surface-container-high": "#dce9ff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#005049",
+                        "on-secondary-fixed": "#40000d",
+                        "inverse-surface": "#213145",
+                        "tertiary": "#924628",
+                        "secondary-fixed-dim": "#ffb2b7",
+                        "on-error": "#ffffff",
+                        "primary": "#00685f",
+                        "on-tertiary-container": "#fffbff",
+                        "on-tertiary-fixed-variant": "#773215",
+                        "error-container": "#ffdad6",
+                        "on-background": "#0b1c30",
+                        "bg-dark": "#0F172A",
+                        "surface-bright": "#f8f9ff",
+                        "on-secondary-fixed-variant": "#92002a",
+                        "outline": "#6d7a77",
+                        "surface-container-highest": "#d3e4fe",
+                        "inverse-on-surface": "#eaf1ff",
+                        "primary-fixed-dim": "#6bd8cb",
+                        "on-secondary-container": "#fffbff",
+                        "outline-variant": "#bcc9c6",
+                        "on-tertiary-fixed": "#370e00",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#b05e3d",
+                        "inverse-primary": "#6bd8cb",
+                        "surface-dark": "#1E293B",
+                        "skipped": "#F59E0B",
+                        "surface-dim": "#cbdbf5",
+                        "surface-container": "#e5eeff",
+                        "tertiary-fixed-dim": "#ffb59a",
+                        "surface": "#f8f9ff",
+                        "on-surface": "#0b1c30",
+                        "missed": "#EF4444",
+                        "primary-fixed": "#89f5e7",
+                        "surface-container-low": "#eff4ff",
+                        "secondary-fixed": "#ffdadb",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-desktop": "24px",
+                        "touch-target": "48px",
+                        "card-padding": "16px",
+                        "gutter": "12px",
+                        "base": "4px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "body-lg-med": ["Inter"],
+                        "headline-screen": ["Plus Jakarta Sans"],
+                        "display-hero": ["Plus Jakarta Sans"],
+                        "headline-card": ["Plus Jakarta Sans"],
+                        "body-regular": ["Inter"],
+                        "time-display": ["Inter"],
+                        "label-badge": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg-med": ["16px", { "lineHeight": "22px", "fontWeight": "600" }],
+                        "headline-screen": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "display-hero": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-card": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-regular": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "time-display": ["30px", { "lineHeight": "36px", "fontWeight": "700" }],
+                        "label-badge": ["12px", { "lineHeight": "16px", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.35s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-regular min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-background flex justify-between items-center px-margin-mobile py-4 z-40">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden shrink-0">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="A close-up portrait of a professional woman with a soft, friendly smile in a bright, modern light-filled room. The background is slightly blurred with soft pastel tones, emphasizing a calm and reliable clinical modern aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEQVg_sP3uMvcq2q3rY4XNeufu-XvkphpJ_ArfHKOGbf9dvsXaleK32lDcgx4fk0v1ePWb6rAatd04JPXUW_0YvCbSeyaigWCgq6U_zp4Ku4AE27Bjl-cqy3GyupOoICxTPpRXaVxwCvYV9KMw0H5XgRqqH_JHKxMe1JNH5jeInjpo__FewbVIA2SoL84x3UktF_jWJ8Z7n7R0qViFxCnEGUe-2fVw7PCkAY0gKkG_Kurkbw-WJnzC-A"/>
+</div>
+<h1 class="font-headline-screen text-headline-screen text-primary">Günaydın, Sarah 👋</h1>
+</div>
+<button class="w-touch-target h-touch-target flex items-center justify-center text-on-surface-variant hover:opacity-80 transition-opacity scale-95 active:transition-transform rounded-full">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+</header>
+<main class="px-margin-mobile space-y-6 md:px-margin-desktop md:max-w-3xl md:mx-auto">
+<!-- Adherence Section -->
+<section class="bg-surface-container-lowest p-card-padding rounded-xl shadow-[0_4px_6px_-1px_rgba(0,106,97,0.1),0_2px_4px_-2px_rgba(0,106,97,0.1)] flex items-center justify-between">
+<div>
+<h2 class="font-headline-card text-headline-card text-on-surface mb-1">Günlük İlerleme</h2>
+<p class="font-body-regular text-body-regular text-on-surface-variant">3 / 4 Alındı</p>
+</div>
+<div class="relative w-20 h-20">
+<svg class="w-full h-full" viewbox="0 0 100 100">
+<circle class="text-surface-variant stroke-current" cx="50" cy="50" fill="transparent" r="40" stroke-width="8"></circle>
+<circle class="text-primary stroke-current progress-ring__circle" cx="50" cy="50" fill="transparent" r="40" stroke-dasharray="251.2" stroke-dashoffset="62.8" stroke-linecap="round" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="font-headline-card text-headline-card text-primary">%75</span>
+</div>
+</div>
+</section>
+<!-- Weekly Calendar -->
+<section>
+<div class="flex overflow-x-auto gap-gutter pb-2 hide-scrollbar">
+<!-- Day 1 -->
+<div class="flex flex-col items-center min-w-[56px] py-2">
+<span class="font-label-badge text-label-badge text-on-surface-variant mb-1">Pzt</span>
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-transparent text-on-surface">
+<span class="font-body-lg-med text-body-lg-med">13</span>
+</div>
+<div class="flex gap-1 mt-1">
+<div class="w-1.5 h-1.5 rounded-full bg-taken"></div>
+</div>
+</div>
+<!-- Day 2 -->
+<div class="flex flex-col items-center min-w-[56px] py-2">
+<span class="font-label-badge text-label-badge text-on-surface-variant mb-1">Sal</span>
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-transparent text-on-surface">
+<span class="font-body-lg-med text-body-lg-med">14</span>
+</div>
+<div class="flex gap-1 mt-1">
+<div class="w-1.5 h-1.5 rounded-full bg-taken"></div>
+</div>
+</div>
+<!-- Day 3 Active -->
+<div class="flex flex-col items-center min-w-[56px] py-2">
+<span class="font-label-badge text-label-badge text-primary font-bold mb-1">Çar</span>
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-primary text-on-primary shadow-md">
+<span class="font-body-lg-med text-body-lg-med">15</span>
+</div>
+<div class="flex gap-1 mt-1">
+<div class="w-1.5 h-1.5 rounded-full bg-taken"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-taken"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-skipped"></div>
+</div>
+</div>
+<!-- Day 4 -->
+<div class="flex flex-col items-center min-w-[56px] py-2">
+<span class="font-label-badge text-label-badge text-on-surface-variant mb-1">Per</span>
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-transparent text-on-surface">
+<span class="font-body-lg-med text-body-lg-med">16</span>
+</div>
+</div>
+<!-- Day 5 -->
+<div class="flex flex-col items-center min-w-[56px] py-2">
+<span class="font-label-badge text-label-badge text-on-surface-variant mb-1">Cum</span>
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-transparent text-on-surface">
+<span class="font-body-lg-med text-body-lg-med">17</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Medication List -->
+<section class="space-y-4">
+<h3 class="font-headline-card text-headline-card text-on-surface">Bugünün İlaçları</h3>
+<!-- Medication 1 -->
+<div class="bg-surface-container-lowest p-card-padding rounded-xl shadow-[0_4px_6px_-1px_rgba(0,106,97,0.1)] border border-outline-variant flex items-center gap-4 relative overflow-hidden">
+<div class="w-12 h-12 rounded-full bg-taken-bg flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-taken" style="font-variation-settings: 'FILL' 1;">pill</span>
+</div>
+<div class="flex-1">
+<h4 class="font-body-lg-med text-body-lg-med text-on-surface">Lisinopril 10mg</h4>
+<div class="flex items-center gap-2 mt-1">
+<span class="bg-surface-variant text-on-surface-variant px-2 py-0.5 rounded font-label-badge text-label-badge">Yemekten Sonra</span>
+</div>
+</div>
+<div class="text-right">
+<div class="font-time-display text-time-display text-on-surface">08:00</div>
+<div class="font-label-badge text-label-badge text-taken flex items-center justify-end gap-1 mt-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+                        Alındı
+                    </div>
+</div>
+<!-- Taken Indicator Line -->
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-taken"></div>
+</div>
+<!-- Medication 2 -->
+<div class="bg-surface-container-lowest p-card-padding rounded-xl shadow-[0_4px_6px_-1px_rgba(0,106,97,0.1)] border-2 border-primary flex items-center gap-4 relative">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 0;">medication</span>
+</div>
+<div class="flex-1">
+<h4 class="font-body-lg-med text-body-lg-med text-on-surface">Metformin 500mg</h4>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-on-surface-variant font-body-regular text-body-regular">1 Tablet</span>
+</div>
+</div>
+<div class="text-right">
+<div class="font-time-display text-time-display text-on-surface">12:30</div>
+<div class="font-label-badge text-label-badge text-primary flex items-center justify-end gap-1 mt-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                        Bekliyor
+                    </div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 shadow-[0_-4px_6px_-1px_rgba(0,106,97,0.1)] bg-surface-container-lowest md:hidden rounded-t-xl">
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 transition-all duration-200 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-badge text-label-badge mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:bg-surface-variant/50 rounded-full transition-all duration-200 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">add_circle</span>
+<span class="font-label-badge text-label-badge mt-1">Add</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:bg-surface-variant/50 rounded-full transition-all duration-200 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">calendar_month</span>
+<span class="font-label-badge text-label-badge mt-1">Calendar</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:bg-surface-variant/50 rounded-full transition-all duration-200 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">group</span>
+<span class="font-label-badge text-label-badge mt-1">Care</span>
+</a>
+</nav>
+</body></html>

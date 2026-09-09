@@ -4,6 +4,7 @@ import {
   getDoc,
   getDocs,
   deleteDoc,
+  deleteField,
   writeBatch,
   Timestamp,
   QueryDocumentSnapshot,
@@ -11,6 +12,14 @@ import {
 import { db } from '../config/firebase';
 import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../types';
 import { createScopedLogger } from '../utils/logger';
+// Silme kayitlarinin (tombstone) tek kaynagi — bkz. domain/deletions.ts.
+import {
+  normalizeDeletions,
+  type DeletionRegistries,
+  type DeletionRegistry,
+} from '../domain/deletions';
+// Hangi ayarin buluta gidip gitmedigi TEK KAYNAK: domain/settingsScope.ts
+import { DEVICE_LOCAL_SETTING_KEYS, isDeviceLocalSettingKey } from '../domain/settingsScope';
 // Sprint 7.2: DRY — stores/helpers/sanitize.ts'ten sanitizeString + sanitizeForFirestore
 // import ediliyor. firestoreSync.ts icindeki duplicate inline tanimlar silindi.
 import { sanitizeString, sanitizeForFirestore } from '../stores/helpers/sanitize';
@@ -31,16 +40,52 @@ import {
   buildReminderTimesCollectionRef,
   buildMedicineLogsCollectionRef,
   buildSettingsDocRef,
+  buildDeletionsDocRef,
 } from './firestoreSyncHelpers';
 import { db as firestoreDb } from '../config/firebase';
 
 const log = createScopedLogger('FirestoreSync');
 
+/** Firestore `Timestamp` | Plain Timestamp Object | ISO string | Date → ISO string */
+export function toIsoString(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === 'string') return value;
+  if (value instanceof Date) return value.toISOString();
+  const maybeTimestamp = value as {
+    toDate?: () => Date;
+    seconds?: number;
+    _seconds?: number;
+  };
+  if (typeof maybeTimestamp.toDate === 'function') {
+    try {
+      return maybeTimestamp.toDate().toISOString();
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof maybeTimestamp.seconds === 'number') {
+    return new Date(maybeTimestamp.seconds * 1000).toISOString();
+  }
+  if (typeof maybeTimestamp._seconds === 'number') {
+    return new Date(maybeTimestamp._seconds * 1000).toISOString();
+  }
+  return undefined;
+}
+
 function sanitizeMedicine(medicine: Medicine): Medicine {
+  const normalizedUpdatedAt =
+    toIsoString((medicine as { updatedAt?: unknown }).updatedAt) ??
+    (typeof medicine.updatedAt === 'string' ? medicine.updatedAt : new Date().toISOString());
+  const normalizedCreatedAt =
+    toIsoString((medicine as { createdAt?: unknown }).createdAt) ??
+    (typeof medicine.createdAt === 'string' ? medicine.createdAt : normalizedUpdatedAt);
+
   return {
     ...medicine,
     name: sanitizeString(medicine.name) || medicine.name,
     dosage: medicine.dosage ? sanitizeString(medicine.dosage) : medicine.dosage,
+    updatedAt: normalizedUpdatedAt,
+    createdAt: normalizedCreatedAt,
   };
 }
 
@@ -76,7 +121,11 @@ async function executeBatches(
  * STRATEJI: Sil-tümünü-ekle yerine, sadece değişenleri güncelle
  * Bu veri kaybı riskini ortadan kaldırır
  */
-export async function syncMedicinesToCloud(userId: string, medicines: Medicine[]): Promise<void> {
+export async function syncMedicinesToCloud(
+  userId: string,
+  medicines: Medicine[],
+  deletedIds?: DeletionRegistry
+): Promise<void> {
   const medicinesRef = buildMedicinesCollectionRef(firestoreDb, userId);
 
   // Mevcut verileri çek
@@ -87,11 +136,32 @@ export async function syncMedicinesToCloud(userId: string, medicines: Medicine[]
   const operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }> =
     [];
 
-  // Silinmiş ilaçları bul ve silme operasyonu ekle
+  // ⚠️ Y1 — silme artık TOMBSTONE'A BAĞLI, "local'de yok" demek değil.
+  //
+  // Eski kod, bulutta olup LOCAL LİSTEDE OLMAYAN her dokümanı siliyordu.
+  // `medicineStore` her mutasyonda `scheduleBackgroundSync(() => syncToCloud())`
+  // çağırıyor ve ÖNCESİNDE `syncFromCloud` ZORUNLULUĞU YOK. Yani:
+  //
+  //   Tablet yeni ilaç ekler → buluta yazar.
+  //   Telefon o gün hiç açılmamış (local liste bayat); kullanıcı telefonda
+  //   TEK BİR ayar değiştirir → syncToCloud → tabletin ilacı (ve
+  //   hatırlatmaları) BULUTTAN SİLİNİR → tablet sonraki açılışta ilacı kaybeder.
+  //
+  // Sonuç sessiz ilaç/alarm kaybı = kaçırılan doz. Tombstone sistemi
+  // (`domain/deletions.ts`, v1.7.8) yalnızca KASITLI silmeleri taşır; bu yol
+  // onu bypass ediyordu.
+  //
+  // Yeni kural: yalnızca KASITLI silinmiş (tombstone'u olan) dokümanlar
+  // buluttan kaldırılır. Tombstone'u olmayan bir eksik "bu cihaz bilmiyor"
+  // demektir, "silinmiş" değil — dokümana DOKUNULMAZ ve bir sonraki
+  // `syncFromCloud` onu bu cihaza getirir.
   existingDocs.forEach((docSnapshot, id) => {
-    if (!newIds.has(id)) {
-      operations.push({ type: 'delete', ref: docSnapshot.ref });
+    if (newIds.has(id)) return;
+    if (!deletedIds || !(id in deletedIds)) {
+      log.debug("Bulutta local'de olmayan ama tombstone'u da olmayan ilaç korundu", { id });
+      return;
     }
+    operations.push({ type: 'delete', ref: docSnapshot.ref });
   });
 
   // Ekle/Güncelle operasyonları
@@ -172,13 +242,17 @@ export async function getMedicinesFromCloud(userId: string): Promise<Medicine[]>
   const medicinesRef = buildMedicinesCollectionRef(firestoreDb, userId);
   const snapshot = await getDocs(medicinesRef);
 
-  // Türkçe karakter encoding sorunlarını düzelt
-  return snapshot.docs.map(doc =>
-    sanitizeMedicine({
-      ...doc.data(),
+  // Türkçe karakter encoding ve Firestore Timestamp tip normalizasyonu
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return sanitizeMedicine({
+      ...data,
       id: doc.id,
-    } as Medicine)
-  );
+      updatedAt: toIsoString(data.updatedAt) ?? new Date().toISOString(),
+      createdAt:
+        toIsoString(data.createdAt) ?? toIsoString(data.updatedAt) ?? new Date().toISOString(),
+    } as Medicine);
+  });
 }
 
 // ============ HATIRLATMA ZAMANLARI ============
@@ -189,7 +263,8 @@ export async function getMedicinesFromCloud(userId: string): Promise<Medicine[]>
  */
 export async function syncReminderTimesToCloud(
   userId: string,
-  reminderTimes: ReminderTime[]
+  reminderTimes: ReminderTime[],
+  deletedIds?: DeletionRegistry
 ): Promise<void> {
   const timesRef = buildReminderTimesCollectionRef(firestoreDb, userId);
 
@@ -201,11 +276,17 @@ export async function syncReminderTimesToCloud(
   const operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }> =
     [];
 
-  // Silinmiş zamanları bul
+  // ⚠️ Y1 — `syncMedicinesToCloud` ile aynı gerekçe: yalnızca TOMBSTONE'u
+  // olan hatırlatmalar silinir. Bayat bir cihaz başka cihazın eklediği
+  // hatırlatma saatlerini buluttan silemez. Hatırlatma kaybı doğrudan
+  // alarm kaybı demek olduğu için bu yol ilaçlardan bile daha kritik.
   existingDocs.forEach((docSnapshot, id) => {
-    if (!newIds.has(id)) {
-      operations.push({ type: 'delete', ref: docSnapshot.ref });
+    if (newIds.has(id)) return;
+    if (!deletedIds || !(id in deletedIds)) {
+      log.debug("Bulutta local'de olmayan ama tombstone'u da olmayan hatirlatma korundu", { id });
+      return;
     }
+    operations.push({ type: 'delete', ref: docSnapshot.ref });
   });
 
   // Ekle/Güncelle
@@ -255,17 +336,41 @@ export async function syncMedicineLogsToCloud(userId: string, logs: MedicineLog[
   // Mevcut verileri çek
   const existingSnapshot = await getDocs(logsRef);
   const existingDocs = new Map(existingSnapshot.docs.map(d => [d.id, d]));
-  const newIds = new Set(recentLogs.map(l => l.id));
+  // NOT: eskiden burada `const newIds = new Set(recentLogs.map(l => l.id))`
+  // vardı ve YALNIZCA aşağıdaki (kaldırılan) toplu-silme döngüsü kullanıyordu.
+  // Silme kalkınca değişken de kalktı — bkz. aşağıdaki Y2 açıklaması.
 
   const operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }> =
     [];
 
-  // Silinmiş logları bul
-  existingDocs.forEach((docSnapshot, id) => {
-    if (!newIds.has(id)) {
-      operations.push({ type: 'delete', ref: docSnapshot.ref });
-    }
-  });
+  // ⚠️ Y2 — BURADA ARTIK HİÇBİR ŞEY SİLİNMİYOR.
+  //
+  // Eski kod şuydu:
+  //   existingDocs.forEach((docSnapshot, id) => {
+  //     if (!newIds.has(id)) operations.push({ type: 'delete', ... });
+  //   });
+  // `newIds` yalnızca 30 GÜNLÜK filtreli `recentLogs`'tan kurulduğu için bu
+  // döngü **31+ günlük tüm bulut doz geçmişini her full-sync'te aktif olarak
+  // siliyordu.** Sonuç: cihaz değişimi / veri temizleme / yeniden kurulumda
+  // 30 günden eski doz geçmişi, adherans istatistikleri ve PDF hekim
+  // raporları için gereken veri KALICI olarak yok oluyordu. Yerel
+  // `medicineLogs` sınırsız büyürken bulut kopyasının budanması asimetrik ve
+  // belgelenmemiş bir veri kaybıydı.
+  //
+  // Neden silme tamamen kaldırıldı (30 gün filtresi KORUNDU):
+  //   - `medicineLogs` klinik bir KAYITTIR. K3 ile bakıcı yolu zaten
+  //     append-only yapıldı; bulut tarafında toplu silme bu ilkeyle çelişir.
+  //   - `DeletionRegistries` yalnızca `medicines` ve `reminderTimes` içerir —
+  //     loglar için tombstone YOK, yani "kullanıcı sildi" sinyali zaten
+  //     taşınmıyor. Tombstone'u olmayan bir silmeyi buluta yaymak tahmindir.
+  //   - 30 günlük yükleme filtresi kalsa bile bulut ZAMANLA TÜM GEÇMİŞİ
+  //     BİRİKTİRİR: her sync o anki son-30-gün penceresini yükler, silme
+  //     olmadığı için önceki pencereler kalır. Yani arşiv kendiliğinden
+  //     oluşur ve ilk-sync hacmi büyümeyen şekilde korunur.
+  //
+  // Hastanın tekil bir logu silmesi hâlâ mümkün (firestore.rules:
+  // `allow delete: if isOwner(userId)`) — kaldırılan yalnızca senkronun
+  // TOPLU silmesi.
 
   // Ekle/Güncelle
   recentLogs.forEach(log => {
@@ -305,45 +410,117 @@ export async function getMedicineLogsFromCloud(userId: string): Promise<Medicine
 
 // ============ AYARLAR ============
 
-// Ayarları kaydet
-export async function syncSettingsToCloud(userId: string, settings: UserSettings): Promise<void> {
+/**
+ * Buluttan gelen ayarlar. KISMI'dir: bulut dokumaninda olmayan alanlar
+ * yoktur ve birlestirme sirasinda YEREL deger korunur (bkz.
+ * `mergeSettingsWithUndefined`). Eskiden burada tam bir `UserSettings`
+ * uretiliyordu ve eksik alanlar VARSAYILANLA doldurulup yerel degerleri
+ * eziyordu.
+ */
+export type CloudUserSettings = Partial<UserSettings>;
+
+/**
+ * Ayarları buluta yaz.
+ *
+ * ⚠️ v1.7.2 ONARIM — KORLEMESINE TAM DOKUMAN YAZIMI KALDIRILDI.
+ *
+ * Eskiden bu fonksiyon her cagrida `setDoc` ile dokumanin TAMAMINI yaziyordu.
+ * Indirme yalnizca uygulama acilisinda bir kez yapildigi icin (bkz.
+ * `AuthContext`), bir cihaz gunlerce bayat bir yerel kopya tasiyabiliyor;
+ * o cihazda TEK bir ayar degistirildiginde dokumanin tamami — yani DIGER
+ * cihazin yeni degerleri de — bayat degerlerle EZILIYORDU:
+ *
+ *   1. Tablet: ses 100 → buluta yazildi.
+ *   2. Telefon (o gun hic acilmadi, yerelinde ses hala 80): sessiz saatleri
+ *      acti → TUM dokumani yazdi, buluta ses=80 gitti. Tabletin 100'u
+ *      buluttan SILINDI.
+ *   3. Tablet sonraki acilista indirdi: bulut daha yeni → ses 80'e dondu.
+ *
+ * Ayni sinif hata TEK cihazda da vardi: temiz kurulum + giristen sonra
+ * senkron tamamlanmadan tek bir ayar degistirilirse, dokuman yerel
+ * VARSAYILANLARLA komple eziliyordu.
+ *
+ * Dikkat: bu kayip alan bazli zaman damgasiyla COZULMEZ — bayat deger taze
+ * damgayla yazilir. Kok neden damganin cozunurlugu degil, degismeyen
+ * alanlarin da yazilmasi. Cozum: yalnizca DEGISEN alanlari `{ merge: true }`
+ * ile yazmak.
+ *
+ * @param settings Yazilacak alanlar. `updateSettings` yalnizca degisen
+ *   alanlari geçirir; `uploadAllDataToCloud` ilk tam yukleme icin tam
+ *   nesneyi geçirir.
+ */
+export async function syncSettingsToCloud(
+  userId: string,
+  settings: Partial<UserSettings>
+): Promise<void> {
   const docRef = buildSettingsDocRef(firestoreDb, userId);
-  await setDoc(docRef, {
-    ...settings,
-    updatedAt: Timestamp.now(),
-  });
+
+  // ⚠️ v1.7.9 — CIHAZA OZEL ALANLAR SON KAPIDA DA SUZULUR.
+  // Cagiranlar (updateSettings, uploadAllDataToCloud) artik suzuyor; burada
+  // ikinci bir kapi var cunku bu fonksiyon TEK bulut yazma noktasi ve yeni
+  // bir cagiran eklendiginde PIN hash'inin sessizce buluta gitmesi kabul
+  // edilemez. Gerekce: src/domain/settingsScope.ts dosya basi.
+  //
+  // Ayrica ESKI dokumanlarda bu alanlar hala yazili olabilir: `deleteField()`
+  // ile acikca TEMIZLENIRLER. Bu, saklanmis bir kimlik dogrulama sirrini
+  // buluttan kaldirir.
+  const payload: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (isDeviceLocalSettingKey(key)) continue;
+    if (value !== undefined) {
+      payload[key] = value;
+    }
+  }
+
+  for (const key of DEVICE_LOCAL_SETTING_KEYS) {
+    payload[key] = deleteField();
+  }
+
+  payload.settingsUpdatedAt = settings.settingsUpdatedAt ?? new Date().toISOString();
+  payload.updatedAt = Timestamp.now();
+
+  // merge: true → yalnizca `payload`daki alanlar degisir, dokumandaki diger
+  // alanlar OLDUGU GIBI kalir.
+  await setDoc(docRef, payload, { merge: true });
 }
 
-// Ayarları getir
-export async function getSettingsFromCloud(userId: string): Promise<UserSettings | null> {
+/**
+ * Ayarları getir.
+ *
+ * ⚠️ v1.7.1 ONARIM — iki gercek kusur vardi:
+ *
+ * 1. Alanlar TEK TEK sayiliyordu ve listede 13 ayar YOKTU (guvenlik, TTS,
+ *    kalici bildirim). Bu ayarlar buluta yukleniyor ama GERI INDIRILMIYORDU:
+ *    temiz kurulum + giristen sonra sessizce varsayilana donuyorlardi.
+ * 2. Her alan `?? varsayilan` ile donduruluyordu, yani hicbir alan
+ *    `undefined` gelmiyordu → `mergeSettingsWithUndefined` icin bulut
+ *    KOSULSUZ kaziniyordu. Artik yalnizca dokumanda GERCEKTEN bulunan
+ *    alanlar donuyor ve `settingsUpdatedAt` damgasi da tasiniyor.
+ */
+export async function getSettingsFromCloud(userId: string): Promise<CloudUserSettings | null> {
   const docRef = buildSettingsDocRef(firestoreDb, userId);
   const snapshot = await getDoc(docRef);
 
-  if (snapshot.exists()) {
-    const data = snapshot.data();
-    return {
-      // Sprint 1: 'as UserSettings' cast — Firestore'dan gelen data tüm
-      // UserSettings alanlarını içermeyebilir. Default değerlerle birlikte
-      // döndürüyoruz; eksik alanlar varsa uygulamanın default'ları geçerli.
-      wakeUpTime: data.wakeUpTime ?? '08:00',
-      sleepTime: data.sleepTime ?? '23:00',
-      notificationSound: data.notificationSound ?? 'default',
-      vibrationEnabled: data.vibrationEnabled ?? true,
-      fullScreenAlarmEnabled: data.fullScreenAlarmEnabled ?? true,
-      language: data.language ?? 'tr',
-      alarmSound: data.alarmSound ?? 'alarm',
-      alarmVolume: data.alarmVolume ?? 80,
-      snoozeDuration: data.snoozeDuration ?? 5,
-      maxSnoozeCount: data.maxSnoozeCount ?? 3,
-      quietHoursEnabled: data.quietHoursEnabled ?? false,
-      quietHoursStart: data.quietHoursStart ?? '23:00',
-      quietHoursEnd: data.quietHoursEnd ?? '07:00',
-      alarmModeEnabled: data.alarmModeEnabled ?? true,
-      conflictIntervalMinutes: data.conflictIntervalMinutes ?? 10,
-    } as UserSettings;
+  if (!snapshot.exists()) {
+    return null;
   }
 
-  return null;
+  const data = (snapshot.data() ?? {}) as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    // `updatedAt` bir Firestore Timestamp'i; UserSettings alani degil.
+    if (key === 'updatedAt' || key === 'settingsUpdatedAt') continue;
+    if (value === undefined || value === null) continue;
+    result[key] = value;
+  }
+
+  const stamp = toIsoString(data.settingsUpdatedAt) ?? toIsoString(data.updatedAt);
+  if (stamp) {
+    result.settingsUpdatedAt = stamp;
+  }
+
+  return result as CloudUserSettings;
 }
 
 // ============ TAM SENKRONİZASYON ============
@@ -353,6 +530,21 @@ export interface SyncData {
   reminderTimes: ReminderTime[];
   medicineLogs: MedicineLog[];
   settings: UserSettings;
+  /**
+   * Silme kayitlari (tombstone). v1.7.8'de eklendi — bkz.
+   * `src/domain/deletions.ts`: bu olmadan bir cihazda silinen ilac digerinde
+   * hayatta kaliyor ve alarmlariyla geri geliyordu.
+   */
+  deletions?: DeletionRegistries;
+}
+
+/**
+ * INDIRME sonucu. `SyncData`dan tek farki: ayarlar KISMI'dir. Yukleme tam bir
+ * `UserSettings` gonderir, indirme ise bulutta gercekten yazili olani dondurur
+ * — bu ayrim olmadan eksik bulut alanlari yerel degerleri eziyordu.
+ */
+export interface CloudSyncData extends Omit<SyncData, 'settings'> {
+  settings: CloudUserSettings;
 }
 
 // Varsayılan ayarlar (merkezi tanım)
@@ -419,10 +611,17 @@ export async function uploadAllDataToCloud(userId: string, data: SyncData): Prom
   try {
     await withTimeout(
       Promise.all([
-        syncMedicinesToCloud(userId, data.medicines),
-        syncReminderTimesToCloud(userId, data.reminderTimes),
+        // ⚠️ Y1 — tombstone kayıtları silme kararının TEK dayanağı.
+        // `syncDeletionsToCloud` bunları buluta YÜKLÜYOR; burada ise
+        // buluttan neyin SİLİNEBİLECEĞİNİ belirliyorlar. İkisi birlikte
+        // "local'de yok ⇒ sil" tahminini ortadan kaldırıyor.
+        syncMedicinesToCloud(userId, data.medicines, data.deletions?.medicines),
+        syncReminderTimesToCloud(userId, data.reminderTimes, data.deletions?.reminderTimes),
         syncMedicineLogsToCloud(userId, data.medicineLogs),
         syncSettingsToCloud(userId, data.settings),
+        // v1.7.8: silme kayitlari da yuklenir; yoksa diger cihaz silinen
+        // ilaci geri diriltir (bkz. domain/deletions.ts).
+        syncDeletionsToCloud(userId, data.deletions ?? { medicines: {}, reminderTimes: {} }),
       ]),
       30000, // 30 saniye timeout
       'Senkronizasyon zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
@@ -440,17 +639,54 @@ export async function uploadAllDataToCloud(userId: string, data: SyncData): Prom
   }
 }
 
+// ============ SILME KAYITLARI (TOMBSTONE) ============
+
+/**
+ * Silme kayitlarini buluta yaz.
+ *
+ * `{ merge: true }` ZORUNLU: iki cihaz farkli id'ler silmis olabilir ve tam
+ * dokuman yazimi digerinin kaydini siler (ayni hata `syncSettingsToCloud`
+ * icin v1.7.3'te duzeltildi).
+ */
+export async function syncDeletionsToCloud(
+  userId: string,
+  deletions: DeletionRegistries
+): Promise<void> {
+  const docRef = buildDeletionsDocRef(firestoreDb, userId);
+  await setDoc(
+    docRef,
+    {
+      medicines: deletions.medicines || {},
+      reminderTimes: deletions.reminderTimes || {},
+      updatedAt: Timestamp.now(),
+    },
+    { merge: true }
+  );
+}
+
+/** Silme kayitlarini buluttan oku. Dokuman yoksa BOS kayit doner. */
+export async function getDeletionsFromCloud(userId: string): Promise<DeletionRegistries> {
+  const docRef = buildDeletionsDocRef(firestoreDb, userId);
+  const snapshot = await getDoc(docRef);
+  if (!snapshot.exists()) return { medicines: {}, reminderTimes: {} };
+  return normalizeDeletions(snapshot.data());
+}
+
 // Tüm verileri buluttan indir
-export async function downloadAllDataFromCloud(userId: string): Promise<SyncData | null> {
+export async function downloadAllDataFromCloud(userId: string): Promise<CloudSyncData | null> {
   log.debug('Veriler buluttan indiriliyor');
 
   try {
-    const [medicines, reminderTimes, medicineLogs, settings] = await withTimeout(
+    const [medicines, reminderTimes, medicineLogs, settings, deletions] = await withTimeout(
       Promise.all([
         getMedicinesFromCloud(userId),
         getReminderTimesFromCloud(userId),
         getMedicineLogsFromCloud(userId),
         getSettingsFromCloud(userId),
+        // v1.7.8: silme kayitlari. Okunamazsa BOS kabul edilir — silme
+        // bilgisini kaybetmek dirilme demektir, ama patlamak senkronu
+        // tamamen durdurur; bos kayit eski (hatali) davranisa dener.
+        getDeletionsFromCloud(userId).catch(() => ({ medicines: {}, reminderTimes: {} })),
       ]),
       30000, // 30 saniye timeout
       'Veri indirme zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.'
@@ -468,7 +704,11 @@ export async function downloadAllDataFromCloud(userId: string): Promise<SyncData
       medicines,
       reminderTimes,
       medicineLogs,
-      settings: settings || DEFAULT_SETTINGS,
+      // Bulutta ayar dokumani YOKSA bos nesne doner: birlestirmede YEREL
+      // ayarlar aynen korunur. Eskiden `DEFAULT_SETTINGS` donuyordu ve
+      // kullanicinin yerel ayarlarini varsayilanlarla eziyordu.
+      settings: settings ?? {},
+      deletions,
     };
   } catch (error: unknown) {
     log.error('Buluttan veri indirme hatası', error);

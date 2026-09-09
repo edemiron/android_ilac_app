@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  ReactNode,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserSubscription, SubscriptionPlan } from '../types';
 import { useAuth } from './AuthContext';
@@ -29,7 +36,10 @@ interface SubscriptionContextType {
 
   // Actions
   refreshSubscription: () => Promise<void>;
-  upgrade: (billingPeriod: 'monthly' | 'yearly', transactionId?: string) => Promise<void>;
+  upgrade: (
+    billingPeriod: 'monthly' | 'yearly' | 'lifetime',
+    transactionId?: string
+  ) => Promise<void>;
   cancel: () => Promise<void>;
 
   // Checks
@@ -47,6 +57,7 @@ interface SubscriptionContextType {
   // Pricing
   monthlyPrice: string;
   yearlyPrice: string;
+  lifetimePrice: string;
   yearlySavings: { amount: number; percentage: number };
 }
 
@@ -73,6 +84,7 @@ const SubscriptionContext = createContext<SubscriptionContextType>({
   incrementBarcodeScanCount: async () => {},
   monthlyPrice: '₺49,99',
   yearlyPrice: '₺349,99',
+  lifetimePrice: '₺499,99',
   yearlySavings: { amount: 250, percentage: 42 },
 });
 
@@ -82,31 +94,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [barcodeScanCount, setBarcodeScanCount] = useState(0);
 
-  // Barkod tarama sayacını yükle
-  const loadBarcodeScanCount = async () => {
-    try {
-      const countStr = await AsyncStorage.getItem(BARCODE_SCAN_COUNT_KEY);
-      if (countStr) {
-        setBarcodeScanCount(parseInt(countStr, 10));
-      }
-    } catch (error) {
-      log.error('Barkod sayaci yukleme hatasi', error);
-    }
-  };
-
-  // Barkod tarama sayacını artır
-  const incrementBarcodeScanCount = async () => {
-    try {
-      const newCount = barcodeScanCount + 1;
-      await AsyncStorage.setItem(BARCODE_SCAN_COUNT_KEY, newCount.toString());
-      setBarcodeScanCount(newCount);
-    } catch (error) {
-      log.error('Barkod sayaci guncelleme hatasi', error);
-    }
-  };
-
-  const refreshSubscription = async () => {
-    if (!user?.uid) {
+  const loadSubscription = useCallback(async () => {
+    if (!isAuthenticated || !user?.uid) {
       setSubscription(defaultSubscription);
       setIsLoading(false);
       return;
@@ -122,11 +111,36 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isAuthenticated, user?.uid]);
+
+  const loadBarcodeScanCount = useCallback(async () => {
+    try {
+      const count = await AsyncStorage.getItem(BARCODE_SCAN_COUNT_KEY);
+      if (count) {
+        setBarcodeScanCount(parseInt(count, 10));
+      }
+    } catch (error) {
+      log.error('Barkod sayaci yukleme hatasi', error);
+    }
+  }, []);
+
+  const incrementBarcodeScanCount = useCallback(async () => {
+    try {
+      const newCount = barcodeScanCount + 1;
+      await AsyncStorage.setItem(BARCODE_SCAN_COUNT_KEY, newCount.toString());
+      setBarcodeScanCount(newCount);
+    } catch (error) {
+      log.error('Barkod sayaci guncelleme hatasi', error);
+    }
+  }, [barcodeScanCount]);
+
+  const refreshSubscription = useCallback(async () => {
+    await loadSubscription();
+  }, [loadSubscription]);
 
   useEffect(() => {
     loadBarcodeScanCount();
-  }, []);
+  }, [loadBarcodeScanCount]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -139,7 +153,10 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user?.uid, refreshSubscription]);
 
-  const upgrade = async (billingPeriod: 'monthly' | 'yearly', transactionId?: string) => {
+  const upgrade = async (
+    billingPeriod: 'monthly' | 'yearly' | 'lifetime',
+    transactionId?: string
+  ) => {
     if (!user?.uid) throw new Error('Kullanıcı girişi gerekli');
 
     await upgradeToPremium(user.uid, billingPeriod, transactionId);
@@ -180,6 +197,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     incrementBarcodeScanCount,
     monthlyPrice: formatPrice(SUBSCRIPTION_PLANS.premium.price.monthly),
     yearlyPrice: formatPrice(SUBSCRIPTION_PLANS.premium.price.yearly),
+    lifetimePrice: formatPrice(SUBSCRIPTION_PLANS.premium.price.lifetime || 499.99),
     yearlySavings: getYearlySavings(),
   };
 

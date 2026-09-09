@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { format } from 'date-fns';
@@ -13,7 +13,9 @@ import { autocomplete } from '../services/globalMedicineService';
 import { useDebounce } from './useDebounce';
 import { useMedicinePersistence } from './useMedicinePersistence';
 import { useAlert } from '../contexts/AlertContext';
-import { checkInteractions } from '../services/drugInteractionService';
+import { checkInteractions } from '../services/drugInteraction';
+import { recognizeMedicineBoxPhotoAI } from '../services/aiMedicineService';
+import { captureImageForAI, captureFailureMessage } from '../utils/imageCapture';
 import {
   AddMedicineFormState,
   AutocompleteState,
@@ -21,7 +23,10 @@ import {
   AddMedicineRouteParams,
   FREQUENCY_OPTIONS,
 } from '../types/addMedicine.types';
+import { CelebrationData } from '../components/addMedicine/MedicineAddedCelebrationModal';
+import { ParsedVoiceMedicine } from '../utils/voiceMedicineParser';
 import { createScopedLogger } from '../utils/logger';
+import { getLocalDateKey } from '../domain/doseLog';
 import {
   parseDosageAmount,
   parseMedicineForm,
@@ -47,6 +52,30 @@ export function useAddMedicine() {
     : undefined;
   const isEditing = !!existingMedicine;
 
+  // Kutlama & Başarı Modalı State'i
+  const [celebrationState, setCelebrationState] = useState<CelebrationData>({
+    visible: false,
+    medicineName: '',
+  });
+
+  const handleSaveSuccess = useCallback(
+    (data: {
+      medicineName: string;
+      dosageAmount?: string;
+      medicineForm?: string;
+      frequency?: number;
+      firstReminderTime?: string;
+      isTomorrow?: boolean;
+      isEditing?: boolean;
+    }) => {
+      setCelebrationState({
+        visible: true,
+        ...data,
+      });
+    },
+    []
+  );
+
   // Persistence hook
   const {
     handleScanBarcode,
@@ -59,7 +88,16 @@ export function useAddMedicine() {
     medicineId: routeParams.medicineId,
     t,
     language,
+    onSaveSuccess: handleSaveSuccess,
   });
+
+  const handleDismissCelebration = useCallback(() => {
+    setCelebrationState(prev => ({ ...prev, visible: false }));
+    handleCancel();
+  }, [handleCancel]);
+
+  // Sesli Asistan Modalı State'i
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
 
   // Yeni ilaç için otomatik renk belirle
   const initialColor = existingMedicine?.color || getNextAvailableColor();
@@ -106,6 +144,14 @@ export function useAddMedicine() {
     requireBarcodeOnTake: existingMedicine?.requireBarcodeOnTake ?? false,
     barcode: existingMedicine?.barcode,
     vibrationPattern: existingMedicine?.vibrationPattern ?? 'default',
+    isCritical: existingMedicine?.isCritical ?? false,
+    // Gelişmiş Zamanlama
+    scheduleType: existingMedicine?.scheduleType ?? 'daily',
+    specificDays: existingMedicine?.specificDays ?? [1, 2, 3, 4, 5],
+    intervalDays: existingMedicine?.intervalDays ?? 2,
+    cycleDaysOn: existingMedicine?.cycleDaysOn ?? 21,
+    cycleDaysOff: existingMedicine?.cycleDaysOff ?? 7,
+    endDate: existingMedicine?.endDate ?? null,
   });
 
   // Autocomplete state
@@ -158,17 +204,24 @@ export function useAddMedicine() {
     routeParams.barcode,
   ]);
 
+  // Seçilen ilacı takip etmek için ref (seçimden sonra tekrar otomatik tamamlama açılmasın)
+  const lastSelectedNameRef = useRef<string | null>(null);
+
   // Autocomplete effect - race condition korumalı
   useEffect(() => {
     let cancelled = false;
 
     const searchAutocomplete = async () => {
-      if (routeParams.prefillName || routeParams.scannedName) {
+      if (
+        (lastSelectedNameRef.current && debouncedName === lastSelectedNameRef.current) ||
+        (routeParams.prefillName && debouncedName === routeParams.prefillName) ||
+        (routeParams.scannedName && debouncedName === routeParams.scannedName)
+      ) {
         setAutocompleteState(prev => ({ ...prev, showAutocomplete: false }));
         return;
       }
 
-      if (debouncedName.length < 2 || !autocompleteState.inputFocused) {
+      if (debouncedName.length < 2) {
         setAutocompleteState(prev => ({ ...prev, showAutocomplete: false, results: [] }));
         return;
       }
@@ -224,6 +277,9 @@ export function useAddMedicine() {
   // Form field updaters
   const updateFormField = useCallback(
     <K extends keyof AddMedicineFormState>(field: K, value: AddMedicineFormState[K]) => {
+      if (field === 'name') {
+        lastSelectedNameRef.current = null;
+      }
       setFormState(prev => ({ ...prev, [field]: value }));
     },
     []
@@ -258,8 +314,28 @@ export function useAddMedicine() {
   }, []);
 
   const handleSelectAutocomplete = useCallback((item: MedicineAutocompleteResult) => {
-    setFormState(prev => ({ ...prev, name: item.name, dosage: item.dosage }));
-    setAutocompleteState(prev => ({ ...prev, showAutocomplete: false, inputFocused: false }));
+    lastSelectedNameRef.current = item.name;
+    setFormState(prev => {
+      const validForm = item.form || prev.medicineForm;
+      const amountMatch = (item.dosage || '').match(/^(\d+[.,]?\d*)/);
+      const dosageAmount = amountMatch ? amountMatch[1] : prev.dosageAmount || '1';
+      const dosage = item.dosage || buildDosageString(dosageAmount, validForm);
+
+      return {
+        ...prev,
+        name: item.name,
+        dosage,
+        dosageAmount,
+        medicineForm: validForm,
+        barcode: item.barcode || prev.barcode,
+      };
+    });
+    setAutocompleteState(prev => ({
+      ...prev,
+      showAutocomplete: false,
+      inputFocused: false,
+      results: [],
+    }));
   }, []);
 
   // Time management callbacks
@@ -391,6 +467,106 @@ export function useAddMedicine() {
     }
   }, [persistSave, formState, isEditing, medicines, language, showAlert]);
 
+  const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState(false);
+
+  const handleScanPhotoBox = useCallback(async () => {
+    // v1.9.1: fotograf yakalama artik `utils/imageCapture` yardimcisinda.
+    // Picker'a `base64: true` GECILMEZ (bellek zirvesi kamera donusunde olusuyordu)
+    // ve gonderim oncesi boyut denetleniyor. Gerekce: utils/imageCapture.ts basligi.
+    const capture = await captureImageForAI('camera');
+
+    if (!capture.ok) {
+      const message = captureFailureMessage(capture.reason, language === 'tr' ? 'tr' : 'en');
+      // `cancelled` icin mesaj yok -> kullanici vazgectiyse sessizce cik.
+      if (message) {
+        showAlert({
+          type: capture.reason === 'permission-denied' ? 'warning' : 'error',
+          title:
+            capture.reason === 'permission-denied'
+              ? language === 'tr'
+                ? 'Kamera İzni Gerekli'
+                : 'Camera Permission Required'
+              : language === 'tr'
+                ? 'Fotoğraf İşlenemedi'
+                : 'Photo Could Not Be Processed',
+          message,
+        });
+      }
+      return;
+    }
+
+    setIsAnalyzingPhoto(true);
+    try {
+      const ocrResult = await recognizeMedicineBoxPhotoAI(capture.base64);
+      setIsAnalyzingPhoto(false);
+
+      if (ocrResult.success && ocrResult.name) {
+        setFormState(prev => ({
+          ...prev,
+          name: ocrResult.name || prev.name,
+          dosage: ocrResult.dosage || prev.dosage,
+          dosageAmount: ocrResult.dosage ? parseDosageAmount(ocrResult.dosage) : prev.dosageAmount,
+          medicineForm: ocrResult.form ? (ocrResult.form as any) : prev.medicineForm,
+          instruction: ocrResult.instructions ? (ocrResult.instructions as any) : prev.instruction,
+          imageUri: capture.uri || prev.imageUri,
+        }));
+
+        showAlert({
+          type: 'info',
+          title: language === 'tr' ? 'İlaç Kutusu Tanındı' : 'Medicine Identified',
+          message: `${ocrResult.name} (${ocrResult.dosage || ''}) başarıyla okundu ve forma aktarıldı.`,
+        });
+      } else {
+        showAlert({
+          type: 'warning',
+          title: language === 'tr' ? 'Bilgi Çıkarılamadı' : 'Recognition Incomplete',
+          message:
+            ocrResult.error ||
+            (language === 'tr'
+              ? 'Kutudan ilaç adı okunamadı. Lütfen elle giriniz veya barkod ile deneyiniz.'
+              : 'Could not detect medicine details. Please enter manually or scan barcode.'),
+        });
+      }
+    } catch (error) {
+      setIsAnalyzingPhoto(false);
+      log.error('Photo scan error', error);
+    }
+  }, [language, showAlert]);
+
+  const handleRemovePhoto = useCallback(() => {
+    setFormState(prev => ({ ...prev, imageUri: undefined }));
+  }, []);
+
+  const handleApplyVoiceMedicine = useCallback((parsed: ParsedVoiceMedicine) => {
+    setFormState(prev => {
+      const updated = { ...prev };
+      if (parsed.name) updated.name = parsed.name;
+      if (parsed.dosageAmount) {
+        updated.dosageAmount = parsed.dosageAmount;
+        updated.dosage = parsed.dosage || `${parsed.dosageAmount} MG`;
+      }
+      if (parsed.medicineForm) updated.medicineForm = parsed.medicineForm;
+      if (parsed.frequency) {
+        updated.frequency = parsed.frequency;
+        updated.customTimes = getInitialAutoTimes(parsed.frequency);
+        updated.useCustomTimes = true;
+      }
+      if (parsed.instruction) updated.instruction = parsed.instruction;
+      if (parsed.durationDays) {
+        const now = new Date();
+        const end = new Date(now.getTime() + parsed.durationDays * 24 * 60 * 60 * 1000);
+        // ⚠️ v1.7.10 — YEREL gun. `toISOString()` UTC gununu verir ve TR
+        // (UTC+3) icin gece yarisina yakin saatlerde tarihi BIR GUN GERI
+        // kaydirir. v1.7.7'den beri `endDate` alarmin kurulup kurulmayacagini
+        // BELIRLIYOR (bkz. notifications/diagnostics.ts), yani bir gun kayma
+        // tedavinin alarmini bir gun ERKEN susturur.
+        updated.endDate = getLocalDateKey(end);
+        updated.scheduleType = 'cycle';
+      }
+      return updated;
+    });
+  }, []);
+
   return {
     routeParams,
     isEditing,
@@ -414,11 +590,20 @@ export function useAddMedicine() {
     previewTimes,
     settings,
     handleScanBarcode,
+    handleScanPhotoBox,
+    handleRemovePhoto,
+    isAnalyzingPhoto,
     handleSave,
     handleCancel,
     FREQUENCY_OPTIONS,
     handleDosageAmountChange,
     handleMedicineFormChange,
     handleAutoTimes,
+    // Yeni İnce Dokunuşlar & Mikro-Deneyimler
+    celebrationState,
+    handleDismissCelebration,
+    voiceModalVisible,
+    setVoiceModalVisible,
+    handleApplyVoiceMedicine,
   };
 }

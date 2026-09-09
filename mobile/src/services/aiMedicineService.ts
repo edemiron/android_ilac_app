@@ -1,8 +1,12 @@
 import { AISearchResult } from '../types';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { getApp } from 'firebase/app';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { createScopedLogger } from '../utils/logger';
+// K6 — AI çıktısının şema doğrulaması. Zod projede daha önce YALNIZCA
+// `utils/syncDataValidator.ts` içinde kullanılıyordu ve bu akışa hiç bağlı
+// değildi; Gemini çıktısı ham `JSON.parse` + tek bir `typeof` kontrolüyle
+// hastaya gösteriliyordu.
+import { z } from 'zod';
 // Sprint 7.1 + 8.1: Pure prompt + response helper'lari inline tanimlar silindi.
 // Eski API adlari alias olarak kullaniliyor (backward compat).
 import {
@@ -23,341 +27,117 @@ const log = createScopedLogger('AIMedicineService');
 
 let functions: ReturnType<typeof getFunctions> | null = null;
 
+/**
+ * ⚠️ v1.7.4 (Faz 0.3): BÖLGE ZORUNLU.
+ * `getFunctions()` bölgesiz çağrıldığında varsayılan `us-central1`e gider;
+ * fonksiyonlar ise `europe-west1`de deploy edili. Her çağrı NOT_FOUND ile
+ * düşüyor, `catch` bloğu da "fallback" olarak APK'ya gömülü API anahtarıyla
+ * doğrudan Google'a gidiyordu. Yani "anahtarlar sunucuda kalır" yorumu
+ * pratikte hiçbir zaman doğru olmadı.
+ */
+const FUNCTIONS_REGION = 'europe-west1';
+
 function getFunctionsInstance() {
   if (!functions) {
-    functions = getFunctions();
+    functions = getFunctions(getApp(), FUNCTIONS_REGION);
   }
   return functions;
 }
 
-// ============ FALLBACK: Direct API (API key gerekli) ============
-
-interface FallbackAIConfig {
-  geminiApiKey: string;
-  model: string;
+/**
+ * Tüm AI üretim çağrılarının TEK kapısı: kimlik doğrulamalı Cloud Function.
+ * İstemcide API anahtarı YOKTUR; doğrudan sağlayıcıya istek atılmaz.
+ */
+async function callGeminiGenerate(params: {
+  prompt: string;
+  imageBase64?: string;
+  imageMimeType?: string;
+  model?: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+}): Promise<string | null> {
+  try {
+    const callable = httpsCallable<typeof params, { success: boolean; result: string }>(
+      getFunctionsInstance(),
+      'geminiGenerate'
+    );
+    const response = await callable(params);
+    const text = response.data?.result;
+    return typeof text === 'string' && text.trim().length > 0 ? text : null;
+  } catch (error) {
+    log.error('geminiGenerate cagrisi basarisiz', error);
+    return null;
+  }
 }
 
 /**
- * Fallback: Firebase'den AI config al (direct API için)
+ * ⚠️ v1.7.4 (Faz 0.3) — İSTEMCİ TARAFI API ANAHTARI KATMANI KALDIRILDI.
+ *
+ * Burada eskiden şunlar vardı:
+ *   - `DEFAULT_GEMINI_API_KEY`: APK'ya gömülü düz metin anahtar. Hermes
+ *     bytecode'undan `strings` ile çıkarılabiliyordu → kota/fatura istismarı.
+ *   - `config/ai` dokümanından `geminiApiKey`/`openaiApiKey` okuma. O doküman
+ *     `allow read: if true` ile KİMLİK DOĞRULAMASIZ okunabiliyordu, yani
+ *     anahtarlar Firestore üzerinden de sızıyordu.
+ *   - `@user_custom_gemini_api_key` (AsyncStorage) ile kullanıcı anahtarı —
+ *     hiçbir ekrandan yazılmıyordu (ölü yol), ama doğrudan-sağlayıcı
+ *     çağrısını meşrulaştırıyordu.
+ *
+ * Artık TÜM AI çağrıları `callGeminiGenerate` üzerinden kimlik doğrulamalı
+ * Cloud Function'a gider. İstemcide anahtar yoktur; sağlayıcıya doğrudan
+ * istek atan kod bilinçli olarak SİLİNDİ (OpenAI yolu dahil — o da istemcide
+ * anahtar tutmayı gerektiriyordu).
+ *
+ * Model seçimi de sunucuda, izinli listeyle yapılır.
  */
-async function getAIConfigDirect(): Promise<FallbackAIConfig | null> {
-  try {
-    const configRef = doc(db, 'config', 'ai');
-    const snapshot = await getDoc(configRef);
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    const data = snapshot.data();
-    return {
-      geminiApiKey: data.geminiApiKey || '',
-      model: data.geminiModel || 'gemini-2.5-flash',
-    };
-  } catch (error) {
-    log.error('AI config getirme hatasi', error);
-    return null;
-  }
-}
-
-async function getAIConfig(): Promise<{
-  provider: string;
-  geminiApiKey: string;
-  openaiApiKey: string;
-  model: string;
-} | null> {
-  try {
-    const configRef = doc(db, 'config', 'ai');
-    const snapshot = await getDoc(configRef);
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    const data = snapshot.data();
-    return {
-      provider: data.provider || 'gemini',
-      geminiApiKey: data.geminiApiKey || '',
-      openaiApiKey: data.openaiApiKey || '',
-      model: data.geminiModel || 'gemini-2.5-flash',
-    };
-  } catch (error) {
-    log.error('AI config getirme hatasi', error);
-    return null;
-  }
-}
 
 // ============ BARKOD İLE İLAÇ ARAMA ============
 
 /**
- * Barkod ile web'te arama yapıp AI ile ilaç bilgilerini çıkar
- * Firebase Functions kullanarak - API key'ler sunucu tarafında kalır
+ * Barkod ile AI destekli ilaç arama.
+ * v1.7.4: doğrudan Gemini/OpenAI çağrıları kaldırıldı; tek yol sunucu.
  */
 export async function searchMedicineByBarcodeAI(barcode: string): Promise<AISearchResult> {
   try {
-    // Firebase Functions kullanarak sunucu tarafında AI çağrısı yap
-    // API key'ler client'a gitmez
-    const fn = getFunctionsInstance();
+    const text = await callGeminiGenerate({
+      prompt: createSearchPrompt(barcode),
+      temperature: 0.1,
+      maxOutputTokens: 2048,
+    });
 
-    try {
-      const geminiSearch = httpsCallable(fn, 'geminiSearch');
-      const result = await geminiSearch({ barcode });
-      const data = result.data as { success?: boolean; result?: unknown } | undefined;
-
-      if (data?.success) {
-        return parseAIResponse(data.result as string, barcode, 'Gemini (Function)');
-      }
-
-      // Function başarısız olursa fallback olarak direct API dene
-      log.warn('Firebase Function başarısız, fallback denenecek', result.data);
-    } catch (fnError) {
-      log.warn('Firebase Function hatası, fallback denenecek', fnError);
+    if (!text) {
+      return { success: false, confidence: 0, error: 'AI servisi şu anda kullanılamıyor.' };
     }
 
-    // Fallback: Direct API (eski yöntem - API key gerekli)
-    const config = await getAIConfigDirect();
-
-    if (config?.geminiApiKey) {
-      return await searchWithGemini(barcode, config.geminiApiKey, config.model);
-    }
-
-    return {
-      success: false,
-      confidence: 0,
-      error: 'AI servisi şu anda kullanılamıyor.',
-    };
+    return parseAIResponse(text, barcode, 'Gemini');
   } catch (error: unknown) {
     log.error('AI arama hatasi', error);
     const errorMessage = error instanceof Error ? error.message : 'AI araması başarısız oldu.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
-  }
-}
-
-// ============ GEMİNİ İLE ARAMA ============
-
-async function searchWithGemini(
-  barcode: string,
-  apiKey: string,
-  model: string = 'gemini-2.5-flash'
-): Promise<AISearchResult> {
-  const prompt = createSearchPrompt(barcode);
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 2048,
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Gemini API hatası');
-    }
-
-    const data = await response.json();
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!textResponse) {
-      return {
-        success: false,
-        confidence: 0,
-        error: 'AI yanıt vermedi.',
-      };
-    }
-
-    return parseAIResponse(textResponse, barcode, 'Gemini');
-  } catch (error: unknown) {
-    log.error('Gemini arama hatasi', error);
-    const errorMessage = error instanceof Error ? error.message : 'Gemini araması başarısız.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
-  }
-}
-
-// ============ OPENAİ İLE ARAMA ============
-
-async function _searchWithOpenAI(
-  barcode: string,
-  apiKey: string,
-  model: string = 'gpt-4o-mini'
-): Promise<AISearchResult> {
-  const prompt = createSearchPrompt(barcode);
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Sen bir ilaç veritabanı asistanısın. Barkod numaralarına göre ilaç bilgilerini JSON formatında döndürürsün.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 2048,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'OpenAI API hatası');
-    }
-
-    const data = await response.json();
-    const textResponse = data.choices?.[0]?.message?.content;
-
-    if (!textResponse) {
-      return {
-        success: false,
-        confidence: 0,
-        error: 'AI yanıt vermedi.',
-      };
-    }
-
-    return parseAIResponse(textResponse, barcode, 'OpenAI');
-  } catch (error: unknown) {
-    log.error('OpenAI arama hatasi', error);
-    const errorMessage = error instanceof Error ? error.message : 'OpenAI araması başarısız.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
+    return { success: false, confidence: 0, error: errorMessage };
   }
 }
 
 // ============ İSİM İLE İLAÇ ARAMA ============
 
 /**
- * İlaç adı ile arama yap
+ * İlaç adı ile AI destekli arama.
  */
 export async function searchMedicineByNameAI(name: string): Promise<AISearchResult> {
   try {
-    const config = await getAIConfig();
+    const text = await callGeminiGenerate({
+      prompt: createNameSearchPrompt(name),
+      temperature: 0.1,
+      maxOutputTokens: 2048,
+    });
 
-    if (!config) {
-      return {
-        success: false,
-        confidence: 0,
-        error: 'AI yapılandırması bulunamadı.',
-      };
+    if (!text) {
+      return { success: false, confidence: 0, error: 'AI servisi şu anda kullanılamıyor.' };
     }
 
-    const prompt = createNameSearchPrompt(name);
-
-    if (config.provider === 'gemini' && config.geminiApiKey) {
-      return await searchNameWithGemini(prompt, config.geminiApiKey, config.model);
-    } else if (config.provider === 'openai' && config.openaiApiKey) {
-      return await searchNameWithOpenAI(prompt, config.openaiApiKey, config.model);
-    }
-
-    return {
-      success: false,
-      confidence: 0,
-      error: 'Geçerli bir AI API key bulunamadı.',
-    };
+    return parseNameSearchResponse(text, 'Gemini');
   } catch (error: unknown) {
     log.error('AI isim aramasi hatasi', error);
     const errorMessage = error instanceof Error ? error.message : 'AI isim araması başarısız oldu.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
-  }
-}
-
-async function searchNameWithGemini(
-  prompt: string,
-  apiKey: string,
-  model: string = 'gemini-2.5-flash'
-): Promise<AISearchResult> {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
-        }),
-      }
-    );
-
-    const data = await response.json();
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    return parseNameSearchResponse(textResponse, 'Gemini');
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Arama hatasi';
-    return { success: false, confidence: 0, error: errorMessage };
-  }
-}
-
-async function searchNameWithOpenAI(
-  prompt: string,
-  apiKey: string,
-  model: string = 'gpt-4o-mini'
-): Promise<AISearchResult> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Sen bir ilaç bilgi asistanısın. İlaç adlarına göre doğru bilgileri sağlarsın.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 2048,
-      }),
-    });
-
-    const data = await response.json();
-    const textResponse = data.choices?.[0]?.message?.content;
-    return parseNameSearchResponse(textResponse, 'OpenAI');
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Arama hatasi';
     return { success: false, confidence: 0, error: errorMessage };
   }
 }
@@ -365,104 +145,28 @@ async function searchNameWithOpenAI(
 // ============ İLAÇ HAKKINDA BİLGİ GETIR ============
 
 /**
- * İlaç adına göre detaylı bilgi getir (prospektüs)
+ * İlaç adına göre detaylı bilgi getir (prospektüs).
+ * v1.7.4: doğrudan sağlayıcı çağrıları kaldırıldı; tek yol sunucu.
  */
 export async function getMedicineInfoAI(
   medicineName: string,
   dosage?: string
 ): Promise<AISearchResult> {
   try {
-    const config = await getAIConfig();
-
-    if (!config) {
-      return {
-        success: false,
-        confidence: 0,
-        error: 'AI yapılandırması bulunamadı.',
-      };
-    }
-
-    const prompt = createInfoPrompt(medicineName, dosage);
-
-    if (config.provider === 'gemini' && config.geminiApiKey) {
-      return await getInfoWithGemini(prompt, config.geminiApiKey, config.model);
-    } else if (config.provider === 'openai' && config.openaiApiKey) {
-      return await getInfoWithOpenAI(prompt, config.openaiApiKey, config.model);
-    }
-
-    return {
-      success: false,
-      confidence: 0,
-      error: 'Geçerli bir AI API key bulunamadı.',
-    };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme başarısız.';
-    return {
-      success: false,
-      confidence: 0,
-      error: errorMessage,
-    };
-  }
-}
-
-async function getInfoWithGemini(
-  prompt: string,
-  apiKey: string,
-  model: string = 'gemini-2.5-flash'
-): Promise<AISearchResult> {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
-        }),
-      }
-    );
-
-    const data = await response.json();
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    return parseProspectusResponse(textResponse, 'Gemini (Function)');
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme hatasi';
-    return { success: false, confidence: 0, error: errorMessage };
-  }
-}
-
-async function getInfoWithOpenAI(
-  prompt: string,
-  apiKey: string,
-  model: string = 'gpt-4o-mini'
-): Promise<AISearchResult> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: 'Sen bir ilaç bilgi asistanısın. Detaylı ve doğru ilaç bilgileri sağlarsın.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.2,
-        max_tokens: 4096,
-      }),
+    const text = await callGeminiGenerate({
+      prompt: createInfoPrompt(medicineName, dosage),
+      temperature: 0.2,
+      maxOutputTokens: 4096,
     });
 
-    const data = await response.json();
-    const textResponse = data.choices?.[0]?.message?.content;
-    return parseProspectusResponse(textResponse, 'OpenAI (Function)');
+    if (!text) {
+      return { success: false, confidence: 0, error: 'AI servisi şu anda kullanılamıyor.' };
+    }
+
+    return parseProspectusResponse(text, medicineName);
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme hatasi';
+    log.error('Prospektus getirme hatasi', error);
+    const errorMessage = error instanceof Error ? error.message : 'Bilgi getirme başarısız.';
     return { success: false, confidence: 0, error: errorMessage };
   }
 }
@@ -509,4 +213,436 @@ export async function getMedicineInfoAIService(
   return withServiceResult(() => getMedicineInfoAI(medicineName, dosage), {
     errorCode: 'API_ERROR',
   });
+}
+
+// ============ FOTOĞRAFLA / KUTU OCR İLE İLAÇ TANIMA ============
+
+export interface MedicineBoxOcrResult {
+  success: boolean;
+  name?: string;
+  dosage?: string;
+  form?: string;
+  instructions?: string;
+  confidence?: number;
+  error?: string;
+}
+
+/**
+ * İlaç kutusu fotoğrafından (Base64) isim, dozaj ve form çıkarır (Multimodal Gemini Vision)
+ */
+export async function recognizeMedicineBoxPhotoAI(
+  base64Image: string
+): Promise<MedicineBoxOcrResult> {
+  try {
+    const prompt = `Sen uzman bir eczacılık ve ilaç tanıma yapay zekasısın.
+Bu fotoğraftaki ilaç kutusunun üzerindeki bilgileri oku.
+Sadece geçerli bir JSON çıktısı üret:
+{
+  "name": "İlacın adı (örn: Parol, Aspirin)",
+  "dosage": "Dozaj (örn: 500mg, 100ml)",
+  "form": "tablet",
+  "instructions": "after_meal"
+}`;
+
+    const textResponse = await callGeminiGenerate({
+      prompt,
+      imageBase64: base64Image,
+      imageMimeType: 'image/jpeg',
+      temperature: 0.1,
+      maxOutputTokens: 1024,
+    });
+    if (!textResponse) {
+      return { success: false, error: 'Kutudan ilaç bilgisi okunamadı.' };
+    }
+
+    let cleanJson = textResponse.trim();
+    if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson
+        .replace(/^```[a-zA-Z]*\n?/, '')
+        .replace(/```$/, '')
+        .trim();
+    }
+    const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleanJson);
+
+    return {
+      success: true,
+      name: parsed.name,
+      dosage: parsed.dosage,
+      form: parsed.form,
+      instructions: parsed.instructions,
+      confidence: 90,
+    };
+  } catch (error: unknown) {
+    log.error('Box OCR error', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Kutu tanıma başarısız.',
+    };
+  }
+}
+
+export interface BatchRecognizedMedicine {
+  name: string;
+  dosage: string;
+  form?:
+    | 'tablet'
+    | 'capsule'
+    | 'syrup'
+    | 'injection'
+    | 'drops'
+    | 'cream'
+    | 'spray'
+    | 'inhaler'
+    | 'patch'
+    | 'other';
+  frequency?: number;
+  instructions?:
+    | 'before_meal'
+    | 'after_meal'
+    | 'with_meal'
+    | 'empty_stomach'
+    | 'before_sleep'
+    | 'any_time';
+  isCritical?: boolean;
+}
+
+/**
+ * Birden fazla ilaç kutusunu veya reçete belgesini tek fotoğraftan topluca tanır (Multimodal Batch OCR)
+ */
+export async function recognizeMultipleMedicineBoxesPhotoAI(
+  base64Image: string
+): Promise<{ success: boolean; medicines: BatchRecognizedMedicine[]; error?: string }> {
+  try {
+    const prompt = `Sen uzman bir eczacılık ve reçete ayrıştırma yapay zekasısın.
+Bu fotoğrafta yer alan tüm ilaç kutularını, blisterleri veya reçetedeki ilaçları tek tek tanı.
+Her bir ilaç için adı, dozajını, formunu ve günde kaç kez alınması gerektiğini çıkar.
+Sadece geçerli bir JSON formatında liste döndür:
+{
+  "medicines": [
+    {
+      "name": "İlaç Adı (Örn: Parol)",
+      "dosage": "500mg",
+      "form": "tablet",
+      "frequency": 2,
+      "instructions": "after_meal",
+      "isCritical": false
+    }
+  ]
+}`;
+
+    const textResponse = await callGeminiGenerate({
+      prompt,
+      imageBase64: base64Image,
+      imageMimeType: 'image/jpeg',
+      temperature: 0.1,
+      maxOutputTokens: 2048,
+    });
+    if (!textResponse) {
+      return { success: false, medicines: [], error: 'Görselden ilaç listesi okunamadı.' };
+    }
+
+    let cleanJson = textResponse.trim();
+    if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson
+        .replace(/^```[a-zA-Z]*\n?/, '')
+        .replace(/```$/, '')
+        .trim();
+    }
+    const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleanJson);
+
+    const list: BatchRecognizedMedicine[] = Array.isArray(parsed?.medicines)
+      ? parsed.medicines.map((m: any) => ({
+          name: String(m.name || 'İlaç').trim(),
+          dosage: String(m.dosage || '1 doz').trim(),
+          form: m.form || 'tablet',
+          frequency: Number(m.frequency) || 1,
+          instructions: m.instructions || 'any_time',
+          isCritical: !!m.isCritical,
+        }))
+      : [];
+
+    return {
+      success: true,
+      medicines: list,
+    };
+  } catch (error: unknown) {
+    log.error('Batch Box OCR error', error);
+    return {
+      success: false,
+      medicines: [],
+      error: error instanceof Error ? error.message : 'Toplu ilaç tanıma başarısız.',
+    };
+  }
+}
+
+// ============ KLİNİK & GIDA ETKİLEŞİMİ AI ANALİZİ ============
+
+/**
+ * K6 — Gemini çıktısının şema doğrulaması.
+ *
+ * ── Neden ─────────────────────────────────────────────────────────────────
+ * AI'ın ürettiği klinik tavsiye (etkileşim uyarıları, "güvenlik skoru",
+ * besin kuralları) doğrulanmadan hastaya gösteriliyordu. Eski kod:
+ *
+ *   overallSafetyScore: typeof parsed.overallSafetyScore === 'number'
+ *     ? parsed.overallSafetyScore : 85,          // ← SKOR UYDURULUYORDU
+ *   criticalAlerts: Array.isArray(...) ? ... : [], // ← ELEMAN ŞEKLİ YOK
+ *
+ * Yani: skor 0-100 dışına çıkabiliyordu (ör. 999 veya -5, renk ve eşik
+ * mantığını bozar), skor YOKSA 85 uyduruluyordu, ve dizi elemanları hiç
+ * doğrulanmıyordu — `fw.timingRule`/`fw.severity` ham okunuyordu. Halüsinasyon
+ * olmuş bir "sütü 4 saat kes" talimatı veya yanlış bir "yüksek risk" uyarısı
+ * hekim talimatı sanılabilirdi; prompt modeli "klinik farmakolog ve tıp
+ * doktoru" olarak sunmaya yönlendiriyordu.
+ *
+ * ── Politika ──────────────────────────────────────────────────────────────
+ * - **Skor zorunlu ve 0-100.** Yoksa veya aralık dışındaysa rapor BAŞARISIZ
+ *   sayılır; asla bir varsayılan skor UYDURULMAZ. Uydurma bir skor, hastanın
+ *   güvenini kalibre edilemez hale getirir.
+ * - **Dizi elemanları tek tek doğrulanır, bozuk olan DÜŞÜRÜLÜR.** Tek bir
+ *   hatalı besin önerisi tüm raporu çöpe atmamalı; ama bozuk eleman da
+ *   hastaya gösterilmemeli. Kaç elemanın düştüğü loglanır (sessiz değil).
+ * - **Uzunluk sınırları** var: AI çok uzun veya sonsuz dizi döndürürse UI
+ *   kilitlenmesin.
+ */
+const foodDrinkWarningSchema = z.object({
+  food: z.string().min(1).max(120),
+  affectedMedicine: z.string().min(1).max(120),
+  warning: z.string().min(1).max(600),
+  // timingRule AI tarafından atlanabiliyor; kart zaten koşullu render ediyor.
+  timingRule: z.string().max(300).optional(),
+  // Kart `fw.severity || 'moderate'` ile zaten varsayılıyor; şema da
+  // aynı varsayılana sabitliyor ki renk mantığı tanımsız görmesin.
+  severity: z.enum(['high', 'moderate', 'low']).optional(),
+});
+
+/** 0-100 aralığına ZORUNLU olarak kıstırılmış güvenlik skoru. */
+const safetyScoreSchema = z.number().min(0).max(100);
+
+const stringAlertSchema = z.string().min(1).max(600);
+
+const MAX_LIST_ITEMS = 20;
+
+/**
+ * Bir diziyi ELEMAN ELEMAN doğrular; bozuk elemanları düşürür, tavan uygular.
+ *
+ * Neden tüm diziyi birden doğrulamak yerine eleman eleman: tek bir hatalı
+ * besin önerisi tüm raporu çöpe atmamalı, ama bozuk eleman da hastaya
+ * gösterilmemeli. Düşürme SESSİZ DEĞİL — adet loglanır.
+ */
+function validateList<T>(
+  raw: unknown,
+  schema: z.ZodType<T>,
+  label: string
+): { items: T[]; dropped: number } {
+  if (!Array.isArray(raw)) return { items: [], dropped: 0 };
+
+  const capped = raw.slice(0, MAX_LIST_ITEMS);
+  const items: T[] = [];
+  let dropped = raw.length - capped.length;
+
+  for (const entry of capped) {
+    const result = schema.safeParse(entry);
+    if (result.success) {
+      items.push(result.data);
+    } else {
+      dropped += 1;
+    }
+  }
+
+  if (dropped > 0) {
+    log.warn('AI klinik raporu: geçersiz elemanlar DÜŞÜRÜLDÜ', { list: label, dropped });
+  }
+  return { items, dropped };
+}
+
+export interface ClinicalInteractionAIReport {
+  success: boolean;
+  overallSafetyScore: number; // 0-100 (100 = En Güvenli)
+  summary: string;
+  criticalAlerts: string[];
+  foodDrinkWarnings: {
+    food: string;
+    affectedMedicine: string;
+    warning: string;
+    timingRule: string;
+    severity: 'high' | 'moderate' | 'low';
+  }[];
+  lifestyleTips: string[];
+  analyzedMedicines: string[];
+  error?: string;
+}
+
+/**
+ * Kullanıcının tüm kayıtlı ilaçlarını Gemini 3.6 Flash ile analiz ederek
+ * kişiselleştirilmiş klinik güvenlik, gıda/içecek ve yaşam tarzı raporu üretir.
+ */
+export async function analyzeClinicalAndFoodInteractionsWithAI(
+  medicines: { name: string; dosage?: string; instructions?: string; frequency?: number }[],
+  language: 'tr' | 'en' = 'tr'
+): Promise<ClinicalInteractionAIReport> {
+  try {
+    if (!medicines || medicines.length === 0) {
+      return {
+        success: true,
+        overallSafetyScore: 100,
+        summary:
+          language === 'tr' ? 'Kayıtlı aktif ilaç bulunamadı.' : 'No active medicines registered.',
+        criticalAlerts: [],
+        foodDrinkWarnings: [],
+        lifestyleTips: [],
+        analyzedMedicines: [],
+      };
+    }
+
+    const medListStr = medicines
+      .map(
+        (m, idx) =>
+          `${idx + 1}. ${m.name} (Doz: ${m.dosage || 'Belirtilmemiş'}, Kullanım: ${m.instructions || 'Belirtilmemiş'}, Sıklık: Günde ${m.frequency || 1} kez)`
+      )
+      .join('\n');
+
+    const prompt = `Sen uzman bir klinik farmakolog ve tıp doktoru yapay zekasısın.
+Hastanın şu anda kullandığı aktif ilaç listesi aşağıdadır:
+${medListStr}
+
+Lütfen bu ilaç kombinasyonunu derinlemesine analiz et:
+1. İlaçların birbiriyle olası farmakolojik veya toksik etkileşimleri (Drug-Drug).
+2. İlaçların gıdalarla, içeceklerle (Greyfurt, Süt/Kalsiyum, Alkol, Kafein/Kahve, Potasyumlu besinler, K Vitamini) etkileşimleri ve saat aralığı kuralları (Drug-Food).
+3. Güneş ışığı (fotosensitivite), açlık/tokluk veya böbrek/karaciğer yükü.
+4. Genel Güvenlik Skoru (0-100 puan; 100 risksiz, 50 orta risk, 20 çok tehlikeli).
+
+ÇIKTIYI SADECE AŞAĞIDAKİ GEÇERLİ JSON FORMATINDA DÖN:
+{
+  "overallSafetyScore": 85,
+  "summary": "İlaçlarınız genel olarak uyumlu görünmektedir ancak...",
+  "criticalAlerts": [
+    "Aspirin ve Apranax birlikte alınırsa mide kanaması riski artar."
+  ],
+  "foodDrinkWarnings": [
+    {
+      "food": "Süt ve Yoğurt",
+      "affectedMedicine": "Cipro",
+      "warning": "Kalsiyum ilacın emilimini %60 düşürür.",
+      "timingRule": "İlaç saatinden 2 saat önce ve 4 saat sonraya kadar süt ürünü almayınız.",
+      "severity": "high"
+    }
+  ],
+  "lifestyleTips": [
+    "Bol su ile içiniz.",
+    "Güneşe çıkarken koruyucu krem sürünüz."
+  ]
+}
+
+Tüm metinleri ${language === 'tr' ? 'Türkçe' : 'İngilizce'} yaz. JSON dışında hiçbir metin veya markdown ekleme.`;
+
+    // v1.7.4: kimlik doğrulamalı Cloud Function üzerinden — hasta ilaç listesi
+    // artık istemciye gömülü anahtarla doğrudan Google'a gönderilmiyor.
+    const textResponse = await callGeminiGenerate({
+      prompt,
+      temperature: 0.2,
+      maxOutputTokens: 2048,
+    });
+
+    if (!textResponse) {
+      return {
+        success: false,
+        // ⚠️ Eski değer 80 idi: AI'dan HİÇ YANIT GELMEDİĞİ halde hastaya
+        // "80/100 güvenli" gösteriliyordu. Yanıt yoksa skor da yoktur.
+        overallSafetyScore: 0,
+        summary: language === 'tr' ? 'Yanıt alınamadı.' : 'No response from AI.',
+        criticalAlerts: [],
+        foodDrinkWarnings: [],
+        lifestyleTips: [],
+        analyzedMedicines: medicines.map(m => m.name),
+        error: language === 'tr' ? 'AI yanıt döndürmedi' : 'AI returned no response',
+      };
+    }
+
+    let cleanJson = textResponse.trim();
+    if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson
+        .replace(/^```[a-zA-Z]*\n?/, '')
+        .replace(/```$/, '')
+        .trim();
+    }
+    const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleanJson);
+
+    // ── K6: skor ZORUNLU ve 0-100. UYDURMA YOK. ──────────────────────────
+    const scoreResult = safetyScoreSchema.safeParse(parsed?.overallSafetyScore);
+    if (!scoreResult.success) {
+      // Eski kod burada `typeof === 'number' ? ... : 85` ile SKOR UYDURUYORDU
+      // ve `AIClinicalShieldCard` `success`'i hiç okumadığı için bu sayı
+      // hastaya GEÇERLİ BİR KLİNİK HÜKÜM olarak gösteriliyordu.
+      log.warn('AI klinik raporu: overallSafetyScore geçersiz → rapor BAŞARISIZ', {
+        received: parsed?.overallSafetyScore,
+      });
+      return {
+        success: false,
+        // ⚠️ 0 bir "skor" değil, "skor YOK" işaretidir. Kart `success:false`
+        // iken skoru RENDER ETMEZ (bkz. AIClinicalShieldCard.tsx).
+        overallSafetyScore: 0,
+        summary:
+          language === 'tr'
+            ? 'AI klinik analizi doğrulanamadı. Lütfen tekrar deneyin.'
+            : 'AI clinical analysis could not be validated. Please try again.',
+        criticalAlerts: [],
+        foodDrinkWarnings: [],
+        lifestyleTips: [],
+        analyzedMedicines: medicines.map(m => m.name),
+        error: 'overallSafetyScore eksik veya 0-100 aralığı dışında',
+      };
+    }
+
+    const alerts = validateList(parsed?.criticalAlerts, stringAlertSchema, 'criticalAlerts');
+    const warnings = validateList(
+      parsed?.foodDrinkWarnings,
+      foodDrinkWarningSchema,
+      'foodDrinkWarnings'
+    );
+    const tips = validateList(parsed?.lifestyleTips, stringAlertSchema, 'lifestyleTips');
+    const summaryResult = z.string().max(2000).safeParse(parsed?.summary);
+
+    return {
+      success: true,
+      overallSafetyScore: scoreResult.data,
+      summary: summaryResult.success
+        ? summaryResult.data
+        : language === 'tr'
+          ? 'Klinik analiz tamamlandı.'
+          : 'Clinical analysis complete.',
+      criticalAlerts: alerts.items,
+      // Şema `timingRule`/`severity`'yi opsiyonel doğruluyor (AI atlayabilir);
+      // arayüz tipi bunları zorunlu beklediği için burada varsayılana
+      // sabitleniyor. Kart zaten `fw.severity || 'moderate'` kullanıyordu —
+      // aynı varsayılan, ama artık TİP düzeyinde garanti.
+      foodDrinkWarnings: warnings.items.map(w => ({
+        food: w.food,
+        affectedMedicine: w.affectedMedicine,
+        warning: w.warning,
+        timingRule: w.timingRule ?? '',
+        severity: w.severity ?? 'moderate',
+      })),
+      lifestyleTips: tips.items,
+      analyzedMedicines: medicines.map(m => m.name),
+    };
+  } catch (error: unknown) {
+    log.error('analyzeClinicalAndFoodInteractionsWithAI error', error);
+    return {
+      success: false,
+      // ⚠️ Eski değer 80 idi: analiz TAMAMEN BAŞARISIZ olduğu halde hastaya
+      // "80/100 güvenli" gösteriliyordu. Bu, güveni kalibre edilemez hale
+      // getiren bir uydurma skordu. Artık 0 = "skor yok" ve kart render etmiyor.
+      overallSafetyScore: 0,
+      summary: language === 'tr' ? 'Analiz sırasında hata oluştu.' : 'Error during analysis.',
+      criticalAlerts: [],
+      foodDrinkWarnings: [],
+      lifestyleTips: [],
+      analyzedMedicines: medicines.map(m => m.name),
+      error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+    };
+  }
 }

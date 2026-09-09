@@ -10,6 +10,8 @@ import { createScopedLogger } from '../../utils/logger';
 import { isLocalMedicineImageUri } from '../../services/localMedicineImage';
 import type { SavedMedicineCloudData } from '../../services/firestoreSync';
 import type { Medicine, MedicineLog, ReminderTime, UserSettings } from '../../types';
+// Hangi ayarin buluta gidip gitmedigi TEK KAYNAK: domain/settingsScope.ts
+import { stripDeviceLocalSettingsFromCloud } from '../../domain/settingsScope';
 
 const log = createScopedLogger('MedicineStoreSync');
 
@@ -140,11 +142,30 @@ export function mergeReminderTimesById(
 }
 
 /**
- * Sprint 47: UserSettings merge helper.
+ * UserSettings merge helper — SON-YAZAN-KAZANIR (v1.7.1).
  *
- * Cloud'dan gelen ayarlari local'in ustune yazar. `undefined` degerler
- * skip edilir (Firestore undefined kabul etmez, eski sync'lerde eksik
- * alanlar bu sekilde merge sirasinda local'i ezmez).
+ * Cloud'dan gelen TANIMLI alanlar local'in ustune yazilir; `undefined`
+ * degerler atlanir (Firestore `undefined` kabul etmez, eski sync'lerde eksik
+ * alanlar bu sekilde local'i ezmez).
+ *
+ * ── Duzeltilen kusur ─────────────────────────────────────────────────────
+ * Bulut KOSULSUZ kazaniyordu ve `getSettingsFromCloud` her alani
+ * `?? varsayilan` ile dondurdugu icin pratikte hicbir alan `undefined`
+ * gelmiyordu. Sonuc (cihazda kanitlandi): bir cihazda yapilan ayar
+ * degisikligi indirme yarisini kaybederse SESSIZCE geri aliniyordu —
+ * yukleme fire-and-forget ve SyncQueue'ya girmiyor. Tam ekran alarm
+ * anahtari yeniden baslatmada eski degerine donuyordu.
+ *
+ * Artik iki tarafta da `settingsUpdatedAt` damgasi varsa YENI olan kazanir.
+ * Damga yoksa (yeni kurulum, eski bulut dokumani) eski davranis korunur:
+ * bulut kazanir — boylece temiz kurulumda yerel varsayilanlar kullanicinin
+ * bulut ayarlarini ezmez.
+ *
+ * NOT: Karsilastirma DOKUMAN duzeyindedir, alan duzeyinde degil. Iki cihazda
+ * ES ZAMANLI farkli alanlarin degistirilmesi hala en yeni dokumani kazandirir.
+ * Alan bazli birlestirme icin her alanin kendi damgasi gerekir — bilincli
+ * olarak yapilmadi (ayar sayisi kadar damga = dokuman boyutunun iki katindan
+ * fazlasi).
  */
 export function mergeSettingsWithUndefined(
   local: UserSettings,
@@ -154,6 +175,22 @@ export function mergeSettingsWithUndefined(
     return local;
   }
 
-  const definedEntries = Object.entries(cloud).filter(([, v]) => v !== undefined);
+  const localStamp = Date.parse(local.settingsUpdatedAt ?? '');
+  const cloudStamp = Date.parse(cloud.settingsUpdatedAt ?? '');
+  const bothStamped = !Number.isNaN(localStamp) && !Number.isNaN(cloudStamp);
+
+  if (bothStamped && localStamp > cloudStamp) {
+    // Yerel degisiklik daha YENI: bulut dokumani bayat, hicbir alani yazmiyoruz.
+    return local;
+  }
+
+  // ⚠️ v1.7.9 — CIHAZA OZEL ALANLAR BULUTTAN OKUNMAZ.
+  // PIN hash'i, biyometrik anahtari, kilit suresi ve son aktiflik zamani
+  // senkron yukune hic girmemeliydi; eski bulut dokumanlari onlari HALA
+  // iceriyor olabilir. Gerekce: src/domain/settingsScope.ts dosya basi.
+  const cloudWithoutDeviceLocal = stripDeviceLocalSettingsFromCloud(
+    cloud as Record<string, unknown>
+  );
+  const definedEntries = Object.entries(cloudWithoutDeviceLocal).filter(([, v]) => v !== undefined);
   return { ...local, ...Object.fromEntries(definedEntries) } as UserSettings;
 }

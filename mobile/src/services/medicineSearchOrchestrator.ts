@@ -16,6 +16,7 @@
 import { GlobalMedicine } from '../types';
 import * as globalMedicineService from './globalMedicineService';
 import * as turkishMedicineService from './turkishMedicineService';
+import { normalizeBarcode } from '../utils/barcodeHelpers';
 import { createScopedLogger } from '../utils/logger';
 // AI kaldırıldı - güvenilir sonuç vermiyordu
 // import * as aiMedicineService from './aiMedicineService';
@@ -63,14 +64,15 @@ const CONFIDENCE_SCORES: Record<SearchSource, number> = {
  * Tüm kaynakları sırayla dener
  */
 export async function searchByBarcode(
-  barcode: string,
+  rawBarcode: string,
   onProgress?: SearchProgressCallback
 ): Promise<SearchResult> {
   const startTime = Date.now();
+  const barcode = normalizeBarcode(rawBarcode) || (rawBarcode ? rawBarcode.trim() : '');
   // Sadece güvenilir kaynaklar: Firebase ve TİTCK
   const sources: SearchSource[] = ['firebase', 'titck_cache'];
 
-  log.debug('Barkod araması başladı', { barcode });
+  log.debug('Barkod araması başladı', { rawBarcode, normalizedBarcode: barcode });
 
   for (let i = 0; i < sources.length; i++) {
     const source = sources[i];

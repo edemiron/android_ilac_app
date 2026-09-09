@@ -1,93 +1,51 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { SettingIconProps } from './types';
+import { useTheme } from '../../contexts/ThemeContext';
 
-// Icon name to emoji map - tüm ayarlar simgeleri
-const ICON_EMOJI: Record<string, string> = {
-  // Bildirimler
-  'notifications-outline': '🔔',
-  notifications: '🔔',
-  'notifications-off-outline': '🔕',
-  'alarm-outline': '⏰',
-  alarm: '⏰',
-  'phone-portrait-outline': '📱',
-  'volume-high-outline': '🔊',
-  'volume-high': '🔊',
-  'volume-medium-outline': '🔉',
-  'time-outline': '⏰',
+export const SettingIcon: React.FC<SettingIconProps> = ({
+  name,
+  color,
+  size = 18,
+  backgroundColor,
+}) => {
+  const { isDark } = useTheme();
 
-  // Güvenlik
-  'lock-closed-outline': '🔒',
-  'lock-closed': '🔒',
-  'lock-open-outline': '🔓',
-  'finger-print-outline': '👆',
+  const defaultIconColor = isDark ? '#38BDF8' : '#0284C7';
+  const iconColor = color || defaultIconColor;
 
-  // Ayarlar/Görünüm
-  'moon-outline': '🌙',
-  'sunny-outline': '☀️',
-  moon: '🌙',
-  sunny: '☀️',
-  'globe-outline': '🌍',
-  'color-palette-outline': '🎨',
+  const bg = backgroundColor || (isDark ? `${iconColor}22` : `${iconColor}15`);
 
-  // Sağlık/İlaç
-  'flask-outline': '💊',
-  'warning-outline': '⚠️',
-  warning: '⚠️',
-  'fitness-outline': '💪',
-  'add-circle-outline': '➕',
+  const borderColor = isDark ? `${iconColor}40` : `${iconColor}30`;
 
-  // İnsanlar
-  'people-outline': '👥',
-  people: '👥',
-  'person-outline': '👤',
-  'person-add-outline': '👤',
-
-  // Diğer
-  'cloud-outline': '☁️',
-  'mail-outline': '✉️',
-  'log-out-outline': '🚪',
-  'refresh-outline': '🔄',
-  'expand-outline': '⬆️',
-  'git-branch-outline': '⑂',
-  'bed-outline': '🛏️',
-  'timer-outline': '⏱️',
-  'nuclear-outline': '☢️',
-  'bug-outline': '🐛',
-  'trash-outline': '🗑️',
-  'code-slash-outline': '💻',
-  'chatbubble-ellipses-outline': '💬',
-  'information-circle-outline': 'ℹ️',
-  'flash-outline': '⚡',
-
-  // Chevron için (kullanılmıyor ama tanımlı olsun)
-  'chevron-forward': '›',
-  'chevron-up': '↑',
-  'chevron-down': '↓',
-};
-
-export const SettingIcon: React.FC<SettingIconProps> = ({ name }) => {
-  const emoji = ICON_EMOJI[name] || ICON_EMOJI[name?.replace('-outline', '')] || '•';
+  const iconName = name?.includes('-outline') ? name : `${name}-outline`;
 
   return (
-    <View style={styles.iconContainer}>
-      <Text style={styles.iconEmoji}>{emoji}</Text>
+    <View
+      style={[
+        styles.iconContainer,
+        {
+          backgroundColor: bg,
+          borderColor,
+        },
+      ]}
+    >
+      <Ionicons name={iconName as any} size={size} color={iconColor} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-  },
-  iconEmoji: {
-    fontSize: 20,
-    lineHeight: 24,
+    marginRight: 14,
+    borderWidth: 1,
   },
 });
+
+export default SettingIcon;

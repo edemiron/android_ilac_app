@@ -25,6 +25,15 @@ class BootReceiver : BroadcastReceiver() {
                 ACTION_TIME_SET,
                 Intent.ACTION_TIMEZONE_CHANGED,
                 Intent.ACTION_MY_PACKAGE_REPLACED -> {
+                    // 1. DirectBoot Güvenlik Kalkanı (v1.9.3): Cihaz henüz kilitliyken bile (LOCKED_BOOT_COMPLETED)
+                    // CE depolamayı beklemeden DE SharedPreferences'taki alarmları anında kur.
+                    try {
+                        val reArmedCount = DirectBootAlarmHelper.reArmAllAlarms(context)
+                        Log.d(TAG, "DirectBootAlarmHelper: $reArmedCount alarms re-armed in DE mode (trigger=$action)")
+                    } catch (deErr: Exception) {
+                        Log.e(TAG, "DirectBootAlarmHelper re-arm error", deErr)
+                    }
+
                     Log.d(TAG, "Starting BootTaskService for action: $action")
 
                     val serviceIntent = Intent(context, BootTaskService::class.java).apply {

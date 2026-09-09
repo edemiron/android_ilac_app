@@ -1,17 +1,18 @@
 /**
- * HomeScreenLayoutSwitcher — Sprint 58.5 + 62.
+ * HomeScreenLayoutSwitcher — Sprint 58.5 + 62 + 78.
  *
  * useUserProfile hook'undan layout tercihini okur, uygun layout component'ini render eder.
- * Layout B (Detaylı) 7 MD3 kartı, Layout A (Sade) minimal görünüm.
+ * Layout A (Detaylı) CircularProgress + stat tiles + streak; Layout B (Sade) kompakt görünüm.
  * Sprint 62: Layout A↔B geçişinde LayoutAnimation (RN built-in) ile crossfade.
  */
 
 import React, { useEffect, useRef } from 'react';
-import { LayoutAnimation, Platform, UIManager } from 'react-native';
+import { LayoutAnimation, Platform, UIManager, View } from 'react-native';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { HomeScreenLayoutA } from './HomeScreenLayoutA';
 import { HomeScreenLayoutB } from './HomeScreenLayoutB';
-import { HomeScreenLayoutC } from './HomeScreenLayoutC';
+import { SkeletonListItem } from '../common/SkeletonListItem';
+import { spacing } from '../../theme/tokens';
 import type { TodayReminder } from '../../screens/HomeScreen/types';
 import type { Medicine } from '../../types';
 import type { MiniChartDatum } from '../common/MiniChart';
@@ -40,6 +41,12 @@ const LAYOUT_ANIMATION_CONFIG = {
 };
 
 interface SwitcherProps {
+  /** Sprint 99: LayoutB Header için selamlama metni. */
+  greeting: string;
+  /** Sprint 99: LayoutB Header için dinamik tarih metni. */
+  dynamicDate: string;
+  /** Sprint 104.4: UserAvatar için displayName (AuthContext'ten). */
+  displayName?: string;
   reminder?: TodayReminder;
   reminders?: TodayReminder[];
   adherence?: number;
@@ -48,6 +55,8 @@ interface SwitcherProps {
   totalCount?: number;
   remainingCount?: number;
   lowStockMedicines?: Medicine[];
+  /** Sprint 99: lowStockMedicines.length yerine explicit sayı. */
+  lowStockCount?: number;
   miniChartData?: MiniChartDatum[];
   isPremium?: boolean;
   onTake?: () => void;
@@ -55,9 +64,14 @@ interface SwitcherProps {
   onSkip?: () => void;
   onAddPress?: () => void;
   onLowStockPress?: () => void;
+  /** Sprint 99: LayoutB "Tümü >" link için MedicinesScreen navigate. */
+  onSeeAllMedicines?: () => void;
 }
 
 export function HomeScreenLayoutSwitcher({
+  greeting,
+  dynamicDate,
+  displayName,
   reminder,
   reminders = [],
   adherence = 0,
@@ -66,6 +80,7 @@ export function HomeScreenLayoutSwitcher({
   totalCount = 0,
   remainingCount = 0,
   lowStockMedicines = [],
+  lowStockCount,
   miniChartData = [],
   isPremium = false,
   onTake,
@@ -73,6 +88,7 @@ export function HomeScreenLayoutSwitcher({
   onSkip,
   onAddPress,
   onLowStockPress,
+  onSeeAllMedicines,
 }: SwitcherProps) {
   const { profile, isLoading } = useUserProfile();
   const previousLayoutRef = useRef<string | null>(null);
@@ -87,30 +103,31 @@ export function HomeScreenLayoutSwitcher({
 
   if (isLoading) {
     return (
-      <HomeScreenLayoutA
-        reminder={reminder}
-        reminders={reminders}
-        adherence={adherence}
-        streak={streak}
-        completedCount={completedCount}
-        totalCount={totalCount}
-        remainingCount={remainingCount}
-        onAddPress={onAddPress}
-      />
+      <View style={{ padding: spacing.lg }}>
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+        <SkeletonListItem variant="medicine-row" showAvatar lines={2} />
+      </View>
     );
   }
 
-  if (profile.layout === 'B') {
+  // Sprint 78: A = Detaylı (7 kart LayoutB), B = Sade (kompakt LayoutA)
+  if (profile.layout === 'A') {
     return (
       <HomeScreenLayoutB
+        greeting={greeting}
+        dynamicDate={dynamicDate}
+        displayName={displayName}
         reminder={reminder}
         reminders={reminders}
-        adherence={adherence}
         streak={streak}
         completedCount={completedCount}
         totalCount={totalCount}
         remainingCount={remainingCount}
         lowStockMedicines={lowStockMedicines}
+        lowStockCount={lowStockCount}
         miniChartData={miniChartData}
         isPremium={isPremium}
         onTake={onTake}
@@ -118,19 +135,7 @@ export function HomeScreenLayoutSwitcher({
         onSkip={onSkip}
         onAddPress={onAddPress}
         onLowStockPress={onLowStockPress}
-      />
-    );
-  }
-
-  // Sprint 67: Layout C — iOS Inset Grouped (orphan artık Switcher'a bağlı)
-  if (profile.layout === 'C') {
-    return (
-      <HomeScreenLayoutC
-        reminder={reminder}
-        reminders={reminders}
-        onTake={onTake}
-        onSnooze={onSnooze}
-        onSkip={onSkip}
+        onSeeAllMedicines={onSeeAllMedicines}
       />
     );
   }

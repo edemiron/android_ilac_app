@@ -124,6 +124,8 @@ export function ExpirySection({
               style={[styles.clearButton, { backgroundColor: colors.error + '15' }]}
               onPress={handleClearDate}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Son kullanma tarihini temizle"
             >
               <Ionicons name="close" size={20} color={colors.error} />
             </TouchableOpacity>

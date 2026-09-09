@@ -1,7 +1,8 @@
 /**
- * useUserProfile tests — Sprint 58.
+ * useUserProfile tests — Sprint 58 + 77.
  *
- * Provider, default fallback, setLayout persistence ve error guard testleri.
+ * Provider, default fallback, setLayout persistence, error guard ve
+ * Layout C → A migration testleri.
  */
 
 import React from 'react';
@@ -135,5 +136,32 @@ describe('useUserProfile', () => {
     const b: LayoutVariant = 'B';
     expect(a).toBe('A');
     expect(b).toBe('B');
+  });
+
+  it('Sprint 77: legacy layout C migrates to A', async () => {
+    const legacyProfile = JSON.stringify({
+      layout: 'C',
+      accentColor: 'sunset',
+      hapticsEnabled: false,
+      version: 3,
+      updatedAt: '2026-06-01T08:00:00.000Z',
+    });
+    mockedGetItem.mockResolvedValueOnce(legacyProfile);
+
+    render(
+      <UserProfileProvider>
+        <CaptureComponent />
+      </UserProfileProvider>
+    );
+
+    await waitFor(() => {
+      expect(captureRef.current?.isLoading).toBe(false);
+    });
+
+    // 'C' → 'A' migration (sade)
+    expect(captureRef.current?.profile.layout).toBe('A');
+    // diğer alanlar korunmalı
+    expect(captureRef.current?.profile.accentColor).toBe('sunset');
+    expect(captureRef.current?.profile.hapticsEnabled).toBe(false);
   });
 });

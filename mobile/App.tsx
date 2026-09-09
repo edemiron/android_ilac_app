@@ -1,25 +1,32 @@
 // Polyfill for crypto.getRandomValues (required for uuid package)
 import 'react-native-get-random-values';
 
-import React, { useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useCallback, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   StatusBar,
   View,
   Platform,
   ActivityIndicator,
   StyleSheet,
-  Alert,
   TouchableOpacity,
   Text,
   AppState,
   PanResponder,
   Dimensions,
   Animated,
+  DeviceEventEmitter,
+  Linking,
 } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; // Sprint 97.1
+import {
+  NavigationContainer,
+  DefaultTheme,
+  DarkTheme,
+  LinkingOptions,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import notifee from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -42,7 +49,12 @@ import {
   TtsSettingsScreen,
   CaregiverScreen,
   CaregiverInviteScreen,
+  DutyPharmacyScreen,
+  NotificationCenterScreen,
 } from './src/screens';
+
+import { useAppFonts } from './src/hooks/useAppFonts'; // Sprint 103.2: Clinical Clarity font gate
+import { useHaptics } from './src/hooks/useHaptics';
 
 // Lazy load BarcodeScannerScreen - vision-camera is HEAVY and slows startup by ~5s
 const BarcodeScannerScreen = lazy(() => import('./src/screens/BarcodeScannerScreen'));
@@ -57,6 +69,7 @@ import {
   cancelMedicineNotifications,
   cleanupOrphanNotifications,
   cancelAllNotifications,
+  createNotificationChannels,
 } from './src/utils/notifications';
 import { useMedicineStore } from './src/stores/medicineStore';
 import { generateId } from './src/utils/idGenerator';
@@ -70,18 +83,36 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SubscriptionProvider } from './src/contexts/SubscriptionContext';
 import { AlertProvider } from './src/contexts/AlertContext';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
+import { CaregiverEventBridge } from './src/components/CaregiverEventBridge'; // Sprint 72
 import { usePermissionsGate } from './src/hooks/usePermissionsGate';
 import { useSecurityGate } from './src/hooks/useSecurityGate';
 import { useBootRecovery } from './src/hooks/useBootRecovery';
-import { useAlarmNavigation, type PendingAlarmData } from './src/hooks/useAlarmNavigation';
+import { useAlarmNavigation } from './src/hooks/useAlarmNavigation';
+import { ThemeTransitionOverlay } from './src/components/theme/ThemeTransitionOverlay';
+import type { AlarmScreenNavigationParams } from './src/utils/alarmNavigation';
 import {
-  getBootRecoveryResult,
-  clearBootRecoveryResult,
-  reRegisterAllAlarms,
-} from './src/utils/bootHandler';
+  getAlarmNotificationId,
+  buildSnoozeNotificationId as buildSnoozeNotificationIdWithSnoozeId,
+} from './src/utils/notifications/ids';
+import { reRegisterAllAlarms } from './src/utils/bootHandler';
+// K5 — kalıcı yazma kuyruğu flush koordinatörü (NetInfo + AppState).
+import { startOutboxFlusher } from './src/utils/outboxFlusher';
+// "Bu doz bugun zaten alindi mi?" ve "bugun" gun anahtari icin TEK KAYNAK.
+// Bu dosyada iki kopya predicate ve UTC gun oneki vardi; ayrintili gerekce
+// src/domain/doseLog.ts dosya basinda.
+import { isDoseLogged, getLocalDateKey } from './src/domain/doseLog';
+// Alarm deep link TUKETIMI: `Linking.getInitialURL()` Activity intent'ini
+// okur ve o intent hic temizlenmedigi icin ayni alarmi surekli dondurur.
+// Gerekce ve cihaz olcumleri: src/utils/notifications/alarmDedup.ts.
+import {
+  hasAlarmUrlBeenConsumed,
+  markAlarmUrlConsumed,
+} from './src/utils/notifications/alarmDedup';
 import { isAlarmHandled } from './index';
 import { createScopedLogger } from './src/utils/logger';
 import { STORAGE_KEYS } from './src/constants';
+import { CaregiverFullScreenAlertModal } from './src/screens/CaregiverScreen/components/CaregiverFullScreenAlertModal';
+import { PatientFullScreenReminderModal } from './src/components/PatientFullScreenReminderModal';
 
 const appLog = createScopedLogger('App');
 
@@ -140,7 +171,7 @@ const getTabColors = (isDark: boolean) => ({
   settings: { active: isDark ? '#F59E0B' : '#D97706', inactive: isDark ? '#6B8AAA' : '#94A3B8' }, // Warning - Amber
 });
 
-// Custom Tab Bar with Center FAB and swipe navigation
+// Custom Tab Bar with Center Raised Squircle FAB (+ Ekle)
 interface CustomTabBarProps {
   state: any;
   descriptors: any;
@@ -149,98 +180,174 @@ interface CustomTabBarProps {
 
 function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
   const { colors, isDark } = useTheme();
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
+  const haptics = useHaptics();
+  const insets = useSafeAreaInsets();
 
-  const TAB_COLORS = getTabColors(isDark);
+  // Tabletlerdeki Samsung One UI görev çubuğu / sanal butonlar veya Android 3-buton gezinme
+  // için insets.bottom kadar dinamik güvenli alan padding'i uygula
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 10);
 
-  const tabIcons: Record<string, { name: string; colors: { active: string; inactive: string } }> = {
-    Home: { name: 'home', colors: TAB_COLORS.home },
-    Medicines: { name: 'medical', colors: TAB_COLORS.medicines },
-    Statistics: { name: 'bar-chart', colors: TAB_COLORS.statistics },
-    Settings: { name: 'settings-sharp', colors: TAB_COLORS.settings },
-  };
+  const leftTabs = [
+    {
+      key: 'Home',
+      routeName: 'Home',
+      label: language === 'tr' ? 'Bugün' : 'Today',
+      iconActive: 'home',
+      iconInactive: 'home-outline',
+      onPress: () => {
+        haptics.trigger('selection');
+        navigation.navigate('Home');
+      },
+      tabIndex: 0,
+    },
+    {
+      key: 'Medicines',
+      routeName: 'Medicines',
+      label: language === 'tr' ? 'İlaçlarım' : 'Medicines',
+      iconActive: 'medical',
+      iconInactive: 'medical-outline',
+      onPress: () => {
+        haptics.trigger('selection');
+        navigation.navigate('Medicines');
+      },
+      tabIndex: 1,
+    },
+  ];
 
-  const handleAddMedicine = () => {
-    navigation.navigate('AddMedicine', {});
+  const rightTabs = [
+    {
+      key: 'Statistics',
+      routeName: 'Statistics',
+      label: language === 'tr' ? 'Takvim' : 'Calendar',
+      iconActive: 'calendar',
+      iconInactive: 'calendar-outline',
+      onPress: () => {
+        haptics.trigger('selection');
+        navigation.navigate('Statistics');
+      },
+      tabIndex: 2,
+    },
+    {
+      key: 'Settings',
+      routeName: 'Settings',
+      label: language === 'tr' ? 'Ayarlar' : 'Settings',
+      iconActive: 'settings',
+      iconInactive: 'settings-outline',
+      onPress: () => {
+        haptics.trigger('selection');
+        navigation.navigate('Settings');
+      },
+      tabIndex: 3,
+    },
+  ];
+
+  const handleAddPress = () => {
+    haptics.trigger('medium');
+    navigation.navigate('AddMedicine');
   };
 
   return (
-    <View style={[tabBarStyles.container, { backgroundColor: colors.tabBar }]}>
-      {state.routes.map((route: any, index: number) => {
-        const { options } = descriptors[route.key];
-        const isFocused = state.index === index;
-        const iconConfig = tabIcons[route.name];
-
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-
-          if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
-          }
-        };
-
-        // Ortaya FAB ekle (2. tab'dan sonra)
-        if (index === 2) {
+    <View style={{ backgroundColor: colors.background }}>
+      <View
+        style={[
+          tabBarStyles.container,
+          {
+            backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+            borderColor: isDark ? '#334155' : '#E2E8F0',
+            paddingBottom: bottomInset,
+          },
+        ]}
+      >
+        {/* Sol 2 Tab: Bugün & Takvim */}
+        {leftTabs.map(tab => {
+          const isFocused = state.index === tab.tabIndex;
           return (
-            <React.Fragment key={route.key}>
-              {/* Center FAB */}
-              <View style={tabBarStyles.fabWrapper}>
-                <TouchableOpacity
-                  style={[tabBarStyles.fab, { backgroundColor: colors.primary }]}
-                  onPress={handleAddMedicine}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="add" size={28} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Normal Tab */}
-              <TouchableOpacity style={tabBarStyles.tab} onPress={onPress} activeOpacity={0.7}>
-                <Ionicons
-                  name={iconConfig.name as any}
-                  size={24}
-                  color={isFocused ? iconConfig.colors.active : iconConfig.colors.inactive}
-                />
-                <Text
-                  style={[
-                    tabBarStyles.label,
-                    { color: isFocused ? iconConfig.colors.active : iconConfig.colors.inactive },
-                  ]}
-                >
-                  {options.title}
-                </Text>
-              </TouchableOpacity>
-            </React.Fragment>
-          );
-        }
-
-        return (
-          <TouchableOpacity
-            key={route.key}
-            style={tabBarStyles.tab}
-            onPress={onPress}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={iconConfig.name as any}
-              size={24}
-              color={isFocused ? iconConfig.colors.active : iconConfig.colors.inactive}
-            />
-            <Text
-              style={[
-                tabBarStyles.label,
-                { color: isFocused ? iconConfig.colors.active : iconConfig.colors.inactive },
-              ]}
+            <TouchableOpacity
+              key={tab.key}
+              style={tabBarStyles.tab}
+              onPress={tab.onPress}
+              activeOpacity={0.7}
             >
-              {options.title}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+              <Ionicons
+                name={(isFocused ? tab.iconActive : tab.iconInactive) as any}
+                size={22}
+                color={isFocused ? colors.primary : isDark ? '#94A3B8' : '#64748B'}
+              />
+              <Text
+                style={[
+                  tabBarStyles.label,
+                  {
+                    color: isFocused ? colors.primary : isDark ? '#94A3B8' : '#64748B',
+                    fontWeight: isFocused ? '700' : '500',
+                  },
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+
+        {/* Merkez: Yükseltilmiş Squircle FAB (+ Ekle) */}
+        <TouchableOpacity
+          style={tabBarStyles.centerFabContainer}
+          onPress={handleAddPress}
+          activeOpacity={0.85}
+        >
+          <View
+            style={[
+              tabBarStyles.centerSquircle,
+              {
+                backgroundColor: colors.primary,
+                shadowColor: colors.primary,
+              },
+            ]}
+          >
+            <Ionicons name="add" size={28} color="#FFFFFF" />
+          </View>
+          <Text
+            style={[
+              tabBarStyles.centerLabel,
+              {
+                color: isDark ? '#94A3B8' : '#64748B',
+              },
+            ]}
+          >
+            {language === 'tr' ? 'Ekle' : 'Add'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Sağ 2 Tab: İlaçlarım & Ayarlar */}
+        {rightTabs.map(tab => {
+          const isFocused = state.index === tab.tabIndex;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={tabBarStyles.tab}
+              onPress={tab.onPress}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={(isFocused ? tab.iconActive : tab.iconInactive) as any}
+                size={22}
+                color={isFocused ? colors.primary : isDark ? '#94A3B8' : '#64748B'}
+              />
+              <Text
+                style={[
+                  tabBarStyles.label,
+                  {
+                    color: isFocused ? colors.primary : isDark ? '#94A3B8' : '#64748B',
+                    fontWeight: isFocused ? '700' : '500',
+                  },
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -248,40 +355,51 @@ function CustomTabBar({ state, descriptors, navigation }: CustomTabBarProps) {
 const tabBarStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
-    paddingTop: 16,
-    alignItems: 'flex-end',
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'space-around',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    marginTop: -24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 10,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
+    paddingVertical: 4,
   },
   label: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 11.5,
   },
-  fabWrapper: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginHorizontal: 8,
-    marginTop: -36,
-  },
-  fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  centerFabContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8B9CFF',
+    marginTop: -22,
+  },
+  centerSquircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    elevation: 12,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  centerLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 3,
   },
 });
 
@@ -367,8 +485,10 @@ function MainTabs() {
   );
 
   return (
-    <View style={{ flex: 1 }} {...panResponder.panHandlers}>
-      <Animated.View style={{ flex: 1, transform: [{ translateX }] }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }} {...panResponder.panHandlers}>
+      <Animated.View
+        style={{ flex: 1, backgroundColor: colors.background, transform: [{ translateX }] }}
+      >
         <Tab.Navigator
           tabBar={props => {
             tabNavRef.current = props.navigation;
@@ -389,17 +509,17 @@ function MainTabs() {
           <Tab.Screen
             name="Medicines"
             component={MedicinesScreen}
-            options={{ title: t('tab_medicines'), headerTitle: t('tab_medicines') }}
+            options={{ headerShown: false, title: t('tab_medicines') }}
           />
           <Tab.Screen
             name="Statistics"
             component={StatisticsScreen}
-            options={{ title: t('tab_statistics'), headerTitle: t('tab_statistics') }}
+            options={{ headerShown: false, title: t('tab_statistics') }}
           />
           <Tab.Screen
             name="Settings"
             component={SettingsScreen}
-            options={{ title: t('tab_settings'), headerTitle: t('tab_settings') }}
+            options={{ headerShown: false, title: t('tab_settings') }}
           />
         </Tab.Navigator>
       </Animated.View>
@@ -476,6 +596,21 @@ function AppContent() {
     logMedicineSkipped,
   } = useMedicineStore();
 
+  const navTheme = React.useMemo(
+    () => ({
+      ...(isDark ? DarkTheme : DefaultTheme),
+      colors: {
+        ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+        background: colors.background,
+        card: colors.card,
+        text: colors.text,
+        border: colors.border,
+        primary: colors.primary,
+      },
+    }),
+    [isDark, colors]
+  );
+
   // Pending alarm queue + navigation — Sprint 6 DRY refactor:
   // Hook artık sadece React state'i tutar; tüm alarm validation/snooze/navigate
   // mantığı utils/alarmNavigation.ts içindeki `handleIncomingAlarmNavigation`
@@ -484,26 +619,84 @@ function AppContent() {
   // 8 callback'ten 4'e indi.
   const { pendingAlarm, setPendingAlarm, handleIncomingAlarm } = useAlarmNavigation({
     isNavigationReady: () => navigationRef.current?.isReady() ?? false,
+    // v1.7.4 — KESİN yinelenme kontrolü. Aynı çalma 5 ayrı yoldan geliyor;
+    // ekran zaten bu doz için açıksa ikinci yol yeni bir ekran AÇMAMALI.
+    // Eskiden yalnızca duvar saati dakikasına dayanan bir pencere vardı ve
+    // çalma dakika sınırına denk geldiğinde tutmuyordu (bkz.
+    // src/utils/notifications/alarmDedup.ts).
+    isAlarmScreenOpenFor: (medicineId: string, reminderTimeId: string) => {
+      try {
+        const route = navigationRef.current?.getCurrentRoute?.();
+        if (route?.name !== 'Alarm') return false;
+        const params = route.params as { medicineId?: string; reminderTimeId?: string } | undefined;
+        return params?.medicineId === medicineId && params?.reminderTimeId === reminderTimeId;
+      } catch (_e) {
+        return false;
+      }
+    },
     isAlarmAlreadyHandled: async (
       medicineId: string,
       reminderTimeId: string,
-      scheduledTime: string
+      _scheduledTime: string
     ) => {
-      const today = new Date().toISOString().split('T')[0];
-      return await isAlarmHandled(`${medicineId}-${reminderTimeId}-${today}`);
+      if (medicineId === 'test-medicine') return false;
+      // ⚠️ v1.7.4 — gün anahtarı YEREL. Eskiden `toISOString().split('T')[0]`
+      // ile UTC günü alınıyordu; TR (UTC+3) 00:00–03:00 arası dozlar bir
+      // önceki güne düşüyordu ve `isAlarmHandled` anahtarı index.ts ile
+      // aynı günü göstermiyordu.
+      const today = getLocalDateKey(new Date());
+      const handledInSet = await isAlarmHandled(`${medicineId}-${reminderTimeId}-${today}`);
+      if (handledInSet) return true;
+
+      // Store medicineLogs kontrolü — karar `src/domain/doseLog.ts`te.
+      // Eskiden burada `reminderTimeId || medicineId` OR'u vardı; `medicineId`
+      // her logda dolu olduğu için ilacın sabah dozu alınınca akşam alarmı da
+      // "zaten işlenmiş" sayılıp hiç açılmıyordu.
+      const state = useMedicineStore.getState();
+      if (isDoseLogged(state.medicineLogs || [], { reminderTimeId, medicineId })) {
+        return true;
+      }
+
+      // AsyncStorage fallback (store henüz hydrate olmadıysa)
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEYS.MEDICINE_STORAGE);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const logs = parsed?.state?.medicineLogs || [];
+          return isDoseLogged(logs, { reminderTimeId, medicineId });
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+
+      return false;
     },
-    navigateToAlarmScreen: (data: PendingAlarmData) => {
+    navigateToAlarmScreen: (data: AlarmScreenNavigationParams) => {
       navigationRef.current?.navigate('Alarm', {
         medicineId: data.medicineId,
         reminderTimeId: data.reminderTimeId,
         scheduledTime: data.scheduledTime,
-        snoozeCount: data.snoozeCount ? parseInt(data.snoozeCount, 10) : undefined,
+        // `snoozeCount` handleIncomingAlarmNavigation icinde ZATEN number'a
+        // cevrildi; burada tekrar parseInt uygulanmaz (eskiden uygulaniyordu).
+        snoozeCount: data.snoozeCount,
         originalScheduledTime: data.originalScheduledTime,
+        // Ekran hangi native requestCode uzayini iptal edecegini bilmeli.
+        isSnooze: data.isSnooze,
+        snoozeId: data.snoozeId,
       });
-      // Bildirimi HEMEN iptal et — foreground DELIVERED handler tekrar tetiklenmesin
-      notifee
-        .cancelDisplayedNotification(`alarm-${data.medicineId}-${data.reminderTimeId}`)
-        .catch(() => undefined);
+      // Bildirimi HEMEN iptal et — foreground DELIVERED handler tekrar tetiklenmesin.
+      // ERTELEME bildirimi `snooze-<med>-<rt>-<snoozeId>` kimligini tasir; eskiden
+      // burada kosulsuz `alarm-` kimligi iptal ediliyordu, erteleme bildirimi
+      // ekranda kaliyordu.
+      const displayedId =
+        data.isSnooze && data.snoozeId
+          ? buildSnoozeNotificationIdWithSnoozeId(
+              data.medicineId,
+              data.reminderTimeId,
+              data.snoozeId
+            )
+          : getAlarmNotificationId(data.medicineId, data.reminderTimeId);
+      notifee.cancelDisplayedNotification(displayedId).catch(() => undefined);
     },
     cancelMedicineNotifications,
   });
@@ -540,108 +733,149 @@ function AppContent() {
   // Inline 115 satirlik callback buradan cikarildi — bkz: src/hooks/useAlarmNavigation.ts.
 
   // Aksiyon işle (bildirim butonlarından)
-  const handleAction = async (actionId: string, data: any) => {
-    console.log('Aksiyon:', actionId, data);
+  //
+  // ⚠️ v1.7.6 — `useCallback` ZORUNLU. Eskiden bileşen gövdesinde düz bir
+  // arrow function'di, yani HER RENDER'da yeni referans aliyordu. Bu fonksiyon
+  // asagidaki notifee listener effect'inin bagimliligi oldugu icin o effect de
+  // her render'da yeniden kuruluyor ve icindeki `checkInitialNotification()`
+  // tekrar tekrar calisiyordu (bkz. notifications/alarmDedup.ts — sonsuz
+  // dongu). Artik yalnizca gercekten degisen degerlerle yeniden kurulur.
+  const handleAction = useCallback(
+    async (actionId: string, data: any) => {
+      console.log('Aksiyon:', actionId, data);
 
-    if (!data?.medicineId || !data?.reminderTimeId) return;
+      if (!data?.medicineId || !data?.reminderTimeId) return;
 
-    const notificationId = `alarm-${data.medicineId}-${data.reminderTimeId}`;
+      const notificationId = `alarm-${data.medicineId}-${data.reminderTimeId}`;
 
-    if (actionId === 'take' || actionId === 'taken') {
-      // İlaç alındı olarak işaretle (medicineId fallback ile)
-      logMedicineTaken(
-        data.reminderTimeId,
-        data.scheduledTime || new Date().toISOString(),
-        data.medicineId
-      );
-      await dismissNotification(notificationId);
-      // Kalıcı bildirim varsa onu da kaldır
-      if (data.isPersistent === 'true') {
-        await dismissNotification(`persistent-${data.medicineId}-${data.reminderTimeId}`);
-      }
-      console.log('İlaç alındı işaretlendi:', data.medicineId);
-    } else if (actionId === 'skip') {
-      // İlaç atlandı olarak işaretle (medicineId fallback ile)
-      logMedicineSkipped(
-        data.reminderTimeId,
-        data.scheduledTime || new Date().toISOString(),
-        data.medicineId
-      );
-      await dismissNotification(notificationId);
-      console.log('İlaç atlandı işaretlendi:', data.medicineId);
-    } else if (actionId === 'snooze') {
-      if (processedSnoozesRef.current.has(notificationId)) {
-        console.log('Bu bildirim için snooze zaten yapıldı, atlanıyor:', notificationId);
-        return;
-      }
-      processedSnoozesRef.current.add(notificationId);
+      // Bildirimi hemen kaldır (Görünür bildirim barından sil)
+      const clearAllRelatedNotifications = async () => {
+        await dismissNotification(notificationId).catch(() => undefined);
+        if (data.notificationId) {
+          await dismissNotification(data.notificationId).catch(() => undefined);
+        }
+        try {
+          await notifee.cancelDisplayedNotification(notificationId).catch(() => undefined);
+          if (data.notificationId) {
+            await notifee.cancelDisplayedNotification(data.notificationId).catch(() => undefined);
+          }
+          const displayed = await notifee.getDisplayedNotifications();
+          for (const d of displayed) {
+            if (
+              d.id === notificationId ||
+              d.id === data.notificationId ||
+              (data.medicineId && d.notification?.data?.medicineId === data.medicineId)
+            ) {
+              if (d.id) await notifee.cancelDisplayedNotification(d.id).catch(() => undefined);
+            }
+          }
+        } catch (_e) {
+          /* ignore */
+        }
+      };
 
-      setTimeout(() => {
-        processedSnoozesRef.current.delete(notificationId);
-      }, 30000);
-
-      await dismissNotification(notificationId);
-
-      const storeState = useMedicineStore.getState();
-      const medicine = storeState.getMedicineById(data.medicineId);
-      if (medicine) {
-        const reminderTimes = storeState.getReminderTimesForMedicine(data.medicineId);
-        const reminderTime = reminderTimes.find(
-          (rt: { id: string }) => rt.id === data.reminderTimeId
+      if (actionId === 'take' || actionId === 'taken') {
+        // İlaç alındı olarak işaretle (medicineId fallback ile)
+        logMedicineTaken(
+          data.reminderTimeId,
+          data.scheduledTime || new Date().toISOString(),
+          data.medicineId
         );
-        if (reminderTime) {
-          const snoozeDuration = settings.snoozeDuration || 5;
-          const snoozeId = generateId();
-          const originalScheduledTime = data.scheduledTime || new Date().toISOString();
+        await clearAllRelatedNotifications();
+        // Kalıcı bildirim varsa onu da kaldır
+        if (data.isPersistent === 'true') {
+          await dismissNotification(`persistent-${data.medicineId}-${data.reminderTimeId}`).catch(
+            () => undefined
+          );
+        }
+        console.log('İlaç alındı işaretlendi:', data.medicineId);
+      } else if (actionId === 'skip') {
+        // İlaç atlandı olarak işaretle (medicineId fallback ile)
+        logMedicineSkipped(
+          data.reminderTimeId,
+          data.scheduledTime || new Date().toISOString(),
+          data.medicineId
+        );
+        await clearAllRelatedNotifications();
+        console.log('İlaç atlandı işaretlendi:', data.medicineId);
+      } else if (actionId === 'snooze') {
+        if (processedSnoozesRef.current.has(notificationId)) {
+          console.log('Bu bildirim için snooze zaten yapıldı, atlanıyor:', notificationId);
+          return;
+        }
+        processedSnoozesRef.current.add(notificationId);
 
-          const existingSnoozeCount = storeState.snoozes.filter(
-            s =>
-              s.medicineId === data.medicineId &&
-              s.reminderTimeId === data.reminderTimeId &&
-              s.originalScheduledTime === originalScheduledTime
-          ).length;
+        setTimeout(() => {
+          processedSnoozesRef.current.delete(notificationId);
+        }, 30000);
 
-          const result = await scheduleSnoozeNotification({
-            medicine,
-            reminderTime,
-            snoozeDuration,
-            snoozeId,
-            originalScheduledTime,
-            snoozeCount: existingSnoozeCount + 1,
-          });
+        await dismissNotification(notificationId);
 
-          if (result) {
-            storeState.createSnooze(
-              data.medicineId,
-              data.reminderTimeId,
+        const storeState = useMedicineStore.getState();
+        const medicine = storeState.getMedicineById(data.medicineId);
+        if (medicine) {
+          const reminderTimes = storeState.getReminderTimesForMedicine(data.medicineId);
+          const reminderTime = reminderTimes.find(
+            (rt: { id: string }) => rt.id === data.reminderTimeId
+          );
+          if (reminderTime) {
+            const snoozeDuration = settings.snoozeDuration || 5;
+            const snoozeId = generateId();
+            const originalScheduledTime = data.scheduledTime || new Date().toISOString();
+
+            const existingSnoozeCount = storeState.snoozes.filter(
+              s =>
+                s.medicineId === data.medicineId &&
+                s.reminderTimeId === data.reminderTimeId &&
+                s.originalScheduledTime === originalScheduledTime
+            ).length;
+
+            const result = await scheduleSnoozeNotification({
+              medicine,
+              reminderTime,
+              snoozeDuration,
+              snoozeId,
               originalScheduledTime,
-              result.triggerTime,
-              result.notificationId
-            );
-            console.log("Snooze oluşturuldu ve DB'ye kaydedildi:", result.notificationId);
+              snoozeCount: existingSnoozeCount + 1,
+            });
+
+            if (result) {
+              storeState.createSnooze(
+                data.medicineId,
+                data.reminderTimeId,
+                originalScheduledTime,
+                result.triggerTime,
+                result.notificationId
+              );
+              console.log("Snooze oluşturuldu ve DB'ye kaydedildi:", result.notificationId);
+            }
           }
         }
+      } else if (actionId === 'stop') {
+        // Bildirimi kapat
+        await dismissNotification(notificationId);
+        try {
+          await notifee.cancelNotification(notificationId);
+        } catch (_e) {
+          /* ignore */
+        }
+        console.log('Alarm kapatıldı:', data.medicineId);
       }
-    } else if (actionId === 'stop') {
-      // Bildirimi kapat
-      await dismissNotification(notificationId);
-      try {
-        await notifee.cancelNotification(notificationId);
-      } catch (_e) {
-        /* ignore */
-      }
-      console.log('Alarm kapatıldı:', data.medicineId);
-    }
-  };
+    },
+    [logMedicineTaken, logMedicineSkipped, settings.snoozeDuration]
+  );
 
   // Notifee event listener'larını kur
   useEffect(() => {
     const performStartupCleanup = async () => {
       try {
+        // Bildirim kanallarını oluştur (HIGH importance + PUBLIC visibility)
+        await createNotificationChannels();
+
         // Eski displayed bildirimleri temizle
         // Sadece non-alarm bildirimleri ve zaten handle edilmiş alarmları temizle
         const displayedNotifications = await notifee.getDisplayedNotifications();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateKey(new Date()); // YEREL gun (UTC degil) — bkz. src/domain/doseLog.ts
 
         for (const notification of displayedNotifications) {
           const id = notification.notification.id;
@@ -684,17 +918,32 @@ function AppContent() {
           appLog.debug('Stale snooze cleanup done', { staleCount });
         }
 
+        // Kaçırılan geçmiş dozları mutabakat et (missed olarak kaydet)
+        storeState.markMissedReminders();
+
         // Alarmları yeniden planla
         if (validMedicineIds.length > 0) {
           const result = await reRegisterAllAlarms('app_startup');
           appLog.debug('Startup alarm re-register done', { ...result });
         }
 
-        const recovery = await getBootRecoveryResult();
-        if (recovery && (recovery.reminders > 0 || recovery.snoozes > 0)) {
-          // setBootRecovery useBootRecovery hook'unda — burada bir sey yapmaya gerek yok.
-          await clearBootRecoveryResult();
-        }
+        // K5 — kalıcı yazma kuyruğunu başlat.
+        //
+        // Alarmlardan SONRA başlatılıyor: açılışta öncelik doz alarmlarının
+        // yeniden planlanması (klinik olarak zaman-kritik), kuyruk ise
+        // gecikmeye toleranslı. `startOutboxFlusher` tekrar çağrılırsa no-op
+        // ve dört tetikleyici kurar: açılış, NetInfo bağlantı dönüşü,
+        // AppState `active`, ve kuyrukta iş kaldığı sürece kendini
+        // zamanlayan yeniden deneme (polling değil — boşalınca durur).
+        startOutboxFlusher();
+
+        // v1.7.1: boot recovery sonucunu BURADA okumuyoruz.
+        //
+        // Eskiden hem burada hem `useBootRecovery` icinde okunup
+        // `clearBootRecoveryResult()` cagriliyordu — hangisi once calisirsa
+        // sonucu siliyordu, dolayisiyla kullaniciya gosterilen kurtarma
+        // bildirimi SESSIZCE hic gorunmeyebiliyordu. Artik tek sahibi
+        // `useBootRecovery` hook'u.
       } catch (error) {
         appLog.error('Startup cleanup failed', error);
       }
@@ -703,32 +952,108 @@ function AppContent() {
     performStartupCleanup();
   }, []);
 
-  // Notifee event listener'larını kur
+  // Notifee foreground listener aboneligi.
+  // Bu effect handler'lar degistikce yeniden kurulmali — dogru olan bu.
+  // BASLANGIC alarmi kontrolu ise buradan CIKARILDI (asagidaki tek-seferlik
+  // effect'e tasindi): her yeniden kurulumda tekrar calisip ayni alarmi
+  // yeniden aciyordu (bkz. notifications/alarmDedup.ts — sonsuz dongu).
   useEffect(() => {
-    // Foreground event listener
     const unsubscribe = setupNotificationListeners(handleIncomingAlarm, handleAction);
+    return () => {
+      unsubscribe();
+    };
+  }, [handleIncomingAlarm, handleAction]);
 
-    // Background event handler artık index.ts'te register ediliyor
+  // ⚠️ v1.7.7 — KACIRILAN DOZLARI ISARETLE.
+  //
+  // `markMissedReminders` kod tabaninda TANIMLIYDI ama HICBIR YERDEN
+  // CAGRILMIYORDU. Sonucu uyum hesabinda goruluyordu: kullanici bir dozu hic
+  // islemezse o doz icin log olusmuyor, paydaya girmiyor ve dozu gormezden
+  // gelmek skoru YUKSELTIYORDU (gunde 3 doz, 1'i alindi, 2'si yoksayildi ->
+  // %100). Ayrintili gerekce: src/domain/adherence.ts.
+  //
+  // Acilista ve uygulama ON PLANA GELDIGINDE cagrilir: gecmis dozlar
+  // (varsayilan 60 dk tolerans sonrasi) `missed` olarak kaydedilir.
+  useEffect(() => {
+    const markMissed = () => {
+      try {
+        useMedicineStore.getState().markMissedReminders();
+      } catch (error) {
+        appLog.warn('markMissedReminders basarisiz', { error });
+      }
+    };
+
+    markMissed();
+    const sub = AppState.addEventListener('change', next => {
+      if (next === 'active') markMissed();
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Handler'in EN GUNCEL hali. Asagidaki tek-seferlik effect bunu bagimlilik
+  // olarak alsaydi yine her render'da yeniden calisirdi.
+  const handleIncomingAlarmRef = useRef(handleIncomingAlarm);
+  useEffect(() => {
+    handleIncomingAlarmRef.current = handleIncomingAlarm;
+  }, [handleIncomingAlarm]);
+
+  // ⚠️ v1.7.6 — "BASLANGICTA bekleyen alarm var mi?" kontrolu YALNIZCA MOUNT'ta.
+  //
+  // Adi zaten bunu soyluyor: bu kontrol uygulamanin ACILISINA aittir. Alarm
+  // uygulama zaten calisirken gelirse teslim yolu bu degil, `OnAlarmTriggered`
+  // event'i ve `Linking` 'url' dinleyicisidir.
+  //
+  // Eskiden bu govde `[handleIncomingAlarm, handleAction]` bagimliliklariyla
+  // ayni effect'in icindeydi ve IKISI DE her render'da yeni referans aliyordu:
+  // her render -> effect yeniden kurulur -> `Linking.getInitialURL()` ayni alarm
+  // deep link'ini yine dondurur (Activity intent'i hic temizlenmiyor) -> tam
+  // ekran alarm yeniden acilir -> render -> ... Kullanici "Simdi Al"a bassa da
+  // dongu bitmiyordu. Cihaz olcumu: TEK `AlarmReceiver.onReceive`, 13 saniyede
+  // 18 tur, 01:26:19'dan sonra yeni isletim sistemi tetigi YOK.
+  const didCheckInitialAlarmRef = useRef(false);
+  useEffect(() => {
+    if (didCheckInitialAlarmRef.current) return;
+    didCheckInitialAlarmRef.current = true;
 
     const checkInitialNotification = async () => {
-      // 1. Önce AsyncStorage'daki pending-alarm'ı kontrol et (BG handler'dan gelir)
+      // 1. Native AlarmModule'da bekleyen alarm var mı? (Cold start & intent cache)
+      try {
+        const { NativeModules } = require('react-native');
+        if (NativeModules.AlarmModule?.getInitialAlarm) {
+          const initAlarm = await NativeModules.AlarmModule.getInitialAlarm();
+          if (initAlarm?.medicineId) {
+            await NativeModules.AlarmModule.clearInitialAlarm().catch(() => undefined);
+            appLog.debug('Native getInitialAlarm found', initAlarm);
+            handleIncomingAlarmRef.current({
+              medicineId: initAlarm.medicineId,
+              reminderTimeId: initAlarm.reminderTimeId || 'test-reminder',
+              scheduledTime: initAlarm.scheduledTime || new Date().toISOString(),
+            });
+            return;
+          }
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+
+      // 2. AsyncStorage'daki pending-alarm'ı kontrol et (BG handler'dan gelir)
       try {
         const pendingRaw = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM);
         if (pendingRaw) {
           await AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
           const pending = JSON.parse(pendingRaw);
-          // 60 saniye içinde yazıldıysa geçerli
-          if (pending.ts && Date.now() - pending.ts < 60_000 && pending.medicineId) {
+          // 120 saniye içinde yazıldıysa geçerli
+          if (pending.ts && Date.now() - pending.ts < 120_000 && pending.medicineId) {
             appLog.debug('pending-alarm found', {
               medicineId: pending.medicineId,
               snoozeCount: pending.snoozeCount,
               ageMs: Date.now() - pending.ts,
             });
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLocalDateKey(new Date()); // YEREL gun (UTC degil) — bkz. src/domain/doseLog.ts
             const key = `${pending.medicineId}-${pending.reminderTimeId}-${today}`;
             const handled = await isAlarmHandled(key);
             if (!handled) {
-              setPendingAlarm({
+              handleIncomingAlarmRef.current({
                 medicineId: pending.medicineId,
                 reminderTimeId: pending.reminderTimeId,
                 scheduledTime: pending.scheduledTime,
@@ -737,7 +1062,7 @@ function AppContent() {
                 snoozeCount: pending.snoozeCount,
                 originalScheduledTime: pending.originalScheduledTime,
               });
-              return; // pending-alarm bulundu, initialNotification'a bakmaya gerek yok
+              return; // pending-alarm bulundu
             }
           }
         }
@@ -745,7 +1070,43 @@ function AppContent() {
         /* ignore */
       }
 
-      // 2. Notifee initialNotification (kullanıcı bildirime tıkladığında)
+      // 3. Initial URL (Deep link ile başlatıldıysa)
+      //
+      // ⚠️ Bu yol TÜKETİLEBİLİR OLMAK ZORUNDA. `Linking.getInitialURL()`
+      // Activity'nin intent'ini okur; `MainActivity.onNewIntent` içinde
+      // `setIntent(intent)` çağrıldıktan sonra o intent'in `data`'sını
+      // temizleyen HİÇBİR YER YOK. Yani bu çağrı Activity yaşadığı sürece
+      // aynı alarmı döndürmeye devam eder. Diğer üç yol (getInitialAlarm,
+      // PENDING_ALARM, notifee.getInitialNotification) kendini tüketiyor;
+      // yalnızca bu tüketmiyordu ve sonsuz döngünün kaynağı buydu.
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl && initialUrl.includes('alarm')) {
+          if (hasAlarmUrlBeenConsumed(initialUrl)) {
+            appLog.debug('Initial URL alarm deep link ZATEN islenmis, atlandi', { initialUrl });
+            return;
+          }
+          const medMatch = initialUrl.match(/[?&]medicineId=([^&]+)/);
+          const remMatch = initialUrl.match(/[?&]reminderTimeId=([^&]+)/);
+          const schedMatch = initialUrl.match(/[?&]scheduledTime=([^&]+)/);
+          if (medMatch && medMatch[1]) {
+            appLog.debug('Initial URL alarm deep link found', { initialUrl });
+            markAlarmUrlConsumed(initialUrl);
+            handleIncomingAlarmRef.current({
+              medicineId: decodeURIComponent(medMatch[1]),
+              reminderTimeId: remMatch ? decodeURIComponent(remMatch[1]) : 'test-reminder',
+              scheduledTime: schedMatch
+                ? decodeURIComponent(schedMatch[1])
+                : new Date().toISOString(),
+            });
+            return;
+          }
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+
+      // 4. Notifee initialNotification (kullanıcı bildirime tıkladığında)
       const initialNotification = await notifee.getInitialNotification();
       if (initialNotification) {
         console.log('Initial notification bulundu:', initialNotification);
@@ -760,7 +1121,7 @@ function AppContent() {
 
         // Bu alarm zaten handle edildi mi kontrol et (ertele/aldım)
         if (data?.medicineId && data?.reminderTimeId) {
-          const today = new Date().toISOString().split('T')[0];
+          const today = getLocalDateKey(new Date()); // YEREL gun (UTC degil) — bkz. src/domain/doseLog.ts
           const key = `${data.medicineId}-${data.reminderTimeId}-${today}`;
           const handled = await isAlarmHandled(key);
           if (handled) {
@@ -768,7 +1129,7 @@ function AppContent() {
             return;
           }
 
-          setPendingAlarm({
+          handleIncomingAlarmRef.current({
             medicineId: data.medicineId as string,
             reminderTimeId: data.reminderTimeId as string,
             scheduledTime: (data.scheduledTime as string) || new Date().toISOString(),
@@ -781,36 +1142,127 @@ function AppContent() {
       }
     };
     checkInitialNotification();
-
-    return () => {
-      unsubscribe();
-    };
   }, []);
 
-  // pendingAlarm hazir oldugunda navigate etme islemi useAlarmNavigation hook'u
-  // icinde yonetiliyor (src/hooks/useAlarmNavigation.ts:148-153). Bu effect kaldirildi.
+  // KRİTİK: Native modülden gelen anlık alarm tetikleme event'i
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('OnAlarmTriggered', async (data: any) => {
+      appLog.debug('DeviceEventEmitter OnAlarmTriggered received', data);
+      if (data?.medicineId) {
+        handleIncomingAlarm({
+          medicineId: data.medicineId,
+          reminderTimeId: data.reminderTimeId || 'test-reminder',
+          scheduledTime: data.scheduledTime || new Date().toISOString(),
+          isSnooze: data.isSnooze,
+          snoozeId: data.snoozeId,
+          snoozeCount: data.snoozeCount,
+          originalScheduledTime: data.originalScheduledTime,
+        });
+      }
+    });
 
-  // KRİTİK: Uygulama arka plandan öne geldiğinde pending-alarm kontrol et
-  // wakeAndOpenApp warm start'ta uygulamayı öne getirir ama checkInitialNotification
-  // sadece mount'ta çalışır — bu listener o boşluğu kapatır
+    return () => sub.remove();
+  }, [handleIncomingAlarm]);
+
+  // Deep Link ile gelen alarm URL dinleyicisi
+  useEffect(() => {
+    const handleUrl = ({ url }: { url: string }) => {
+      appLog.debug('Linking URL received', { url });
+      if (url.includes('alarm')) {
+        // Isletim sistemi ayni intent'i tekrar teslim ederse (veya bu dinleyici
+        // yeniden kurulursa) ayni calma ikinci kez ekran ACMAMALI. Yeni bir
+        // calma farkli `scheduledTime` tasir, dolayisiyla etkilenmez.
+        if (hasAlarmUrlBeenConsumed(url)) {
+          appLog.debug('Alarm deep link ZATEN islenmis, atlandi', { url });
+          return;
+        }
+        markAlarmUrlConsumed(url);
+        const medMatch = url.match(/[?&]medicineId=([^&]+)/);
+        const remMatch = url.match(/[?&]reminderTimeId=([^&]+)/);
+        const schedMatch = url.match(/[?&]scheduledTime=([^&]+)/);
+        if (medMatch && medMatch[1]) {
+          handleIncomingAlarm({
+            medicineId: decodeURIComponent(medMatch[1]),
+            reminderTimeId: remMatch ? decodeURIComponent(remMatch[1]) : 'test-reminder',
+            scheduledTime: schedMatch
+              ? decodeURIComponent(schedMatch[1])
+              : new Date().toISOString(),
+          });
+          return;
+        }
+
+        AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM).then(raw => {
+          if (raw) {
+            AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
+            const pending = JSON.parse(raw);
+            handleIncomingAlarm({
+              medicineId: pending.medicineId,
+              reminderTimeId: pending.reminderTimeId,
+              scheduledTime: pending.scheduledTime,
+              isSnooze: pending.isSnooze,
+              snoozeId: pending.snoozeId,
+              snoozeCount: pending.snoozeCount,
+              originalScheduledTime: pending.originalScheduledTime,
+            });
+          } else {
+            // v1.7.4 (Faz 0.4): SENTETİK TEST ALARMI ÜRETİMİ KALDIRILDI.
+            // `ilachatirlatici://alarm` parametresiz geldiğinde (tarayıcıdan da
+            // tetiklenebilir — intent-filter BROWSABLE) ve bekleyen alarm
+            // yokken, burada uydurma bir `test-medicine` alarmı üretilip
+            // doğrulama atlanarak tam ekran alarm açılıyordu.
+            appLog.warn('Alarm deep link parametresiz geldi ve bekleyen alarm yok, yoksayildi');
+          }
+        });
+      }
+    };
+
+    const sub = Linking.addEventListener('url', handleUrl);
+    return () => sub.remove();
+  }, [handleIncomingAlarm]);
+
+  // KRİTİK: Uygulama arka plandan öne geldiğinde (active veya inactive/kilit ekranı) pending-alarm kontrol et
   useEffect(() => {
     const appStateListener = AppState.addEventListener('change', async nextState => {
-      if (nextState === 'active') {
+      if (nextState === 'active' || nextState === 'inactive') {
+        // 1. Native getInitialAlarm kontrol et
+        try {
+          const { NativeModules } = require('react-native');
+          if (NativeModules.AlarmModule?.getInitialAlarm) {
+            const initAlarm = await NativeModules.AlarmModule.getInitialAlarm();
+            if (initAlarm?.medicineId) {
+              await NativeModules.AlarmModule.clearInitialAlarm().catch(() => undefined);
+              appLog.debug('AppState changed: native getInitialAlarm found', initAlarm);
+              handleIncomingAlarm({
+                medicineId: initAlarm.medicineId,
+                reminderTimeId: initAlarm.reminderTimeId || 'test-reminder',
+                scheduledTime: initAlarm.scheduledTime || new Date().toISOString(),
+              });
+              return;
+            }
+          }
+        } catch (_e) {
+          /* ignore */
+        }
+
+        // 2. AsyncStorage pending-alarm kontrol et
         try {
           const pendingRaw = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_ALARM);
           if (pendingRaw) {
             await AsyncStorage.removeItem(STORAGE_KEYS.PENDING_ALARM);
             const pending = JSON.parse(pendingRaw);
-            if (pending.ts && Date.now() - pending.ts < 60_000 && pending.medicineId) {
-              appLog.debug('AppState active: pending-alarm found', {
+            if (pending.ts && Date.now() - pending.ts < 120_000 && pending.medicineId) {
+              appLog.debug('AppState changed: pending-alarm found', {
+                nextState,
                 medicineId: pending.medicineId,
                 ageMs: Date.now() - pending.ts,
               });
-              const today = new Date().toISOString().split('T')[0];
+              const isTest =
+                pending.medicineId === 'test-medicine' || pending.isTestAlarm === 'true';
+              const today = getLocalDateKey(new Date()); // YEREL gun (UTC degil) — bkz. src/domain/doseLog.ts
               const key = `${pending.medicineId}-${pending.reminderTimeId}-${today}`;
-              const handled = await isAlarmHandled(key);
+              const handled = !isTest && (await isAlarmHandled(key));
               if (!handled) {
-                setPendingAlarm({
+                handleIncomingAlarm({
                   medicineId: pending.medicineId,
                   reminderTimeId: pending.reminderTimeId,
                   scheduledTime: pending.scheduledTime,
@@ -829,18 +1281,10 @@ function AppContent() {
     });
 
     return () => appStateListener.remove();
-  }, []);
+  }, [handleIncomingAlarm]);
 
   useEffect(() => {
     if (bootRecovery) {
-      const total = bootRecovery.reminders + bootRecovery.snoozes;
-      const triggerName = getTriggerDisplayName(bootRecovery.trigger);
-
-      Alert.alert(
-        '✅ Alarmlar Senkronize Edildi',
-        `${triggerName} sonrası ${bootRecovery.reminders} hatırlatma${bootRecovery.snoozes > 0 ? ` ve ${bootRecovery.snoozes} erteleme` : ''} yeniden planlandı.`,
-        [{ text: 'Tamam', style: 'default' }]
-      );
       clearBootRecovery();
     }
   }, [bootRecovery]);
@@ -873,6 +1317,7 @@ function AppContent() {
   // PIN giriş ekranı - Overlay olarak göster
   const renderPinOverlay = () => {
     if (!showPinEntry) return null;
+    if (pendingAlarm) return null;
 
     return (
       <View style={[styles.pinOverlay, { backgroundColor: colors.background }]}>
@@ -949,14 +1394,31 @@ function AppContent() {
     return <LazyOnboardingScreen />;
   }
 
+  const appLinking: LinkingOptions<RootStackParamList> = {
+    prefixes: ['ilachatirlatici://'],
+    config: {
+      screens: {
+        Alarm: 'alarm',
+        CaregiverInvite: 'caregiver/invite/:inviteCode',
+        Main: {
+          screens: {
+            Home: 'home',
+            Medicines: 'medicines',
+            Statistics: 'statistics',
+            Settings: 'settings',
+          },
+        },
+      },
+    },
+  };
+
   return (
     <NavigationContainer
       ref={navigationRef}
+      theme={navTheme}
+      linking={appLinking}
       onReady={() => {
         // Navigation hazır olduğunda pending alarm varsa yönlendir.
-        // NOT: useAlarmNavigation hook'u kendi içinde
-        // pendingAlarm + isNavigationReady'i izliyor (effect içinde), bu yüzden
-        // tekrar tetiklemeye gerek yok. Burada boş bırakılır.
       }}
     >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -1027,6 +1489,7 @@ function AppContent() {
           name="Security"
           component={SecurityScreen}
           options={{
+            headerShown: false,
             title: language === 'tr' ? 'Güvenlik' : 'Security',
             presentation: 'card',
           }}
@@ -1035,6 +1498,7 @@ function AppContent() {
           name="TtsSettings"
           component={TtsSettingsScreen}
           options={{
+            headerShown: false,
             title: language === 'tr' ? 'Sesli Bildirimler' : 'Voice Notifications',
             presentation: 'card',
           }}
@@ -1043,6 +1507,7 @@ function AppContent() {
           name="Caregiver"
           component={CaregiverScreen}
           options={{
+            headerShown: false,
             title: language === 'tr' ? 'Bakıcı Yönetimi' : 'Caregiver Management',
             presentation: 'card',
           }}
@@ -1055,44 +1520,128 @@ function AppContent() {
             presentation: 'card',
           }}
         />
+        <Stack.Screen
+          name="DutyPharmacy"
+          component={DutyPharmacyScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Nöbetçi Eczaneler' : 'Duty Pharmacies',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="NotificationCenter"
+          component={NotificationCenterScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Bildirim & Hatırlatma Merkezi' : 'Notification Center',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="Permissions"
+          component={PermissionsScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Sistem İzinleri & Teşhis' : 'System Permissions',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Giriş Yap' : 'Login',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+          options={{
+            headerShown: false,
+            title: language === 'tr' ? 'Kayıt Ol' : 'Register',
+            presentation: 'card',
+          }}
+        />
       </Stack.Navigator>
 
       {/* Güvenlik Overlay'leri - App arka planda çalışmaya devam etsin */}
       {renderSecurityLoading()}
       {renderPinOverlay()}
+
+      {/* Canlı Bakıcı & Hasta Acil Durum / Doz Modalları — Ekranın en üstünde gösterilir */}
+      <CaregiverFullScreenAlertModal />
+      <PatientFullScreenReminderModal />
+
+      {/* Tema Geçiş Perdesi — Anlık fotofobiyi ve parlamayı önler */}
+      <ThemeTransitionOverlay />
     </NavigationContainer>
   );
 }
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary componentName="App">
-        <UserProfileProvider>
-          <AccentProvider>
-            <ThemeProvider>
-              <LowStockDismissProvider>
-                <OnboardingProvider>
-                  <LanguageProvider>
-                    <AuthProvider>
-                      <SubscriptionProvider>
-                        <AlertProvider>
-                          <AppContent />
-                        </AlertProvider>
-                      </SubscriptionProvider>
-                    </AuthProvider>
-                  </LanguageProvider>
-                </OnboardingProvider>
-              </LowStockDismissProvider>
-            </ThemeProvider>
-          </AccentProvider>
-        </UserProfileProvider>
-      </ErrorBoundary>
-    </SafeAreaProvider>
+    // Sprint 97.1: GestureHandlerRootView en dista — react-native-gesture-handler
+    // ve Reanimated 4 tabanli gesture/moti animasyonlarinin calismasi icin zorunlu.
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaProvider>
+        <ErrorBoundary componentName="App">
+          {/* Sprint 103.2: AppWithFonts font gate — ErrorBoundary sarmalaması
+              sayesinde useFonts error'ı yakalanır ve LoadingScreen fallback'i
+              provider tree'ye girmeden önce çalışır. */}
+          <AppWithFonts />
+        </ErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+function AppWithFonts() {
+  // Sprint 103.5: ThemeProvider + UserProfileProvider + AccentProvider en üstte —
+  // LoadingScreen useTheme() çağırıyor, font loading gate'i bunlardan ÖNCE
+  // sarmalarsak "useTheme must be used within a ThemeProvider" exception'ı
+  // fırlatılır ve ErrorBoundary catch eder (Sprint 103.4 sonrası test crash).
+  return (
+    <UserProfileProvider>
+      <AccentProvider>
+        <ThemeProvider>
+          <AppRoot />
+        </ThemeProvider>
+      </AccentProvider>
+    </UserProfileProvider>
+  );
+}
+
+function AppRoot() {
+  const fontsLoaded = useAppFonts();
+  if (!fontsLoaded) return <LoadingScreen />;
+  return (
+    <LowStockDismissProvider>
+      <OnboardingProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <SubscriptionProvider>
+              <AlertProvider>
+                {/* Sprint 72: CaregiverEventBridge — caregiver "Hasta Aldı" / "Ara" action'larını Firestore'a bağlar */}
+                <CaregiverEventBridge />
+                <AppContent />
+              </AlertProvider>
+            </SubscriptionProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </OnboardingProvider>
+    </LowStockDismissProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  // Sprint 97.1: GestureHandlerRootView icin flex:1 gerekli — tum provider'lar
+  // bu view icinde render edilir.
+  gestureRoot: {
+    flex: 1,
+  },
   securityContainer: {
     flex: 1,
     justifyContent: 'center',

@@ -78,11 +78,98 @@ export default [
       // Genel kuralları
       'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
       'no-unused-vars': 'off', // TypeScript versiyonunu kullan
+
+      /**
+       * ═══════════════════════════════════════════════════════════════════
+       * PROJEYE OZEL KAPILAR — hepsi UretimDE YASANMIS hatalardan turedi.
+       *
+       * Bunlar stil tercihi DEGIL. Her biri kullaniciya ulasmis bir kusurun
+       * tekrar etmesini engelliyor; bu yuzden `warn` degil `error`.
+       * ═══════════════════════════════════════════════════════════════════
+       */
+      'no-restricted-syntax': [
+        'error',
+        {
+          /**
+           * UTC GUN TUZAGI (v1.7.5 / v1.7.7 / v1.7.10)
+           *
+           * `new Date().toISOString().split('T')[0]` UTC gununu verir.
+           * Turkiye UTC+3 oldugu icin 00:00-03:00 arasi BIR ONCEKI gunu
+           * gosterir. Bu kalip kod tabaninda 14 yerde vardi ve su hatalari
+           * uretti: cok dozlu ilacin dozu yanlis gune yazildi, islenmis alarm
+           * anahtari kaydi, bakici takibi yanlis gunu izledi, `endDate` bir
+           * gun erken doldu (ve v1.7.7'den beri `endDate` alarmi SUSTURUYOR).
+           *
+           * Dogrusu: `getLocalDateKey(date)` — src/domain/doseLog.ts
+           */
+          selector:
+            "CallExpression[callee.property.name='split'][callee.object.callee.property.name='toISOString']",
+          message:
+            "UTC gun tuzagi: toISOString().split('T')[0] UTC gununu verir (TR'de 00:00-03:00 arasi bir onceki gun). getLocalDateKey() kullan — src/domain/doseLog.ts",
+        },
+      ],
     },
     settings: {
       react: {
         version: 'detect',
       },
+    },
+  },
+  /**
+   * ═══════════════════════════════════════════════════════════════════════
+   * ALARM ve DOZ YOLU — asgari yazı boyutu kapısı (v1.8.3)
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Kod tabanını ölçtüm: 398 dosyada 14 puntodan küçük **415** `fontSize`
+   * var (9pt→3, 10pt→18, 11pt→103, 12pt→162, 13pt→129). Bunların tamamını
+   * bir seferde büyütmek görsel doğrulama gerektiriyor — denetimin kendi
+   * bulgusu "41 `numberOfLines={1}` + 205 sabit `height` yüzünden sistem
+   * yazı ölçeği %130'da kırpma var" diyor, yani yazıyı büyütmek sabit
+   * yükseklikli kutularda metni KESER.
+   *
+   * Bu yüzden kapı yalnızca kullanıcının bir dozu alıp almadığına karar
+   * verdiği ekranları kapsıyor; oradaki 39 nokta elle düzeltildi ve
+   * aynı stil nesnelerinde `fontSize` + sabit `height` birlikteliği
+   * olmadığı programatik olarak doğrulandı (kırpma riski 0).
+   *
+   * Kalan ~376 nokta ölçülmüş bir birikim (bkz. arşiv v1.8.3) ve kilidi
+   * açık bir cihazda görsel doğrulama bekliyor. Kapsamı buradan
+   * genişletmek serbest; daraltmak gerileme.
+   */
+  {
+    files: [
+      'src/screens/AlarmScreen/**/*.{ts,tsx}',
+      'src/screens/HomeScreen/**/*.{ts,tsx}',
+      'src/screens/HomeScreen.tsx',
+      'src/components/PatientFullScreenReminderModal.tsx',
+      'src/components/common/SkipReasonModal.tsx',
+      'src/components/common/MissedDoseTriageModal.tsx',
+      'src/components/common/CustomAlert.tsx',
+      'src/components/layouts/HomeScreenLayoutA.tsx',
+    ],
+    rules: {
+      /**
+       * DIKKAT — flat config'de ayni kural adi MERGE EDILMEZ, EZILIR.
+       * Bu blok yalnizca yazi boyutu seciciyi yazsaydi, listelenen
+       * dosyalarda yukaridaki UTC GUN TUZAGI kapisi SESSIZCE DEVRE DISI
+       * kalirdi — hem de HomeScreen ve AlarmScreen'de, yani o tuzagin en
+       * cok zarar verdigi yerde. Bu yuzden iki secici de burada.
+       * Yukaridaki listeye yeni bir secici eklendiginde buraya da eklenmeli.
+       */
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.property.name='split'][callee.object.callee.property.name='toISOString']",
+          message:
+            "UTC gun tuzagi: toISOString().split('T')[0] UTC gununu verir (TR'de 00:00-03:00 arasi bir onceki gun). getLocalDateKey() kullan — src/domain/doseLog.ts",
+        },
+        {
+          selector: "Property[key.name='fontSize'] > Literal[value<14]",
+          message:
+            'Alarm/doz yolunda 14 puntodan kucuk yazi kullanilamaz (a11y tabani). Bkz. src/theme/a11y.ts — MIN_FONT_SIZE. Kutu kirpiyorsa yuksekligi minHeight yap, yaziyi kucultme.',
+        },
+      ],
     },
   },
   // Jest test dosyaları için config

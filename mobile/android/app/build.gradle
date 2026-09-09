@@ -1,0 +1,355 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
+def releaseSigningProperties = new Properties()
+def releaseSigningPropertiesFile = rootProject.file('release-keystore.properties')
+if (releaseSigningPropertiesFile.exists()) {
+    releaseSigningPropertiesFile.withInputStream { stream ->
+        releaseSigningProperties.load(stream)
+    }
+}
+def resolveReleaseConfigValue = { propertyName, envName ->
+    def localValue = releaseSigningProperties.getProperty(propertyName)
+    if (localValue) {
+        return localValue
+    }
+
+    def gradleValue = findProperty(envName)
+    if (gradleValue) {
+        return gradleValue
+    }
+
+    return System.getenv(envName)
+}
+def resolveSigningStoreFile = { configuredPath ->
+    if (!configuredPath) {
+        return null
+    }
+
+    def moduleRelativeFile = file(configuredPath)
+    if (moduleRelativeFile.exists() || new File(configuredPath).isAbsolute()) {
+        return moduleRelativeFile
+    }
+
+    return rootProject.file(configuredPath)
+}
+def releaseStoreFilePath = resolveReleaseConfigValue('storeFile', 'RELEASE_STORE_FILE')
+def releaseStoreFile = resolveSigningStoreFile(releaseStoreFilePath)
+def releaseStorePassword = resolveReleaseConfigValue('storePassword', 'RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = resolveReleaseConfigValue('keyAlias', 'RELEASE_KEY_ALIAS')
+def releaseKeyPassword = resolveReleaseConfigValue('keyPassword', 'RELEASE_KEY_PASSWORD')
+def homeDebugKeystore = new File(System.properties['user.home'], '.android/debug.keystore')
+def localDebugKeystore = file('debug.keystore')
+def resolvedDebugKeystore = homeDebugKeystore.exists() ? homeDebugKeystore : localDebugKeystore
+def isReleaseTaskRequested = gradle.startParameter.taskNames.any { taskName ->
+    def normalizedTaskName = taskName.toLowerCase()
+    normalizedTaskName.contains('release') || normalizedTaskName.contains('bundle')
+}
+// v1.8.1: AAB uretimi cok-APK ile birlikte calismiyor; ABI bolmeyi bu bayrakla
+// bastiriyoruz (asagidaki `splits` blogu).
+def isBundleTaskRequested = gradle.startParameter.taskNames.any { taskName ->
+    taskName.toLowerCase().contains('bundle')
+}
+def hasReleaseSigningConfig = [
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+].every { value -> value } && releaseStoreFile?.exists()
+
+// React Native Vector Icons - Font configuration
+project.ext.vectoricons = [
+    // v1.8.1: Liste 5 fonttu ama kodda YALNIZCA iki font import ediliyor
+    // (Ionicons ve MaterialCommunityIcons — bkz. src/types/react-native-vector-icons.d.ts;
+    // baska hicbir 'react-native-vector-icons/*' import'u yok). MaterialIcons.ttf,
+    // FontAwesome5_Solid.ttf ve FontAwesome6_Brands.ttf hicbir yerden cizilmedigi
+    // halde APK'ya gomuluyordu (~0.39 MB). Buraya YENI bir font eklemeden once
+    // gercekten import edildiginden emin ol; aksi halde olu yuk geri gelir.
+    iconFontNames: ['Ionicons.ttf', 'MaterialCommunityIcons.ttf']
+]
+apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
+
+// v1.8.1 — fonts.gradle'in tuzagi: `copyReactNativeVectorIconFonts` duz bir
+// `Copy` task'i ve hedef klasordeki FAZLA dosyalari silmez. Yukaridaki listeden
+// bir font cikarildiginda eski .ttf
+// build/intermediates/ReactNativeVectorIcons/fonts icinde kaliyor; o klasor de
+// assets kaynak dizini oldugu icin font APK'ya gomulmeye DEVAM ediyor.
+// (Bu tam olarak yasandi: liste 2 fonta indirildi, APK'da hala 5 font vardi.)
+// Kopyalamadan once klasoru bosaltiyoruz ki liste ile APK her zaman uyusun.
+afterEvaluate {
+    def fontCopy = tasks.findByName('copyReactNativeVectorIconFonts')
+    if (fontCopy != null) {
+        fontCopy.outputs.upToDateWhen { false }
+        fontCopy.doFirst {
+            delete file("$buildDir/intermediates/ReactNativeVectorIcons/fonts")
+        }
+    }
+}
+
+/**
+ * This is the configuration block to customize your React Native Android app.
+ * By default you don't need to apply any configuration, just uncomment the lines you need.
+ */
+react {
+    entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
+    reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
+    hermesCommand = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/sdks/hermesc/%OS-BIN%/hermesc"
+    codegenDir = new File(["node", "--print", "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
+
+    enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
+    // Use Expo CLI to bundle the app, this ensures the Metro config
+    // works correctly with Expo projects.
+    cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
+    bundleCommand = "export:embed"
+
+    /* Folders */
+     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
+    // root = file("../../")
+    //   The folder where the react-native NPM package is. Default is ../../node_modules/react-native
+    // reactNativeDir = file("../../node_modules/react-native")
+    //   The folder where the react-native Codegen package is. Default is ../../node_modules/@react-native/codegen
+    // codegenDir = file("../../node_modules/@react-native/codegen")
+
+    /* Variants */
+    //   The list of variants to that are debuggable. For those we're going to
+    //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
+    //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
+    // debuggableVariants = ["liteDebug", "prodDebug"]
+
+    /* Bundling */
+    //   A list containing the node command and its flags. Default is just 'node'.
+    // nodeExecutableAndArgs = ["node"]
+
+    //
+    //   The path to the CLI configuration file. Default is empty.
+    // bundleConfig = file(../rn-cli.config.js)
+    //
+    //   The name of the generated asset file containing your JS bundle
+    // bundleAssetName = "MyApplication.android.bundle"
+    //
+    //   The entry file for bundle generation. Default is 'index.android.js' or 'index.js'
+    // entryFile = file("../js/MyApplication.android.js")
+    //
+    //   A list of extra flags to pass to the 'bundle' commands.
+    //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
+    // extraPackagerArgs = ["--clear"] // Expo CLI export:embed ile uyumsuz, devre dışı
+
+    /* Hermes Commands */
+    //   The hermes compiler command to run. By default it is 'hermesc'
+    // hermesCommand = "$rootDir/my-custom-hermesc/bin/hermesc"
+    //
+    //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
+    // hermesFlags = ["-O", "-output-source-map"]
+
+    /* Autolinking */
+    autolinkLibrariesWithApp()
+}
+
+/**
+ * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
+ */
+def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
+
+/**
+ * The preferred build flavor of JavaScriptCore (JSC)
+ *
+ * For example, to use the international variant, you can use:
+ * `def jscFlavor = 'org.webkit:android-jsc-intl:+'`
+ *
+ * The international variant includes ICU i18n library and necessary data
+ * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
+ * give correct results when using with locales other than en-US. Note that
+ * this variant is about 6MiB larger per architecture than default.
+ */
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+
+
+
+android {
+    ndkVersion = rootProject.ext.ndkVersion
+
+    buildToolsVersion = rootProject.ext.buildToolsVersion
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    namespace = 'com.ilachatirlatici'
+
+    // Notifee için repository
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri('https://www.jitpack.io') }
+        maven { url = uri('https://maven.notifee.app/releases') }
+        maven { url = uri('https://maven.notifee.app/snapshots') }
+    }
+
+    defaultConfig {
+        applicationId = 'com.ilachatirlatici'
+        minSdk = rootProject.ext.minSdkVersion
+        targetSdk = rootProject.ext.targetSdkVersion
+        versionCode = 82
+        versionName = "2.4.0"
+
+        buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+    }
+    signingConfigs {
+        debug {
+            storeFile = resolvedDebugKeystore
+            storePassword = 'android'
+            keyAlias = 'androiddebugkey'
+            keyPassword = 'android'
+        }
+        if (hasReleaseSigningConfig) {
+            release {
+                storeFile = releaseStoreFile
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig = signingConfigs.debug
+        }
+        release {
+            // Production builds should use a dedicated release keystore.
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.release
+            } else {
+                if (isReleaseTaskRequested) {
+                    if (releaseStoreFilePath && !releaseStoreFile?.exists()) {
+                        logger.warn("Release keystore file not found: ${releaseStoreFilePath}")
+                    }
+                    logger.warn('Release signing config missing; falling back to debug keystore for local builds only.')
+                }
+                signingConfig = signingConfigs.debug
+            }
+            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
+            shrinkResources = enableShrinkResources.toBoolean()
+            minifyEnabled = enableMinifyInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
+            crunchPngs = enablePngCrunchInRelease.toBoolean()
+        }
+    }
+    // v1.8.1 — APK diyeti: ABI bolme.
+    // Play'e AAB gidiyor (bkz. `npm run build:aab`) ve AAB zaten cihaz basina
+    // tek ABI indirir; bu yuzden bolme VARSAYILAN OLARAK KAPALI. Yalnizca
+    // "elden APK dagitimi"nda (test cihazi, harici tester) acilir:
+    //   gradlew assembleRelease -PenableAbiSplits=true
+    // Aciksa cikti app-release.apk degil app-<abi>-release.apk olur; kurulum
+    // script'leri bunu bilmez, o yuzden varsayilani degistirmeyin.
+    splits {
+        abi {
+            // AGP, ayni calistirmada hem cok-APK hem AAB uretilmesine izin
+            // vermiyor (buildReleasePreBundle "Multiple shrunk-resources files
+            // found" ile patliyor — issuetracker 402800800). Bayrak elle
+            // acilsa bile `bundle*` istendiginde bolmeyi kapatiyoruz; aksi
+            // halde `npm run build:aab` bayragi acik birakan birinde
+            // aciklamasi zor bir hatayla kiriliyor.
+            enable = (findProperty('android.enableAbiSplits') ?: 'false').toBoolean() && !isBundleTaskRequested
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a'
+            universalApk = false
+        }
+    }
+    packagingOptions {
+        jniLibs {
+            def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
+            useLegacyPackaging = enableLegacyPackaging.toBoolean()
+            pickFirsts += ['**/libworklets.so', '**/libc++_shared.so', '**/libfbjni.so', '**/libjsi.so', '**/libreactnative.so']
+        }
+        resources {
+            excludes += [
+                'META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE', 'META-INF/NOTICE.txt',
+                // v1.8.1 — 71 MB'lik APK'nin 4.1 MB'i `org/` altindaki BouncyCastle
+                // POST-KUANTUM parametre tablolariydi (picnic/lowmc.properties 1.50 MB,
+                // sike/p751.properties 1.06 MB, ...). Bu algoritmalar bu uygulamada
+                // hicbir yerden cagrilmiyor: bcprov, Google Sign-In / PDF zincirinden
+                // transitif geliyor ve ProGuard `.properties` KAYNAK dosyalarini
+                // (kod degil) hicbir zaman silmez. Bu yuzden paketleme seviyesinde
+                // disariya alindi.
+                'org/bouncycastle/pqc/**',
+                // DIKKAT — buraya 'kotlin/**' ve 'META-INF/*.kotlin_module'
+                // EKLEMEYIN. v1.8.1'de denendi ve uygulama ACILISTA COKTU:
+                //   E/ReactNativeJS: Exception in HostObject::get for prop
+                //   'getRandomValues': java.lang.AssertionError:
+                //   Built-in class kotlin.Any is not found
+                // Sebep: expo-modules-core modul kayit defterini Kotlin
+                // REFLEKSIYONU ile kuruyor; refleksiyon da
+                // kotlin/kotlin.kotlin_builtins dosyasini okuyor. O dosya
+                // paketten cikinca tum Expo modul zinciri (expo-crypto,
+                // react-native-get-random-values, ...) olu dogdu. "Kotlin
+                // metadata'si sadece kotlin-reflect icin" varsayimi bu
+                // projede YANLIS. Kazanci da zaten yalnizca ~0.01 MB'ti.
+                'META-INF/*.version',
+                'DebugProbesKt.bin',
+            ]
+        }
+    }
+    androidResources {
+        ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+        // v1.8.1 — Uygulama yalnizca TR ve EN konusuyor (bkz. LanguageContext).
+        // AndroidX/Play Services ~80 dilin string'ini res/ altina tasiyordu.
+        localeFilters += ['tr', 'en']
+    }
+}
+
+// Apply static values from `gradle.properties` to the `android.packagingOptions`
+// Accepts values in comma delimited lists, example:
+// android.packagingOptions.pickFirsts=/LICENSE,**/picasa.ini
+["pickFirsts", "excludes", "merges", "doNotStrip"].each { prop ->
+    // Split option: 'foo,bar' -> ['foo', 'bar']
+    def options = (findProperty("android.packagingOptions.$prop") ?: "").split(",");
+    // Trim all elements in place.
+    for (i in 0..<options.size()) options[i] = options[i].trim();
+    // `[] - ""` is essentially `[""].filter(Boolean)` removing all empty strings.
+    options -= ""
+
+    if (options.length > 0) {
+        println "android.packagingOptions.$prop += $options ($options.length)"
+        // Ex: android.packagingOptions.pickFirsts += '**/SCCS/**'
+        options.each {
+            android.packagingOptions[prop] += it
+        }
+    }
+}
+
+dependencies {
+    // The version of react-native is set by the React Native Gradle Plugin
+    implementation("com.facebook.react:react-android")
+    implementation(platform("com.google.firebase:firebase-bom:34.8.0"))
+    implementation("com.google.firebase:firebase-analytics")
+
+    def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
+    def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
+    def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
+
+    if (isGifEnabled) {
+        // For animated gif support
+        implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()}")
+    }
+
+    if (isWebpEnabled) {
+        // For webp support
+        implementation("com.facebook.fresco:webpsupport:${expoLibs.versions.fresco.get()}")
+        if (isWebpAnimatedEnabled) {
+            // Animated webp support
+            implementation("com.facebook.fresco:animated-webp:${expoLibs.versions.fresco.get()}")
+        }
+    }
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+
+    // WorkManager - arka planda periyodik alarm kontrolü
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+}
+
+apply plugin: 'com.google.gms.google-services'
+apply plugin: 'com.google.firebase.crashlytics'

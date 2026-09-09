@@ -84,3 +84,63 @@ tmp/
 *.tmp
 *.bak
 *.swp
+
+.wrongstack/
+!/.wrongstack/
+/.wrongstack/*
+!/.wrongstack/project.json
+
+# Sprint 96 smoke test runtime artifacts
+mobile/.smoke-logs/
+
+desktop.ini
+*.zip
+*.apk
+apk/
+short-node-modules/
+
+# v1.8.7 — cihaz dogrulama artefaktlari (ekran goruntuleri, uiautomator
+# dokumleri, logcat ciktilari, gecici PowerShell yardimcilari). Kanit olarak
+# diskte tutulur, repoya girmez.
+_dogrulama/
+mobile/scripts/_tmp_*
+
+# v2.4.0 — kok dizine dusen cihaz dogrulama artıklari. Yukaridaki v1.8.7
+# kurali bunlari `_dogrulama/` altinda bekliyordu; ama ADB akisi
+# (screencap / uiautomator dump) dosyalari dogrudan kok dizine yaziyor.
+# Kok dizinde izlenen hic PNG/XML yok, dolayisiyla bu kaliplar genis
+# tutulabilir — yalnizca kok seviyesini kapsarlar (alt dizinlerdeki
+# gorsel/manifest dosyalarini ETKILEMEZ).
+/*.png
+/dump_*.xml
+/window_dump.xml
+
+# v2.4.0 — scripts/ FAIL-CLOSED.
+# Bu dizindeki İKİ ayrı betikte canlı bir API anahtarı düz metin bulundu
+# (qwen_alarm_audit.js:5 ve qwen_general_codebase_audit.js:5, 'cf_live_'
+# önekli, satır 78'de Authorization: Bearer olarak kullanılıyor). Anahtar
+# git geçmişine HİÇ girmedi (`git log --all -S` ile doğrulandı) ve v2.4.0
+# commit'i scripts/'i bilinçli olarak dışarıda bıraktı.
+#
+# Bu yüzden dizin VARSAYILAN OLARAK yok sayılıyor ve yalnızca sır içermediği
+# tek tek okunarak doğrulanmış iki araç açıkça serbest bırakılıyor. Böylece
+# scripts/'e YENİ eklenen her dosya otomatik olarak dışlanır — kazara bir
+# `git add -A` ile anahtar sızdırılamaz.
+#
+# ⚠️ Anahtarın kendisi hâlâ diskte ve geçerli olabilir: sağlayıcı panelinden
+# İPTAL EDİLMESİ gerekiyor. Yeni anahtar üretmek eskisini geçersiz kılmaz.
+# İptal sonrası betikler anahtarı ortam değişkeninden okuyacak şekilde
+# düzeltilip whitelist'e eklenebilir.
+scripts/*
+!scripts/ask_qwen.ps1
+!scripts/generate_wheel_tick.js
+
+# Claude Code oturum dosyalari
+.claude/
+
+# Temizlik: silinecekler burada bekler (2026-09-05 raporu)
+_to_delete/
+
+# Windows Gezgini
+desktop.ini
+.freebuff/

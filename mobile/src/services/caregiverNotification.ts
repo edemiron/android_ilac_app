@@ -74,7 +74,10 @@ export async function notifyCaregiverLocally(params: {
         channelId: CAREGIVER_LOCAL_CHANNEL_ID,
         importance: AndroidImportance.DEFAULT,
         visibility: AndroidVisibility.PUBLIC,
-        smallIcon: 'ic_launcher',
+        smallIcon: 'ic_notification',
+        largeIcon: 'ic_launcher',
+        color: '#0D9488',
+        colorized: true,
         pressAction: {
           id: 'default',
           launchActivity: 'default',

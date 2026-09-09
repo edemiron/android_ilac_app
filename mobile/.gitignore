@@ -40,6 +40,16 @@ yarn-error.*
 # test coverage
 coverage/
 
-# generated native folders
+# v1.8.1: "generated native folders" basligi altinda burada `/android` satiri
+# vardi ve KALDIRILDI. Bu projede `expo prebuild` hic calismiyor —
+# `npm run build:release` dogrudan `gradlew assembleRelease` cagiriyor — yani
+# android/ URETILEN degil, ELLE BAKILAN KAYNAK. O satir yuzunden depoda
+# yalnizca 19 native dosya (elle force-add edilmis) duruyordu:
+# gradle.properties (newArchEnabled, 2 ABI karari, minify/shrink bayraklari),
+# AndroidManifest.xml (izinler + v1.7.4'te sertlestirilen exported=false),
+# MainApplication.kt, AlarmReceiver.kt, AlarmActivity.kt, proguard-rules.pro
+# ve gradle wrapper VERSIYON KONTROLU DISINDAYDI. Temiz bir klon uygulamayi
+# DERLEYEMIYORDU ve son surumlerde arsivlenen native duzeltmelerin cogu
+# yalnizca tek bir makinenin calisma kopyasinda yasiyordu.
+# Ne haric tutuldugu: mobile/android/.gitignore (build ciktilari + keystore'lar).
 /ios
-/android

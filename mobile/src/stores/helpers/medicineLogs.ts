@@ -52,11 +52,13 @@ export function buildMedicineLogSlotKey(reminderTimeId: string, scheduledTime: s
 
 /**
  * ScheduledTime gelecekte mi kontrol et.
+ * Opsiyonel tolerans payi (gracePeriodMs) destekler.
  * Gecersiz tarihler (NaN) icin false doner.
  */
 export function isScheduledTimeInFuture(
   scheduledTime: string,
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  gracePeriodMs: number = 0
 ): boolean {
   const parsedScheduledTime = new Date(scheduledTime);
 
@@ -64,7 +66,7 @@ export function isScheduledTimeInFuture(
     return false;
   }
 
-  return parsedScheduledTime.getTime() > referenceDate.getTime();
+  return parsedScheduledTime.getTime() > referenceDate.getTime() + gracePeriodMs;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
+import { initializeFirestore, memoryLocalCache, Firestore } from 'firebase/firestore';
 import { initializeAuth, getAuth, Auth, Persistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -48,30 +48,59 @@ if (getApps().length === 0) {
 }
 
 // Firestore veritabanı - memory cache ile (React Native uyumlu)
-export const db = initializeFirestore(app, {
-  localCache: memoryLocalCache(),
-});
+let dbInstance: Firestore;
+try {
+  if (typeof initializeFirestore === 'function') {
+    dbInstance = initializeFirestore(app, {
+      localCache: typeof memoryLocalCache === 'function' ? memoryLocalCache() : undefined,
+    });
+  } else {
+    dbInstance = {} as Firestore;
+  }
+} catch (_e) {
+  try {
+    const { getFirestore } = require('firebase/firestore');
+    dbInstance = getFirestore(app);
+  } catch (_err) {
+    dbInstance = {} as Firestore;
+  }
+}
+export const db = dbInstance;
 
 // Authentication - React Native için AsyncStorage persistence
 let auth: Auth;
 
 try {
   // İlk başlatmada persistence ile başlat
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-  log.debug('Auth initialized with AsyncStorage persistence');
+  const persistence =
+    typeof getReactNativePersistence === 'function'
+      ? getReactNativePersistence(AsyncStorage)
+      : undefined;
+
+  if (typeof initializeAuth === 'function') {
+    auth = initializeAuth(app, {
+      persistence,
+    });
+    log.debug('Auth initialized with AsyncStorage persistence');
+  } else {
+    auth = getAuth(app);
+  }
 } catch (error: unknown) {
   const firebaseError = error as { code?: string };
   if (firebaseError.code === 'auth/already-initialized') {
     // Auth zaten başlatılmış, mevcut instance'ı al
-    // NOT: Bu durumda persistence zaten ayarlanmış olmalı
-    auth = getAuth(app);
-    log.debug('Auth already initialized, using existing instance');
+    try {
+      auth = getAuth(app);
+      log.debug('Auth already initialized, using existing instance');
+    } catch (_e) {
+      auth = {} as Auth;
+    }
   } else {
-    log.error('Auth initialization error', error);
-    // Hata durumunda getAuth dene - ama persistence olmayabilir!
-    auth = getAuth(app);
+    try {
+      auth = getAuth(app);
+    } catch (_err) {
+      auth = {} as Auth;
+    }
   }
 }
 

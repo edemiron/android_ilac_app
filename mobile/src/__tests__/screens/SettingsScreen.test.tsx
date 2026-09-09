@@ -17,8 +17,20 @@ jest.mock('react-native', () => ({
   ScrollView: 'ScrollView',
   Switch: 'Switch',
   TouchableOpacity: 'TouchableOpacity',
+  Modal: 'Modal',
+  Image: 'Image',
+  ActivityIndicator: 'ActivityIndicator',
+  ToastAndroid: { show: jest.fn() },
+  Share: { share: jest.fn() },
+  NativeModules: {
+    WidgetDataModule: { setWidgetData: jest.fn() },
+  },
   UIManager: { setLayoutAnimationEnabledExperimental: jest.fn() },
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
+  // useOemShieldStatus paylasimli hook'u AppState'i dinliyor.
+  AppState: {
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
 }));
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -108,18 +120,49 @@ jest.mock('../../hooks/useUserProfile', () => ({
   }),
 }));
 
+/**
+ * v1.8.4 — Bu mock GERCEK zustand'i taklit ETMIYORDU: `useMedicineStore`
+ * yalnizca `getState` tasiyan bir NESNE olarak tanimlanmisti, oysa gercek
+ * store CAGRILABILIR bir fonksiyon (`useMedicineStore(selector)`) ve
+ * uzerinde `getState` de var. Ekran selector'lu kullanima gecince mock
+ * "is not a function" ile patladi — yani sahte, gercegin sunmadigi bir
+ * sozlesmeyi dogruluyordu. Artik iki kullanim da desteklenmis durumda.
+ */
+jest.mock('../../stores/medicineStore', () => {
+  const state = {
+    medicines: [],
+    reminderTimes: [],
+    medicineLogs: [],
+    settings: {},
+    clearAllData: jest.fn().mockResolvedValue(undefined),
+  };
+  const useMedicineStore = (selector?: (s: typeof state) => unknown) =>
+    typeof selector === 'function' ? selector(state) : state;
+  useMedicineStore.getState = () => state;
+  useMedicineStore.setState = () => undefined;
+
+  return { useMedicineStore };
+});
+
 // Mock the settings components to simple text
 jest.mock('../../components/settings', () => {
   const simpleMock = () => null;
   return {
+    ProfileHeaderCard: simpleMock,
+    SettingsSection: ({ children }: any) => children || null,
+    SettingRow: simpleMock,
+    OptionPicker: simpleMock,
     PremiumCard: simpleMock,
     DailyScheduleSection: simpleMock,
+    CaregiverSection: simpleMock, // Sprint 90
     AppearanceSection: simpleMock,
     AccentColorSection: simpleMock,
-    NotificationSection: simpleMock,
+    // NotificationSection KALDIRILDI (v1.7.1): tam ekran alarm anahtarini
+    // onay diyalogu OLMADAN degistiren olu bir ikinci bilesendi.
     DevTestSection: simpleMock,
     QuietHoursSection: simpleMock,
     AdditionalFeaturesSection: simpleMock,
+    BackupRestoreSection: simpleMock,
     AccountSection: simpleMock,
     AboutSection: simpleMock,
     createSettingsStyles: () => ({}),

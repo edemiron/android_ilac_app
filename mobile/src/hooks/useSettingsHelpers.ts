@@ -38,6 +38,7 @@ export type SettingsPickerKey =
   | 'showSnoozePicker'
   | 'showSnoozeCountPicker'
   | 'showVolumePicker'
+  | 'showSoundPicker'
   | 'showQuietStartPicker'
   | 'showQuietEndPicker'
   | 'showConflictIntervalPicker';

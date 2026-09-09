@@ -40,7 +40,69 @@ export interface Medicine {
   barcode?: string; // İlacın barkodu
   vibrationPattern?: 'default' | 'heartbeat' | 'urgent' | 'soft'; // Özel titreşim deseni
   customTimes?: string[]; // Özel saatler
+  isCritical?: boolean; // Hayati / Kritik İlaç (Israrlı alarm, kalkan ve yüksek ses seviyesi)
+
+  // Gelişmiş Zamanlama / Doz Takvimi
+  scheduleType?: ScheduleType;
+  specificDays?: number[]; // 0=Pazar, 1=Pazartesi, ..., 6=Cumartesi
+  intervalDays?: number; // X günde bir (örn: 2)
+  cycleDaysOn?: number; // Döngüde ilaç alınacak gün sayısı (örn: 21)
+  cycleDaysOff?: number; // Döngüde ara verilecek gün sayısı (örn: 7)
+
+  // Klinik Farmakoloji & Güvenlik (Sprint 104)
+  foodInteractions?: FoodInteractionType[];
+  activeIngredients?: string[];
+  titckKubKtUrl?: string;
+  missedDoseRule?: MissedDoseRule;
+  refillThreshold?: number;
+  batchNumber?: string;
 }
+
+export type FoodInteractionType =
+  | 'dairy' // Süt / Kalsiyum emilim engeli
+  | 'grapefruit' // Greyfurt sitokrom P450 etkileşimi
+  | 'alcohol' // Alkol karaciğer/sedasyon riski
+  | 'sunlight' // Güneş ışığına duyarlılık / fotosensitivite
+  | 'caffeine' // Kafein taşikardi/emilim
+  | 'empty_stomach_strict' // Kesin aç karnına
+  | 'potassium' // Potasyum / Tuz ikamesi (ACE/ARB hiperkalemi riski)
+  | 'vitamin_k' // K Vitamini / Yeşil sebzeler (Varfarin/Coumadin antagonizmi)
+  | 'tyramine'; // Tiramin / Fermente gıdalar (MAOI hipertansif kriz)
+
+export type MissedDoseRule =
+  | 'take_now_if_half_time' // Yarı zaman geçmediyse hemen al
+  | 'skip_if_close_to_next' // Sonraki doza yakınsa atla
+  | 'never_double_dose'; // Asla çift doz alma
+
+export interface FoodInteractionInfo {
+  type: FoodInteractionType;
+  icon: string;
+  titleTr: string;
+  titleEn: string;
+  warningTr: string;
+  warningEn: string;
+  severity: 'critical' | 'moderate' | 'info';
+}
+
+export interface EReceteItem {
+  name: string;
+  dosage: string;
+  frequency: number;
+  instructions?: MedicineInstruction;
+  barcode?: string;
+  activeIngredients?: string[];
+  durationDays?: number;
+}
+
+export interface EReceteData {
+  recipeNo: string;
+  doctorName?: string;
+  hospitalName?: string;
+  date?: string;
+  medicines: EReceteItem[];
+}
+
+export type ScheduleType = 'daily' | 'specific_days' | 'interval_days' | 'cycle';
 
 // İlaç kullanım talimatları
 export type MedicineInstruction =
@@ -52,16 +114,16 @@ export type MedicineInstruction =
   | 'any_time'; // Herhangi bir zaman
 // İlaç kategorileri
 export type MedicineCategory =
-  | 'painkiller'      // Ağrı Kesici
-  | 'vitamin'         // Vitamin/Takviye
-  | 'heart'           // Kalp/Tansiyon
-  | 'nervous'         // Sinir Sistemi
-  | 'antibiotic'      // Antibiyotik
-  | 'respiratory'     // Solunum
-  | 'digestive'       // Sindirim
-  | 'diabetes'        // Diyabet
-  | 'bone'            // Kemik/Eklem
-  | 'other';          // Diğer
+  | 'painkiller' // Ağrı Kesici
+  | 'vitamin' // Vitamin/Takviye
+  | 'heart' // Kalp/Tansiyon
+  | 'nervous' // Sinir Sistemi
+  | 'antibiotic' // Antibiyotik
+  | 'respiratory' // Solunum
+  | 'digestive' // Sindirim
+  | 'diabetes' // Diyabet
+  | 'bone' // Kemik/Eklem
+  | 'other'; // Diğer
 
 // Hatırlatma zamanı
 export interface ReminderTime {
@@ -76,7 +138,17 @@ export interface ReminderTime {
 
 // Kullanıcı ayarları
 // Alarm sesi seçenekleri
-export type AlarmSoundType = 'alarm' | 'default' | 'gentle' | 'urgent';
+export type AlarmSoundType =
+  | 'soft_chime'
+  | 'crystal_bell'
+  | 'zen_garden'
+  | 'clinical_pulse'
+  | 'urgent_alert'
+  | 'morning_vital'
+  | 'alarm'
+  | 'default'
+  | 'gentle'
+  | 'urgent';
 
 export interface UserSettings {
   wakeUpTime: string; // "HH:mm" - varsayılan "08:00"
@@ -85,6 +157,23 @@ export interface UserSettings {
   vibrationEnabled: boolean;
   fullScreenAlarmEnabled: boolean;
   language: 'tr' | 'en';
+
+  /**
+   * Ayarların en son YEREL olarak değiştirildiği an (ISO).
+   *
+   * v1.7.1: bulut birleştirmesinde son-yazan-kazanır için eklendi. Eskiden
+   * bulut KOŞULSUZ kazanıyordu ve `getSettingsFromCloud` her alanı
+   * `?? varsayılan` ile döndürdüğü için hiçbir alan `undefined` gelmiyordu;
+   * yükleme fire-and-forget olduğundan bir cihazda yapılan ayar değişikliği
+   * indirme yarışını kaybettiğinde SESSİZCE geri alınıyordu (cihazda
+   * kanıtlandı: tam ekran alarm anahtarı yeniden başlatmada eski değere
+   * dönüyordu). Bu damga yalnızca `updateSettings` tarafından yazılır.
+   *
+   * Tanımsız olması "yaşı bilinmiyor" demektir; o durumda eski davranış
+   * (bulut kazanır) korunur — yeni kurulumda yerel varsayılanların bulut
+   * verisini ezmemesi için bu DOĞRU davranıştır.
+   */
+  settingsUpdatedAt?: string;
 
   // Alarm sesi ayarı
   alarmSound: AlarmSoundType; // Varsayılan 'alarm'
@@ -118,6 +207,7 @@ export interface UserSettings {
   ttsEnabled: boolean; // Sesli okuma aktif mi?
   ttsVolume: number; // 0-100 arası
   ttsRepeatCount: number; // Kaç kez tekrar etsin (0-3)
+  ttsSpeechRate?: number; // Konuşma hızı: 0.38 (Yavaş 0.8x), 0.50 (Normal 1.0x), 0.62 (Hızlı 1.2x)
   ttsSpeakMedicineName: boolean; // İlaç adı söylensin mi?
   ttsSpeakDosage: boolean; // Dozaj söylensin mi?
   ttsSpeakInstructions: boolean; // Talimatlar söylensin mi?
@@ -125,17 +215,24 @@ export interface UserSettings {
   // ===== KALICI BİLDİRİM AYARLARI =====
   persistentNotificationEnabled: boolean; // Kalıcı bildirim aktif mi?
   persistentNotificationDuration: number; // Kaç dakika kalsın (30, 60, 120)
+
+  // ===== KOLAY MOD (SENIOR / SIMPLE MODE) =====
+  seniorModeEnabled?: boolean; // Büyük yazılı, sade kolay mod aktif mi?
 }
 
 // İlaç alma kaydı
 export interface MedicineLog {
   id: string;
   medicineId: string;
+  medicineName?: string;
   reminderTimeId: string;
   scheduledTime: string; // ISO date string
   takenAt?: string; // Alındıysa ISO date string
   status: 'pending' | 'taken' | 'skipped' | 'missed';
   note?: string;
+  skipReason?: string; // 'side_effect' | 'felt_better' | 'out_of_stock' | 'doctor_advised' | 'forgot' | 'other'
+  skipReasonNote?: string;
+  createdAt?: string;
 }
 
 // Snooze (erteleme) kaydı - persistence için
@@ -184,6 +281,8 @@ export interface CaregiverRelationship {
   caregiverEmail?: string; // Bakıcı e-postası (opsiyonel)
   caregiverName?: string; // Bakıcı adı
   patientName?: string; // Hasta adı
+  patientPhone?: string; // Hasta telefon numarası (opsiyonel)
+  caregiverPhone?: string; // Bakıcı telefon numarası (opsiyonel)
   status: CaregiverStatus;
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
@@ -193,6 +292,17 @@ export interface CaregiverRelationship {
   canReceiveAlerts: boolean; // Bildirim alabilir
   // FCM token for push notifications
   caregiverFcmToken?: string;
+
+  /**
+   * İlişkinin hangi davet koduyla kurulduğu.
+   *
+   * v1.7.4: Firestore kuralları bakıcının ilişki oluşturmasına YALNIZCA bu
+   * kodu bilmesi hâlinde izin veriyor (kod hastanın ürettiği bir sırdır;
+   * kural, invite dokümanının `patientId`si ile eşleşme arıyor). Bu alan
+   * olmadan `create` reddedilir. Hastanın kendi yazdığı (migration) ilişkiler
+   * için gerekmez.
+   */
+  inviteCode?: string;
 }
 
 // Bakıcı daveti
@@ -201,9 +311,14 @@ export interface CaregiverInvite {
   patientId: string; // Hasta ID'si
   patientName: string; // Hasta adı
   patientEmail?: string; // Hasta e-postası
+  patientPhone?: string; // Hasta telefon numarası (opsiyonel)
   caregiverEmail: string; // Davet edilen e-posta
   status: InviteStatus;
   expiresAt: string; // ISO date string
+  // firestore.rules tarafındaki süre kontrolü bu sayısal alana bakar:
+  // Rules Timestamp'te toISOString() olmadığı için ISO string ile
+  // request.time karşılaştırılamaz (tip hatası → tüm kabuller reddedilir).
+  expiresAtMs?: number; // epoch ms
   createdAt: string; // ISO date string
   // Yetkiler
   permissions: {
@@ -218,8 +333,12 @@ export interface PatientInfo {
   id: string; // Hasta ID'si
   name: string; // Hasta adı
   email?: string; // Hasta e-postası
+  phoneNumber?: string; // Hasta telefon numarası (opsiyonel)
   relationshipId: string; // CaregiverRelationship ID'si
   status: CaregiverStatus;
+  canViewSchedule?: boolean;
+  canViewHistory?: boolean;
+  canReceiveAlerts?: boolean;
   // İstatistikler (günlük)
   todaySummary?: {
     totalReminders: number;
@@ -261,6 +380,12 @@ export type RootStackParamList = {
     scheduledTime: string;
     snoozeCount?: number; // Kaçıncı erteleme (background'dan gelen)
     originalScheduledTime?: string; // Orijinal alarm zamanı (snooze'larda kullanılır)
+    // v1.7.1: Ekranı AÇAN alarmın türü. Erteleme alarmı native tarafta AYRI bir
+    // requestCode/bildirim uzayında yaşıyor (bkz. notifications/nativeAlarm.ts);
+    // ekran hangi türü iptal edeceğini bilmek zorunda — aksi halde "Şimdi Al"
+    // ana alarmın requestCode'unu iptal edip erteleme alarmını armed bırakıyor.
+    isSnooze?: boolean;
+    snoozeId?: string; // Erteleme bildiriminin kimliğini kurmak için gerekli
   };
   Settings: undefined;
   History: undefined;
@@ -271,6 +396,11 @@ export type RootStackParamList = {
   TtsSettings: undefined;
   Caregiver: undefined;
   CaregiverInvite: { inviteCode?: string };
+  DutyPharmacy: undefined;
+  NotificationCenter: undefined;
+  Permissions: undefined;
+  Login: undefined;
+  Register: undefined;
 };
 
 // Auth Stack Navigation
@@ -287,6 +417,8 @@ export interface GlobalMedicine {
   barcode: string; // EAN-13 veya benzeri
   name: string; // İlaç adı
   genericName?: string; // Etken madde adı
+  atcCode?: string; // ATC Kodu
+  prescriptionType?: string; // Reçete Türü (Normal, Kırmızı vb.)
   dosage: string; // Doz bilgisi (500mg, 10ml, vb.)
   form: MedicineForm; // Tablet, şurup, vb.
   manufacturer: string; // Üretici firma
@@ -318,6 +450,12 @@ export type MedicineForm =
   | 'cream'
   | 'drops'
   | 'spray'
+  // v1.7.1: `inhaler` eklendi. AI toplu tarama (`aiMedicineService`) ve
+  // `prescriptionSafetyMatcher` bu degeri zaten uretiyordu (ornek: VENTOLIN
+  // INHALER) ama tipte yoktu; `BatchMedicineImportModal` bu yuzden tsc'de
+  // hata veriyordu. Inhaler klinik olarak ayri bir form — 'spray'e
+  // yuvarlamak yanlis olur.
+  | 'inhaler'
   | 'patch'
   | 'suppository'
   | 'powder'
@@ -411,6 +549,7 @@ export interface SubscriptionPlan {
   price: {
     monthly: number;
     yearly: number;
+    lifetime?: number;
   };
   features: string[];
   limits: {
@@ -447,4 +586,12 @@ export interface MedicineAutocompleteResult {
   dosage: string;
   manufacturer: string;
   matchScore: number;
+  barcode?: string;
+  form?: MedicineForm;
+  genericName?: string;
+  atcCode?: string;
+  prescriptionType?: string;
 }
+
+// Reçete Modülü
+export * from './prescription';

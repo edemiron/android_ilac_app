@@ -1,4 +1,47 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
+# ⚠️ Bu dosyada BİLEREK shebang ve `. "$(dirname "$0")/_/husky.sh"` satırları YOK.
+#
+# Neden: git `core.hooksPath=mobile/.husky/_` üzerinden önce SARMALAYICIYI
+# çalıştırıyor (`_/pre-commit` → `_/h`). `_/h` bu dosyayı zaten
+#
+#     sh -e "$s" "$@"
+#
+# ile çalıştırıyor — yani shebang gereksiz ve errexit (-e) zaten aktif.
+#
+# `_/husky.sh` ise husky 9.1.7'de YALNIZCA deprecation uyarısı basan boş bir
+# dosya; husky 10'da TAMAMEN SİLİNİYOR. `sh -e` altında var olmayan bir
+# dosyayı source etmek hata verdiği için, o satır durursa v10'a geçildiği an
+# hook patlar ve TÜM commit'ler bloklanır. Uyarının "WILL FAIL in v10.0.0"
+# demesinin sebebi bu.
+#
+# Bu biçim hem husky 9 hem husky 10 ile çalışır.
+#
+# ── v10'a yükseltme durumu (2026-09-09'da doğrulandı) ─────────────────────
+# husky 10 **YAYINLANMADI**. Üç ayrı yoldan teyit edildi:
+#   npm install -D husky@^10  → ETARGET "No matching version found for husky@10"
+#   npm view husky version    → 9.1.7
+#   npm view husky dist-tags  → { latest: '9.1.7' }   (next/beta/canary YOK)
+# Yani yukarıdaki uyarının atıf yaptığı "v10.0.0" henüz var olmayan bir
+# sürümdü. Yükseltmeyi yeniden denemeden önce `npm view husky dist-tags`
+# ile kontrol edin; `package.json`'daki aralığı `^10` yapmak şu an herkesin
+# `npm install`'unu kırar.
+#
+# v10 çıktığında BU DOSYADA değişiklik gerekmeyecek (yukarıdaki nedenlerle
+# zaten uyumlu). Doğrulanması gereken tek şey `package.json`'daki prepare
+# scripti: `cd .. && husky mobile/.husky` — CLI'ın dizin argümanını v10'da da
+# kabul edip etmediği burada DOĞRULANAMADI, çünkü v10 mevcut değil.
+#
+# Yükseltme sonrası bu hook'un commit'i hâlâ BLOKLADIĞI test edilmeli.
+# ⚠️ Test için fix'LENEBİLİR bir hata (ör. unused import) KULLANILMAMALI:
+# lint-staged `eslint --fix` çalıştırdığı için hata otomatik silinir, commit
+# başarılı olur ve "kapı çalışıyor" sanılır. Fix'LENEMEYEN bir hata (ör.
+# sözdizimi hatası) kullanılmalı — bu dosya yazılırken her ikisi de denendi
+# ve ancak ikincisi bloklamayı kanıtladı.
+#
+# ── `cd mobile` NEDEN ZORUNLU (kaldırmayın) ───────────────────────────────
+# Git hook'ları depo KÖKÜNDE çalıştırır. `_/h` PATH'e göreli olarak
+# `node_modules/.bin` ekliyor ama kökte node_modules YOK (proje mobile/
+# altında). lint-staged yapılandırması da `mobile/package.json`'da. Bu yüzden
+# hem `npx`'in doğru node_modules'ü çözmesi hem de lint-staged'in kendi
+# yapılandırmasını bulması için önce mobile/'e geçmek gerekiyor.
 
 cd mobile && npx lint-staged

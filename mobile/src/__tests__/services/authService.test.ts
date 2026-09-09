@@ -1,8 +1,3 @@
-/**
- * Auth Service Tests
- * Tests for Firebase Authentication and Google Sign-In
- */
-
 import {
   registerWithEmail,
   loginWithEmail,
@@ -11,6 +6,7 @@ import {
   deleteAccount,
   getCurrentUser,
   subscribeToAuthChanges,
+  updateUserDisplayName,
 } from '../../services/authService';
 
 // Mock Firebase Auth
@@ -37,10 +33,25 @@ jest.mock('firebase/auth', () => ({
   signInWithCredential: jest.fn(),
 }));
 
+const mockDoc = jest.fn();
+const mockSetDoc = jest.fn().mockResolvedValue(undefined);
+const mockServerTimestamp = jest.fn(() => 'MOCK_TIMESTAMP');
+
+jest.mock('firebase/firestore', () => ({
+  doc: (...args: unknown[]) => mockDoc(...args),
+  setDoc: (...args: unknown[]) => mockSetDoc(...args),
+  serverTimestamp: () => mockServerTimestamp(),
+}));
+
 // Mock Firebase Config
-const mockAuth = { currentUser: null };
+const mockAuth = { currentUser: null as any };
 jest.mock('../../config/firebase', () => ({
-  auth: { currentUser: null },
+  auth: {
+    get currentUser() {
+      return mockAuth.currentUser;
+    },
+  },
+  db: {},
 }));
 
 // Mock Google Sign-In
@@ -62,6 +73,13 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
 }));
 
 // Mock react-native-config
+// v1.8.4: Hesap silme artik sunucudaki `deleteMyAccount` cagrilabilir
+// fonksiyonuna devrediliyor; bu modul o kapinin istemci sarmalayicisi.
+const mockRequestServerAccountDeletion = jest.fn();
+jest.mock('../../services/accountDeletionService', () => ({
+  requestServerAccountDeletion: (...args: unknown[]) => mockRequestServerAccountDeletion(...args),
+}));
+
 jest.mock('react-native-config', () => ({
   GOOGLE_WEB_CLIENT_ID: 'test-web-client-id',
   GOOGLE_ANDROID_CLIENT_ID: 'test-android-client-id',
@@ -169,25 +187,65 @@ describe('AuthService', () => {
     });
   });
 
+  /**
+   * v1.8.4 — Bu blok, artık YAPILMAMASI gereken davranışı sabitliyordu.
+   *
+   * Eski `deleteAccount()` yalnızca Firebase Auth `deleteUser` çağırıyordu.
+   * Auth kaydı silinince `request.auth.uid` bir daha var olmaz, ama
+   * Firestore'daki `users/{uid}` alt ağacı yerinde kalır ve kurallar erişimi
+   * o uid'e bağladığı için o sağlık verisi bir daha HİÇ KİMSE tarafından
+   * okunamaz veya silinemez. Testin "should delete current user" adı bu
+   * kusuru DOĞRU DAVRANIŞ gibi gösteriyordu.
+   *
+   * Silme artık sunucudaki `deleteMyAccount` çağrılabilir fonksiyonuna
+   * devrediliyor; burada doğrulanan şey `deleteUser`ın ARTIK ÇAĞRILMADIĞI
+   * ve işin tek kapıdan geçtiği.
+   *
+   * Akışın sıra garantileri (sunucu -> yerel -> çıkış, ve sunucu
+   * başarısızsa yerel verinin KORUNMASI) ayrı dosyada:
+   * `src/__tests__/hooks/useAccountDeletion.test.tsx`
+   */
   describe('deleteAccount', () => {
-    it('should delete current user', async () => {
-      const mockUser = { uid: 'test-uid' };
-      mockAuth.currentUser = mockUser as unknown as typeof mockAuth.currentUser;
-      mockDeleteUser.mockResolvedValueOnce(undefined);
+    it('silmeyi SUNUCUYA devreder', async () => {
+      mockAuth.currentUser = { uid: 'test-uid' } as unknown as typeof mockAuth.currentUser;
+      mockRequestServerAccountDeletion.mockResolvedValueOnce({ success: true });
 
       await expect(deleteAccount()).resolves.not.toThrow();
+
+      expect(mockRequestServerAccountDeletion).toHaveBeenCalledTimes(1);
     });
 
-    it('should not throw if no current user', async () => {
-      mockAuth.currentUser = null;
+    it('Firebase Auth deleteUser ARTIK cagrilmiyor', async () => {
+      mockAuth.currentUser = { uid: 'test-uid' } as unknown as typeof mockAuth.currentUser;
+      mockRequestServerAccountDeletion.mockResolvedValueOnce({ success: true });
 
-      await expect(deleteAccount()).resolves.not.toThrow();
+      await deleteAccount();
+
+      // Istemciden Auth kaydini silmek, Firestore'daki saglik verisini
+      // ULASILAMAZ halde birakiyordu. Bu iddia o yola geri donulmesini
+      // engelliyor.
+      expect(mockDeleteUser).not.toHaveBeenCalled();
+    });
+
+    it('sunucu hatasini YUTMUYOR', async () => {
+      // Eski surumde hata `translateAuthError` ile Turkce bir metne
+      // ceviriliyordu; artik cagiran taraf (useAccountDeletion) hatayi
+      // gormek ZORUNDA, cunku yerel veriyi silip silmeyecegine ona gore
+      // karar veriyor.
+      mockRequestServerAccountDeletion.mockRejectedValueOnce(new Error('network'));
+
+      await expect(deleteAccount()).rejects.toThrow('network');
     });
   });
 
   describe('getCurrentUser', () => {
     it('should return null when no user logged in', () => {
-      // Test that function handles null case gracefully
+      // v1.8.4: Bu test kendi ON KOSULUNU kurmuyordu; `mockAuth.currentUser`
+      // yalnizca ONCEKI describe blogunun son testi onu `null` biraktigi
+      // icin null'di. Yani test SIRAYA bagliydi ve yukarida bir test
+      // eklenince kirildi. Artik on kosul burada, acikca kuruluyor.
+      mockAuth.currentUser = null;
+
       const result = getCurrentUser();
 
       // Since auth is mocked with currentUser: null, this should return null
@@ -204,6 +262,50 @@ describe('AuthService', () => {
       const unsubscribe = subscribeToAuthChanges(mockCallback);
 
       expect(typeof unsubscribe).toBe('function');
+    });
+  });
+
+  describe('updateUserDisplayName', () => {
+    it('should update display name in Firebase Auth and Firestore', async () => {
+      const mockUser = {
+        uid: 'user-789',
+        email: 'user@example.com',
+        displayName: 'Old Name',
+        photoURL: null,
+        reload: mockReload.mockResolvedValue(undefined),
+      };
+      mockAuth.currentUser = mockUser;
+      mockDoc.mockReturnValue('mock-user-doc-ref');
+
+      const result = await updateUserDisplayName('Yeni Enes');
+
+      expect(mockUpdateProfile).toHaveBeenCalledWith(mockUser, { displayName: 'Yeni Enes' });
+      expect(mockReload).toHaveBeenCalled();
+      expect(mockDoc).toHaveBeenCalledWith(expect.anything(), 'users', 'user-789');
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        'mock-user-doc-ref',
+        {
+          displayName: 'Yeni Enes',
+          name: 'Yeni Enes',
+          updatedAt: 'MOCK_TIMESTAMP',
+        },
+        { merge: true }
+      );
+      expect(result.displayName).toBe('Yeni Enes');
+    });
+
+    it('should throw error when no user logged in', async () => {
+      mockAuth.currentUser = null;
+
+      await expect(updateUserDisplayName('Yeni İsim')).rejects.toThrow(
+        'Oturum açmış kullanıcı bulunamadı'
+      );
+    });
+
+    it('should throw error when name is empty', async () => {
+      mockAuth.currentUser = { uid: 'user-123' };
+
+      await expect(updateUserDisplayName('   ')).rejects.toThrow('Kullanıcı adı boş olamaz');
     });
   });
 

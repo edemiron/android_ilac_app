@@ -17,6 +17,7 @@ interface WidgetMedicine {
   name: string;
   time: string;
   dosage: string;
+  instruction?: string;
   reminderTimeId: string;
   color: number;
   isTaken: boolean;
@@ -76,6 +77,7 @@ function formatMedicinesForWidget(
           name: medicine.name,
           time: time.time,
           dosage: medicine.dosage || '',
+          instruction: medicine.instructions || '',
           reminderTimeId: time.id,
           color: parseInt((medicine.color ?? '4ecdc4').replace('#', ''), 16) || 0xff4ecdc4,
           isTaken,

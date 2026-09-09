@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   itemSubtitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     marginTop: 2,
   },

@@ -6,6 +6,7 @@
  */
 import { format } from 'date-fns';
 import { generateId } from './idGenerator';
+import { isMedicineScheduledForDate } from './timeCalculator';
 import { Medicine, ReminderTime, MedicineLog } from '../types';
 
 /**
@@ -34,16 +35,14 @@ export function markMissedReminders(
   const missedLogs: MedicineLog[] = [];
   const today = format(now, 'yyyy-MM-dd');
 
-  // Get active medicine IDs
-  const activeMedicineIds = new Set(
-    medicines
-      .filter((m) => m.isActive)
-      .map((m) => m.id)
+  // Map active medicines
+  const activeMedicineMap = new Map<string, Medicine>(
+    medicines.filter(m => m.isActive).map(m => [m.id, m])
   );
 
   // Get today's logs by reminderTimeId for quick lookup
   const todayLogsByReminderId = new Map<string, MedicineLog>();
-  existingLogs.forEach((log) => {
+  existingLogs.forEach(log => {
     if (log.scheduledTime.startsWith(today)) {
       todayLogsByReminderId.set(log.reminderTimeId, log);
     }
@@ -51,13 +50,19 @@ export function markMissedReminders(
 
   // Check each enabled reminder time
   for (const reminderTime of reminderTimes) {
+    const medicine = activeMedicineMap.get(reminderTime.medicineId);
     // Skip if medicine is not active
-    if (!activeMedicineIds.has(reminderTime.medicineId)) {
+    if (!medicine) {
       continue;
     }
 
     // Skip if reminder is disabled
     if (!reminderTime.isEnabled) {
+      continue;
+    }
+
+    // Klinik Doğruluk: İlaç bugün için planlanmamışsa (özel günler, aralıklı, döngü vb.) kaçırıldı sayma
+    if (!isMedicineScheduledForDate(medicine, now)) {
       continue;
     }
 

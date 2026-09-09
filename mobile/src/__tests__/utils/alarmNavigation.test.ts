@@ -38,20 +38,50 @@ describe('alarmNavigation utils', () => {
       // Dakika seviyesinde — ayni dakika icinde ayni key
     });
 
-    it('produces different keys for different minutes', () => {
+    /**
+     * ⚠️ v1.7.4 — BU TEST ESKIDEN HATAYI SABITLIYORDU.
+     * Adi "produces different keys for different minutes" idi ve
+     * `expect(key1).not.toBe(key2)` diyordu. Yani anahtarin duvar saati
+     * dakikasina baglı olmasi BILEREK dogrulaniyordu. Oysa ayni calmanin
+     * girisleri saniyeler arayla gelir; calma dakika sinirina denk gelince
+     * iki yol iki FARKLI anahtar uretiyor, tekillestirme tutmuyor ve alarm
+     * ekrani ust uste iki kez aciliyordu (bkz. utils/notifications/alarmDedup.ts).
+     * Dogru iddia bunun TERSI: anahtar YALNIZCA dozun kimligine baglidir.
+     */
+    it('ayni doz icin anahtar duvar saatinden BAGIMSIZDIR (dakika siniri regresyonu)', () => {
       const data: AlarmNavigationData = {
         medicineId: 'med-1',
         reminderTimeId: 'rt-1',
         scheduledTime: '2024-06-25T08:00:00Z',
       };
-      const key1 = getAlarmKey(data, new Date('2024-06-25T08:00:00Z'));
-      const key2 = getAlarmKey(data, new Date('2024-06-25T08:01:00Z'));
-      expect(key1).not.toBe(key2);
+      const key1 = getAlarmKey(data, new Date('2024-06-25T08:00:59.800Z'));
+      const key2 = getAlarmKey(data, new Date('2024-06-25T08:01:00.300Z'));
+      expect(key1).toBe(key2);
+      expect(key1).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    });
+
+    it('erteleme calmasi ana alarmdan ayri anahtar alir', () => {
+      const base: AlarmNavigationData = {
+        medicineId: 'med-1',
+        reminderTimeId: 'rt-1',
+        scheduledTime: '2024-06-25T08:00:00Z',
+      };
+      const now = new Date('2024-06-25T08:00:30Z');
+      expect(getAlarmKey({ ...base, isSnooze: 'true', snoozeId: 'sn-1' }, now)).not.toBe(
+        getAlarmKey(base, now)
+      );
     });
   });
 
   describe('getNotificationIdForAlarmData', () => {
-    it('returns snooze ID when isSnooze is true', () => {
+    /**
+     * v1.7.1: eskiden 2 parametreli `snooze-<med>-<rt>` uretiliyordu ve bu test
+     * o degeri PINLIYORDU. Ama `scheduleSnoozeNotification` (ve boot geri
+     * yuklemesi) bildirimi 3 parametreli `snooze-<med>-<rt>-<snoozeId>`
+     * kimligiyle olusturuyor — yani `dismissCurrentNotification` var olmayan
+     * bir kimligi iptal ediyor, erteleme bildirimi ekranda kaliyordu.
+     */
+    it('returns the 3-part snooze ID (matches the notification actually created)', () => {
       const data: AlarmNavigationData = {
         medicineId: 'med-1',
         reminderTimeId: 'rt-1',
@@ -59,7 +89,7 @@ describe('alarmNavigation utils', () => {
         isSnooze: 'true',
         snoozeId: 'snooze-1',
       };
-      expect(getNotificationIdForAlarmData(data)).toBe('snooze-med-1-rt-1');
+      expect(getNotificationIdForAlarmData(data)).toBe('snooze-med-1-rt-1-snooze-1');
     });
 
     it('returns alarm ID when isSnooze is false or missing', () => {
@@ -74,8 +104,9 @@ describe('alarmNavigation utils', () => {
 
   describe('hasAlarmBeenLoggedToday', () => {
     it('returns true when log exists for today with taken status', () => {
-      const logs = [
+      const logs: AlarmNavigationStore['medicineLogs'] = [
         {
+          medicineId: 'med-1',
           reminderTimeId: 'rt-1',
           scheduledTime: '2024-06-25T08:00:00Z',
           status: 'taken',
@@ -98,12 +129,53 @@ describe('alarmNavigation utils', () => {
       expect(hasAlarmBeenLoggedToday([], data, new Date('2024-06-25T10:00:00Z'))).toBe(false);
     });
 
-    it('returns false when log exists but for different reminderTimeId', () => {
-      const logs = [
+    // ⚠️ v1.7.4 REGRESYON — bu test eskiden YANLIS POZITIF geciyordu.
+    // Fixture'da `medicineId` YOKTU (tip de zorunlu tutmuyordu), kod ise
+    // `(log as any).medicineId === data.medicineId` OR dalina bakiyordu.
+    // Gercek hayatta `medicineId` her logda dolu oldugu icin bu senaryo
+    // (ayni ilacin SABAH dozu alinmis, AKSAM dozu bekliyor) uretimde `true`
+    // donuyor ve aksam alarmi hic calmiyordu. Fixture artik gercekci.
+    it('returns false when log exists but for different reminderTimeId (ayni ilacin baska dozu)', () => {
+      const logs: AlarmNavigationStore['medicineLogs'] = [
         {
+          medicineId: 'med-1',
           reminderTimeId: 'rt-OTHER',
           scheduledTime: '2024-06-25T08:00:00Z',
           status: 'taken',
+        },
+      ];
+      const data: AlarmNavigationData = {
+        medicineId: 'med-1',
+        reminderTimeId: 'rt-1',
+        scheduledTime: '2024-06-25T20:00:00Z',
+      };
+      expect(hasAlarmBeenLoggedToday(logs, data, new Date('2024-06-25T20:00:00Z'))).toBe(false);
+    });
+
+    it('atlanan doz da cozumlenmis sayilir (ayni reminderTimeId)', () => {
+      const logs: AlarmNavigationStore['medicineLogs'] = [
+        {
+          medicineId: 'med-1',
+          reminderTimeId: 'rt-1',
+          scheduledTime: '2024-06-25T08:00:00Z',
+          status: 'skipped',
+        },
+      ];
+      const data: AlarmNavigationData = {
+        medicineId: 'med-1',
+        reminderTimeId: 'rt-1',
+        scheduledTime: '2024-06-25T08:00:00Z',
+      };
+      expect(hasAlarmBeenLoggedToday(logs, data, new Date('2024-06-25T10:00:00Z'))).toBe(true);
+    });
+
+    it('bekleyen (pending) log alarmi susturmaz', () => {
+      const logs: AlarmNavigationStore['medicineLogs'] = [
+        {
+          medicineId: 'med-1',
+          reminderTimeId: 'rt-1',
+          scheduledTime: '2024-06-25T08:00:00Z',
+          status: 'pending',
         },
       ];
       const data: AlarmNavigationData = {
@@ -141,11 +213,7 @@ describe('alarmNavigation utils', () => {
       const store: AlarmNavigationStore = {
         getMedicineById: jest.fn().mockReturnValue(mockMedicine),
         getReminderTimesForMedicine: jest.fn().mockReturnValue([mockReminderTime]),
-        medicineLogs: [] as unknown as Array<{
-          reminderTimeId: string;
-          scheduledTime: string;
-          status: string;
-        }>,
+        medicineLogs: [],
         snoozes: [] as Snooze[],
         setAlarmActive: jest.fn(),
         deactivateSnooze: jest.fn(),
@@ -244,11 +312,7 @@ describe('alarmNavigation utils', () => {
       const deps = makeDeps({
         storeState: {
           ...makeDeps().storeState,
-          medicineLogs: [loggedToday] as unknown as Array<{
-            reminderTimeId: string;
-            scheduledTime: string;
-            status: string;
-          }>,
+          medicineLogs: [loggedToday],
           snoozes: [snooze],
         },
       });
@@ -307,6 +371,8 @@ describe('alarmNavigation utils', () => {
         scheduledTime: '2024-06-25T08:00:00Z',
         snoozeCount: undefined,
         originalScheduledTime: undefined,
+        isSnooze: undefined,
+        snoozeId: undefined,
       });
       expect(deps.scheduleAlarmKeyCleanup).toHaveBeenCalledTimes(1);
       expect(deps.storeState.setAlarmActive).toHaveBeenCalledWith(
@@ -332,6 +398,32 @@ describe('alarmNavigation utils', () => {
       expect(deps.navigateToAlarmScreen).toHaveBeenCalledWith(
         expect.objectContaining({ snoozeCount: 3 })
       );
+    });
+
+    it('rejects premature alarms scheduled > 15 minutes in the future', async () => {
+      // Alarm 12:00'de ama su an 08:00 (4 saat once sahte tetikleme geldi)
+      const mockReminder12: ReminderTime = {
+        ...mockReminderTime,
+        id: 'rt-12',
+        time: '12:00',
+      };
+      const deps = makeDeps({
+        now: () => new Date('2024-06-25T08:00:00Z'),
+        storeState: {
+          ...makeDeps().storeState,
+          getReminderTimesForMedicine: jest.fn().mockReturnValue([mockReminder12]),
+        },
+      });
+      const prematureData: AlarmNavigationData = {
+        medicineId: 'med-1',
+        reminderTimeId: 'rt-12',
+        scheduledTime: '2024-06-25T12:00:00Z',
+      };
+
+      const result = await handleIncomingAlarmNavigation(prematureData, deps);
+
+      expect(result).toBe('dismissed');
+      expect(deps.navigateToAlarmScreen).not.toHaveBeenCalled();
     });
 
     it('returns "navigated" in test mode without store checks', async () => {
