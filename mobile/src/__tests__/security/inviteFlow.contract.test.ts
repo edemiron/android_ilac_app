@@ -201,13 +201,22 @@ describe('K1/K2 — sunucu kabul yolu güvenlik kontrolleri', () => {
   it('⚠️ KURAL HÂLÂ AÇIK: `allow get` daraltılmadı (yayılıma kapılı)', () => {
     // Bu test BİLİNÇLİ olarak mevcut durumu BELGELİYOR, onaylamıyor.
     // `allow get: if isNotAnonymous()` hâlâ açık; brute-force ancak bu kural
-    // `resource.data.patientId == request.auth.uid` ile daraltıldığında biter.
+    // `resource.data.patientId == request.auth.uid` ile daraltıldığında biter
+    // (enumeration callable üzerinden değil doğrudan `getDoc` ile yürüyor,
+    // yani rate-limit onu durdurmuyor).
+    //
     // Daraltmak, callable'ları kullanmayan ESKİ istemcileri anında kırar
     // (kabul akışında getDoc yapıyorlardı) — bu yüzden yayılım bekleniyor.
     //
-    // Bu assertion, daraltma yapıldığında KIRILACAK ve o zaman bu test
-    // güncellenip "kapalı" durumuna çevrilmeli. Yani yayılım adımının
-    // unutulmasını da engelliyor.
+    // 📅 TAM PLAN: docs/DAVET_KODU_ALLOW_GET_DARALTMA_YAYILIM_PLANI.md
+    //    (eşikler, 3 test dosyasındaki zorunlu değişiklikler, emülatör
+    //    doğrulama sırası, geri alma adımları, Go/No-Go listesi)
+    //
+    // Bu assertion İKİ YÖNLÜ çalışıyor:
+    //   1. Biri ERKEN daraltırsa kırılır → sahadaki eski sürümler
+    //      kırılmadan önce fark edilir.
+    //   2. Zamanı gelip daraltıldığında YİNE kırılır → planın §5.2(c) adımı
+    //      hatırlatılır ve daraltmanın "unutulması" imkânsız hale gelir.
     const rules = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
     const invite = /match \/caregiverInvites\/\{inviteCode\}\s*\{([\s\S]*?)\n {4}\}/.exec(rules);
     expect(invite?.[1]).toMatch(/allow get: if isNotAnonymous\(\);/);
