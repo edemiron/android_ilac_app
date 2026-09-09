@@ -13,7 +13,11 @@ import { db } from '../config/firebase';
 import { Medicine, ReminderTime, MedicineLog, UserSettings } from '../types';
 import { createScopedLogger } from '../utils/logger';
 // Silme kayitlarinin (tombstone) tek kaynagi — bkz. domain/deletions.ts.
-import { normalizeDeletions, type DeletionRegistries } from '../domain/deletions';
+import {
+  normalizeDeletions,
+  type DeletionRegistries,
+  type DeletionRegistry,
+} from '../domain/deletions';
 // Hangi ayarin buluta gidip gitmedigi TEK KAYNAK: domain/settingsScope.ts
 import { DEVICE_LOCAL_SETTING_KEYS, isDeviceLocalSettingKey } from '../domain/settingsScope';
 // Sprint 7.2: DRY — stores/helpers/sanitize.ts'ten sanitizeString + sanitizeForFirestore
@@ -117,7 +121,11 @@ async function executeBatches(
  * STRATEJI: Sil-tümünü-ekle yerine, sadece değişenleri güncelle
  * Bu veri kaybı riskini ortadan kaldırır
  */
-export async function syncMedicinesToCloud(userId: string, medicines: Medicine[]): Promise<void> {
+export async function syncMedicinesToCloud(
+  userId: string,
+  medicines: Medicine[],
+  deletedIds?: DeletionRegistry
+): Promise<void> {
   const medicinesRef = buildMedicinesCollectionRef(firestoreDb, userId);
 
   // Mevcut verileri çek
@@ -128,11 +136,32 @@ export async function syncMedicinesToCloud(userId: string, medicines: Medicine[]
   const operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }> =
     [];
 
-  // Silinmiş ilaçları bul ve silme operasyonu ekle
+  // ⚠️ Y1 — silme artık TOMBSTONE'A BAĞLI, "local'de yok" demek değil.
+  //
+  // Eski kod, bulutta olup LOCAL LİSTEDE OLMAYAN her dokümanı siliyordu.
+  // `medicineStore` her mutasyonda `scheduleBackgroundSync(() => syncToCloud())`
+  // çağırıyor ve ÖNCESİNDE `syncFromCloud` ZORUNLULUĞU YOK. Yani:
+  //
+  //   Tablet yeni ilaç ekler → buluta yazar.
+  //   Telefon o gün hiç açılmamış (local liste bayat); kullanıcı telefonda
+  //   TEK BİR ayar değiştirir → syncToCloud → tabletin ilacı (ve
+  //   hatırlatmaları) BULUTTAN SİLİNİR → tablet sonraki açılışta ilacı kaybeder.
+  //
+  // Sonuç sessiz ilaç/alarm kaybı = kaçırılan doz. Tombstone sistemi
+  // (`domain/deletions.ts`, v1.7.8) yalnızca KASITLI silmeleri taşır; bu yol
+  // onu bypass ediyordu.
+  //
+  // Yeni kural: yalnızca KASITLI silinmiş (tombstone'u olan) dokümanlar
+  // buluttan kaldırılır. Tombstone'u olmayan bir eksik "bu cihaz bilmiyor"
+  // demektir, "silinmiş" değil — dokümana DOKUNULMAZ ve bir sonraki
+  // `syncFromCloud` onu bu cihaza getirir.
   existingDocs.forEach((docSnapshot, id) => {
-    if (!newIds.has(id)) {
-      operations.push({ type: 'delete', ref: docSnapshot.ref });
+    if (newIds.has(id)) return;
+    if (!deletedIds || !(id in deletedIds)) {
+      log.debug("Bulutta local'de olmayan ama tombstone'u da olmayan ilaç korundu", { id });
+      return;
     }
+    operations.push({ type: 'delete', ref: docSnapshot.ref });
   });
 
   // Ekle/Güncelle operasyonları
@@ -234,7 +263,8 @@ export async function getMedicinesFromCloud(userId: string): Promise<Medicine[]>
  */
 export async function syncReminderTimesToCloud(
   userId: string,
-  reminderTimes: ReminderTime[]
+  reminderTimes: ReminderTime[],
+  deletedIds?: DeletionRegistry
 ): Promise<void> {
   const timesRef = buildReminderTimesCollectionRef(firestoreDb, userId);
 
@@ -246,11 +276,17 @@ export async function syncReminderTimesToCloud(
   const operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }> =
     [];
 
-  // Silinmiş zamanları bul
+  // ⚠️ Y1 — `syncMedicinesToCloud` ile aynı gerekçe: yalnızca TOMBSTONE'u
+  // olan hatırlatmalar silinir. Bayat bir cihaz başka cihazın eklediği
+  // hatırlatma saatlerini buluttan silemez. Hatırlatma kaybı doğrudan
+  // alarm kaybı demek olduğu için bu yol ilaçlardan bile daha kritik.
   existingDocs.forEach((docSnapshot, id) => {
-    if (!newIds.has(id)) {
-      operations.push({ type: 'delete', ref: docSnapshot.ref });
+    if (newIds.has(id)) return;
+    if (!deletedIds || !(id in deletedIds)) {
+      log.debug("Bulutta local'de olmayan ama tombstone'u da olmayan hatirlatma korundu", { id });
+      return;
     }
+    operations.push({ type: 'delete', ref: docSnapshot.ref });
   });
 
   // Ekle/Güncelle
@@ -300,17 +336,41 @@ export async function syncMedicineLogsToCloud(userId: string, logs: MedicineLog[
   // Mevcut verileri çek
   const existingSnapshot = await getDocs(logsRef);
   const existingDocs = new Map(existingSnapshot.docs.map(d => [d.id, d]));
-  const newIds = new Set(recentLogs.map(l => l.id));
+  // NOT: eskiden burada `const newIds = new Set(recentLogs.map(l => l.id))`
+  // vardı ve YALNIZCA aşağıdaki (kaldırılan) toplu-silme döngüsü kullanıyordu.
+  // Silme kalkınca değişken de kalktı — bkz. aşağıdaki Y2 açıklaması.
 
   const operations: Array<{ type: 'set' | 'delete'; ref: ReturnType<typeof doc>; data?: unknown }> =
     [];
 
-  // Silinmiş logları bul
-  existingDocs.forEach((docSnapshot, id) => {
-    if (!newIds.has(id)) {
-      operations.push({ type: 'delete', ref: docSnapshot.ref });
-    }
-  });
+  // ⚠️ Y2 — BURADA ARTIK HİÇBİR ŞEY SİLİNMİYOR.
+  //
+  // Eski kod şuydu:
+  //   existingDocs.forEach((docSnapshot, id) => {
+  //     if (!newIds.has(id)) operations.push({ type: 'delete', ... });
+  //   });
+  // `newIds` yalnızca 30 GÜNLÜK filtreli `recentLogs`'tan kurulduğu için bu
+  // döngü **31+ günlük tüm bulut doz geçmişini her full-sync'te aktif olarak
+  // siliyordu.** Sonuç: cihaz değişimi / veri temizleme / yeniden kurulumda
+  // 30 günden eski doz geçmişi, adherans istatistikleri ve PDF hekim
+  // raporları için gereken veri KALICI olarak yok oluyordu. Yerel
+  // `medicineLogs` sınırsız büyürken bulut kopyasının budanması asimetrik ve
+  // belgelenmemiş bir veri kaybıydı.
+  //
+  // Neden silme tamamen kaldırıldı (30 gün filtresi KORUNDU):
+  //   - `medicineLogs` klinik bir KAYITTIR. K3 ile bakıcı yolu zaten
+  //     append-only yapıldı; bulut tarafında toplu silme bu ilkeyle çelişir.
+  //   - `DeletionRegistries` yalnızca `medicines` ve `reminderTimes` içerir —
+  //     loglar için tombstone YOK, yani "kullanıcı sildi" sinyali zaten
+  //     taşınmıyor. Tombstone'u olmayan bir silmeyi buluta yaymak tahmindir.
+  //   - 30 günlük yükleme filtresi kalsa bile bulut ZAMANLA TÜM GEÇMİŞİ
+  //     BİRİKTİRİR: her sync o anki son-30-gün penceresini yükler, silme
+  //     olmadığı için önceki pencereler kalır. Yani arşiv kendiliğinden
+  //     oluşur ve ilk-sync hacmi büyümeyen şekilde korunur.
+  //
+  // Hastanın tekil bir logu silmesi hâlâ mümkün (firestore.rules:
+  // `allow delete: if isOwner(userId)`) — kaldırılan yalnızca senkronun
+  // TOPLU silmesi.
 
   // Ekle/Güncelle
   recentLogs.forEach(log => {
@@ -551,8 +611,12 @@ export async function uploadAllDataToCloud(userId: string, data: SyncData): Prom
   try {
     await withTimeout(
       Promise.all([
-        syncMedicinesToCloud(userId, data.medicines),
-        syncReminderTimesToCloud(userId, data.reminderTimes),
+        // ⚠️ Y1 — tombstone kayıtları silme kararının TEK dayanağı.
+        // `syncDeletionsToCloud` bunları buluta YÜKLÜYOR; burada ise
+        // buluttan neyin SİLİNEBİLECEĞİNİ belirliyorlar. İkisi birlikte
+        // "local'de yok ⇒ sil" tahminini ortadan kaldırıyor.
+        syncMedicinesToCloud(userId, data.medicines, data.deletions?.medicines),
+        syncReminderTimesToCloud(userId, data.reminderTimes, data.deletions?.reminderTimes),
         syncMedicineLogsToCloud(userId, data.medicineLogs),
         syncSettingsToCloud(userId, data.settings),
         // v1.7.8: silme kayitlari da yuklenir; yoksa diger cihaz silinen

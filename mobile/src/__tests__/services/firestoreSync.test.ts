@@ -132,7 +132,33 @@ describe('Firestore Sync Service', () => {
       expect(mockBatch.delete).not.toHaveBeenCalled();
     });
 
-    it('should delete medicines that no longer exist locally', async () => {
+    it('⚠️ Y1: tombstone OLMADAN buluttaki ilacı SİLMEMELİ (bayat cihaz koruması)', async () => {
+      // Bulutta bu cihazın HİÇ GÖRMEDİĞİ bir ilaç var (ör. tablet ekledi).
+      const cloudOnlyId = 'med-other-device';
+      const existingDoc = {
+        id: cloudOnlyId,
+        ref: { id: cloudOnlyId },
+        data: () => ({ id: cloudOnlyId, name: 'Tabletin eklediği ilaç' }),
+      };
+
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [existingDoc],
+        forEach: function (cb: Function) {
+          cb(existingDoc);
+        },
+      });
+
+      // Bu cihaz `cloudOnlyId`'yi bilmiyor ve tombstone'u da YOK.
+      //   ESKİ davranış: sil → başka cihazın ilacı BULUTTAN KAYBOLUR.
+      //   YENİ davranış: dokunma → bir sonraki syncFromCloud bu cihaza getirir.
+      // Silme kararı "local'de yok" tahminine değil, KASITLI silme kaydına
+      // (domain/deletions.ts tombstone) dayanmak zorunda.
+      await syncMedicinesToCloud(userId, [mockMedicine]);
+
+      expect(mockBatch.delete).not.toHaveBeenCalled();
+    });
+
+    it('⚠️ Y1: tombstone VARSA kasıtlı silme buluta yansıtılmalı', async () => {
       const deletedMedicineId = 'med-deleted';
       const existingDoc = {
         id: deletedMedicineId,
@@ -147,10 +173,12 @@ describe('Firestore Sync Service', () => {
         },
       });
 
-      // Send only med-1, not the deleted one
-      await syncMedicinesToCloud(userId, [mockMedicine]);
+      // Tombstone verildiğinde silme GERÇEKLEŞMELİ — aksi halde diğer cihaz
+      // silinen ilacı geri diriltir (v1.7.8'de çözülen hayalet-alarm kusuru).
+      await syncMedicinesToCloud(userId, [mockMedicine], {
+        [deletedMedicineId]: new Date().toISOString(),
+      });
 
-      // Should delete the one not in local array
       expect(mockBatch.delete).toHaveBeenCalledTimes(1);
       expect(mockBatch.commit).toHaveBeenCalled();
     });
@@ -232,6 +260,51 @@ describe('Firestore Sync Service', () => {
       await syncMedicineLogsToCloud(userId, [oldLog, recentLog]);
 
       // Should only set the recent log
+      expect(mockBatch.set).toHaveBeenCalledTimes(1);
+    });
+
+    it('⚠️ Y2: 30 günden eski BULUT loglarını SİLMEMELİ (arşiv koruması)', async () => {
+      // Bulutta 60 günlük bir doz kaydı var; yerel listede YOK (cihaz
+      // değişmiş, veri temizlenmiş veya uygulama yeniden kurulmuş olabilir).
+      const archivedId = 'log-archived';
+      const archivedDoc = {
+        id: archivedId,
+        ref: { id: archivedId },
+        data: () => ({
+          id: archivedId,
+          medicineId: 'med-1',
+          status: 'taken',
+          scheduledTime: new Date(Date.now() - 60 * 86_400_000).toISOString(),
+        }),
+      };
+
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [archivedDoc],
+        forEach: function (cb: Function) {
+          cb(archivedDoc);
+        },
+      });
+      mockDoc.mockReturnValue({ id: 'log-recent' });
+
+      const recentLog: MedicineLog = {
+        ...mockLog,
+        id: 'log-recent',
+        scheduledTime: new Date().toISOString(),
+      };
+      await syncMedicineLogsToCloud(userId, [recentLog]);
+
+      // ESKİ davranış: `newIds` yalnızca 30 GÜNLÜK filtreli setten kuruluyor
+      // ve onda olmayan HER bulut logu siliniyordu → her full-sync 31+ günlük
+      // tüm doz geçmişini KALICI olarak yok ediyordu. Cihaz değişiminde
+      // adherans istatistikleri ve PDF hekim raporu için gereken veri
+      // kayboluyordu; yerel `medicineLogs` sınırsız büyürken bulut
+      // kopyasının budanması asimetrik ve belgelenmemiş bir veri kaybıydı.
+      expect(mockBatch.delete).not.toHaveBeenCalled();
+
+      // Güncel log yine yüklenmeli — 30 günlük YÜKLEME filtresi korundu.
+      // Silme kalktığı için bulut zamanla tüm geçmişi BİRİKTİRİR: her sync o
+      // anki pencereyi yükler, önceki pencereler kalır. Yani arşiv kendiliğinden
+      // oluşur ve ilk-sync hacmi şişmez.
       expect(mockBatch.set).toHaveBeenCalledTimes(1);
     });
   });
